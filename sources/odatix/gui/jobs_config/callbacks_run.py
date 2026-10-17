@@ -31,10 +31,8 @@ from dash import ctx, Input, Output, State
 
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
-import odatix.lib.pnr_source as pnr_source
 from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.lib.parallel_job_handler import daemon_control
-from odatix.lib.settings import OdatixSettings
 from odatix.lib.utils import AUTO_NB_JOBS_KEYWORD
 
 from odatix.gui.jobs_config import prepare_state
@@ -178,18 +176,9 @@ def run_jobs(
     ):
         until_step = None
 
-    # arch_path for architecture modes, workflow_path for workflow mode
     run_context = _run_context(search, odatix_settings)
-    base_path = run_context["base_path"]
-    target_path = settings.get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
-    work_path_root = settings.get("work_path", OdatixSettings.DEFAULT_WORK_PATH)
-    # Per-job export destination + options (au fil de l'eau, see prepare_* funcs).
-    result_path = settings.get("result_path", OdatixSettings.DEFAULT_RESULT_PATH)
-    export_use_benchmark = bool(settings.get("use_benchmark", False))
-    export_benchmark_file = settings.get("benchmark_file") or None
 
     overwrite_enabled = _checklist_enabled(overwrite)
-    ask_continue_enabled = _checklist_enabled(ask_continue)
     exit_when_done_enabled = _checklist_enabled(exit_when_done)
 
     if _checklist_enabled(auto_nb_jobs):
@@ -281,15 +270,10 @@ def run_jobs(
         check_eda_tool=check_eda_tool,
     )
 
+    # Where a place & route finds its sources is the workspace's business: the
+    # run works it out (see odatix.run.flows.PnrFlow), as it does for a command.
     if run_mode == "fmax_synthesis":
         run_options["continue_on_error"] = True
-    elif run_mode == "pnr":
-        # Where each kind of job a place & route can start from keeps its
-        # results, under the work directory.
-        run_options["source_result_types"] = {
-            job_type: {"path": settings.get(f"{job_type}_work_path") or job_type}
-            for job_type in pnr_source.SOURCE_JOB_TYPES
-        }
     elif run_mode == "analyze":
         # Tools selected in the "Tools" tile; fall back to the ?tool=... url
         # tool. Equivalent to 'odatix analyze --tool <analysis_tool_list>'.

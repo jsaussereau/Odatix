@@ -25,6 +25,7 @@ and simulations).
 
 A task list is what the "tasks" key of a workflow's or a simulation's settings
 file holds: a list of mappings with a "name", a list of "commands", optional
+"on_failure_commands" run when one of them fails, optional
 "dependencies", an optional working "path", and optional "platforms". Several
 implementations of the same task name may coexist, each declaring the platforms
 it applies to; the one matching the current platform wins, falling back to the

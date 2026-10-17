@@ -1,0 +1,58 @@
+
+##############################################
+# Target settings for quartus
+##############################################
+
+constraint_file: constraints.sdc
+
+# Constraint files of your own, read on top of the timing constraint Odatix
+# writes itself in "constraint_file" above. That one is rewritten whole at every
+# iteration of an fmax search, which is why yours live in files of their own.
+#
+# An ".sdc" file is a timing constraint. A ".tcl" or ".qsf" file holds Quartus
+# assignments (set_location_assignment, set_instance_assignment...), sourced
+# into the project of the job: that is how a pinout is given.
+#
+# What is declared here is read by every target of this tool; what a target
+# declares under "target_settings" is added to it. A pinout belongs to a part or
+# to a board, so that is normally where it goes:
+#
+# constraints:
+#   - common_exceptions.sdc
+#
+# target_settings:
+#   A5ED065BB32AE6SR0:
+#     constraints:
+#       - files: [constraints/agilex5_board_pinout.tcl]
+#         scope: pnr     # "synthesis", "pnr", or "all" (the default)
+#
+# Quartus writes a programming file (the "bitstream" step) only for a design
+# whose every pin has a location and an I/O standard. The ports of a design are
+# virtual pins by default (see "virtual_pins" in the tool.yml of quartus): only
+# the clock and the reset are pins then, and need them, e.g.
+#   set_location_assignment PIN_F2 -to clock
+#   set_instance_assignment -name IO_STANDARD "1.2-V" -to clock
+#
+# Constraints belonging to a design rather than to a part go in the
+# "constraints" key of its architecture "_settings.yml" instead -- at its root
+# for what every job of it reads, or in an "overrides" rule for what only some
+# of them can read. All of them add up.
+
+# Quartus should be in your $PATH, or set this to your installation: the
+# directory holding qinit.sh, e.g. "/opt/altera/altera_pro/26.1.1"
+tool_install_path: ""
+
+force_single_thread: No # Setting this to 'Yes' may improve performance with a high number of parallel jobs
+
+script_copy_enable: No
+script_copy_source: "/dev/null"
+
+# FPGA target
+targets:
+  - A3CW135BM16AE6S       # Agilex 3
+  # - A3CY065BB18AE6S     # Agilex 3
+  # - A5EC013BB23AE4SR0   # Agilex 5 E-Series
+  # - A5ED065BB32AE6SR0   # Agilex 5 E-Series
+  # - A5DD064AB32BE1V     # Agilex 5 D-Series
+  # - AGFB014R24B2E2V     # Agilex 7 F-Series
+  # - AGIB027R31A1E1VB    # Agilex 7 I-Series

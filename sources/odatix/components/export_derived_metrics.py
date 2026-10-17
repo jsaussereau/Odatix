@@ -45,6 +45,7 @@ import odatix.lib.results_schema as results_schema
 import odatix.lib.results_cache as results_cache
 import odatix.lib.derived_metrics as derived_metrics_lib
 from odatix.lib.settings import OdatixSettings
+from odatix.components.cli_options import add_options
 
 script_name = os.path.basename(__file__)
 
@@ -52,14 +53,9 @@ RESULTS_FILE_EXTENSIONS = (".yml", ".yaml")
 
 
 def add_arguments(parser):
-  parser.add_argument("-r", "--respath", help="result path")
+  add_options(parser, "result_path")
   parser.add_argument("-d", "--derived", help="derived metrics definition file")
-  parser.add_argument(
-    "-c",
-    "--config",
-    default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
-  )
+  add_options(parser, "config")
 
 
 def parse_arguments():
@@ -123,6 +119,8 @@ def apply_derived_metrics(result_path, derived_metrics_file):
       bool: False when the definitions could not be applied at all.
   """
   config = derived_metrics_lib.load_derived_metrics(derived_metrics_file)
+  if not config.valid:
+    return False
 
   files, records, origins = load_pool(result_path)
   if len(files) == 0:
@@ -234,14 +232,14 @@ def run(settings=None, result_path=None, derived_metrics_file=None, config_file=
 def main(args, settings=None):
   if settings is None:
     settings = OdatixSettings(args.config)
-    if not settings.valid and args.respath is None:
+    if not settings.valid and args.result_path is None:
       printc.error(
         'Could not load settings from file "' + args.config + '" and the -r option is not used',
         script_name=script_name,
       )
       sys.exit(-1)
 
-  result_path = args.respath if args.respath is not None else settings.result_path
+  result_path = args.result_path if args.result_path is not None else settings.result_path
   derived_metrics_file = args.derived
   if derived_metrics_file is None:
     derived_metrics_file = derived_metrics_lib.default_derived_metrics_file(settings)

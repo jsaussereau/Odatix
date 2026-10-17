@@ -6,11 +6,16 @@
 label: "Verilator"
 description: "Open Source Verilator RTL analysis"
 icon: "assets/icons/verilator.png"
+icon_filter: true
 
 process_group: True
 
-# Default metrics file for this tool
-default_metrics_file: $eda_tools_path/genus/metrics.yml
+# No metrics file: an RTL analysis reports a status, errors and warnings, not
+# metrics read from reports.
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: lint
+
 unix:
 
   constants:
@@ -25,6 +30,17 @@ unix:
   analysis_command:
     - cd $work_path;
     - make -f $eda_tools_path/verilator/makefile.mk analyze
+
+##############################################
+# Flows
+##############################################
+# Different ways of running the same job type with this tool. The commands
+# declared in the platform sections above are those of the default flow.
+
+flows:
+  lint:
+    label: "Lint"
+    description: "Verilator lint / elaboration check"
 
 # Log formatting
 format:

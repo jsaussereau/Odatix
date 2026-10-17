@@ -28,22 +28,58 @@ API does the first; this is the one place that turns it back into the second, so
 that both go through the same run.
 """
 
+import os
+
+import odatix.lib.printc as printc
 from odatix.run.errors import RunCancelled, RunError
+from odatix.run.options import RunOptions
 from odatix.run.run import Run
 
-__all__ = ["command_run", "execute"]
+__all__ = ["command_workspace", "command_run", "execute"]
 
 
-def command_run(mode, workspace=None, **overrides):
+def command_workspace(config_file=None, script_name=None):
+    """
+    The workspace a command runs in: the one of the current directory, read
+    from "-c/--config" when it names another settings file.
+
+    A command needs one, unlike a script that may open a directory about to be
+    initialized: it stops the command when there is none.
+    """
+    from odatix.workspace import Workspace
+    from odatix.workspace.errors import WorkspaceError
+    from odatix.lib.settings import OdatixSettings
+
+    try:
+        if not config_file or os.path.normpath(config_file) == Workspace.SETTINGS_FILENAME:
+            return Workspace.open(required=True)
+        if not os.path.isfile(config_file):
+            printc.error('Settings file "' + config_file + '" does not exist', script_name)
+            raise SystemExit(-1)
+        # The paths of a settings file named on the command line are relative
+        # to where the command runs, as they have always been.
+        settings = OdatixSettings.get_settings_file_dict(config_file, silent=True)
+        return Workspace.from_dict(settings if isinstance(settings, dict) else {})
+    except WorkspaceError as error:
+        printc.error(str(error), script_name)
+        raise SystemExit(-1)
+
+
+def command_run(mode, workspace=None, options=None, **overrides):
     """
     A run set up the way a command runs it: it asks before starting when its
     settings file says so, and it attaches the monitor unless asked to detach.
+
+    Args:
+        options (RunOptions): what the command line says, usually from
+            :meth:`RunOptions.from_namespace`, which already holds those
+            defaults.
     """
     from odatix.workspace import Workspace
 
-    defaults = {"noask": False, "detach": False}
-    defaults.update(overrides)
-    return Run(workspace if workspace is not None else Workspace.open(), mode, **defaults)
+    if options is None:
+        options = RunOptions(**RunOptions.COMMAND_DEFAULTS)
+    return Run(workspace if workspace is not None else Workspace.open(), mode, options=options, **overrides)
 
 
 def execute(run):

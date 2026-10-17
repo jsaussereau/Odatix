@@ -20,14 +20,28 @@ if {[catch {
     # GENUS SETUP 
     #################################################################################
 
-    suppress_messages {LBR-9 VLOGPT-6 HPT-76 CDFG-818 VHDL-639 VLOGPT-37 VHDLPT-800 VHDLPT-801}
+    set analysis_mode [expr {[info exists odatix_mode] && $odatix_mode == "analysis"}]
 
-    ## Here it's the absolut path, we have to change for scripts/genus_setup.tcl
-    if { [catch { source scripts/genus_setup.tcl } errmsg] } { 
-            puts "$signature <bold><red>error: could not source 'genus_setup.tcl'<end>" 
-            puts "$signature tool says -> $errmsg" 
-            exit -1 
-            }
+    # Noise for a synthesis, but what an analysis looks for (VLOGPT-37 is an
+    # undeclared variable): the messages of an analysis are all kept, the
+    # normal ones being declared expected in analysis.yml.
+    if {!$analysis_mode} {
+        suppress_messages {LBR-9 VLOGPT-6 HPT-76 CDFG-818 VHDL-639 VLOGPT-37 VHDLPT-800 VHDLPT-801}
+    }
+
+    # An analysis targets no technology: without a setup script, the design is
+    # elaborated with the generic library of the scripts, which is all checking
+    # it needs (Genus elaborates nothing without a library).
+    if {[file exists $script_path/genus_setup.tcl] || !$analysis_mode} {
+        if { [catch { source scripts/genus_setup.tcl } errmsg] } {
+            puts "$signature <bold><red>error: could not source 'genus_setup.tcl'<end>"
+            puts "$signature tool says -> $errmsg"
+            exit -1
+        }
+    } else {
+        puts "$signature <cyan>note: no technology, elaborating with a generic library<end>"
+        read_libs $script_path/analysis_library.lib
+    }
 
     #-----------------------------------------------------------------------------
     # RTL PATH
@@ -135,97 +149,55 @@ if {[catch {
     # ELABORATE
     #################################################################################
 
-    elaborate $top_level_module
+    # A design that does not elaborate: the tool said why, there is no more to
+    # check (analysis.yml reads it from the log)
+    if {[catch {elaborate $top_level_module}]} {
+        if {$analysis_mode} {
+            exit -1
+        }
+        error "could not elaborate '$top_level_module'"
+    }
     report_progress 15 $synth_statusfile
-    #report progress 30 $analysis_statusfile
 
+    if {$analysis_mode} {
 
-    puts ""
-    puts "============================================================"
-    puts "<bold><cyan> DESIGN CHECK <end>" 
-    puts "============================================================"
-
-    check_design > $design_analysis
-    check_design
-    #report_progress 40 $analysis_statusfile
-
-    puts ""
-    puts "============================================================"
-    puts "<bold><cyan> UNRESOLVED REFERENCES <end>"
-    puts "============================================================"
-
-    check_design -unresolved > $unresolved_report
-    check_design -unresolved
-
-
-    report_progress 20 $synth_statusfile
-
-
-    puts ""
-    puts "============================================================"
-    puts "<bold><cyan> DESIGN INFORMATION <end>"
-    puts "============================================================"
-
-    puts "Top module: $top_level_module"
-    puts "Current design: [get_db current_design .name]"
-
-
-
-    if {[info exists odatix_mode] && $odatix_mode == "analysis"} {
-
-
-        # Define arch_name variable for printing 
-        set arch_name "Unknown"
-        if {[file exists $architecture_file]} {
-            set fp_arch [open $architecture_file r]
-            set arch_name [string trim [read $fp_arch]]
-            close $fp_arch
-        }
-
-
-        set unresolved_count 0
-
-        if {[file exists $unresolved_report]} {
-
-            set fp_unres [open $unresolved_report r]
-            set unresolved_data [read $fp_unres]
-            close $fp_unres
-
-            if {[regexp {Total number of unresolved references.*:\s*([0-9]+)} \
-                $unresolved_data -> unresolved_count]} {
-                # unresolved_count updated
-            }
-        }
-
-        report_messages -all
-
-
-
-
-        puts " "
-        puts " "
-        puts "----------------------------------------"
-        puts "<bold><cyan>Analysis Summary<end>"
-        puts "----------------------------------------"
-
-        puts "Architecture : $arch_name"
-
-        puts "<green> Read Designs         <bold>PASSED<end>"
-        if {$unresolved_count == 0} {
-
-            puts "<green> Unresolved Designs      $unresolved_count<end>"
-
-        } else {
-
-            puts "<yellow> Unresolved Designs     $unresolved_count<end>"
-        }
-
+        # Every check of the elaborated design, and its latches, which Genus
+        # names nowhere else: analysis.yml reads both reports
         puts ""
-        puts "<cyan>Press 'q' to view the analysis summary.<end>"
+        puts "============================================================"
+        puts "<bold><cyan> DESIGN CHECK <end>"
+        puts "============================================================"
+
+        check_design -all > $design_analysis
+        check_design -all
+
+        set fp_latches [open $report_path/latches.rep w]
+        foreach inst [get_db insts -if {.is_latch == true}] {
+            puts $fp_latches $inst
+        }
+        close $fp_latches
 
         report_progress 100 $synth_statusfile
 
+    } else {
 
+        puts ""
+        puts "============================================================"
+        puts "<bold><cyan> DESIGN CHECK <end>"
+        puts "============================================================"
+
+        check_design > $design_analysis
+        check_design
+
+        puts ""
+        puts "============================================================"
+        puts "<bold><cyan> UNRESOLVED REFERENCES <end>"
+        puts "============================================================"
+
+        check_design -unresolved > $unresolved_report
+        check_design -unresolved
+
+        report_progress 20 $synth_statusfile
     }
 
 } ]} {

@@ -30,6 +30,7 @@ from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
+import odatix.gui.task_editor as te
 import odatix.gui.navigation as navigation
 import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
@@ -280,54 +281,16 @@ def normalize_simulation_settings(settings):
 
     return normalized
 
-def build_tasks_list(names, dependencies_vals, commands_vals, path_vals, platforms_vals):
+def build_tasks_list(*field_values):
     """
-    Build the simulation task list from the task card field values.
+    Build the simulation task list from the task card field values (one list
+    per field of task_editor.TASK_FIELDS).
 
     Unlike a workflow, a simulation may legitimately define no task at all: it
     then falls back to the historical "make sim" command, so an empty list is
     kept empty instead of being seeded with a "main" task.
     """
-    tasks = []
-    nb = len(names) if isinstance(names, list) else 0
-    for idx in range(nb):
-        name = str(names[idx]).strip() if idx < len(names) and names[idx] is not None else ""
-        if name == "":
-            continue
-
-        dependencies_raw = dependencies_vals[idx] if idx < len(dependencies_vals) else ""
-        dependencies = [
-            x.strip() for x in str(dependencies_raw).split(",")
-            if x is not None and str(x).strip() != ""
-        ]
-
-        commands_raw = commands_vals[idx] if idx < len(commands_vals) else ""
-        commands = [
-            line.strip() for line in str(commands_raw).splitlines()
-            if line is not None and str(line).strip() != ""
-        ]
-
-        task = {"name": name, "commands": commands}
-        if len(dependencies) > 0:
-            task["dependencies"] = dependencies
-
-        task_path = str(path_vals[idx]).strip() if idx < len(path_vals) and path_vals[idx] is not None else ""
-        if task_path != "":
-            task["path"] = task_path
-
-        platforms_raw = platforms_vals[idx] if idx < len(platforms_vals) else ""
-        platforms = [
-            x.strip() for x in str(platforms_raw).split(",")
-            if x is not None and str(x).strip() != ""
-        ]
-        if len(platforms) == 1:
-            task["platforms"] = platforms[0]
-        elif len(platforms) > 1:
-            task["platforms"] = platforms
-
-        tasks.append(task)
-
-    return tasks
+    return te.build_tasks_list(*field_values)
 
 
 ######################################
@@ -796,105 +759,8 @@ def new_arch_card(used, available):
     }
 
 
-def sim_task_card(name="main", dependencies_value="", commands_value="", path_value="", platforms_value=""):
-    is_main = str(name).strip() == "main"
-    return html.Div([
-        html.Div(
-            children=[
-                dcc.Input(
-                    value=name,
-                    type="text",
-                    id={"type": "sim-task-field-name", "name": name},
-                    className="title-input",
-                    disabled=is_main,
-                    style={
-                        "width": "100%",
-                        "marginLeft": "5px",
-                        "marginRight": "5px",
-                        "marginTop": "-5px",
-                        "marginBottom": "2px",
-                        "fontWeight": "bold",
-                        "fontSize": "1.1em",
-                        "height": "10px",
-                        "textAlign": "center",
-                    },
-                ),
-                html.Label("Dependencies", style={"fontWeight": "bold", "fontSize": "1em"}),
-                dcc.Input(
-                    value=dependencies_value,
-                    type="text",
-                    placeholder="e.g., task_a, task_b",
-                    id={"type": "sim-task-field-dependencies", "name": name},
-                    className="value-input",
-                    style={"width": "100%", "marginBottom": "8px"},
-                ),
-                html.Label("Commands (one per line)", style={"fontWeight": "bold", "fontSize": "1em"}),
-                dcc.Textarea(
-                    value=commands_value,
-                    id={"type": "sim-task-field-commands", "name": name},
-                    className="auto-resize-textarea odatix-command-field",
-                    style={
-                        "width": "100%",
-                        "minHeight": "110px",
-                        "resize": "vertical",
-                        "fontFamily": "monospace",
-                        "fontWeight": "500",
-                        "marginBottom": "8px",
-                        "boxSizing": "border-box",
-                    },
-                ),
-                html.Div(
-                    children=[
-                        html.Label("Path (optional)", style={"fontWeight": "bold", "fontSize": "1em"}),
-                        dcc.Input(
-                            value=path_value,
-                            type="text",
-                            id={"type": "sim-task-field-path", "name": name},
-                            className="value-input",
-                            style={"width": "100%", "marginBottom": "8px"},
-                        ),
-                        html.Label("Platforms (optional)", style={"fontWeight": "bold", "fontSize": "1em"}),
-                        dcc.Input(
-                            value=platforms_value,
-                            type="text",
-                            placeholder="linux, win32",
-                            id={"type": "sim-task-field-platforms", "name": name},
-                            className="value-input",
-                            style={"width": "100%", "marginBottom": "8px"},
-                        ),
-                    ],
-                    id={"type": "sim-more-task-field-div", "name": name},
-                    className="expandable-area",
-                    style=Style.hidden,
-                ),
-            ],
-            style={"width": "100%"}
-        ),
-        html.Div([
-            html.Div([
-                ui.icon_button(
-                    icon=icon("more", className="icon normal rotate", id={"type": "sim-more-task-fields-icon", "name": name}),
-                    color="default",
-                    id={"type": "sim-more-fields-task", "name": name},
-                    tooltip="Show/Hide extra fields",
-                    tooltip_options="bottom small",
-                )
-            ], id={"type": "sim-more-fields-task-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
-            html.Div([
-                ui.duplicate_button(id={"type": "sim-duplicate-task", "name": name}),
-                ui.delete_button(id={"type": "sim-delete-task", "name": name}),
-            ], style={"display": "flex", "flexDirection": "horizontal", "alignItems": "center", "gap": "5px"}),
-        ], style={
-            "marginTop": "8px",
-            "display": "flex",
-            "flexDirection": "row",
-            "width": "100%",
-            "justifyContent": "space-between",
-        }),
-    ],
-    className="tile config",
-    id={"type": "sim-task-card", "name": name},
-)
+def sim_task_card(name="main", **values):
+    return te.task_card("sim", name=name, values=values, main_is_deletable=True)
 
 def sim_add_task_card():
     return html.Div(
@@ -933,49 +799,7 @@ def sim_default_task_note():
     )
 
 def sim_cards_from_tasks(tasks):
-    cards = []
-    if isinstance(tasks, list):
-        for idx, task in enumerate(tasks):
-            if not isinstance(task, dict):
-                continue
-            name = str(task.get("name", "")).strip()
-            if name == "":
-                name = f"task{idx + 1}"
-
-            dependencies = task.get("dependencies", [])
-            if isinstance(dependencies, str):
-                dependencies_value = dependencies
-            elif isinstance(dependencies, list):
-                dependencies_value = ", ".join([str(x) for x in dependencies if str(x).strip()])
-            else:
-                dependencies_value = ""
-
-            commands = task.get("commands", [])
-            if isinstance(commands, list):
-                commands_value = "\n".join([str(x) for x in commands if str(x).strip()])
-            elif isinstance(commands, str):
-                commands_value = commands
-            else:
-                commands_value = ""
-
-            path_value = str(task.get("path", "")) if task.get("path", "") is not None else ""
-
-            platforms = task.get("platforms", "")
-            if isinstance(platforms, list):
-                platforms_value = ", ".join([str(x) for x in platforms if str(x).strip()])
-            else:
-                platforms_value = str(platforms) if platforms is not None else ""
-
-            cards.append(
-                sim_task_card(
-                    name=name,
-                    dependencies_value=dependencies_value,
-                    commands_value=commands_value,
-                    path_value=path_value,
-                    platforms_value=platforms_value,
-                )
-            )
-
+    cards = te.cards_from_tasks("sim", tasks, main_is_deletable=True)
     if not cards:
         cards.append(sim_default_task_note())
     cards.append(sim_add_task_card())
@@ -1160,24 +984,10 @@ def update_architectures(
     Input({"type": "sim-duplicate-task", "name": dash.ALL}, "n_clicks"),
     Input({"type": "sim-delete-task", "name": dash.ALL}, "n_clicks"),
     State("sim-task-cards-row", "children"),
-    State({"type": "sim-task-field-name", "name": dash.ALL}, "value"),
-    State({"type": "sim-task-field-dependencies", "name": dash.ALL}, "value"),
-    State({"type": "sim-task-field-commands", "name": dash.ALL}, "value"),
-    State({"type": "sim-task-field-path", "name": dash.ALL}, "value"),
-    State({"type": "sim-task-field-platforms", "name": dash.ALL}, "value"),
+    *te.task_field_dependencies("sim", State),
     prevent_initial_call=True,
 )
-def update_sim_task_cards(
-    new_click,
-    duplicate_clicks,
-    delete_clicks,
-    cards,
-    task_names,
-    task_dependencies,
-    task_commands,
-    task_paths,
-    task_platforms,
-):
+def update_sim_task_cards(new_click, duplicate_clicks, delete_clicks, cards, *task_fields):
     trigger_id = ctx.triggered_id
 
     if cards is None:
@@ -1234,15 +1044,7 @@ def update_sim_task_cards(
             while f"{trig_name}_copy{copy_idx}" in existing_names:
                 copy_idx += 1
 
-            cards.append(
-                sim_task_card(
-                    name=f"{trig_name}_copy{copy_idx}",
-                    dependencies_value=task_dependencies[idx] if idx < len(task_dependencies) else "",
-                    commands_value=task_commands[idx] if idx < len(task_commands) else "",
-                    path_value=task_paths[idx] if idx < len(task_paths) else "",
-                    platforms_value=task_platforms[idx] if idx < len(task_platforms) else "",
-                )
-            )
+            cards.append(sim_task_card(name=f"{trig_name}_copy{copy_idx}", **te.card_values(task_fields, idx)))
 
     if not cards:
         cards.append(sim_default_task_note())
@@ -1298,11 +1100,7 @@ def init_form(search, page, odatix_settings):
     Input("sim-progress-regex", "value"),
     Input("sim-invariant-domains", "value"),
     *arch_dependencies(Input),
-    Input({"type": "sim-task-field-name", "name": dash.ALL}, "value"),
-    Input({"type": "sim-task-field-dependencies", "name": dash.ALL}, "value"),
-    Input({"type": "sim-task-field-commands", "name": dash.ALL}, "value"),
-    Input({"type": "sim-task-field-path", "name": dash.ALL}, "value"),
-    Input({"type": "sim-task-field-platforms", "name": dash.ALL}, "value"),
+    *te.task_field_dependencies("sim", Input),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("sim-initial-settings", "data"),
@@ -1333,6 +1131,7 @@ def save_and_status(
     task_names,
     task_dependencies,
     task_commands,
+    task_on_failure_commands,
     task_paths,
     task_platforms,
     search,
@@ -1362,7 +1161,7 @@ def save_and_status(
         },
         "invariant_domains": parse_invariant_domains_text(invariant_domains),
         "tasks": build_tasks_list(
-            task_names, task_dependencies, task_commands, task_paths, task_platforms
+            task_names, task_dependencies, task_commands, task_on_failure_commands, task_paths, task_platforms
         ),
     }
 

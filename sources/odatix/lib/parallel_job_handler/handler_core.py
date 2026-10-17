@@ -910,6 +910,27 @@ class ParallelJobHandler:
 
         self._headless_initialized = True
 
+    @staticmethod
+    def _write_console_log(job, text):
+        """
+        Keep what a job prints in its console log (see hard_settings), when it
+        has one. The file is opened for each write: the scheduler and the
+        export thread both write to it, and a handle shared between them would
+        be closed under one of them. A write failure never reaches the job:
+        the monitor keeps the output anyway.
+        """
+        path = getattr(job, "console_log", None)
+        if not path:
+            return
+        try:
+            directory = os.path.dirname(path)
+            if directory and not os.path.isdir(directory):
+                os.makedirs(directory)
+            with open(path, "a", encoding="utf-8", errors="replace") as handle:
+                handle.write(text)
+        except Exception:
+            job.console_log = None
+
     def _append_job_log(self, job, line, stream_key="default"):
         if not line:
             return
@@ -923,6 +944,7 @@ class ParallelJobHandler:
             text = str(line)
 
         text = text.replace("\r\n", "\n")
+        self._write_console_log(job, text)
 
         stream_states = getattr(job, "_log_stream_states", None)
         if stream_states is None:
@@ -1151,7 +1173,8 @@ class ParallelJobHandler:
                 self._flush_exports(due_only=True)
 
             with self._lock:
-                job.status = "success" if success else "failed"
+                failed_before = getattr(job, "_failed_before_export", False)
+                job.status = "success" if success and not failed_before else "failed"
                 self._exports_pending = max(0, self._exports_pending - 1)
                 self._run_post_batch_action_if_drained()
 
@@ -1326,6 +1349,13 @@ class ParallelJobHandler:
                             self._submit_post_success_export(job)
                     else:
                         job.status = "failed"
+                        # Some results are worth exporting when the job fails:
+                        # an analysis that found errors is one. The job stays
+                        # failed whatever its export does.
+                        export_config = getattr(job, "post_run_export", None)
+                        if isinstance(export_config, dict) and export_config.get("on_failure"):
+                            job._failed_before_export = True
+                            self._submit_post_success_export(job)
                         if hasattr(job, "_current_task_name"):
                             job.log_history.append(
                                 printc.colors.RED + "error: task '" + str(job._current_task_name) + "' failed" + printc.colors.ENDC

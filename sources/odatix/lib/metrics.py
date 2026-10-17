@@ -167,7 +167,10 @@ def metrics_files(tool, flow=None, missing_ok=False, tools_path=None):
 
   template = metrics_file_template(tool, flow=flow)
   if template is None:
-    printc.error('Cannot find key "default_metrics_file" for the eda tool "' + str(tool) + '"', script_name)
+    # A tool that measures nothing (an RTL linter) declares no metrics, and
+    # only an export, which needs some, has anything to say about it.
+    if not missing_ok:
+      printc.error('Cannot find key "default_metrics_file" for the eda tool "' + str(tool) + '"', script_name)
     return []
 
   # The workspace directory of the tool takes part in the resolution even

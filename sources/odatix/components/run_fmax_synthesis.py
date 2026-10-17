@@ -32,6 +32,8 @@ import odatix.lib.hard_settings as hard_settings
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.job_steps as job_steps
 import odatix.run.cli as run_cli
+from odatix.components.cli_options import add_options
+from odatix.run.options import RunOptions
 from odatix.lib.parallel_job_handler import ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
@@ -52,32 +54,12 @@ def _check_cancel(cancel_event):
 
 
 def add_arguments(parser):
-    parser.add_argument("-t", "--tool", default="vivado", help="eda tool in use (default: vivado)")
-    parser.add_argument("-f", "--flow", default=None, help="flow of the eda tool to run (default: the tool's default flow)")
-    parser.add_argument("-u", "--until", default=None, help="last step of the flow to run, inclusive (default: the flow's default step, or all its steps)")
-    parser.add_argument("--rerun-from", dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")
-    parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
-    parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
-    parser.add_argument("-d", "--detach", action="store_true", help="enqueue jobs to daemon and return without attaching monitor")
-    parser.add_argument("-S", "--session", help="daemon session name or selector")
-    parser.add_argument("-i", "--input", help="input settings file")
-    parser.add_argument("-a", "--archpath", help="architecture directory")
-    parser.add_argument("-w", "--work", help="work directory")
-    parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
+    add_options(parser, "tool", "flow", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs")
     parser.add_argument("--continue-on-error", "--force", dest="continue_on_error", action="store_true", help="force fmax synthesis to continue on synthesis error")
-    parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
-    parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
-    parser.add_argument("--from", dest="from_freq", type=int, help="override lower bound for fmax synthesis (in MHz)")
-    parser.add_argument("--to", dest="to_freq", type=int, help="override upper bound for fmax synthesis (in MHz)")
-    parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
-    parser.add_argument("--logsize", help="size of the log history per job in the monitor")
-    parser.add_argument(
-        "-c",
-        "--config",
-        default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-        help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
-    )
+    add_options(parser, "check_eda_tool", "debug")
+    parser.add_argument("--from", dest="lower_bound", type=int, help="override lower bound for fmax synthesis (in MHz)")
+    parser.add_argument("--to", dest="upper_bound", type=int, help="override upper bound for fmax synthesis (in MHz)")
+    add_options(parser, "keep", "log_size_limit", "export_options", "config", keep={"help": "store synthesis batch with a timestamp in the configuration name"})
 
 
 def parse_arguments():
@@ -429,78 +411,17 @@ def start_parallel_jobs(
 ######################################
 
 
-def main(args, settings=None):
-    # Get settings
-    if settings is None:
-        settings = OdatixSettings(args.config)
-        if not settings.valid:
+def main(args):
+    options = RunOptions.from_namespace(args)
+    if options.lower_bound is not None and options.upper_bound is not None:
+        if not ArchitectureHandler.check_bounds(options.lower_bound, options.upper_bound):
             sys.exit(-1)
 
-    if args.input is not None:
-        run_config_settings_filename = args.input
-    else:
-        run_config_settings_filename = settings.fmax_synthesis_settings_file
-
-    if args.archpath is not None:
-        arch_path = args.archpath
-    else:
-        arch_path = settings.arch_path
-
-    if args.work is not None:
-        work_path = args.work
-    else:
-        work_path = os.path.join(str(settings.work_path), str(settings.fmax_synthesis_work_path))
-
-    target_path = settings.target_path
-    tool = args.tool
-    flow = args.flow
-    until_step = args.until
-    rerun_from_step = args.rerun_from
-    overwrite = args.overwrite
-    noask = args.noask
-    exit_when_done = args.exit
-    log_size_limit = args.logsize
-    nb_jobs = args.jobs
-    continue_on_error = args.continue_on_error
-    check_eda_tool = not args.trust
-    debug = args.debug
-    keep = args.keep
-    detach = args.detach
-    daemon_session = args.session
-    use_benchmark = bool(getattr(settings, "use_benchmark", False))
-    benchmark_file = getattr(settings, "benchmark_file", None)
-
-    if args.from_freq is not None and args.to_freq is not None:
-        if not ArchitectureHandler.check_bounds(args.from_freq, args.to_freq):
-            sys.exit(-1)
-
-    run_synthesis(
-        run_config_settings_filename=run_config_settings_filename,
-        arch_path=arch_path,
-        tool=tool,
-        flow=flow,
-        until_step=until_step,
-        rerun_from_step=rerun_from_step,
-        work_path=work_path,
-        target_path=target_path,
-        overwrite=overwrite,
-        noask=noask, 
-        exit_when_done=exit_when_done,
-        log_size_limit=log_size_limit,
-        nb_jobs=nb_jobs,
-        continue_on_error=continue_on_error,
-        check_eda_tool=check_eda_tool,
-        forced_fmax_lower_bound=args.from_freq,
-        forced_fmax_upper_bound=args.to_freq,
-        debug=debug,
-        keep=keep,
-        export_output_dir="" if getattr(args, "noexport", False) else settings.result_path,
-        use_benchmark=use_benchmark,
-        benchmark_file=benchmark_file,
-        custom_metrics_file=None,
-        detach=detach,
-        daemon_session=daemon_session,
-    )
+    run_cli.execute(run_cli.command_run(
+        "fmax_synthesis",
+        workspace=run_cli.command_workspace(args.config, script_name),
+        options=options,
+    ))
 
 
 if __name__ == "__main__":

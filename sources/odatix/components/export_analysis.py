@@ -20,155 +20,120 @@
 #
 
 """
-Export of RTL analysis results to a v2 results file.
+Export of RTL analysis results to the results files.
 
-RTL analysis (odatix analyze) produces, per architecture/configuration, a
-status (PASSED/WARNING/FAILED/INCOMPLETE) together with the list of detected
-errors and (critical) warnings. This module compiles those detailed results
-into the shared Odatix results file format (see odatix.lib.results_schema), so
-that they are discoverable by Odatix Explorer exactly like synthesis/workflow
-results, and rendered by its dedicated analysis dashboard.
+An analysis concludes, for each design and tool, a status and a list of
+findings (see odatix.lib.analysis). Each of those results is a record of
+"results_analysis_<tool>.yml" in the workspace result directory, written as
+soon as its job ends -- whether the tool succeeded or not: an analysis that
+found errors is a result too -- so that Odatix Explorer shows it on its RTL
+Analysis page, and "odatix res_analysis" can report it again.
 
-Analysis records use ``type: analysis``. The status, error messages and the
-error/warning lists are stored as informational ("_"-prefixed) meta keys so
-they are not treated as chart dimensions and do not take part in the record
-identity (re-running the same architecture replaces its previous record even
-when its status changed). The error/warning counts are stored as numeric
-metrics.
+Analysis records use ``type: analysis``. What they found is held by
+informational ("_"-prefixed) meta keys, so that it is neither a chart dimension
+nor part of the record identity: analyzing a design again replaces its record,
+whatever it concluded. The record format is described by
+:meth:`odatix.lib.analysis.AnalysisResult.to_record`.
 """
 
 import os
 
+import odatix.lib.analysis as analysis
 import odatix.lib.printc as printc
-import odatix.lib.eda_tools as eda_tools
-import odatix.lib.hard_settings as hard_settings
 import odatix.lib.results_schema as results_schema
 import odatix.lib.results_cache as results_cache
 from odatix.components.export_common import load_existing_results_file
 
 script_name = os.path.basename(__file__)
 
-# Result type of analysis records in the v2 results file.
-TYPE_ANALYSIS = "analysis"
+#: Result type of analysis records in the results files.
+TYPE_ANALYSIS = analysis.TYPE_ANALYSIS
 
-# Output file name (per eda tool), placed in the workspace result directory.
+
 def analysis_results_filename(tool):
+  """The results file of the analyses of a tool, in the workspace result directory."""
   return "results_analysis_" + str(tool) + ".yml"
 
 
-def _split_architecture(architecture):
+def export_analysis_results(results, output_dir, quiet=False):
   """
-  Split the analysis "architecture" label ("<arch>/<config>") into an
-  (architecture, configuration) pair. A label without "/" is kept whole as the
-  architecture, with an empty configuration.
-  """
-  architecture = str(architecture)
-  if "/" in architecture:
-    arch, _, config = architecture.rpartition("/")
-    return arch, config
-  return architecture, ""
+  Write analysis results into the results files of their tools, replacing the
+  records of the same designs.
 
-
-def _record_from_result(result, tool, flow=None):
-  """Build a v2 analysis record from one generate_analysis_summary() result."""
-  architecture, configuration = _split_architecture(result.get("architecture", ""))
-
-  meta = {
-    results_schema.META_TYPE: TYPE_ANALYSIS,
-    results_schema.META_TOOL: str(tool),
-    results_schema.META_ARCHITECTURE: architecture,
-    results_schema.META_CONFIGURATION: configuration,
-    # Informational fields (not dimensions, excluded from record identity).
-    "_status": str(result.get("status", "")),
-  }
-
-  if flow:
-    meta[results_schema.META_FLOW] = str(flow)
-
-  error_message = result.get("error", "")
-  if error_message:
-    meta["_error_message"] = str(error_message)
-
-  errors = [str(e) for e in (result.get("errors") or [])]
-  if errors:
-    meta["_errors"] = errors
-
-  blackbox_warnings = [str(w) for w in (result.get("blackbox_warnings") or [])]
-  if blackbox_warnings:
-    meta["_critical_warnings"] = blackbox_warnings
-
-  log_file = result.get("log_file")
-  if log_file:
-    meta["_log_file"] = str(log_file)
-
-  metrics = {
-    "error_count": int(result.get("error_count", 0)),
-    "warning_count": int(result.get("warning_count", 0)),
-    "critical_warning_count": len(blackbox_warnings),
-    "standard_warning_count": int(result.get("standard_warning_count", 0)),
-  }
-
-  return results_schema.make_record(meta, metrics)
-
-
-def export_analysis_results(summary, output_dir, tool, flow=None):
-  """
-  Compile an analysis summary (as returned by
-  odatix.components.analyze_results.generate_analysis_summary) into a v2 results
-  file "results_analysis_<tool>.yml" in ``output_dir``.
-
-  Existing records for the same architectures/configurations are replaced
-  (incremental export), so re-running the analysis keeps the file up to date.
+  Args:
+      results (list): AnalysisResult objects, of one or several tools.
 
   Returns:
-      str | None: the path of the written file, or None if nothing was written.
+      bool: whether every file could be written. What failed was reported.
   """
-  if not summary or not summary.get("results"):
-    return None
+  by_tool = {}
+  for result in results:
+    by_tool.setdefault(result.tool, []).append(result)
 
-  output_file = os.path.join(output_dir, analysis_results_filename(tool))
+  success = True
+  for tool, tool_results in sorted(by_tool.items()):
+    output_file = os.path.join(output_dir, analysis_results_filename(tool))
+    units, records = load_existing_results_file(output_file)
+    records = _without_records_replaced(records, tool, tool_results)
+    records = results_schema.upsert_records(records, [result.to_record(results_schema) for result in tool_results])
+    try:
+      results_cache.store(output_file, units, records)
+    except Exception as e:
+      printc.error('Could not write analysis results "' + output_file + '"', script_name=script_name)
+      printc.cyan("error details: ", script_name=script_name, end="")
+      print(str(e))
+      success = False
+      continue
+    if not quiet:
+      printc.say('Analysis results written to "' + output_file + '"', script_name=script_name)
+  return success
 
-  units, records = load_existing_results_file(output_file)
 
-  new_records = [_record_from_result(result, tool, flow=flow) for result in summary["results"]]
-  records = results_schema.upsert_records(records, new_records)
+def _without_records_replaced(records, tool, results):
+  """
+  The records a new result replaces although they do not say the same flow:
+  those written before the flow of an analysis was recorded, for the default
+  flow of the tool, carried none.
+  """
+  import odatix.lib.eda_tools as eda_tools
 
-  try:
-    results_cache.store(output_file, units, records)
-  except Exception as e:
-    printc.error('Could not write analysis results "' + output_file + '"', script_name=script_name)
-    printc.cyan("error details: ", script_name=script_name, end="")
-    print(str(e))
-    return None
-
-  printc.say('Analysis results written to "' + output_file + '"', script_name=script_name)
-  printc.note("Run 'odatix-explorer' and open the Analysis dashboard to explore them", script_name=script_name)
-  return output_file
+  default_flow = eda_tools.get_default_flow(tool, job_type="analysis")
+  replaced = {
+    (result.architecture, result.configuration)
+    for result in results
+    if result.flow in (None, "", default_flow)
+  }
+  if not replaced:
+    return records
+  return [
+    record for record in records
+    if (record.get("meta", {}).get(results_schema.META_FLOW) not in (None, "")
+        or (record.get("meta", {}).get(results_schema.META_ARCHITECTURE),
+            record.get("meta", {}).get(results_schema.META_CONFIGURATION)) not in replaced)
+  ]
 
 
 ######################################
 # Per-job export (au fil de l'eau)
 ######################################
 
-def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_dir, flows=None):
+def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_dir, flows=None, expected=None):
   """
-  Attach a per-job export descriptor to every analysis job, so the job handler
-  exports its result as soon as the job finishes (au fil de l'eau — see
-  export_single_analysis_job and the "analysis" branch of
-  ParallelJobHandler._run_post_success_export), instead of exporting everything
-  at the end of the session.
+  Have the job handler export the result of every analysis job as soon as it
+  ends (see export_single_analysis_job), including when the tool fails: for an
+  analysis, a failure is a result.
 
-  ``analysis_work_root`` is the analysis work directory that holds the per-tool
-  sub-directories (``<tool>/<target>/<architecture>/<configuration>``). The eda
-  tool and the architecture name are derived from each job's temporary
-  directory, so a single call tags every tool's jobs in a shared job list.
-
-  ``flows`` is an optional {tool: flow name} mapping, recorded in each result so
-  runs of different flows of the same tool stay distinguishable.
+  ``analysis_work_root`` is the analysis work directory, holding one
+  sub-directory per tool ("<tool>" or "<tool>@<flow>"), which is how the tool of
+  each job is known. ``flows`` ({tool: flow}) names the flow of each tool, and
+  ``expected`` is what the run settings say is normal (their "expected"
+  section, as written), handed over to the export as it is.
 
   Returns:
       int: the number of jobs configured.
   """
+  import odatix.lib.eda_tools as eda_tools
+
   if analysis_work_root is None or output_dir is None:
     return 0
 
@@ -177,34 +142,27 @@ def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_
 
   configured = 0
   for job in list(getattr(parallel_jobs, "job_list", []) or []):
-    tmp_dir = os.path.realpath(str(getattr(job, "tmp_dir", "")))
+    tmp_dir = os.path.realpath(str(getattr(job, "tmp_dir", "") or ""))
     if not tmp_dir:
       continue
-
     try:
       rel_path = os.path.relpath(tmp_dir, analysis_work_root)
     except Exception:
       continue
-    if rel_path.startswith(".."):
-      continue
-
     parts = [part for part in rel_path.split(os.sep) if part not in ("", ".")]
-    if len(parts) < 4:  # tool / target / architecture / configuration
+    if rel_path.startswith("..") or len(parts) < 2:
       continue
 
-    # The work sub-directory is "<tool>" or "<tool>@<flow>" (see
-    # eda_tools.tool_work_dirname): a flow of a tool still exports into that
-    # tool's results file.
     tool, dir_flow = eda_tools.split_tool_work_dirname(parts[0])
-    architecture = parts[2] + "/" + parts[3]
-
     job.post_run_export = {
       "kind": "analysis",
+      # An analysis that found errors is a result to export, not a job to drop.
+      "on_failure": True,
       "tool": str(tool),
       "flow": str((flows or {}).get(tool) or dir_flow or "") or None,
       "output_dir": output_dir,
       "tmp_dir": tmp_dir,
-      "architecture": architecture,
+      "expected": expected,
     }
     configured += 1
 
@@ -213,44 +171,98 @@ def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_
 
 def export_single_analysis_job(job, export_config=None):
   """
-  Export the result of a single finished analysis job into
-  "results_analysis_<tool>.yml" (incremental upsert). Called by the job handler
-  right after the job succeeds. Returns True on success.
+  Export the result of one finished analysis job into the results file of its
+  tool. Called by the job handler as soon as the job ends.
   """
-  from odatix.components.analyze_results import analyze_log_dir
+  from odatix.components.analysis_report import job_identity
 
   config = export_config if isinstance(export_config, dict) else getattr(job, "post_run_export", None)
   if not isinstance(config, dict):
     printc.error("Missing per-job analysis export configuration", script_name=script_name)
     return False
 
-  tool = str(config.get("tool", ""))
-  flow = config.get("flow", None)
-  output_dir = str(config.get("output_dir", ""))
-  tmp_dir = str(config.get("tmp_dir", ""))
-  architecture = str(config.get("architecture", ""))
-
+  tool = str(config.get("tool", "") or "")
+  output_dir = str(config.get("output_dir", "") or "")
+  tmp_dir = str(config.get("tmp_dir", "") or "")
   if tool == "" or output_dir == "" or tmp_dir == "":
     printc.error("Per-job analysis export configuration is incomplete", script_name=script_name)
     return False
 
-  log_dir = os.path.join(tmp_dir, hard_settings.work_log_path)
-  result = analyze_log_dir(log_dir, tool, architecture)
+  architecture, configuration, flow = job_identity(tmp_dir)
+  result = analysis.analyze_job(
+    tmp_dir, tool,
+    architecture=architecture or os.path.basename(tmp_dir),
+    configuration=configuration,
+    flow=flow or config.get("flow"),
+    expected=analysis.read_expectations(config.get("expected")),
+  )
   if result is None:
-    printc.warning('No analysis log found in "' + log_dir + '"', script_name=script_name)
+    printc.warning('No analysis job directory "' + tmp_dir + '"', script_name=script_name)
     return False
 
-  output_file = os.path.join(output_dir, analysis_results_filename(tool))
-  units, records = load_existing_results_file(output_file)
-  records = results_schema.upsert_records(records, [_record_from_result(result, tool, flow=flow)])
-
-  try:
-    results_cache.store(output_file, units, records)
-  except Exception as e:
-    printc.error('Could not write analysis results "' + output_file + '"', script_name=script_name)
-    printc.cyan("error details: ", script_name=script_name, end="")
-    print(str(e))
+  if not export_analysis_results([result], output_dir, quiet=True):
     return False
-
-  printc.say('Analysis result updated in "' + output_file + '"', script_name=script_name)
+  printc.say(
+    'Analysis of "' + result.name + '": ' + analysis.STATUS_LABELS[result.status].lower()
+    + (" (" + result.summary + ")" if result.summary else ""),
+    script_name=script_name,
+  )
   return True
+
+
+######################################
+# From the work directory ("odatix res_analysis")
+######################################
+
+def export_analysis_from_work(analysis_root, output_dir, tools=None, expected=None, export=True):
+  """
+  Read again every analysis job of the analysis work directory and, unless
+  ``export`` is False, write their records.
+
+  Returns:
+      tuple: (results, whether every file could be written)
+  """
+  from odatix.components.analysis_report import collect_results, job_directories
+
+  results = collect_results(job_directories(analysis_root, tools=tools), expected=analysis.read_expectations(expected))
+  if not export or not results:
+    return results, True
+  return results, export_analysis_results(results, output_dir)
+
+
+def add_arguments(parser):
+  from odatix.components.cli_options import add_options
+
+  add_options(
+    parser, "tool", "settings_file", "work_path", "result_path", "noexport", "config",
+    tool={"nargs": "+", "default": None, "help": "only report the analyses of these eda tools"},
+    settings_file={"help": "analysis settings file, whose \"expected\" section says what is normal (default: the workspace's)"},
+    work_path={"help": "work directory (default: the workspace's)"},
+    noexport={"help": "only print the report, without writing the results files"},
+  )
+
+
+def main(args):
+  """Report, and export again, the analyses of the work directory."""
+  import odatix.run.cli as run_cli
+  from odatix.components.analysis_report import print_report
+  from odatix.components.run_analysis import read_run_expectations
+
+  workspace = run_cli.command_workspace(args.config, script_name)
+  paths = workspace.paths
+  analysis_root = paths.under_work_path("analysis_work_path", args.work_path)
+  if not os.path.isdir(analysis_root):
+    printc.error('No analysis work directory "' + analysis_root + '"', script_name)
+    printc.note("Run an analysis with \"odatix analyze\" first", script_name)
+    return False
+
+  settings_file = args.settings_file or paths.analysis_settings_file
+  results, success = export_analysis_from_work(
+    analysis_root,
+    args.result_path or paths.result_path,
+    tools=args.tool,
+    expected=read_run_expectations(settings_file),
+    export=not args.noexport,
+  )
+  print_report(results)
+  return success

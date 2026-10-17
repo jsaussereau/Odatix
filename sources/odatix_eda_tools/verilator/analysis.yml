@@ -1,0 +1,118 @@
+##################################################
+# RTL analysis: how Verilator reports
+##################################################
+
+# Verilator reads Verilog and SystemVerilog only: a VHDL design is reported as
+# not supported, instead of failing with syntax errors.
+languages: [verilog, systemverilog]
+
+# Where its messages are, relative to the job directory.
+logs:
+  - log/analysis.log
+
+# Lines that are no finding of their own.
+ignore:
+  - "^%Error: Exiting due to"
+  - "^- V e r i l a t i o n"
+  - "^- Verilator:"
+
+# The word each message starts with.
+severities:
+  Error: error
+  Warning: warning
+
+# Verilator prints the source excerpt and the context of a message on the
+# indented lines below it.
+continuation: "^\\s"
+
+# What each warning code of Verilator is about (https://verilator.org/warn/).
+# A code mapped to a category alone keeps the severity of its message; one
+# mapped to settings may change that too.
+codes:
+  MODMISSING: missing_module
+  PINNOTFOUND: port_mismatch
+  PINMISSING: port_mismatch
+  PINCONNECTEMPTY: port_mismatch
+  LATCH: latch
+  NOLATCH: style
+  MULTIDRIVEN: multiple_drivers
+  UNOPTFLAT: combinational_loop
+  ALWCOMBORDER: combinational_loop
+  WIDTH: width_mismatch
+  WIDTHTRUNC: width_mismatch
+  WIDTHEXPAND: width_mismatch
+  WIDTHXZEXPAND: width_mismatch
+  WIDTHCONCAT: width_mismatch
+  SELRANGE: width_mismatch
+  UNUSED: unused
+  UNUSEDSIGNAL: unused
+  UNUSEDPARAM: unused
+  UNUSEDGENVAR: unused
+  UNDRIVEN: undriven
+  IMPLICIT: undeclared
+  CMPCONST: constant
+  CASEINCOMPLETE: other
+  CASEOVERLAP: other
+  DECLFILENAME: style
+  EOFNEWLINE: style
+  VARHIDDEN: style
+  GENUNNAMED: style
+  PROCASSINIT: style
+  BLKSEQ: style
+  INITIALDLY: style
+  SYNCASYNCNET: style
+
+# What Verilator says with "-Wall" that is normal: reported apart, it does not
+# make a design worth looking at. Add your own in the "expected" section of
+# analysis_settings.yml rather than here.
+expected:
+  style:
+    category: style
+    reason: "Coding style remark of the Verilator lint, without effect on the hardware"
+
+# The messages of Verilator, tried in order on every line.
+messages:
+
+  missing_module:
+    pattern: "^%Error(?:-(?P<code>[A-Z0-9_]+))?: (?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? (?P<message>Cannot find file containing module: '(?P<subject>[^']+)')"
+    severity: error
+    category: missing_module
+
+  missing_include:
+    pattern: "^%Error(?:-(?P<code>[A-Z0-9_]+))?: (?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? (?P<message>Cannot find include file: '(?P<subject>[^']+)')"
+    severity: error
+    category: missing_file
+
+  undeclared:
+    pattern: "^%Error(?:-(?P<code>[A-Z0-9_]+))?: (?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? (?P<message>Can't find definition of (?:variable|task/function|scope|cell): '(?P<subject>[^']+)')"
+    severity: error
+    category: undeclared
+
+  missing_pin:
+    pattern: "^%(?P<severity>Error|Warning)(?:-(?P<code>PIN[A-Z]+))?: (?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? (?P<message>(?:Pin not found|Instance has missing pin): '(?P<subject>[^']+)')"
+    severity: error
+    category: port_mismatch
+
+  syntax:
+    pattern: "^%Error: (?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? (?P<message>syntax error.*)"
+    severity: error
+    category: syntax
+
+  missing_top:
+    pattern: "^%Error: (?P<message>Specified --top-module '(?P<subject>[^']+)' was not found in design\\.?)"
+    severity: error
+    category: missing_top
+
+  signal_warning:
+    pattern: "^%Warning-(?P<code>[A-Z0-9_]+): (?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? (?P<message>.*'(?:[^'.]+\\.)*(?P<subject>[^'.]+)'.*)"
+    severity: warning
+
+  any_warning:
+    pattern: "^%Warning(?:-(?P<code>[A-Z0-9_]+))?: (?:(?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? )?(?P<message>.*)"
+    severity: warning
+    fallback: true
+
+  any_error:
+    pattern: "^%Error(?:-(?P<code>[A-Z0-9_]+))?: (?:(?P<file>[^:\\s]+):(?P<line>\\d+):(?:\\d+:)? )?(?P<message>.*)"
+    severity: error
+    fallback: true

@@ -23,10 +23,16 @@
 RTL analysis dashboard page of Odatix Explorer.
 
 Unlike the chart pages, this page does not use the chart shell/sidebar: it is a
-self-contained dashboard that reads the "analysis" records from the shared
-ResultStore (produced by odatix.components.export_analysis) and renders a clear
-overview of the pass/warning/error status of every analyzed architecture, with
-some statistics and an intuitive, expandable detail of the errors and warnings.
+self-contained dashboard reading the "analysis" records of the shared
+ResultStore (see odatix.components.export_analysis), each as the
+AnalysisResult it was written from (odatix.lib.analysis). It shows, like the
+terminal report of "odatix analyze":
+
+  * how many designs ended in each status, per tool;
+  * the kinds of findings, and the tools that reported them (clicking one
+    keeps the designs it was reported for);
+  * every design, with what needs attention first, and the expected findings
+    -- those that are normal -- apart, folded.
 """
 
 import dash
@@ -34,7 +40,7 @@ from dash import html, dcc, Input, Output, State, ALL
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.ui.components as components
-import odatix.components.export_analysis as export_analysis
+import odatix.lib.analysis as analysis
 from odatix.gui.page_scope import anchor, page_callback
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
@@ -43,14 +49,22 @@ PAGE_SCOPE = "explorer_analysis"
 
 POLL_INTERVAL_MS = 2000
 
-# Status → (display label, css modifier, glyph). Ordered by severity for the
-# stat row and the list sort.
-STATUS_ORDER = ["FAILED", "WARNING", "INCOMPLETE", "PASSED"]
+# Status -> (css modifier, glyph), in the order of the stat row and the list.
+STATUS_ORDER = list(analysis.STATUSES)
 STATUS_META = {
-  "FAILED": ("Failed", "failed", "✗"),       # ✗
-  "WARNING": ("Warning", "warning", "⚠"),     # ⚠
-  "INCOMPLETE": ("Incomplete", "incomplete", "/"),
-  "PASSED": ("Passed", "passed", "✓"),        # ✓
+  analysis.STATUS_FAILED: ("failed", "✗"),
+  analysis.STATUS_TOOL_FAILURE: ("tool-failure", "!"),
+  analysis.STATUS_INCOMPLETE: ("incomplete", "?"),
+  analysis.STATUS_WARNING: ("warning", "⚠"),
+  analysis.STATUS_UNSUPPORTED: ("unsupported", "–"),
+  analysis.STATUS_PASSED: ("passed", "✓"),
+}
+
+SEVERITY_LABELS = {
+  "error": ("Errors", "error"),
+  "critical": ("Critical warnings", "critical"),
+  "warning": ("Warnings", "warning"),
+  "info": ("Information", "info"),
 }
 
 
@@ -59,42 +73,33 @@ STATUS_META = {
 ######################################
 
 
-def _analysis_records():
-  """Every analysis record across all sources (see export_analysis.TYPE_ANALYSIS)."""
-  records = []
+def _analysis_results():
+  """Every analysis result across all sources."""
+  results = []
   for record in STORE.records():
     meta = record.get("meta", {})
-    if str(meta.get("type", "")).lower() == export_analysis.TYPE_ANALYSIS:
-      records.append(record)
-  return records
+    if str(meta.get("type", "")).lower() == analysis.TYPE_ANALYSIS:
+      results.append(analysis.AnalysisResult.from_record(record))
+  return results
 
 
-def _record_status(record):
-  status = str(record.get("meta", {}).get("_status", "")).upper()
-  return status if status in STATUS_META else "INCOMPLETE"
+def _categories():
+  return {category.name: category for category in analysis.load_categories()}
 
 
-def _record_name(record):
-  meta = record.get("meta", {})
-  arch = str(meta.get("architecture", ""))
-  config = str(meta.get("configuration", ""))
-  return arch + ("/" + config if config else "")
+def _tool_names(results):
+  return sorted({result.tool for result in results if result.tool})
 
 
-def _record_tool(record):
-  return str(record.get("meta", {}).get("tool", ""))
-
-
-def _tool_names(records):
-  """Sorted list of the eda tools present in the given records."""
-  return sorted({_record_tool(record) for record in records if _record_tool(record)})
-
-
-def _count_by_status(records):
+def _count_by_status(results):
   counts = {status: 0 for status in STATUS_ORDER}
-  for record in records:
-    counts[_record_status(record)] += 1
+  for result in results:
+    counts[result.status] = counts.get(result.status, 0) + 1
   return counts
+
+
+def _has_category(result, category):
+  return any(finding.category == category for finding in result.attention)
 
 
 ######################################
@@ -103,7 +108,7 @@ def _count_by_status(records):
 
 
 def _stat_card(status, count, total, active):
-  label, modifier, glyph = STATUS_META[status]
+  modifier, glyph = STATUS_META[status]
   percent = (100 * count / total) if total else 0
   return html.Button(
     [
@@ -111,7 +116,7 @@ def _stat_card(status, count, total, active):
       html.Div(
         [
           html.Div(str(count), className="xpa-stat-count"),
-          html.Div(label, className="xpa-stat-label"),
+          html.Div(analysis.STATUS_LABELS[status], className="xpa-stat-label"),
         ],
         className="xpa-stat-text",
       ),
@@ -119,6 +124,7 @@ def _stat_card(status, count, total, active):
     ],
     id={"type": "xpa-stat", "status": status},
     n_clicks=0,
+    title=analysis.STATUS_DESCRIPTIONS[status],
     className="xpa-stat-card xpa-" + modifier + (" xpa-active" if active else ""),
   )
 
@@ -133,12 +139,14 @@ def _total_card(total):
   )
 
 
-def _stats_row(records, active_status):
-  total = len(records)
-  counts = _count_by_status(records)
+def _stats_row(results, active_status):
+  total = len(results)
+  counts = _count_by_status(results)
   cards = [_total_card(total)]
   for status in STATUS_ORDER:
-    cards.append(_stat_card(status, counts[status], total, active_status == status))
+    # A status no design ended in, and that is no news, takes no room.
+    if counts[status] or status in (analysis.STATUS_FAILED, analysis.STATUS_WARNING, analysis.STATUS_PASSED):
+      cards.append(_stat_card(status, counts[status], total, active_status == status))
   return cards
 
 
@@ -164,45 +172,30 @@ def _tool_filter_chips(all_tools, active):
 def _status_cell(status):
   """One matrix cell: the status glyph (or a dash when the tool has no result)."""
   if status is None:
-    return html.Td(html.Span("–", className="xpa-cell-none"), className="xpa-cell")
-  label, modifier, glyph = STATUS_META[status]
+    return html.Td(html.Span("·", className="xpa-cell-none"), className="xpa-cell")
+  modifier, glyph = STATUS_META[status]
   return html.Td(
     html.Span(glyph, className="xpa-cell-glyph xpa-" + modifier),
     className="xpa-cell",
-    title=label,
+    title=analysis.STATUS_LABELS[status],
   )
 
 
-def _matrix(records, search):
+def _matrix(results):
   """
-  Recap table (architecture × tool): one row per architecture/configuration,
-  one column per eda tool present in the data, each cell showing that tool's
-  status glyph (or a dash when the tool has no result for that architecture).
-  Only tools actually present are shown, so the table stays flexible.
+  Recap table (design x tool): one row per design, one column per eda tool
+  present in the data, each cell showing that tool's status.
   """
-  if not records:
+  if not results:
     return None
-
-  needle = search.strip().lower() if search else ""
-  tools = _tool_names(records)
-
+  tools = _tool_names(results)
   status_by_name = {}
-  names = []
-  for record in records:
-    name = _record_name(record)
-    if needle and needle not in name.lower():
-      continue
-    if name not in status_by_name:
-      status_by_name[name] = {}
-      names.append(name)
-    status_by_name[name][_record_tool(record)] = _record_status(record)
-
-  if not names:
-    return None
-  names.sort(key=str.lower)
+  for result in results:
+    status_by_name.setdefault(result.name, {})[result.tool] = result.status
+  names = sorted(status_by_name, key=str.lower)
 
   header = html.Tr(
-    [html.Th("Architecture", className="xpa-matrix-arch-head")]
+    [html.Th("Design", className="xpa-matrix-arch-head")]
     + [html.Th(tool, className="xpa-matrix-tool-head", title=tool) for tool in tools]
   )
   rows = []
@@ -215,7 +208,58 @@ def _matrix(records, search):
   table = html.Table([html.Thead(header), html.Tbody(rows)], className="xpa-matrix-table")
   return html.Details(
     [
-      html.Summary("Summary table", className="xpa-matrix-summary"),
+      html.Summary("Status by tool", className="xpa-matrix-summary"),
+      html.Div(table, className="xpa-matrix-scroll"),
+    ],
+    open=len(tools) > 1,
+    className="xpa-matrix-section",
+  )
+
+
+def _category_table(results, active_category):
+  """
+  How many designs each kind of finding was reported for, by each tool.
+  Clicking a kind keeps the designs it was reported for.
+  """
+  tools = _tool_names(results)
+  designs = {}
+  for result in results:
+    for finding in result.attention:
+      if finding.severity != "info":
+        designs.setdefault((finding.category, result.tool), set()).add(result.name)
+  if not designs:
+    return None
+
+  categories = [category for category in analysis.load_categories()
+                if any((category.name, tool) in designs for tool in tools)]
+  header = html.Tr(
+    [html.Th("Finding", className="xpa-matrix-arch-head")]
+    + [html.Th(tool, className="xpa-matrix-tool-head", title=tool) for tool in tools]
+  )
+  rows = []
+  for category in categories:
+    cells = [html.Td(
+      html.Button(
+        category.label,
+        id={"type": "xpa-category", "category": category.name},
+        n_clicks=0,
+        title=category.description,
+        className="xpa-category-button" + (" xpa-active" if active_category == category.name else ""),
+      ),
+      className="xpa-matrix-arch",
+    )]
+    for tool in tools:
+      count = len(designs.get((category.name, tool), ()))
+      cells.append(html.Td(
+        html.Span(str(count) if count else "·", className="xpa-cell-count" if count else "xpa-cell-none"),
+        className="xpa-cell",
+      ))
+    rows.append(html.Tr(cells, className="xpa-matrix-row"))
+
+  table = html.Table([html.Thead(header), html.Tbody(rows)], className="xpa-matrix-table")
+  return html.Details(
+    [
+      html.Summary("Findings by kind (designs each one was reported for)", className="xpa-matrix-summary"),
       html.Div(table, className="xpa-matrix-scroll"),
     ],
     open=True,
@@ -223,62 +267,91 @@ def _matrix(records, search):
   )
 
 
-def _detail_list(title, items, item_class):
+def _finding_item(finding, categories):
+  category = categories.get(finding.category)
+  label = category.label if category else finding.category
+  head = [
+    html.Span(label, className="xpa-chip xpa-chip-category", title=category.description if category else ""),
+    html.Span(finding.message, className="xpa-finding-message"),
+  ]
+  if finding.count > 1:
+    head.append(html.Span("×" + str(finding.count), className="xpa-chip xpa-chip-count"))
+  where = []
+  if finding.location:
+    where.append(html.Code(finding.location, className="xpa-log-path"))
+  if finding.code:
+    where.append(html.Span(finding.code, className="xpa-finding-code"))
+  if finding.reason:
+    where.append(html.Span(finding.reason, className="xpa-finding-reason"))
+  children = [html.Div(head, className="xpa-finding-head")]
+  if where:
+    children.append(html.Div(where, className="xpa-finding-where"))
+  if finding.detail:
+    children.append(html.Pre("\n".join(finding.detail), className="xpa-finding-detail"))
+  return html.Li(children, className="xpa-finding xpa-finding-" + finding.severity)
+
+
+def _findings_block(title, findings, categories, modifier):
   return html.Div(
     [
-      html.Div(title, className="xpa-detail-title"),
-      html.Ul([html.Li(item, className=item_class) for item in items], className="xpa-detail-list"),
+      html.Div(title + " (" + str(len(findings)) + ")", className="xpa-detail-title"),
+      html.Ul([_finding_item(finding, categories) for finding in findings], className="xpa-detail-list"),
     ],
-    className="xpa-detail-block",
+    className="xpa-detail-block xpa-detail-" + modifier,
   )
 
 
-def _record_row(record):
-  meta = record.get("meta", {})
-  metrics = record.get("metrics", {})
-  status = _record_status(record)
-  label, modifier, glyph = STATUS_META[status]
+def _record_row(result, categories):
+  modifier, glyph = STATUS_META[result.status]
 
-  errors = meta.get("_errors") or ([meta["_error_message"]] if meta.get("_error_message") else [])
-  critical_warnings = meta.get("_critical_warnings") or []
-  standard_warnings = int(metrics.get("standard_warning_count", 0) or 0)
-  error_count = int(metrics.get("error_count", 0) or 0)
-  warning_count = int(metrics.get("warning_count", 0) or 0)
-  log_file = meta.get("_log_file")
-  tool = str(meta.get("tool", ""))
-
-  # Summary line: status badge, name, tool chip, counts.
   chips = []
-  if error_count:
-    chips.append(html.Span([str(error_count), " error" + ("s" if error_count > 1 else "")], className="xpa-chip xpa-chip-error"))
-  if warning_count:
-    chips.append(html.Span([str(warning_count), " warning" + ("s" if warning_count > 1 else "")], className="xpa-chip xpa-chip-warning"))
+  for severity, css in (("error", "error"), ("critical", "critical"), ("warning", "warning")):
+    count = result.count(severity)
+    if count:
+      label = SEVERITY_LABELS[severity][0].lower().rstrip("s")
+      chips.append(html.Span(
+        [str(count), " " + label + ("s" if count > 1 else "")],
+        className="xpa-chip xpa-chip-" + css,
+      ))
+  expected_count = result.count("expected")
+  if expected_count:
+    chips.append(html.Span([str(expected_count), " expected"], className="xpa-chip xpa-chip-expected"))
 
   summary_children = [
     html.Span(glyph, className="xpa-row-badge xpa-" + modifier),
-    html.Span(_record_name(record), className="xpa-row-name"),
+    html.Span(result.name, className="xpa-row-name"),
   ]
-  if tool:
-    summary_children.append(html.Span(tool, className="xpa-chip xpa-chip-tool"))
+  if result.tool:
+    summary_children.append(html.Span(result.tool, className="xpa-chip xpa-chip-tool"))
+  if result.summary:
+    summary_children.append(html.Span(result.summary, className="xpa-row-headline", title=result.summary))
   summary_children.append(html.Span(chips, className="xpa-row-chips"))
 
-  # Detail body: errors, critical warnings, standard warnings, log path.
   body = []
-  if errors:
-    body.append(_detail_list("Errors", errors, "xpa-detail-error"))
-  if critical_warnings:
-    body.append(_detail_list("Critical warnings", critical_warnings, "xpa-detail-warning"))
-  if standard_warnings:
-    body.append(
-      html.Div(
-        f"{standard_warnings} standard warning(s) not listed — see the log for details.",
-        className="xpa-detail-note",
-      )
-    )
-  if log_file:
-    body.append(html.Div(["Log: ", html.Code(str(log_file), className="xpa-log-path")], className="xpa-detail-note"))
+  if result.note:
+    body.append(html.Div(result.note, className="xpa-detail-note"))
+  attention = result.attention
+  for severity in analysis.SEVERITIES:
+    findings = [finding for finding in attention if finding.severity == severity]
+    if findings:
+      body.append(_findings_block(SEVERITY_LABELS[severity][0], findings, categories, SEVERITY_LABELS[severity][1]))
+  if result.omitted:
+    body.append(html.Div(
+      f"{result.omitted} more finding(s) not kept: see the log.", className="xpa-detail-note",
+    ))
+  expected = result.expected
+  if expected:
+    body.append(html.Details(
+      [
+        html.Summary("Expected (" + str(len(expected)) + "), not counted", className="xpa-expected-summary"),
+        html.Ul([_finding_item(finding, categories) for finding in expected], className="xpa-detail-list"),
+      ],
+      className="xpa-detail-block xpa-detail-expected",
+    ))
+  for log in result.logs:
+    body.append(html.Div(["Log: ", html.Code(str(log), className="xpa-log-path")], className="xpa-detail-note"))
   if not body:
-    body.append(html.Div("No issues detected.", className="xpa-detail-note"))
+    body.append(html.Div("Nothing reported.", className="xpa-detail-note"))
 
   return html.Details(
     [
@@ -289,8 +362,19 @@ def _record_row(record):
   )
 
 
-def _list_children(records, active_status, search):
-  if not records:
+def _filtered(results, active_status, active_category, search):
+  if active_status in STATUS_META:
+    results = [result for result in results if result.status == active_status]
+  if active_category and active_category != "all":
+    results = [result for result in results if _has_category(result, active_category)]
+  if search:
+    needle = search.strip().lower()
+    results = [result for result in results if needle in result.name.lower()]
+  return results
+
+
+def _list_children(all_results, results):
+  if not all_results:
     return html.Div(
       [
         html.Div("No analysis results yet", className="xpa-empty-title"),
@@ -301,23 +385,14 @@ def _list_children(records, active_status, search):
       ],
       className="xpa-empty",
     )
-
-  filtered = records
-  if active_status in STATUS_META:
-    filtered = [record for record in filtered if _record_status(record) == active_status]
-  if search:
-    needle = search.strip().lower()
-    filtered = [record for record in filtered if needle in _record_name(record).lower()]
-
-  filtered = sorted(filtered, key=lambda record: (STATUS_ORDER.index(_record_status(record)), _record_name(record).lower()))
-
-  if not filtered:
+  if not results:
     return html.Div(
-      html.Div("No architecture matches the current filter.", className="xpa-empty-subtitle"),
+      html.Div("No design matches the current filter.", className="xpa-empty-subtitle"),
       className="xpa-empty",
     )
-
-  return [_record_row(record) for record in filtered]
+  categories = _categories()
+  results = sorted(results, key=lambda result: (STATUS_ORDER.index(result.status), result.name.lower(), result.tool))
+  return [_record_row(result, categories) for result in results]
 
 
 ######################################
@@ -333,6 +408,7 @@ def layout(**kwargs):
       dcc.Store(id="xpa-data-version", data=-1),
       dcc.Store(id="xpa-status-filter", data="all"),
       dcc.Store(id="xpa-tool-filter", data="all"),
+      dcc.Store(id="xpa-category-filter", data="all"),
       html.Div(
         [
           html.Div(
@@ -341,7 +417,7 @@ def layout(**kwargs):
                 [
                   html.H1("RTL Analysis Dashboard", className="xpa-title"),
                   html.P(
-                    "Pass / warning / error overview of every analyzed architecture.",
+                    "What every analysis found, design by design: what needs attention first, what is expected apart.",
                     className="xpa-subtitle",
                   ),
                 ],
@@ -361,11 +437,12 @@ def layout(**kwargs):
           dcc.Input(
             id="xpa-search",
             type="text",
-            placeholder="Filter architectures…",
+            placeholder="Filter designs…",
             debounce=False,
             className="xp-text-input xpa-search",
           ),
           html.Div(id="xpa-matrix", className="xpa-matrix"),
+          html.Div(id="xpa-categories", className="xpa-matrix"),
           html.Div(id="xpa-list", className="xpa-list"),
         ],
         className="xpa-dashboard",
@@ -438,31 +515,50 @@ def toggle_tool_filter(_clicks, current):
   return "all" if tool == current else tool
 
 
+@page_callback(PAGE_SCOPE,
+  Output("xpa-category-filter", "data"),
+  Input({"type": "xpa-category", "category": ALL}, "n_clicks"),
+  State("xpa-category-filter", "data"),
+  prevent_initial_call=True,
+)
+def toggle_category_filter(_clicks, current):
+  """Clicking a kind of finding keeps the designs it was reported for; clicking it again clears."""
+  triggered = dash.callback_context.triggered_id
+  if not isinstance(triggered, dict) or not any(_clicks or []):
+    raise dash.exceptions.PreventUpdate
+  category = triggered.get("category")
+  return "all" if category == current else category
+
+
 @dash.callback(
   Output("xpa-stats", "children"),
   Output("xpa-tools", "children"),
   Output("xpa-matrix", "children"),
+  Output("xpa-categories", "children"),
   Output("xpa-list", "children"),
   Input("xpa-data-version", "data"),
   Input("xpa-status-filter", "data"),
   Input("xpa-tool-filter", "data"),
+  Input("xpa-category-filter", "data"),
   Input("xpa-search", "value"),
 )
-def render(_version, active_status, tool_filter, search):
-  base = _analysis_records()
+def render(_version, active_status, tool_filter, category_filter, search):
+  base = _analysis_results()
   all_tools = _tool_names(base)
 
-  # A tool filter scopes stats, the summary table and the list to that tool.
+  # A tool filter scopes everything below it to that tool.
   if tool_filter and tool_filter != "all":
-    working = [record for record in base if _record_tool(record) == tool_filter]
+    working = [result for result in base if result.tool == tool_filter]
   else:
     working = base
 
+  searched = _filtered(working, None, None, search)
   return (
     _stats_row(working, active_status),
     _tool_filter_chips(all_tools, tool_filter),
-    _matrix(working, search),
-    _list_children(working, active_status, search),
+    _matrix(searched),
+    _category_table(searched, category_filter),
+    _list_children(base, _filtered(working, active_status, category_filter, search)),
   )
 
 

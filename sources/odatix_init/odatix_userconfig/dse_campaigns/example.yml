@@ -1,0 +1,135 @@
+##############################################
+# Odatix design space exploration campaign
+##############################################
+---
+# One campaign: which architectures are searched, what makes their designs
+# good, and how long to look for it. How the exploration is run -- how many
+# jobs at once, whether to ask before starting -- is in "dse_settings.yml",
+# which is also where this campaign is named for it to be run.
+#
+# The campaign is named after this file, and so is what it finds:
+# "results/dse/<this file's name>.yml".
+
+# what evaluating one design runs
+#
+# What runs a design is a choice like any other: name one eda tool, one of its
+# flows and one of its targets and every design is run the same way, or name
+# several of any of them and the search chooses between them -- which is what
+# an exploration asking "which target is this design cheapest on" is.
+#
+# Leaving "flow" empty runs the default flow of each tool, and leaving "target"
+# empty runs every target the tool's target file enables, the way "odatix
+# synth" does: a design is then worth what its best target is worth.
+run:              fmax_synthesis  # fmax_synthesis, custom_freq_synthesis or workflow
+tool:             vivado          # a tool, or a list of them - overridden by -t / --tool
+flow:             ""              # a flow, or a list of them - empty: the default flow of each tool
+target:           ""              # a target, or a list of them - empty: every target the tool enables
+
+# simulations every design is run through, before it is measured
+#
+# An objective is not restricted to what a synthesis measures. A simulation
+# measures what no synthesis can -- a cycle count, an error rate -- and a
+# derived metric (see "derived_metrics.yml") brings that number onto the
+# synthesis result, where it is a metric like any other.
+#
+# Leave this empty when the designs were already simulated: the derived metrics
+# read those results just the same, nothing has to be run twice.
+simulations:      []              # e.g. [TB_Example_Cordic_Verilator]
+
+# at what frequency, when what runs is a custom frequency synthesis
+#
+# It is the one run that is told a frequency -- an fmax synthesis looks for one
+# -- so it is the one run where the frequency is a choice like any other:
+# either it is made here, once, or it is left to the search, which then treats
+# it as one more axis of the space and gives each design its own.
+#
+# Saying nothing here leaves the frequencies of
+# "custom_freq_synthesis_settings.yml" alone, like every other setting of the
+# command being run.
+frequencies:
+  explore:        No      # yes: each design gets a frequency of its own, chosen in the range below
+  list:           []      # if 'explore' is no, every design is synthesized at each of those
+  range:                  # if 'explore' is yes, the frequencies the search may choose from
+    from:         50
+    to:           500
+    step:         10
+
+# what the search starts from
+#
+# A workspace is full of results nobody explored towards: a sweep of one
+# parameter, a single synthesis, an earlier campaign looking for something
+# else. Each of those is a design of this space already measured, and the
+# search is given it for free -- it goes straight into the front and into what
+# the strategy learns from, and is never run again.
+#
+# Only the results whose run recorded where they sit in the space are taken:
+# nothing is guessed from a configuration name. Runs made before that was
+# recorded are read for the front, as they always were, and not for the search.
+reuse_results:    Yes             # no: search from nothing but what this campaign runs itself
+
+# what makes a design better than another
+#
+# Each objective is a metric to "min" or to "max". Nothing says how they
+# compare to each other -- a smaller design that runs slower is not worse than
+# a bigger one that runs faster, it is another trade-off -- so what comes back
+# is every design that nothing beats on all of them at once.
+#
+# "frequency" is where an fmax synthesis puts its answer; everything else is a
+# metric of the results file (LUT_count, Total_Power, ...), derived metrics
+# included.
+objectives:
+  - metric: frequency
+    goal: max
+  - metric: LUT_count
+    goal: min
+
+# what a design has to be for it to count at all
+#
+# An objective is something to get as much of as possible; a constraint is a
+# line a design is either on the right side of or not. "The slack has to be
+# positive" is the second: a design with 4 ns to spare is not the answer to a
+# search that could have run it faster, and one that misses the timing is not a
+# trade-off -- it does not work.
+#
+# Each one is a metric with a "min", a "max", or both. A design that breaks one
+# is beaten by every design that does not, whatever its objectives say; between
+# two that both break one, the closer to meeting it wins. Nothing is thrown
+# away: at the start of a search there are often only infeasible designs, and
+# they are what points it towards the part of the space that works.
+constraints: []
+  # - metric: Slack
+  #   min: 0
+  # - metric: LUT_count
+  #   max: 20000
+
+# how the search looks for it
+search:
+  strategy:       genetic  # genetic, random or exhaustive - overridden by --strategy
+  budget:         50       # designs evaluated at most, per architecture - overridden by --budget
+  batch:          8        # designs evaluated together, between two decisions
+  patience:       0        # stop after this many batches that do not improve (0: never)
+  improvement:    0        # how much the front has to grow for a batch to count (0.02: 2%)
+  seed:                    # empty: a different search every time
+
+# architectures to explore, one search each
+#
+# An entry selects what is searched the way every run selects what it runs:
+# "Design/*" searches the main domain, "Design/* + corner/*" searches "corner"
+# too, and "Design/* + corner/tt" fixes it to one configuration for every
+# design. A domain that is not named is left out; an entry that names none of
+# them ("Design") searches all of them.
+architectures:
+
+#--------------------------------------------#
+# Add your own designs!
+#--------------------------------------------#
+
+  #- Your_Design
+
+#--------------------------------------------#
+# Examples
+#--------------------------------------------#
+
+  # A filter whose three knobs are handed to the high-level synthesis: 27
+  # designs, which a sweep can still afford. Add a fourth knob and it cannot.
+  # - Example_FIR_hls

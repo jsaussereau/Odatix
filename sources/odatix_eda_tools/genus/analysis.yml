@@ -1,0 +1,128 @@
+##################################################
+# RTL analysis: how Genus reports
+##################################################
+
+# The analysis script writes the checks of the elaborated design
+# (check_design -all) to report/checkout.rep, and its latches, which Genus
+# names nowhere else, to report/latches.rep.
+logs:
+  - log/analysis.log
+  - report/checkout.rep
+  - report/latches.rep
+
+severities:
+  Error: error
+  Warning: warning
+
+# Genus prints the details of a message on the lines below it, after a colon.
+continuation: "^\\s+:"
+
+# What each message id of Genus is about. A message that only follows from the
+# others is "secondary": it is left out when one at least as severe is there.
+# Only ids seen in Genus logs are listed: any other message is still reported,
+# by the "message" rule below, under "other". The first line of a message of
+# Genus is often its kind only ("Cannot open file."), what it is about being
+# below it: "message" says it better, with what was read there.
+codes:
+  VLOGPT-1: syntax
+  VHDLPT-672: syntax
+  VLOGPT-20: {category: undeclared, message: "'{subject}' is not declared"}
+  VLOGPT-37: {category: undeclared, message: "'{subject}' is not declared"}
+  # Genus only warns of a file it cannot open, and goes on without it: the
+  # design is broken all the same, as every other tool says.
+  VLOGPT-650: {category: missing_file, severity: error, message: "Cannot open '{subject}'"}
+  CDFG-210: {category: missing_top, message: "No design '{subject}' in the sources"}
+  CDFG-211: port_mismatch
+  # A module defined nowhere: a black box is created for its instance
+  # (CDFG-428), then reported unresolved, naming the module (TUI-273, see
+  # "black_box" below). Genus only warns, but the design is broken. A VHDL
+  # instance of it says first that its entity is not visible.
+  CDFG-428: {category: missing_module, severity: critical, secondary: true}
+  TUI-273: {category: missing_module, severity: error}
+  VHDLPT-802: {category: missing_module, secondary: true}
+  CDFG2G-621: {category: multiple_drivers, message: "'{subject}' has several drivers"}
+  ELABUTL-123: {category: undriven, message: "Output '{subject}' is never assigned"}
+
+messages:
+
+  license:
+    pattern: "(?P<message>License '(?P<subject>[^']+)'.* checkout failed\\.?)"
+    severity: error
+    category: tool_setup
+
+  # "Info : To insure proper verification, preserved netlist point(s) because
+  # they are involved in combinational loop(s). [ELABUTL-133]"
+  combinational_loop:
+    pattern: "^Info\\s*:.*involved in combinational loop.*\\[(?P<code>[A-Z0-9]+-\\d+)\\]"
+    message: "Combinational loop"
+    severity: warning
+    category: combinational_loop
+
+  # "Warning : Black-boxes are represented as unresolved references in the
+  # design. [TUI-273]", the module being named below: "Cannot resolve reference
+  # to 'sub_missing'."
+  black_box:
+    pattern: "^Warning\\s*:\\s*Black-boxes are represented as unresolved references.*\\[(?P<code>TUI-273)\\]"
+    message: "Module '{subject}' is defined nowhere: it is a black box"
+    severity: error
+    category: missing_module
+    after:
+      pattern: "Cannot resolve reference to '(?P<subject>[^']+)'"
+
+  # The lists of check_design: a heading, then a row per port or instance.
+  unresolved:
+    heading: "has the following unresolved references"
+    pattern: "^hinst:(?P<subject>\\S+)\\s*$"
+    message: "Instance '{subject}' of a module defined nowhere"
+    severity: critical
+    category: missing_module
+    secondary: true
+    files: ["report/checkout.rep"]
+
+  unloaded_port:
+    heading: "has the following unloaded port"
+    pattern: "^port:(?:\\S+/)?(?P<subject>[^/\\s]+)\\s*$"
+    message: "Input '{subject}' is never read"
+    severity: warning
+    category: unused
+    files: ["report/checkout.rep"]
+
+  undriven_port:
+    heading: "has the following undriven port"
+    pattern: "^port:(?:\\S+/)?(?P<subject>[^/\\s]+)\\s*$"
+    message: "Output '{subject}' is never assigned"
+    severity: warning
+    category: undriven
+    files: ["report/checkout.rep"]
+
+  multidriven:
+    heading: "has the following multidriven"
+    pattern: "^(?:port|pin|net):(?:\\S+/)?(?P<subject>[^/\\s]+)\\s*$"
+    message: "'{subject}' is driven from several places"
+    severity: warning
+    category: multiple_drivers
+    secondary: true
+    files: ["report/checkout.rep"]
+
+  latch:
+    pattern: "^inst:(?:\\S+/)?(?P<subject>[^/\\s]+)\\s*$"
+    message: "Latch inferred for '{subject}'"
+    severity: warning
+    category: latch
+    files: ["report/latches.rep"]
+
+  # "Error   : Parsing error. [VLOGPT-1] [read_hdl]", what it is about and where
+  # on the lines below it:
+  #   ": Expecting token ';', found 'always_ff' in file 'rtl/top.sv' on line 3, column 11."
+  message:
+    pattern: "^(?P<severity>Error|Warning)\\s*:\\s*(?P<message>.*?)\\s*\\[(?P<code>[A-Z0-9]+-\\d+)\\]"
+    severity: warning
+    fallback: true
+    after:
+      within: 2
+      patterns:
+        - "in file '(?P<file>[^']+)' on line (?P<line>\\d+)"
+        - "^\\s+:\\s*(?:Symbol|File|Entity|The design is) '(?P<subject>[^']+)'"
+        - "^\\s+:\\s*(?:Cannot resolve reference to|.*\\bport) '(?P<subject>[^']+)'"
+        - "^\\s+:\\s*'(?P<subject>[^']+)' in module"
+        - "^\\s+:\\s*(?P<message>(?:Expecting|Unable to find|.* requires) .*?)(?: in file '|\\.  |$)"

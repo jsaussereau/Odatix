@@ -49,10 +49,10 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
   Returns:
     tuple: A tuple containing:
       - process_group (bool): Whether the process grouping is enabled.
-      - report_path (str): Path of the report directory.
       - synthesis_command (list): The command for the selected job type and flow.
       - tool_test_command (list): The command to check if the tool is installed.
-      - default_metrics_file (str): Path to the metrics file of the flow.
+      - default_metrics_file (str): Path to the metrics file of the flow, or
+        None for a tool that declares none (an RTL linter measures nothing).
       - flow_name (str): The name of the flow that was resolved.
       - steps (list | None): The ordered steps of the flow, resolved
         ({"name", "command", "args", "session", "default"}, see
@@ -90,8 +90,8 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
 
   # Retrieve global settings
   process_group, _ = get_from_dict("process_group", settings_data, tool_settings_file, default_value=True, script_name=script_name)
-  report_path, _ = get_from_dict("report_path", settings_data, tool_settings_file, default_value="report", silent=True, script_name=script_name)
-  default_metrics_file, _ = get_from_dict("default_metrics_file", settings_data, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
+  # Only exporting the results needs metrics, and it says so when there are none.
+  default_metrics_file, _ = get_from_dict("default_metrics_file", settings_data, tool_settings_file, silent=True, script_name=script_name)
 
   # Determine the current platform (Unix or Windows)
   platform_key = "windows" if sys.platform == 'win32' else "unix"
@@ -160,4 +160,4 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
   if selected_flow["metrics_file"]:
     default_metrics_file = selected_flow["metrics_file"]
 
-  return process_group, report_path, synthesis_command, tool_test_command, default_metrics_file, flow_name, steps
+  return process_group, synthesis_command, tool_test_command, default_metrics_file, flow_name, steps

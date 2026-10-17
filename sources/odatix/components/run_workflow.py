@@ -40,6 +40,8 @@ import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.task_common as task_common
 import odatix.lib.printc as printc
 import odatix.run.cli as run_cli
+from odatix.components.cli_options import add_options
+from odatix.run.options import RunOptions
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import ConfigGenerator
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
@@ -209,9 +211,10 @@ def _resolve_workflow_tasks(tasks, substitutions):
 
         resolved_task = dict(task)
 
-        commands = resolved_task.get("commands")
-        if isinstance(commands, list):
-            resolved_task["commands"] = [_replace_workflow_command_vars(command, substitutions) for command in commands]
+        for key in ("commands", "on_failure_commands"):
+            commands = resolved_task.get(key)
+            if isinstance(commands, list):
+                resolved_task[key] = [_replace_workflow_command_vars(command, substitutions) for command in commands]
 
         task_path = resolved_task.get("path")
         if isinstance(task_path, str):
@@ -245,20 +248,12 @@ def _expand_env_tokens(path):
 ######################################
 
 def add_arguments(parser):
-    parser.add_argument('-o', '--overwrite', action='store_true', help='overwrite existing results')
-    parser.add_argument('-y', '--noask', action='store_true', help='do not ask to continue')
-    parser.add_argument('-d', '--detach', action='store_true', help='enqueue jobs to daemon and return without attaching monitor')
-    parser.add_argument('-S', '--session', help='daemon session name or selector')
-    parser.add_argument('-i', '--input', help='input settings file')
-    parser.add_argument('-p', '--workflowpath', help='workflow directory')
-    parser.add_argument('-w', '--work', help='workflow work directory')
-    parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
-    parser.add_argument("-k", "--keep", action="store_true", help="store workflow batch with a timestamp in the configuration name")
-    parser.add_argument("-r", "--resume", action="store_true", help="resume from existing work directories (do not delete/recreate them)")
-    parser.add_argument("--logsize", help="size of the log history per job in the monitor")
-    parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
-    parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
+    add_options(
+        parser, "overwrite", "noask", "daemon_options", "settings_file", "workflow_path", "work_path",
+        "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "debug", "export_options", "config",
+        work_path={"help": "workflow work directory"},
+        keep={"help": "store workflow batch with a timestamp in the configuration name"},
+    )
 
 
 def parse_arguments():
@@ -777,56 +772,12 @@ def start_parallel_jobs(
 # Main
 ######################################
 
-def main(args, settings=None):
-
-    if settings is None:
-        settings = OdatixSettings(args.config)
-        if not settings.valid:
-            sys.exit(-1)
-
-    if args.input is not None:
-        run_config_settings_filename = args.input
-    else:
-        run_config_settings_filename = settings.workflow_settings_file
-
-    if args.workflowpath is not None:
-        workflow_path = args.workflowpath
-    else:
-        workflow_path = settings.workflow_path
-
-    if args.work is not None:
-        work_path = args.work
-    else:
-        work_path = os.path.join(str(settings.work_path), str(settings.workflow_work_path))
-
-    overwrite = args.overwrite
-    noask = args.noask
-    exit_when_done = args.exit
-    log_size_limit = args.logsize
-    nb_jobs = args.jobs
-    debug = args.debug
-    keep = args.keep
-    resume = args.resume
-    detach = args.detach
-    daemon_session = args.session
-
-    run_workflows(
-        run_config_settings_filename,
-        workflow_path,
-        work_path,
-        overwrite,
-        noask,
-        exit_when_done,
-        log_size_limit,
-        nb_jobs,
-        debug,
-        keep,
-        resume,
-        "" if getattr(args, "noexport", False) else settings.result_path,
-        exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
-        detach,
-        daemon_session,
-    )
+def main(args):
+    run_cli.execute(run_cli.command_run(
+        "workflow",
+        workspace=run_cli.command_workspace(args.config, script_name),
+        options=RunOptions.from_namespace(args),
+    ))
 
 
 if __name__ == "__main__":

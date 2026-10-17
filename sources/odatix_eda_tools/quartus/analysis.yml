@@ -1,0 +1,66 @@
+##################################################
+# RTL analysis: how Quartus reports
+##################################################
+
+logs:
+  - log/analysis.log
+
+severities:
+  Error: error
+  Critical Warning: critical
+  Warning: warning
+
+# What each message id of Quartus is about. A message that only follows from
+# the errors before it ("module ignored due to previous errors") is
+# "secondary": it is left out when they are there.
+codes:
+  "13411": syntax
+  "13806": syntax
+  "19645": syntax
+  "16827": missing_file
+  "16045": missing_module
+  "12006": missing_module
+  "13785": missing_module
+  "16368": missing_top
+  "13406": undeclared
+  "10161": undeclared
+  "13305": port_mismatch
+  "17822": multiple_drivers
+  "19651": latch
+  "13469": width_mismatch
+  "21610": undriven
+  "13363": {category: elaboration, secondary: true}
+  "13827": {category: elaboration, secondary: true}
+
+# What Quartus says of every design, which needs no attention.
+expected:
+  reset_release:
+    code: "20759"
+    reason: "Quartus advises the Reset Release IP for every Agilex design: a configuration concern, not an RTL one"
+  design_assistant:
+    code: "21620"
+    reason: "Summary of the Design Assistant rules, which flag a design analyzed without timing constraints"
+
+messages:
+
+  # "Error (16045): Instance "u" instantiates undefined entity "foo" File: /path/rtl/top.sv Line: 2"
+  message:
+    # The "Verilog HDL error at top.sv(5): " a message starts with says what
+    # the location already does: it is left out of the message.
+    pattern: "^(?P<severity>Error|Critical Warning|Warning) \\((?P<code>\\d+)\\): (?:[A-Za-z ]+ at [^ ]+\\(\\d+\\): )?(?P<message>.*?)(?: File: (?P<file>\\S+) Line: (?P<line>\\d+))?\\s*$"
+    severity: warning
+    subject:
+      - "undefined entity \"([^\"]+)\""
+      - "primary unit \"([^\"]+)\""
+      - "include file \"?([^\"\\s]+)"
+      - "\"([^\"]+)\""
+      - "(?:net|port|object) ([A-Za-z_][A-Za-z0-9_]*)"
+
+  # "Error: Failed to elaborate design:", "Error: Quartus Prime Synthesis was
+  # unsuccessful": what the errors above led to.
+  summary:
+    pattern: "^(?P<severity>Error|Critical Warning|Warning): (?P<message>.*)"
+    severity: error
+    category: elaboration
+    secondary: true
+    fallback: true

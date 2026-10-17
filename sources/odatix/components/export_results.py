@@ -35,6 +35,7 @@ from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadV
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
+from odatix.components.cli_options import add_options
 from odatix.lib.variables import replace_variables, Variables
 from odatix.components.export_common import (
     parse_regex,
@@ -62,8 +63,6 @@ def _reset_banned_lists():
 # Settings
 ######################################
 
-DEFAULT_FORMAT = "yml"
-
 tool_settings_filename = "tool.yml"
 
 simulations_dir = "simulations"
@@ -84,24 +83,9 @@ def add_arguments(parser):
   Args:
       parser (ArgumentParser): Argument parser instance.
   """
-  parser.add_argument("-t", "--tool", default="all", help="eda tool in use, or 'all' (default: all)")
-  parser.add_argument(
-    "-f",
-    "--format",
-    choices=["csv", "yml", "all"],
-    default=DEFAULT_FORMAT,
-    help="Output format: csv, yml, or all (default: " + DEFAULT_FORMAT + ")",
-  )
-  parser.add_argument("-u", "--use_benchmark", action="store_true", help="Use benchmark values in yaml file")
-  parser.add_argument("-B", "--benchmark_file", help="Benchmark file")
-  parser.add_argument("-w", "--work", help="Work directory")
-  parser.add_argument("-r", "--respath", help="Result path")
-  parser.add_argument("-m", "--metrics", help="Metrics definition file")
-  parser.add_argument(
-    "-c",
-    "--config",
-    default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
+  add_options(
+    parser, "tool", "use_benchmark", "benchmark_file", "work_path", "result_path", "metrics", "config",
+    tool={"default": "all", "help": "eda tool in use, or 'all' (default: all)"},
   )
 
 
@@ -658,10 +642,10 @@ def process_configuration(input, target, architecture, configuration, frequency,
   return records
 
 
-def export_results(input, output, tools, format, use_benchmark, benchmark_file, result_types, custom_metrics_file=None):
+def export_results(input, output, tools, use_benchmark, benchmark_file, result_types, custom_metrics_file=None):
   """
   Export synthesis results for multiple tools, configurations and architectures
-  to a specified format.
+  to the v2 results files.
 
   This function iterates over synthesis results from specified tools, of every
   architecture configurations in the input directory, extracts metrics, and writes 
@@ -671,14 +655,14 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       input (str): Base directory containing synthesis results.
       output (str): Directory where the exported results will be saved.
       tools (list | str): List of EDA tools to process or "All" to process all available tools.
-      format (str): Output format for the results ("csv", "yml", or "all").
       use_benchmark (bool): Whether to include benchmark data in the metrics.
       benchmark_file (str): Path to the benchmark YAML file.
       result_types (dict): Dictionary specifying the yaml key and path for each result type to process (e.g., `fmax_synthesis` and `custom_freq_synthesis`) 
       custom_metrics_file (str): Path to a metrics definition YAML file.
 
   Returns:
-      None: Results are saved to files; errors are logged.
+      bool: whether every results file could be written. What failed has been
+      reported.
 
   Notes:
       - For each tool, synthesis types (`fmax_synthesis` and `custom_freq_synthesis`) 
@@ -710,13 +694,14 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       printc.cyan('  "key": "fmax_synthesis",')
       printc.cyan('  "path": your/fmax/synthesis/path,')
       printc.cyan('},: ')
-      return
+      return False
 
   # Get tool list
   if not isinstance(tools, list):
     if not isinstance(tools, str) or tools != "all":
-      printc.error("Invalid value for 'tools': " + tools, script_name)
-      printc.note("'tools' should be ether a list or 'all'" + tools, script_name)
+      printc.error("Invalid value for 'tools': " + str(tools), script_name)
+      printc.note("'tools' should be ether a list or 'all'", script_name)
+      return False
     else:
       tools = []
       for result_type in result_types:
@@ -728,6 +713,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       # tool is exported into that tool's single results file.
       tools = list(set(eda_tools.split_tool_work_dirname(item)[0] for item in tools))
 
+  success = True
   for tool in tools:
     _reset_banned_lists()
 
@@ -783,7 +769,6 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
             if job_records is not None:
               records += job_records
 
-    # Export to the desired format
     output_file = os.path.join(output, "results_" + tool + ".yml")
     try:
       results_cache.store(output_file, units, records)
@@ -793,52 +778,34 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       printc.error('Could not write "' + output_file + '"', script_name=script_name)
       printc.cyan("error details: ", script_name=script_name, end="")
       print(str(e))
+      success = False
+
+  return success
 
 
-def export_analysis(input_work_path, output, analysis_work_path, tools="all"):
+def export_analysis(input_work_path, output, analysis_work_path, tools="all", expected=None):
   """
-  Compile the RTL analysis results (odatix analyze) into v2 results files for
-  Odatix Explorer, from the analysis work directory.
-
-  For every eda tool that has an analysis work directory
-  (``<input_work_path>/<analysis_work_path>/<tool>``), the per-architecture
-  status/errors/warnings are recomputed and written to
-  "results_analysis_<tool>.yml" in ``output`` (see
-  odatix.components.export_analysis), exactly like a fresh ``odatix analyze``
-  would.
+  Compile the RTL analysis results (odatix analyze) found in the analysis work
+  directory into the results files of Odatix Explorer, exactly like the jobs
+  themselves export them (see odatix.components.export_analysis).
 
   Args:
       input_work_path (str): the workspace work directory.
       output (str): the workspace result directory.
       analysis_work_path (str): the analysis work sub-directory name.
-      tools (list | str): eda tools to export, or "all" to auto-discover them.
+      tools (list | str): eda tools to export, or "all".
+      expected: the "expected" section of the analysis settings file.
+
+  Returns:
+      bool: whether every results file to write could be written.
   """
-  # Imported here (not at module top) to avoid a heavy import for the common
-  # synthesis export path.
-  from odatix.components.analyze_results import generate_analysis_summary
-  from odatix.components.export_analysis import export_analysis_results
+  from odatix.components.export_analysis import export_analysis_from_work
 
-  analysis_root = os.path.join(input_work_path, analysis_work_path)
-  if not os.path.isdir(analysis_root):
-    return
-
-  discovered = sorted(
-    item for item in os.listdir(analysis_root) if os.path.isdir(os.path.join(analysis_root, item))
+  _results, success = export_analysis_from_work(
+    os.path.join(input_work_path, analysis_work_path), output,
+    tools=tools if isinstance(tools, list) else None, expected=expected,
   )
-  if isinstance(tools, list):
-    selected = [tool for tool in discovered if tool in tools]
-  else:
-    selected = discovered
-
-  for tool in selected:
-    tool_dir = os.path.join(analysis_root, tool)
-    printc.cyan("Export " + tool + " analysis results", script_name)
-    summary = generate_analysis_summary(
-      root_dir=tool_dir,
-      output_file=os.path.join(tool_dir, "analysis.yml"),
-      tool=tool,
-    )
-    export_analysis_results(summary, output, tool)
+  return success
 
 
 def load_metrics_for_tool(tool, custom_metrics_file=None, flow=None):
@@ -1058,7 +1025,7 @@ def main(args, settings=None):
   # Get settings
   if settings is None:
     settings = OdatixSettings(args.config)
-    if not settings.valid and (args.work is None or args.respath is None):
+    if not settings.valid and (args.work_path is None or args.result_path is None):
       printc.error("Could not load settings from file \"" + args.config + "\" and -w and/or -r options are not used", script_name=script_name)
       sys.exit(-1)
 
@@ -1080,8 +1047,8 @@ def main(args, settings=None):
       use_benchmark = False
       benchmark_file = None
 
-  if args.work is not None:
-    input = args.work
+  if args.work_path is not None:
+    input = args.work_path
   else:
     input = settings.work_path
 
@@ -1091,8 +1058,8 @@ def main(args, settings=None):
     printc.note("Or run custom frequency synthesis using the 'odatix synth' command before exporting the results", script_name=script_name)
     sys.exit(-1)
 
-  if args.respath is not None:
-    output = args.respath
+  if args.result_path is not None:
+    output = args.result_path
   else:
     output = settings.result_path
 
@@ -1120,11 +1087,10 @@ def main(args, settings=None):
   else:
     metrics_file = None
 
-  export_results(
+  success = export_results(
     input=input,
     output=output,
     tools=tools,
-    format=args.format,
     use_benchmark=use_benchmark,
     benchmark_file=benchmark_file,
     result_types=result_types,
@@ -1136,12 +1102,18 @@ def main(args, settings=None):
     analysis_work_path = settings.analysis_work_path
   else:
     analysis_work_path = OdatixSettings.DEFAULT_ANALYSIS_WORK_PATH
-  export_analysis(
+  from odatix.components.run_analysis import read_run_expectations
+
+  success = export_analysis(
     input_work_path=input,
     output=output,
     analysis_work_path=analysis_work_path,
     tools=tools,
-  )
+    expected=read_run_expectations(settings.analysis_settings_file) if settings.valid else None,
+  ) and success
+
+  if not success:
+    sys.exit(-1)
 
 
 if __name__ == "__main__":

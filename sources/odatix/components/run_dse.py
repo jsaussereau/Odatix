@@ -32,6 +32,7 @@ import os
 import sys
 
 import odatix.lib.printc as printc
+from odatix.components.cli_options import add_options
 
 EXIT_SUCCESS = 0
 
@@ -65,21 +66,20 @@ def add_arguments(parser):
     parser.add_argument("-b", "--budget", type=int, help="how many designs to evaluate at most")
     parser.add_argument("-B", "--batch", type=int, help="how many designs to evaluate together")
     parser.add_argument("--seed", type=int, help="make the search reproducible")
-    parser.add_argument("-j", "--jobs", dest="nb_jobs", help="maximum number of parallel jobs")
+    add_options(parser, "nb_jobs", nb_jobs={"help": "maximum number of parallel jobs"})
     parser.add_argument("--no-reuse", dest="no_reuse", action="store_true",
                         help="search from nothing but what this exploration runs itself, "
                              "instead of starting from the designs of the space that are "
                              "already measured")
-    parser.add_argument("-o", "--overwrite", action="store_true", help="evaluate again what is already done")
-    parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
-    parser.add_argument("-d", "--detach", action="store_true",
-                        help="let the exploration run without attaching the monitor to it")
-    parser.add_argument("-S", "--session", help="daemon session name or selector")
+    add_options(parser, "overwrite", "noask", "daemon_options",
+                overwrite={"help": "evaluate again what is already done"},
+                detach={"help": "let the exploration run without attaching the monitor to it"})
     # Not for users: what the daemon runs to be the search itself. Everything a
     # user says has already been resolved into the settings file it is given.
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("-c", "--config", dest="config_file", help="exploration settings file")
-    parser.add_argument("-w", "--work", dest="work_path", help="work directory")
+    # Not the global settings file of the other commands: the exploration
+    # reads the workspace's own, and this names its settings.
+    add_options(parser, "config", config={"dest": "config_file", "default": None, "help": "exploration settings file"})
     parser.add_argument("-C", "--check", action="store_true",
                         help="say what the exploration would do, without running anything")
     return parser

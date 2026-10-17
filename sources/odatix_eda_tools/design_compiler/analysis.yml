@@ -1,0 +1,103 @@
+##################################################
+# RTL analysis: how Design Compiler reports
+##################################################
+
+# Read by "dc_nxt" too, which extends this tool.
+
+logs:
+  - log/analysis.log
+
+severities:
+  Error: error
+  Fatal: error
+  Failure: error
+  Warning: warning
+
+# What each message id of Design Compiler is about. A message that only follows
+# from the others is "secondary": it is left out when one at least as severe is
+# there. Only ids seen in Design Compiler logs are listed: any other message is
+# still reported, by the "message" rule below, under "other".
+codes:
+  VER-41: missing_file
+  VER-294: syntax
+  VER-956: undeclared
+  LBR-0: missing_top
+  # A module defined nowhere: reported when elaborating ("Cannot find the
+  # design"), then by every link ("Unable to resolve reference"), which also
+  # says it of a module it could not link for another reason (a port it lacks).
+  # Design Compiler only warns, an empty black box taking its place: the design
+  # is broken all the same, as every other tool says.
+  LBR-1: {category: missing_module, severity: error}
+  LINK-5: {category: missing_module, severity: critical, secondary: true}
+  UID-341: {category: missing_module, severity: critical, secondary: true}
+  LINK-1: port_mismatch
+  # Several drivers: a warning per bit when elaborating the process, then the
+  # error per net.
+  ELAB-366: multiple_drivers
+  ELAB-405: {category: multiple_drivers, secondary: true}
+  LINT-28: unused
+  # An input driving wired logic: the ports of a module that did not link have
+  # no direction.
+  LINT-6: {category: multiple_drivers, secondary: true}
+  UID-3: tool_setup
+  DCSH-1: tool_setup
+
+messages:
+
+  # "Fatal: Design Compiler is not enabled. (DCSH-1)": no license.
+  license:
+    pattern: "^(?P<severity>Fatal|Error): (?P<message>.*(?:is not enabled|license).*?)\\s*\\((?P<code>[A-Z]+-\\d+)\\)\\s*$"
+    severity: error
+    category: tool_setup
+
+  # The registers inferred by elaboration are a table, a latch being a row:
+  # "|        q_reg        | Latch |   8   |  Y  | N  | None  | None  | -  |  2   |"
+  latch:
+    pattern: "^\\|\\s*(?P<subject>\\S+)\\s*\\|\\s*Latch\\s*\\|"
+    message: "Latch inferred for '{subject}'"
+    severity: warning
+    category: latch
+
+  # The VHDL reader (Presto) reports apart, under the line it is about:
+  # "[Error] SUB_MISSING is not a primary unit of library WORK"
+  vhdl_missing_unit:
+    pattern: "^\\[Error\\] (?P<message>(?P<subject>\\S+) is not a primary unit of library .*)"
+    severity: error
+    category: missing_module
+
+  vhdl_syntax:
+    pattern: "^\\[(?:Error|Failure)\\] (?P<message>Syntax error.*)"
+    severity: error
+    category: syntax
+
+  vhdl_end:
+    pattern: "^\\[Failure\\] (?P<message>End of compilation.*)"
+    severity: error
+    category: elaboration
+    secondary: true
+
+  presto:
+    pattern: "(?P<message>Presto compilation (?:terminated|was unsuccessful).*?)\\s*\\**\\s*$"
+    severity: error
+    category: elaboration
+    secondary: true
+
+  vhdl_message:
+    pattern: "^\\[(?P<severity>Error|Failure|Warning)\\] (?P<message>.*)"
+    severity: warning
+    fallback: true
+
+  # "Error:  rtl/top.sv:3: Syntax error at or near token 'x'. (VER-294)"
+  # A message about no line of the sources says " :0:".
+  message:
+    pattern: "^(?P<severity>Error|Fatal|Warning):\\s+(?:(?P<file>[^:\\s]*):(?P<line>\\d+): )?(?P<message>.*?)\\s*\\((?P<code>[A-Z]+-\\d+)\\)\\s*$"
+    severity: warning
+    subject:
+      - "port '([^']+)'"
+      - "symbol '([^']+)'"
+      - "design '([^']+)'"
+      - "reference '([^']+)'"
+      - "file `([^']+)'"
+      - "^Net '?([^' ]+)'?"
+      - "(?<![A-Za-z])'([^']+)'"
+    fallback: true

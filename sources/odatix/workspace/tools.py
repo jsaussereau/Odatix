@@ -87,8 +87,13 @@ STEPPED_JOB_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analysis
 #: flows: the built-in flows and their commands belong to Odatix.
 OVERRIDABLE_KEYS = (
     "label", "description", "icon", "icon_filter", "process_group",
-    "report_path", "target_file", "default_metrics_file",
+    "target_file", "default_metrics_file",
 )
+
+#: Keys a tool.yml may still hold, that nothing reads: they are dropped the next
+#: time the file is saved. "report_path" was never used, the reports of a job
+#: are always in its "report" directory (see "$report_path").
+DROPPED_KEYS = ("report_path",)
 
 #: The metric sections of a tool metrics.yml, in render order, with a label.
 METRIC_SECTIONS = [
@@ -535,10 +540,13 @@ class ToolSettings(object):
     """
 
     #: Keys this class owns; anything else in the file is kept in ``extra``.
-    OWNED_KEYS = set(OVERRIDABLE_KEYS) | set(PLATFORMS) | set(["format", "flows", "default_flow", "parameters", "extends"])
+    OWNED_KEYS = (
+        set(OVERRIDABLE_KEYS) | set(PLATFORMS) | set(DROPPED_KEYS)
+        | set(["format", "flows", "default_flow", "parameters", "extends"])
+    )
 
     def __init__(self, label="", description="", icon="", icon_filter=False, process_group=True,
-                 report_path="", target_file="", default_metrics_file="",
+                 target_file="", default_metrics_file="",
                  flows=None, format=None, extra=None, extends=""):
         # The tool this one is a variant of (see odatix.lib.eda_tools.get_base_tool):
         # it then only declares what differs from it.
@@ -548,7 +556,6 @@ class ToolSettings(object):
         self.icon = str(icon or "")
         self.icon_filter = bool(icon_filter)
         self.process_group = bool(process_group)
-        self.report_path = str(report_path or "")
         self.target_file = str(target_file or "")
         self.default_metrics_file = str(default_metrics_file or "")
         self.flows = [Flow.from_dict(flow) for flow in (flows or [])]
@@ -628,7 +635,6 @@ class ToolSettings(object):
             icon=data.get("icon", ""),
             icon_filter=data.get("icon_filter", False),
             process_group=data.get("process_group", True),
-            report_path=data.get("report_path", ""),
             target_file=data.get("target_file", ""),
             default_metrics_file=data.get("default_metrics_file", ""),
             format=data.get("format"),
@@ -727,7 +733,6 @@ class ToolSettings(object):
             "icon": self.icon,
             "icon_filter": self.icon_filter,
             "process_group": self.process_group,
-            "report_path": self.report_path,
             "target_file": self.target_file,
             "default_metrics_file": self.default_metrics_file,
             "flows": [flow.to_dict() for flow in self.flows],
@@ -763,7 +768,7 @@ class ToolSettings(object):
             document["icon_filter"] = True
 
         document["process_group"] = bool(self.process_group)
-        for key in ("report_path", "target_file", "default_metrics_file"):
+        for key in ("target_file", "default_metrics_file"):
             value = getattr(self, key)
             if str(value).strip() != "":
                 document[key] = str(value)

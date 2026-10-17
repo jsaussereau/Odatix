@@ -585,10 +585,14 @@ class DerivedMetric:
 class DerivedMetricsConfig:
   """The content of a derived metrics file."""
 
-  def __init__(self, path="", metrics=None, resolver=None):
+  def __init__(self, path="", metrics=None, resolver=None, valid=True):
     self.path = path
     self.metrics = metrics if metrics is not None else []
     self.resolver = resolver if resolver is not None else GroupResolver()
+    #: False when the file could not be read at all (it has been reported): it
+    #: then derives nothing, which must not pass for a file that asks for
+    #: nothing.
+    self.valid = valid
 
   def __bool__(self):
     return len(self.metrics) > 0
@@ -617,7 +621,8 @@ def load_derived_metrics(path):
   Load a derived metrics file.
 
   A missing file is not an error: a workspace that derives nothing simply has
-  none. An unparsable one is, and yields an empty configuration.
+  none. An unparsable one is, and yields an empty configuration that is not
+  ``valid``.
 
   Returns:
       DerivedMetricsConfig
@@ -632,13 +637,13 @@ def load_derived_metrics(path):
     printc.error('Derived metrics file "' + path + '" is not a valid YAML file', script_name)
     printc.cyan("error details: ", end="", script_name=script_name)
     print(str(e))
-    return DerivedMetricsConfig(path=path)
+    return DerivedMetricsConfig(path=path, valid=False)
 
   if data is None:
     return DerivedMetricsConfig(path=path)
   if not isinstance(data, dict):
     printc.error('Derived metrics file "' + path + '" must contain a dictionary', script_name)
-    return DerivedMetricsConfig(path=path)
+    return DerivedMetricsConfig(path=path, valid=False)
 
   resolver = GroupResolver(data.get(GROUPS_KEY))
 
@@ -647,7 +652,7 @@ def load_derived_metrics(path):
     return DerivedMetricsConfig(path=path, resolver=resolver)
   if not isinstance(definitions, dict):
     printc.error('"' + DERIVED_METRICS_KEY + '" must be a dictionary in "' + path + '"', script_name)
-    return DerivedMetricsConfig(path=path, resolver=resolver)
+    return DerivedMetricsConfig(path=path, resolver=resolver, valid=False)
 
   metrics = []
   for name, definition in definitions.items():

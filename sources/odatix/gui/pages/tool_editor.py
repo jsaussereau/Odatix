@@ -25,7 +25,7 @@ Tool Editor page.
 Graphical editor for a workspace tool's tool.yml (see
 odatix.workspace.tools and odatix.lib.eda_tools). It exposes:
   - display metadata (Display name / description / icon),
-  - behaviour (process_group, report_path, default_metrics_file),
+  - behaviour (process_group, target_file, default_metrics_file),
   - the tool's *flows*: every way of running it, each one editable, and one of
     them marked as the default,
   - the log formatting section (logs / tags / replace).
@@ -460,7 +460,6 @@ def normalize_tool_settings(raw):
         "icon": str(raw.get("icon", "") or ""),
         "icon_filter": bool(raw.get("icon_filter", False)),
         "process_group": bool(raw.get("process_group", True)),
-        "report_path": str(raw.get("report_path", "") or ""),
         "target_file": str(raw.get("target_file", "") or ""),
         "default_metrics_file": str(raw.get("default_metrics_file", "") or ""),
         "flows": flows,
@@ -474,7 +473,7 @@ def normalize_tool_settings(raw):
     }
 
 def build_tool_settings(
-    label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
+    label, description, icon_value, icon_filter, process_group, target_file, default_metrics_file,
     flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls, extends="", extra=None,
 ):
     """
@@ -510,7 +509,6 @@ def build_tool_settings(
         "icon": icon_value or "",
         "icon_filter": True if icon_filter else False,
         "process_group": True if process_group else False,
-        "report_path": report_path or "",
         "target_file": target_file or "",
         "default_metrics_file": default_metrics_file or "",
         "flows": flows,
@@ -581,7 +579,6 @@ def normalize_for_compare(settings):
         "icon": str(n.get("icon", "") or ""),
         "icon_filter": bool(n.get("icon_filter", False)),
         "process_group": bool(n.get("process_group", True)),
-        "report_path": str(n.get("report_path", "") or ""),
         "target_file": str(n.get("target_file", "") or ""),
         "default_metrics_file": str(n.get("default_metrics_file", "") or ""),
         "flows": _flows_for_compare(n.get("flows", [])),
@@ -852,8 +849,6 @@ def tool_form(settings, tool_name="", overlay=False, base_options=None):
                 ],
                 style={"marginBottom": "12px"},
             ),
-            tool_form_field("Report Path", "tool-report-path", value=settings.get("report_path", ""),
-                            tooltip="Optional path (relative to the run directory) where the tool writes its reports."),
             tool_form_field("Target Definition File", "tool-target-file",
                             value=settings.get("target_file", ""),
                             placeholder=target_placeholder,
@@ -2473,7 +2468,7 @@ def init_form(search, page, odatix_settings):
 # keys it covers. "logs", "tags" and "replace" are the "format" subsections.
 RESET_SECTIONS = {
     "metadata": ("label", "description", "icon", "icon_filter"),
-    "behaviour": ("process_group", "report_path", "target_file", "default_metrics_file"),
+    "behaviour": ("process_group", "target_file", "default_metrics_file"),
 }
 
 @page_callback(PAGE_SCOPE,
@@ -2486,7 +2481,6 @@ RESET_SECTIONS = {
     State("tool-icon", "value"),
     State("tool-icon-filter", "value"),
     State("tool-process-group", "value"),
-    State("tool-report-path", "value"),
     State("tool-target-file", "value"),
     State("tool-default-metrics-file", "value"),
     State("tool-log-error", "value"),
@@ -2503,7 +2497,7 @@ RESET_SECTIONS = {
     prevent_initial_call=True,
 )
 def reset_section_to_builtin(
-    reset_clicks, label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
+    reset_clicks, label, description, icon_value, icon_filter, process_group, target_file, default_metrics_file,
     log_error, log_crit, log_warning, log_info, log_trace,
     tag_markers, tag_ids, replace_patterns, replace_repls, builtin, search,
 ):
@@ -2526,7 +2520,7 @@ def reset_section_to_builtin(
         "info": log_info, "trace": log_trace,
     }
     settings = build_tool_settings(
-        label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
+        label, description, icon_value, icon_filter, process_group, target_file, default_metrics_file,
         [], log_values, tag_names, tag_markers, replace_patterns, replace_repls,
     )
 
@@ -2623,7 +2617,6 @@ def flow_errors(flows):
     Input("tool-icon", "value"),
     Input("tool-icon-filter", "value"),
     Input("tool-process-group", "value"),
-    Input("tool-report-path", "value"),
     Input("tool-target-file", "value"),
     Input("tool-default-metrics-file", "value"),
     *flow_dependencies(Input, Input),
@@ -2647,12 +2640,12 @@ def flow_errors(flows):
 )
 def save_and_status(*args):
     (n_clicks, tool_title_value, extends, label, description, icon_value, icon_filter, process_group,
-     report_path, target_file, default_metrics_file) = args[:11]
-    fields = flow_field_values(args[11:11 + NB_FLOW_FIELDS])
+     target_file, default_metrics_file) = args[:10]
+    fields = flow_field_values(args[10:10 + NB_FLOW_FIELDS])
     (log_error, log_crit, log_warning, log_info, log_trace,
      tag_markers, replace_patterns, replace_repls,
      tag_ids, search, page, initial_settings, saved_settings, odatix_settings, overlay, builtin_settings,
-     ) = args[11 + NB_FLOW_FIELDS:]
+     ) = args[10 + NB_FLOW_FIELDS:]
 
     # The tag set is fixed (the ANSI style/color names): the tag names come from
     # the markers inputs' ids, not from an editable field.
@@ -2669,7 +2662,7 @@ def save_and_status(*args):
 
     reference = saved_settings if saved_settings is not None else initial_settings
     current_settings = build_tool_settings(
-        label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
+        label, description, icon_value, icon_filter, process_group, target_file, default_metrics_file,
         flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls,
         extends=(reference or {}).get("extends", "") if overlay else extends,
         extra=(reference or {}).get("extra"),

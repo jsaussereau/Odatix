@@ -166,6 +166,7 @@ def job_to_payload(job):
         "progress_pattern": getattr(progress_pattern, "pattern", None),
         "status_pattern": getattr(status_pattern, "pattern", None),
         "post_run_export": post_run_export,
+        "console_log": str(getattr(job, "console_log", "") or ""),
         # Step pipeline bookkeeping (see odatix.lib.job_steps); absent for jobs
         # that are not split into steps.
         "step_tracking": step_tracking,
@@ -206,6 +207,9 @@ def payload_to_job(payload, default_log_size_limit=200):
     post_run_export = payload.get("post_run_export")
     if isinstance(post_run_export, dict):
         job.post_run_export = post_run_export
+
+    if payload.get("console_log"):
+        job.console_log = str(payload["console_log"])
 
     step_tracking = payload.get("step_tracking")
     if isinstance(step_tracking, dict):

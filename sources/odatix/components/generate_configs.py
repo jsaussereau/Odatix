@@ -28,6 +28,7 @@ from collections import namedtuple
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+from odatix.components.cli_options import add_options
 from odatix.lib.architecture_handler import ArchitectureHandler
 import odatix.workspace.space as space
 from odatix.workspace.errors import WorkspaceError
@@ -42,10 +43,11 @@ script_name = os.path.basename(__file__)
 def add_arguments(parser):
   parser.add_argument("-o", "--overwrite", action="store_true", help="take configurations edited by hand back to what their rules say")
   parser.add_argument("-C", "--clean", action="store_true", help="delete the configurations an earlier generation wrote and the rules no longer describe")
-  parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
+  add_options(parser, "noask")
   parser.add_argument(
     "-a",
     "--archpath",
+    dest="arch_path",
     nargs="?",
     const="",
     help="architecture directory (optional path, default from settings if omitted)",
@@ -53,17 +55,12 @@ def add_arguments(parser):
   parser.add_argument(
     "-w",
     "--workflowpath",
+    dest="workflow_path",
     nargs="?",
     const="",
     help="workflow directory (optional path, default from settings if omitted)",
   )
-  parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
-  parser.add_argument(
-    "-c",
-    "--config",
-    default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
-  )
+  add_options(parser, "debug", "config")
 
 
 def parse_arguments():
@@ -269,10 +266,10 @@ def main(args, settings=None):
   arch_path = settings.arch_path
   workflow_path = settings.workflow_path
 
-  requested_arch_path = resolve_requested_path(args.archpath, arch_path)
-  requested_workflow_path = resolve_requested_path(args.workflowpath, workflow_path)
+  requested_arch_path = resolve_requested_path(args.arch_path, arch_path)
+  requested_workflow_path = resolve_requested_path(args.workflow_path, workflow_path)
 
-  explicit_target = args.archpath is not None or args.workflowpath is not None
+  explicit_target = args.arch_path is not None or args.workflow_path is not None
 
   selected_paths = []
   if requested_arch_path is not None:

@@ -42,6 +42,7 @@ import odatix.lib.param_domain as param_domain
 import odatix.workspace.sim_architectures as sim_architectures
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+from odatix.components.cli_options import add_options
 from odatix.components.export_common import parse_yaml, load_existing_results_file
 from odatix.components.export_workflow_results import _load_metrics, _extract_run_records
 
@@ -54,16 +55,9 @@ DEFAULT_OUTPUT_FILENAME = "results_simulation.yml"
 
 
 def add_arguments(parser):
-    parser.add_argument("-w", "--work", help="simulation work directory")
-    parser.add_argument("-s", "--simpath", help="simulation directory")
-    parser.add_argument("-r", "--respath", help="result path")
+    add_options(parser, "work_path", "sim_path", "result_path", work_path={"help": "simulation work directory"})
     parser.add_argument("-o", "--output", default=DEFAULT_OUTPUT_FILENAME, help="output yaml filename (default: " + DEFAULT_OUTPUT_FILENAME + ")")
-    parser.add_argument(
-        "-c",
-        "--config",
-        default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-        help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
-    )
+    add_options(parser, "config")
 
 
 def parse_arguments():
@@ -355,25 +349,25 @@ def export_simulation_results(work_root, sim_path, output_dir, output_filename=D
 def main(args, settings=None):
     if settings is None:
         settings = OdatixSettings(args.config)
-        if not settings.valid and (args.work is None or args.respath is None):
+        if not settings.valid and (args.work_path is None or args.result_path is None):
             printc.error(
                 'Could not load settings from file "' + args.config + '" and -w and/or -r options are not used',
                 script_name=script_name,
             )
             sys.exit(-1)
 
-    if args.work is not None:
-        work_root = args.work
+    if args.work_path is not None:
+        work_root = args.work_path
     else:
         work_root = os.path.join(str(settings.work_path), str(settings.simulation_work_path))
 
-    if args.respath is not None:
-        output_dir = args.respath
+    if args.result_path is not None:
+        output_dir = args.result_path
     else:
         output_dir = settings.result_path
 
-    if args.simpath is not None:
-        sim_path = args.simpath
+    if args.sim_path is not None:
+        sim_path = args.sim_path
     elif settings.valid:
         sim_path = settings.sim_path
     else:

@@ -243,6 +243,16 @@ class PnrFlow(Flow):
     def cancelled_exceptions(self):
         return (self.module().PnrCancelled,)
 
+    @staticmethod
+    def source_result_types(workspace):
+        """Where each kind of job a place & route can start from keeps its results."""
+        from odatix.lib.pnr_source import SOURCE_JOB_TYPES
+
+        return dict(
+            (job_type, {"key": job_type, "path": workspace.paths.work_subpath(job_type + "_work_path") or job_type})
+            for job_type in SOURCE_JOB_TYPES
+        )
+
     def check(self, run):
         options = run.options
         return Flow._checked_with_handler(self.module().check_settings(
@@ -262,7 +272,7 @@ class PnrFlow(Flow):
             log_size_limit=options.log_size_limit,
             nb_jobs=options.nb_jobs,
             check_eda_tool=options.check_eda_tool,
-            source_result_types=options.source_result_types,
+            source_result_types=options.source_result_types or self.source_result_types(run.workspace),
             from_type=options.from_type,
             from_tool=options.from_tool,
             from_flow=options.from_flow,
@@ -350,6 +360,7 @@ class AnalysisFlow(Flow):
             export_output_dir=run.result_path,
             analysis_work_root=run.work_path,
             flows=getattr(self, "_flows", None),
+            expected=self.module().read_run_expectations(run.settings_file),
         )
 
 

@@ -48,6 +48,10 @@ yaml_config_filename = "settings.yml"
 fmax_status_filename = "status.log"
 sim_progress_filename = "progress.log"
 synth_status_filename = "synth_status.log"
+# What a job printed, as the monitor showed it, kept in its log directory: a
+# tool failing before it writes a log of its own (no license, not installed)
+# only ever says why there.
+console_log_filename = "console.log"
 frequency_search_filename = "frequency_search.log"
 param_domains_filename = "param_domains.yml"
 pnr_source_filename = "pnr.yml"

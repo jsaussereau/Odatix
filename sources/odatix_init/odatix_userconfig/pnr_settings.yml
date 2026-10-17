@@ -1,0 +1,47 @@
+
+##############################################
+# Odatix settings for place & route
+##############################################
+---
+
+# overwrite existing results
+overwrite:        No   # overridden by -o / --overwrite
+
+# prompt 'Continue? (Y/n)' after settings checks
+ask_continue:     Yes  # overridden by -y / --noask
+
+# exit monitor when all jobs are done
+exit_when_done:   No   # overridden by -E / --exit
+
+# size of the log history per job in the monitor
+log_size_limit:   300  # overridden by --logsize
+
+# maximum number of parallel jobs
+nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
+
+# Completed synthesis jobs to place & route.
+#
+# Unlike every other job type, "odatix pnr" does not start from the RTL: it takes
+# a synthesis that has already run and succeeded, and places & routes it with the
+# tool given by -t / --tool. That is what a Design Compiler + Innovus or a
+# Genus + ICC2 chain is:
+#
+#   odatix synth -t design_compiler
+#   odatix pnr  -t innovus
+#
+# A source is written
+#   <source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]
+# with "*" accepted at every level. <source_type> is "fmax_synthesis" or
+# "custom_freq_synthesis"; the trailing frequency only applies to the latter.
+#
+# A synthesis can only be used here if its flow wrote the handoff files
+# (result/netlist.v, result/design.sdc, result/design.sdf).
+sources:
+
+#--------------------------------------------#
+# Pick the synthesis results to implement!
+#--------------------------------------------#
+
+  #- custom_freq_synthesis/design_compiler/your_techno/Your_Design/Your_Configuration@100MHz
+  #- fmax_synthesis/genus/your_techno/Your_Design/*
+  #- custom_freq_synthesis/*/*/*/*

@@ -48,6 +48,8 @@ import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.job_steps as job_steps
 import odatix.run.cli as run_cli
+from odatix.components.cli_options import add_options
+from odatix.run.options import RunOptions
 import odatix.lib.pnr_source as pnr_source
 import odatix.lib.printc as printc
 from odatix.lib.parallel_job_handler import ParallelJob
@@ -73,10 +75,9 @@ def _check_cancel(cancel_event):
 
 
 def add_arguments(parser):
-    parser.add_argument("-t", "--tool", default=None, help="eda tool running the place & route")
-    parser.add_argument("-f", "--flow", default=None, help="flow of the eda tool to run (default: the tool's default flow)")
-    parser.add_argument("-u", "--until", default=None, help="last step of the flow to run, inclusive (default: all its steps)")
-    parser.add_argument("--rerun-from", dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")
+    add_options(parser, "tool", "flow", "until", "rerun_from",
+                tool={"default": None, "help": "eda tool running the place & route"},
+                until={"help": "last step of the flow to run, inclusive (default: all its steps)"})
     parser.add_argument(
         "--from-type",
         dest="from_type",
@@ -86,23 +87,11 @@ def add_arguments(parser):
     )
     parser.add_argument("--from-tool", dest="from_tool", default=None, help="only place & route the synthesis jobs run with this eda tool")
     parser.add_argument("--from-flow", dest="from_flow", default=None, help="only place & route the synthesis jobs run with this flow of --from-tool")
-    parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
-    parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
-    parser.add_argument("-d", "--detach", action="store_true", help="enqueue jobs to daemon and return without attaching monitor")
-    parser.add_argument("-S", "--session", help="daemon session name or selector")
-    parser.add_argument("-i", "--input", help="input settings file")
-    parser.add_argument("-w", "--work", help="work directory")
-    parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
-    parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
-    parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
-    parser.add_argument("--logsize", help="size of the log history per job in the monitor")
-    parser.add_argument(
-        "-c",
-        "--config",
-        default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-        help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
-    )
+    add_options(parser, "overwrite", "noask", "daemon_options", "settings_file")
+    # The work directory of a place & route is the whole work tree: its
+    # sources are what the synthesis jobs left there.
+    add_options(parser, "work_path", work_path={"dest": "source_work_root"})
+    add_options(parser, "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "log_size_limit", "export_options", "config")
 
 
 def parse_arguments():
@@ -428,14 +417,8 @@ def run_pnr(
 ######################################
 
 
-def main(args, settings=None):
-    if settings is None:
-        settings = OdatixSettings(args.config)
-        if not settings.valid:
-            sys.exit(-1)
-
-    tool = args.tool
-    if tool is None:
+def main(args):
+    if args.tool is None:
         supported = eda_tools.tools_supporting("pnr")
         printc.error("No eda tool specified: use -t/--tool to say what should place & route", script_name)
         if supported:
@@ -447,43 +430,12 @@ def main(args, settings=None):
             )
         sys.exit(-1)
 
-    if args.input is not None:
-        run_config_settings_filename = args.input
-    else:
-        run_config_settings_filename = settings.pnr_settings_file
+    workspace = run_cli.command_workspace(args.config, script_name)
+    options = RunOptions.from_namespace(args)
+    if options.source_work_root:
+        options.work_path = workspace.paths.under_work_path("pnr_work_path", options.source_work_root)
 
-    if args.work is not None:
-        work_root = args.work
-    else:
-        work_root = str(settings.work_path)
-
-    run_pnr(
-        run_config_settings_filename=run_config_settings_filename,
-        source_work_root=work_root,
-        tool=tool,
-        flow=args.flow,
-        until_step=args.until,
-        rerun_from_step=args.rerun_from,
-        work_path=os.path.join(work_root, str(settings.pnr_work_path)),
-        target_path=settings.target_path,
-        overwrite=args.overwrite,
-        noask=args.noask,
-        exit_when_done=args.exit,
-        log_size_limit=args.logsize,
-        nb_jobs=args.jobs,
-        check_eda_tool=not args.trust,
-        source_result_types=settings.result_types,
-        from_type=args.from_type,
-        from_tool=args.from_tool,
-        from_flow=args.from_flow,
-        debug=args.debug,
-        export_output_dir="" if getattr(args, "noexport", False) else settings.result_path,
-        use_benchmark=bool(getattr(settings, "use_benchmark", False)),
-        benchmark_file=getattr(settings, "benchmark_file", None),
-        custom_metrics_file=None,
-        detach=args.detach,
-        daemon_session=args.session,
-    )
+    run_cli.execute(run_cli.command_run("pnr", workspace=workspace, options=options))
 
 
 if __name__ == "__main__":

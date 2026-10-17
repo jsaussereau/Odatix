@@ -1,0 +1,30 @@
+##############################################
+# Target settings for Innovus
+##############################################
+#
+# A place & route job keeps the target its source synthesis was run for, so the
+# targets listed here must be the same ones your synthesis tool declares. That
+# is what lets a place & route result be compared with the synthesis it came
+# from in Odatix Explorer.
+
+constraint_file: timing_constraints.txt
+
+tool_install_path: '' # Innovus should be in your $PATH
+
+force_single_thread: No
+
+# The technology script sourced by the "init" step (it must be named
+# technology_setup.tcl). Without it, the flow stops with an explicit error
+# rather than implementing against nothing.
+script_copy_enable: No
+script_copy_source: /dev/null
+
+# ASIC technology target
+targets:
+  - AMS_c35_1V8
+
+# Replace with your own technology_setup.tcl for each technology
+target_settings:
+  AMS_c35_1V8:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/innovus/technology/AMS_c35_1V8/technology_setup.tcl

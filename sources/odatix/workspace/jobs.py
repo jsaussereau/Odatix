@@ -231,6 +231,13 @@ class AnalysisJobSettings(JobSettings):
         doc="EDA tools the RTL analysis runs with.",
     )
     architectures = _architecture_selection()
+    expected = Setting(
+        None, type="any", skip_if_empty=True, section=" findings that are normal for these designs",
+        doc=(
+            "Findings that are normal for these designs, as {name: conditions}: they are "
+            "reported apart and do not count (see odatix.lib.analysis.Expectation)."
+        ),
+    )
 
 
 class PnrJobSettings(JobSettings):

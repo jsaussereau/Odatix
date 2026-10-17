@@ -186,18 +186,26 @@ class WorkspacePaths(object):
         #: Where a target file kept at the old default location is looked up.
         self.target_fallback_path = self.resolve(OdatixSettings.DEFAULT_TARGET_FALLBACK_PATH)
 
-    def under_work_path(self, name):
+    def under_work_path(self, name, work_path=None):
         """
         The work directory of one kind of job ("fmax_synthesis_work_path", ...).
 
         Those settings name a sub-directory of the work directory, not a path of
         their own, so they are joined to it rather than resolved against the
         workspace like every other path.
+
+        Args:
+            work_path (str): the work directory to join it to, when a run works
+                in another one than the workspace's ("--work").
         """
         value = self._raw.get(name, "")
         if os.path.isabs(value):
             return value
-        return os.path.join(self.work_path, value)
+        return os.path.join(work_path or self.work_path, value)
+
+    def work_subpath(self, name):
+        """What one of the work sub-directory settings says, as written."""
+        return self._raw.get(name, "")
 
     def resolve(self, path):
         """A workspace path as an absolute-or-relative path usable from anywhere."""

@@ -24,6 +24,16 @@ tools:
   - vivado
   - verilator
 
+# findings that are normal for these designs: they are reported apart, as
+# "expected", and do not count. Each one is a set of conditions (category,
+# severity, code, subject, file, message, tools, architectures) and a reason.
+expected:
+  # clock_of_combinational_designs:
+  #   category: unused
+  #   subject: clock
+  #   architectures: [Example_Mult]
+  #   reason: "The multiplier is combinational: its clock is only there for the timing constraints"
+
 # targeted architectures
 
 architectures:

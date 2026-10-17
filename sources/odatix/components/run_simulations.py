@@ -40,6 +40,8 @@ import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.task_common as task_common
 import odatix.lib.printc as printc
 import odatix.run.cli as run_cli
+from odatix.components.cli_options import add_options
+from odatix.run.options import RunOptions
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.virtual_param_domain as virtual_param_domain
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
@@ -62,21 +64,13 @@ SIMULATION_META_FILENAME = exp_sim_res.SIMULATION_META_FILENAME
 ######################################
 
 def add_arguments(parser):
-    parser.add_argument('-o', '--overwrite', action='store_true', help='overwrite existing results')
-    parser.add_argument('-y', '--noask', action='store_true', help='do not ask to continue')
-    parser.add_argument('-d', '--detach', action='store_true', help='enqueue jobs to daemon and return without attaching monitor')
-    parser.add_argument('-S', '--session', help='daemon session name or selector')
-    parser.add_argument('-i', '--input', help='input settings file')
-    parser.add_argument('-a', '--archpath', help='architecture directory')
-    parser.add_argument('-s', '--simpath', help='simulation directory')
-    parser.add_argument('-w', '--work', help='simulation work directory')
-    parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
-    parser.add_argument("-k", "--keep", action="store_true", help="store simulation batch with a timestamp in the configuration name")
-    parser.add_argument("-r", "--resume", action="store_true", help="resume from existing work directories (do not delete/recreate them)")
-    parser.add_argument("--logsize", help="size of the log history per job in the monitor")
-    parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
-    parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
+    add_options(
+        parser, "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "sim_path", "work_path",
+        "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "debug", "export_options", "config",
+        work_path={"help": "simulation work directory"},
+        keep={"help": "store simulation batch with a timestamp in the configuration name"},
+    )
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Run parallel simulations')
@@ -153,11 +147,12 @@ def resolve_simulation_tasks(tasks, substitutions):
 
         resolved_task = dict(task)
 
-        commands = resolved_task.get("commands")
-        if isinstance(commands, list):
-            resolved_task["commands"] = [
-                virtual_param_domain.replace_command_vars(command, substitutions) for command in commands
-            ]
+        for key in ("commands", "on_failure_commands"):
+            commands = resolved_task.get(key)
+            if isinstance(commands, list):
+                resolved_task[key] = [
+                    virtual_param_domain.replace_command_vars(command, substitutions) for command in commands
+                ]
 
         task_path = resolved_task.get("path")
         if isinstance(task_path, str):
@@ -464,7 +459,12 @@ def build_simulation_command(sim_instance):
 
     # A single-command "main" task with no dependency is the historical case:
     # run it directly instead of paying for a task graph.
-    if len(resolved_tasks) == 1 and not resolved_tasks[0].get("dependencies") and not resolved_tasks[0].get("path"):
+    if (
+        len(resolved_tasks) == 1
+        and not resolved_tasks[0].get("dependencies")
+        and not resolved_tasks[0].get("path")
+        and not resolved_tasks[0].get("on_failure_commands")
+    ):
         commands = resolved_tasks[0].get("commands", [])
         if len(commands) == 1:
             return commands[0]
@@ -570,63 +570,12 @@ def start_parallel_jobs(
 # Main
 ######################################
 
-def main(args, settings=None):
-
-    # Get settings
-    if settings is None:
-        settings = OdatixSettings(args.config)
-        if not settings.valid:
-            sys.exit(-1)
-
-    if args.input is not None:
-        run_config_settings_filename  = args.input
-    else:
-        run_config_settings_filename = settings.simulation_settings_file
-
-    if args.archpath is not None:
-        arch_path = args.archpath
-    else:
-        arch_path = settings.arch_path
-
-    if args.simpath is not None:
-        sim_path = args.simpath
-    else:
-        sim_path = settings.sim_path
-
-    if args.work is not None:
-        work_path = args.work
-    else:
-        work_path = os.path.join(str(settings.work_path), str(settings.simulation_work_path))
-
-    overwrite = args.overwrite
-    noask = args.noask
-    exit_when_done = args.exit
-    log_size_limit = args.logsize
-    nb_jobs = args.jobs
-    debug = args.debug
-    keep = args.keep
-    resume = args.resume
-    detach = args.detach
-    daemon_session = args.session
-
-    run_simulations(
-        run_config_settings_filename,
-        arch_path,
-        sim_path,
-        work_path,
-        overwrite,
-        noask,
-        exit_when_done,
-        log_size_limit,
-        nb_jobs,
-        debug,
-        keep,
-        resume,
-        settings.result_path,
-        exp_sim_res.DEFAULT_OUTPUT_FILENAME,
-        detach,
-        daemon_session,
-    )
+def main(args):
+    run_cli.execute(run_cli.command_run(
+        "simulation",
+        workspace=run_cli.command_workspace(args.config, script_name),
+        options=RunOptions.from_namespace(args),
+    ))
 
 
 if __name__ == "__main__":

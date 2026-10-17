@@ -1,0 +1,156 @@
+##################################################
+# RTL analysis: what every tool shares
+##################################################
+
+# The analysis definition of a tool ("<tool>/analysis.yml") says how to read
+# what that tool reports. This file is read before it, for every tool: it holds
+# the vocabulary their reports are translated into, so that a missing module is
+# the same finding whether Vivado, Genus or Verilator reports it, and the
+# messages of the Odatix scripts themselves, which every tool prints alike.
+#
+# Every key of this file may also be given in a tool's file; see the
+# documentation of "analysis.yml" for the meaning of each one.
+
+# What a finding is about. A finding has a category; the order of this list is
+# the order of relevance: when a design has several findings, the first one in
+# this list is what its summary says.
+#
+#   label        how the category is named in reports
+#   description  what it means, and usually what to do about it
+#   scope        "design" when the RTL (or its configuration) is at fault,
+#                "tool" when the tool could not do its job: a design with tool
+#                errors only is reported as a tool failure, not as a broken
+#                design
+categories:
+
+  tool_setup:
+    label: "Tool setup"
+    description: "The tool could not be set up or run (license, installation, technology files, script error): the design was not analyzed."
+    scope: tool
+
+  missing_file:
+    label: "Missing file"
+    description: "A source or include file the design refers to cannot be found."
+    scope: design
+
+  missing_top:
+    label: "Missing top level"
+    description: "The top level module given in the architecture settings is not in the sources."
+    scope: design
+
+  syntax:
+    label: "Syntax error"
+    description: "The source cannot be parsed."
+    scope: design
+
+  missing_module:
+    label: "Missing module"
+    description: "A module or entity is instantiated but defined nowhere: it would be synthesized as an empty black box."
+    scope: design
+
+  undeclared:
+    label: "Undeclared identifier"
+    description: "A signal, variable or parameter is used without being declared."
+    scope: design
+
+  port_mismatch:
+    label: "Port mismatch"
+    description: "An instance connects a port its module does not have, or leaves one of its ports unconnected."
+    scope: design
+
+  type_mismatch:
+    label: "Type mismatch"
+    description: "A value is used where an incompatible type is expected."
+    scope: design
+
+  multiple_drivers:
+    label: "Multiple drivers"
+    description: "A signal is driven from several places."
+    scope: design
+
+  combinational_loop:
+    label: "Combinational loop"
+    description: "A combinational path loops back on itself."
+    scope: design
+
+  latch:
+    label: "Latch inferred"
+    description: "A combinational block does not assign a signal on every path, so it holds its value in a latch."
+    scope: design
+
+  width_mismatch:
+    label: "Width mismatch"
+    description: "A value is truncated or extended to fit where it is assigned or compared."
+    scope: design
+
+  undriven:
+    label: "Undriven signal"
+    description: "A signal or output is read but never assigned."
+    scope: design
+
+  unused:
+    label: "Unused signal"
+    description: "A signal or input is assigned or declared but never read."
+    scope: design
+
+  constant:
+    label: "Constant logic"
+    description: "Logic the tool found constant, or removed because nothing depends on it."
+    scope: design
+
+  elaboration:
+    label: "Elaboration"
+    description: "The design could not be elaborated, without a more precise reason."
+    scope: design
+
+  style:
+    label: "Style"
+    description: "A coding style remark, without effect on the hardware."
+    scope: design
+
+  other:
+    label: "Other"
+    description: "Anything the tool reports that no other category describes."
+    scope: design
+
+# The source file extensions of each language. A tool declaring the languages
+# it reads ("languages") is not asked about a design written in another one:
+# the design is reported as not supported by that tool, rather than as a pile
+# of syntax errors.
+language_extensions:
+  verilog: [".v", ".vh"]
+  systemverilog: [".sv", ".svh"]
+  vhdl: [".vhd", ".vhdl"]
+
+# What the Odatix scripts print on top of the tool. They are tried before the
+# messages of the tool itself.
+messages:
+
+  odatix_setup:
+    pattern: "\\[[a-z_]+\\.tcl\\] error: (?P<message>could not source .*)"
+    severity: error
+    category: tool_setup
+
+  odatix_script:
+    pattern: "\\[[a-z_]+\\.tcl\\] error: (?P<message>unhandled tcl error.*)"
+    severity: error
+    category: tool_setup
+
+  odatix_constraint:
+    pattern: "\\[[a-z_]+\\.tcl\\] error: (?P<message>(?:unknown constraint stage|constraint file) .*)"
+    severity: error
+    category: tool_setup
+
+  odatix_no_source:
+    pattern: "\\[[a-z_]+\\.tcl\\] error: (?P<message>no verilog, systemverilog or vhdl file .*)"
+    severity: error
+    category: missing_file
+
+  # What a script says once the tool has reported the actual errors: a summary
+  # of them, kept as the least relevant of all.
+  odatix_failed:
+    pattern: "\\[[a-z_]+\\.tcl\\] error: (?P<message>.*)"
+    severity: error
+    category: elaboration
+    fallback: true
+    secondary: true

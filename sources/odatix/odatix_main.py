@@ -42,9 +42,11 @@ import odatix.components.export_benchmark as exp_bench
 import odatix.components.export_simulation_results as exp_sim_res
 import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.components.export_derived_metrics as exp_derived
+import odatix.components.export_analysis as exp_analysis
 import odatix.components.clean as cln
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
+from odatix.components.cli_options import add_options
 
 import odatix.lib.parallel_job_handler.daemon_control as daemon_control
 from odatix.lib.settings import OdatixSettings
@@ -69,7 +71,7 @@ script_name = os.path.basename(__file__)
 class ArgParser:
 
   def add_nobanner(parser):
-    parser.add_argument('-Q', '--nobanner', action='store_true', help='suppress printing of banner')
+    add_options(parser, "nobanner")
 
   def parse_arguments():
     formatter = OdatixHelpFormatter
@@ -89,6 +91,7 @@ class ArgParser:
     # Define parser for the 'init' command
     ArgParser.init_parser = subparsers.add_parser("init", help="init current directory by adding all the necessary config files (without any prompt)", formatter_class=formatter)
     ArgParser.init_parser.add_argument("-e", "--examples", action="store_true", help="Include examples")
+    ArgParser.add_nobanner(ArgParser.init_parser)
 
     # Define parser for the 'generate' command
     ArgParser.gen_configs_parser = subparsers.add_parser("generate", help="generate configurations", formatter_class=formatter)
@@ -103,27 +106,22 @@ class ArgParser:
     # Define parser for the 'fmax' command
     ArgParser.fmax_parser = subparsers.add_parser("fmax", help="run fmax synthesis", formatter_class=formatter)
     run_synth.add_arguments(ArgParser.fmax_parser)
-    ArgParser.fmax_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.fmax_parser)
 
     # Define parser for the 'synth' command (formerly 'freq', kept as alias)
     ArgParser.range_parser = subparsers.add_parser("synth", aliases=["synthesis", "freq"], help="run synthesis at custom frequencies", formatter_class=formatter)
     run_custom_synthesis_module.add_arguments(ArgParser.range_parser)
-    ArgParser.range_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.range_parser)
 
     # Define parser for the 'pnr' command
     ArgParser.pnr_parser = subparsers.add_parser("pnr", help="place & route designs already synthesized by another eda tool", formatter_class=formatter)
     run_pnr_cmd.add_arguments(ArgParser.pnr_parser)
-    ArgParser.pnr_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after place & route')
     ArgParser.add_nobanner(ArgParser.pnr_parser)
 
     # Define parser for the 'analyze' command
     ArgParser.analyze_parser = subparsers.add_parser("analyze", help="run rtl analysis", formatter_class=formatter)
     analyze.add_arguments(ArgParser.analyze_parser)
-    ArgParser.analyze_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.analyze_parser)
-    #######################################################
 
     # Define parser for the 'sim' command
     ArgParser.sim_parser = subparsers.add_parser("sim", help="run simulations", formatter_class=formatter)
@@ -133,7 +131,6 @@ class ArgParser:
     # Define parser for the 'workflow' command
     ArgParser.workflow_parser = subparsers.add_parser("workflow", help="run workflows", formatter_class=formatter)
     run_workflow.add_arguments(ArgParser.workflow_parser)
-    ArgParser.workflow_parser.add_argument('-e', '--noexport', action='store_true', help='do not export workflow results after workflow execution')
     ArgParser.add_nobanner(ArgParser.workflow_parser)
 
     # Define parser for the 'dse' command
@@ -143,45 +140,41 @@ class ArgParser:
 
     # Define parser for the 'monitor' command
     ArgParser.monitor_parser = subparsers.add_parser("monitor", help="attach to background daemon monitor", formatter_class=formatter)
-    ArgParser.monitor_parser.add_argument('-S', '--session', default=None, help='daemon session name or selector')
-    ArgParser.monitor_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
-    ArgParser.monitor_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
-    ArgParser.monitor_parser.add_argument('--token', default=None, help='session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)')
-    ArgParser.monitor_parser.add_argument('-R', '--remote', default=None, help='attach to a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace')
+    add_options(
+      ArgParser.monitor_parser, "session", "endpoint_options",
+      remote={"help": "attach to a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
+    )
 
     # Define parser for the 'stop' command
     ArgParser.stop_parser = subparsers.add_parser("stop", help="stop background daemon", formatter_class=formatter)
     stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
-    stop_selector_group.add_argument('-S', '--session', default=None, help='daemon session name or selector')
+    add_options(stop_selector_group, "session")
     stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all daemon sessions')
-    ArgParser.stop_parser.add_argument('-z', '--zombies', action='store_true', help='also kill zombie sessions (unresponsive daemons and leftover state files)')
-    ArgParser.stop_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
-    ArgParser.stop_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
-    ArgParser.stop_parser.add_argument('--token', default=None, help='session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)')
-    ArgParser.stop_parser.add_argument('-R', '--remote', default=None, help='stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace')
+    add_options(
+      ArgParser.stop_parser, "zombies", "endpoint_options",
+      zombies={"help": "also kill zombie sessions (unresponsive daemons and leftover state files)"},
+      remote={"help": "stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
+    )
 
     # Define parser for the 'ls' command
     ArgParser.ls_parser = subparsers.add_parser("ls", help="list active background daemons", formatter_class=formatter)
-    ArgParser.ls_parser.add_argument('-S', '--session', default=None, help='filter daemon sessions by name/prefix')
-    ArgParser.ls_parser.add_argument('-z', '--zombies', action='store_true', help='also list zombie sessions (unresponsive daemons and leftover state files)')
-    ArgParser.ls_parser.add_argument('--host', default=None, help='daemon API host (optional explicit endpoint)')
-    ArgParser.ls_parser.add_argument('--port', type=int, default=None, help='daemon API port (optional explicit endpoint)')
-    ArgParser.ls_parser.add_argument('--token', default=None, help='session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)')
-    ArgParser.ls_parser.add_argument('-R', '--remote', default=None, help='list the sessions of another machine over ssh, e.g. user@host or user@host:/path/to/workspace')
+    add_options(
+      ArgParser.ls_parser, "session", "zombies", "endpoint_options",
+      session={"help": "filter daemon sessions by name/prefix"},
+      zombies={"help": "also list zombie sessions (unresponsive daemons and leftover state files)"},
+      host={"help": "daemon API host (optional explicit endpoint)"},
+      port={"help": "daemon API port (optional explicit endpoint)"},
+      remote={"help": "list the sessions of another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
+    )
     ArgParser.ls_parser.add_argument('--json', action='store_true', help='print the session list as JSON, session tokens included (this is what a remote odatix reads over ssh: do not pipe it anywhere public)')
 
     # Define parser for the 'results' command
     ArgParser.res_parser = subparsers.add_parser("results", help="export benchmark results", formatter_class=formatter)
-    ArgParser.res_parser.add_argument("-t", "--tool", default="all", help="eda tool in use, or 'all'")
-    ArgParser.res_parser.add_argument("-f", "--format", choices=["csv", "yml", "all"], help="Output format: csv, yml, or all")
-    ArgParser.res_parser.add_argument("-u", "--use_benchmark", action="store_true", help="Use benchmark values in yaml file")
+    add_options(ArgParser.res_parser, "tool", "use_benchmark", tool={"default": "all", "help": "eda tool in use, or 'all'"})
     ArgParser.res_parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default=exp_bench.DEFAULT_BENCHMARK, help='benchmark to parse (default: ' + exp_bench.DEFAULT_BENCHMARK + ')')
-    ArgParser.res_parser.add_argument("-B", "--benchmark_file", help="output benchmark file")
+    add_options(ArgParser.res_parser, "benchmark_file", benchmark_file={"help": "output benchmark file"})
     ArgParser.res_parser.add_argument('-S', '--sim_file', default=exp_bench.DEFAULT_SIM_FILE, help='simulation log file (default: ' + exp_bench.DEFAULT_SIM_FILE + ')')
-    ArgParser.res_parser.add_argument("-w", "--work", help="simulation work directory")
-    ArgParser.res_parser.add_argument("-r", "--respath", help="Result path")
-    ArgParser.res_parser.add_argument("-m", "--metrics", help="Metrics definition file")
-    ArgParser.res_parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
+    add_options(ArgParser.res_parser, "work_path", "result_path", "metrics", "config")
     ArgParser.add_nobanner(ArgParser.res_parser)
 
     # Define parser for the 'res_benchmark' command
@@ -190,22 +183,27 @@ class ArgParser:
     ArgParser.add_nobanner(ArgParser.bm_res_parser)
 
     # Define parser for the 'res_synth' command
-    ArgParser.exp_res_parser = subparsers.add_parser("res_synth", help="export synthesis results")
+    ArgParser.exp_res_parser = subparsers.add_parser("res_synth", help="export synthesis results", formatter_class=formatter)
     exp_res.add_arguments(ArgParser.exp_res_parser)
     ArgParser.add_nobanner(ArgParser.exp_res_parser)
 
     # Define parser for the 'res_workflow' command
-    ArgParser.exp_workflow_res_parser = subparsers.add_parser("res_workflow", help="export workflow results")
+    ArgParser.exp_workflow_res_parser = subparsers.add_parser("res_workflow", help="export workflow results", formatter_class=formatter)
     exp_workflow_res.add_arguments(ArgParser.exp_workflow_res_parser)
     ArgParser.add_nobanner(ArgParser.exp_workflow_res_parser)
 
     # Define parser for the 'res_simulation' command
-    ArgParser.exp_sim_res_parser = subparsers.add_parser("res_simulation", help="export simulation results")
+    ArgParser.exp_sim_res_parser = subparsers.add_parser("res_simulation", help="export simulation results", formatter_class=formatter)
     exp_sim_res.add_arguments(ArgParser.exp_sim_res_parser)
     ArgParser.add_nobanner(ArgParser.exp_sim_res_parser)
 
+    # Define parser for the 'res_analysis' command
+    ArgParser.exp_analysis_parser = subparsers.add_parser("res_analysis", help="report the RTL analyses of the work directory, and export them again", formatter_class=formatter)
+    exp_analysis.add_arguments(ArgParser.exp_analysis_parser)
+    ArgParser.add_nobanner(ArgParser.exp_analysis_parser)
+
     # Define parser for the 'res_derived' command
-    ArgParser.exp_derived_parser = subparsers.add_parser("res_derived", help="apply derived metrics to the result files")
+    ArgParser.exp_derived_parser = subparsers.add_parser("res_derived", help="apply derived metrics to the result files", formatter_class=formatter)
     exp_derived.add_arguments(ArgParser.exp_derived_parser)
     ArgParser.add_nobanner(ArgParser.exp_derived_parser)
 
@@ -290,6 +288,12 @@ class ArgParser:
     printc.bold(prog + " res_simulation -h", end="")
     print(" for more details")
     print()
+    printc.cyan("- RTL Analysis Results:\n  ", end="")
+    print(ArgParser.exp_analysis_parser.format_usage(), end="")
+    print("  run ", end="")
+    printc.bold(prog + " res_analysis -h", end="")
+    print(" for more details")
+    print()
     printc.cyan("- Derived Metrics:\n  ", end="")
     print(ArgParser.exp_derived_parser.format_usage(), end="")
     print("  run ", end="")
@@ -326,114 +330,31 @@ class OdatixHelpFormatter(argparse.HelpFormatter):
 # Run functions
 ######################################
 
-def generate_configs(args):
-  success = True
+def command_status(result):
+  """
+  Whether a command succeeded, from what its main() returned: nothing or True
+  for a success, False or a non-zero exit code for a failure.
+  """
+  if result is None or result is True:
+    return True
+  if result is False:
+    return False
+  if isinstance(result, int):
+    return result == EXIT_SUCCESS
+  return bool(result)
+
+def run_main(main_function, args):
+  """
+  Run the main() of a command, and say whether it succeeded, however it says
+  so: by what it returns, or by stopping with an exit code.
+  """
   try:
-    gen_configs.main(args)
+    return command_status(main_function(args))
   except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
+    return e.code in (None, EXIT_SUCCESS)
   except Exception as e:
     internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def replace(args):
-  success = True
-  try:
-    replace_params.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def run_simulations(args):
-  success = True
-  try:
-    run_sim.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def run_workflows(args):
-  success = True
-  try:
-    run_workflow.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def run_fmax_synthesis(args):
-  success = True
-  try:
-    run_synth.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def run_exploration(args):
-  success = True
-  try:
-    run_dse.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def run_custom_synthesis(args):
-  success = True
-  try:
-    run_custom_synthesis_module.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def run_place_and_route(args):
-  success = True
-  try:
-    run_pnr_cmd.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def run_analysis(args):
-    success = True
-    try:
-        analyze.main(args)
-    except SystemExit as e:
-        if e.code != EXIT_SUCCESS:
-            success = False
-    except Exception as e:
-        internal_error(e, error_logfile, script_name)
-        success = False
-
-    return success
+    return False
 
 def monitor_daemon(args):
   success = True
@@ -587,124 +508,73 @@ def list_daemons(args):
     success = False
   return success
 
-def export_benchmark(args):
-  success = True
-  try:
-    exp_bench.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-
-def export_results(args):
-  success = True
-  try:
-    exp_res.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def export_workflow_results(args):
-  success = True
-  try:
-    exp_workflow_res.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def export_simulation_results(args):
-  success = True
-  try:
-    exp_sim_res.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
 def export_all_results(args):
-  success = True
-  try:
-    if args.use_benchmark:
-      newargs = argparse.Namespace(
-        benchmark = args.benchmark,
-        sim_file = args.sim_file,
-        benchmark_file = args.benchmark_file,
-        work = args.work,
-        config = args.config,
-      )
-      exp_bench.main(newargs)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-      return success
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-    return success
-  try:
+  if args.use_benchmark:
     newargs = argparse.Namespace(
-      tool = args.tool,
-      format = args.format,
-      use_benchmark = args.use_benchmark,
+      benchmark = args.benchmark,
+      sim_file = args.sim_file,
       benchmark_file = args.benchmark_file,
-      work = args.work,
-      respath = args.respath,        
-      metrics = args.metrics,
+      work_path = args.work_path,
       config = args.config,
     )
-    exp_res.main(newargs)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
+    if not run_main(exp_bench.main, newargs):
+      return False
+
+  newargs = argparse.Namespace(
+    tool = args.tool,
+    use_benchmark = args.use_benchmark,
+    benchmark_file = args.benchmark_file,
+    work_path = args.work_path,
+    result_path = args.result_path,
+    metrics = args.metrics,
+    config = args.config,
+  )
+  success = run_main(exp_res.main, newargs)
 
   # Derived metrics come last: they read the records the exports above just
   # wrote, plus the simulation and workflow ones already on disk.
   try:
-    exp_derived.run(result_path=args.respath, config_file=args.config)
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
-  return success
-
-def export_derived_metrics(args):
-  success = True
-  try:
-    exp_derived.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
+    if not exp_derived.run(result_path=args.result_path, config_file=args.config):
       success = False
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
   return success
 
-def clean(args):
-  success = True
-  try:
-    cln.main(args)
-  except SystemExit as e:
-    if e.code != EXIT_SUCCESS:
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
+def init_directory(args):
+  return OdatixSettings.init_directory_nodialog(args.examples, prog)
 
+#: What runs each command, by every name it can be called.
+COMMANDS = {
+  "init": init_directory,
+  "generate": lambda args: run_main(gen_configs.main, args),
+  "replace": lambda args: run_main(replace_params.main, args),
+  "fmax": lambda args: run_main(run_synth.main, args),
+  "synth": lambda args: run_main(run_custom_synthesis_module.main, args),
+  "pnr": lambda args: run_main(run_pnr_cmd.main, args),
+  "analyze": lambda args: run_main(analyze.main, args),
+  "sim": lambda args: run_main(run_sim.main, args),
+  "workflow": lambda args: run_main(run_workflow.main, args),
+  "dse": lambda args: run_main(run_dse.main, args),
+  "monitor": monitor_daemon,
+  "stop": stop_daemon,
+  "ls": list_daemons,
+  "results": export_all_results,
+  "res_benchmark": lambda args: run_main(exp_bench.main, args),
+  "res_synth": lambda args: run_main(exp_res.main, args),
+  "res_workflow": lambda args: run_main(exp_workflow_res.main, args),
+  "res_simulation": lambda args: run_main(exp_sim_res.main, args),
+  "res_analysis": lambda args: run_main(exp_analysis.main, args),
+  "res_derived": lambda args: run_main(exp_derived.main, args),
+  "clean": lambda args: run_main(cln.main, args),
+}
+
+#: The other names of a command (see the "aliases" of its parser).
+COMMAND_ALIASES = {
+  "synthesis": "synth",
+  "freq": "synth",
+  "explore": "dse",
+}
 
 ######################################
 # Main
@@ -752,55 +622,10 @@ def main(args=None):
     print()
 
   # Dispatch the command to the appropriate function
-  if args.command == "init":
-    success = OdatixSettings.init_directory_nodialog(args.examples, prog)
-  elif args.command == "sim":
-    success = run_simulations(args)
-  elif args.command == "workflow":
-    success = run_workflows(args)
-  elif args.command == "monitor":
-    success = monitor_daemon(args)
-  elif args.command == "stop":
-    success = stop_daemon(args)
-  elif args.command == "ls":
-    success = list_daemons(args)
-  elif args.command == "fmax":
-    success = run_fmax_synthesis(args)
-  elif args.command in ("synth", "synthesis", "freq"):
-    success = run_custom_synthesis(args)
-  elif args.command == "pnr":
-    success = run_place_and_route(args)
-  elif args.command == "analyze":
-    success = run_analysis(args)
-  elif args.command in ("dse", "explore"):
-    success = run_exploration(args)
-  elif args.command == "results":
-    success = export_all_results(args)
-  elif args.command in "res_benchmark":
-    success = export_benchmark(args)
-  elif args.command in "res_synth":
-    success = export_results(args)
-  elif args.command == "res_workflow":
-    success = export_workflow_results(args)
-  elif args.command == "res_simulation":
-    success = export_simulation_results(args)
-  elif args.command == "res_derived":
-    success = export_derived_metrics(args)
-  elif args.command in "generate":
-    success = generate_configs(args)
-  elif args.command in "replace":
-    success = replace(args)
-  elif args.command in "clean":
-    success = clean(args)
+  command = COMMAND_ALIASES.get(args.command, args.command)
+  success = command_status(COMMANDS[command](args))
 
-  if isinstance(success, bool):
-    exit_code = EXIT_SUCCESS if success else 1
-  elif isinstance(success, int):
-    exit_code = success
-  else:
-    exit_code = EXIT_SUCCESS if success else 1
-
-  sys.exit(exit_code)
+  sys.exit(EXIT_SUCCESS if success else 1)
 
 if __name__ == "__main__":
   main()

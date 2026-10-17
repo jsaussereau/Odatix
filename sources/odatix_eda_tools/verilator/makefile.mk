@@ -5,7 +5,7 @@ LOG_DIR := ./log
 analyze:
 	@mkdir -p $(LOG_DIR)
 	@echo "Running Verilator analysis..."
-	@verilator --cc \
+	@verilator --lint-only -Wall -Wno-fatal \
 		-Irtl -y rtl \
 		--top-module $$(grep "set top_level_module" $(SCRIPT_DIR)/settings.tcl | awk '{print $$3}') \
 		rtl/$$(grep "set top_level_file" $(SCRIPT_DIR)/settings.tcl | awk '{print $$3}') \

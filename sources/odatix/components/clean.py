@@ -27,6 +27,7 @@ import argparse
 import odatix.lib.printc as printc
 from odatix.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
 from odatix.lib.settings import OdatixSettings
+from odatix.components.cli_options import add_options
 from odatix.workspace.clean import DANGEROUS_PATHS, remove_path as remove_matching_paths
 import odatix.lib.yaml_loader as yaml_loader
 
@@ -37,16 +38,11 @@ script_name = os.path.basename(__file__)
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument("-i", "--input", default=None, help="input settings file")
+  add_options(parser, "settings_file")
   parser.add_argument("-f", "--force", action="store_true", help="force delete (dangerous!)")
   parser.add_argument("-v", "--verbose", action="store_true", help="print extra details")
   parser.add_argument("-q", "--quiet", action="store_true", help="do not print anything, except errors")
-  parser.add_argument(
-    "-c",
-    "--config",
-    default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
-  )
+  add_options(parser, "config")
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description="Clean up current directory")
@@ -60,6 +56,7 @@ def parse_arguments():
 def remove_path(path, force=False, verbose=False, quiet=False):
   """
   Remove everything one clean pattern matches, and report it on the terminal.
+  Returns whether everything it matched that was not skipped could be removed.
 
   The removal itself is the one the workspace API performs (see
   odatix.workspace.clean), so "odatix clean" and the graphical interface always
@@ -84,6 +81,8 @@ def remove_path(path, force=False, verbose=False, quiet=False):
     printc.cyan("error details: ", end="", script_name=script_name)
     print(removal.message)
 
+  return len(result.errors) == 0
+
 ######################################
 # Clean
 ######################################
@@ -92,7 +91,7 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
   if not os.path.isfile(settings_filename):
     if not quiet:
       printc.note("There is no clean settings file \"" + settings_filename + "\" in \"" + os.path.realpath(".") + "\". Using default Odatix clean settings file", script_name)
-    settings_filename = os.path.join(OdatixSettings.odatix_path, OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE)
+    settings_filename = os.path.join(OdatixSettings.odatix_init_path, OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE)
     if not os.path.isfile(settings_filename):
       printc.error("There is no default Odatix clean settings file \"" + settings_filename, script_name)
       sys.exit(-1)
@@ -114,8 +113,10 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
       printc.note("Are you missing dashes (-)?", script_name)
       sys.exit(-1)
 
+    success = True
     for path in remove_list:
-      remove_path(path, force, verbose, quiet)
+      success = remove_path(path, force, verbose, quiet) and success
+    return success
 
 ######################################
 # Main
@@ -128,11 +129,12 @@ def main(args, settings=None):
     if not settings.valid:
       sys.exit(-1)
 
-  if args.input is None:
-    args.input = settings.clean_settings_file
+  settings_file = args.settings_file
+  if settings_file is None:
+    settings_file = settings.clean_settings_file
 
-  clean(
-    settings_filename=args.input,
+  return clean(
+    settings_filename=settings_file,
     force=args.force,
     verbose=args.verbose,
     quiet=args.quiet

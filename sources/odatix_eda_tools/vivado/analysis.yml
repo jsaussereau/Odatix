@@ -1,0 +1,67 @@
+##################################################
+# RTL analysis: how Vivado reports
+##################################################
+
+# An analysis elaborates the design (synth_design -rtl): what only synthesis
+# finds (latches, most width mismatches) is not reported by this flow.
+
+logs:
+  - log/analysis.log
+
+# The word each message starts with.
+severities:
+  ERROR: error
+  CRITICAL WARNING: critical
+  WARNING: warning
+
+# What each message id of Vivado is about. A message that only follows from the
+# errors before it ("failed synthesizing module 'top'") is "secondary": it is
+# left out when they are there.
+codes:
+  "Synth 8-439": missing_module
+  "Synth 8-5826": missing_module
+  "Synth 8-9263": missing_file
+  "Synth 8-2716": syntax
+  "Synth 8-10307": syntax
+  "Synth 8-36": undeclared
+  "Synth 8-1031": undeclared
+  "Synth 8-11365": port_mismatch
+  "Synth 8-448": port_mismatch
+  "Synth 8-7071": port_mismatch
+  "Synth 8-7023": port_mismatch
+  "Synth 8-689": width_mismatch
+  "Synth 8-6859": multiple_drivers
+  "Synth 8-6858": multiple_drivers
+  "Synth 8-3352": multiple_drivers
+  "Netlist 29-1115": multiple_drivers
+  "Synth 8-295": combinational_loop
+  "Synth 8-327": latch
+  "Synth 8-3848": undriven
+  "Synth 8-3917": undriven
+  "Synth 8-7129": unused
+  "Synth 8-3331": unused
+  "Synth 8-6014": unused
+  "Synth 8-3330": constant
+  "Synth 8-3332": constant
+  "Synth 8-6156": {category: elaboration, secondary: true}
+  "Synth 8-285": {category: elaboration, secondary: true}
+  "Synth 8-12188": {category: elaboration, secondary: true}
+  "Synth 8-12189": {category: elaboration, secondary: true}
+  "Common 17-345": tool_setup
+  "Common 17-69": tool_setup
+
+# What Vivado says that is no concern of the design.
+expected:
+  parallel_synthesis:
+    code: "Synth 8-7080"
+    reason: "Vivado notes the design is too small to be synthesized in parallel"
+
+messages:
+
+  # "ERROR: [Synth 8-439] module 'sub' not found [/path/rtl/top.sv:2]"
+  message:
+    pattern: "^(?P<severity>ERROR|CRITICAL WARNING|WARNING): \\[(?P<code>[^\\]]+)\\] (?P<message>.*?)(?: \\[(?P<file>[^\\[\\]]+):(?P<line>\\d+)\\])?\\s*$"
+    severity: warning
+    subject:
+      - "'([^']+)'"
+      - "(?:Port|Net|net|pin|Signal|signal) ([A-Za-z_][A-Za-z0-9_$.]*(?:\\[\\d+\\])?)"

@@ -141,9 +141,9 @@ def load_synthesis_context(
 
     tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
     if synth_type is None:
-        process_group, report_path, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(tool, tool_settings_file, flow=flow)
+        process_group, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(tool, tool_settings_file, flow=flow)
     else:
-        process_group, report_path, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(
+        process_group, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(
             tool, tool_settings_file, synth_type=synth_type, flow=flow
         )
 
@@ -489,8 +489,14 @@ def build_parallel_job(
     flow,
     log_size_limit,
     progress_mode,
+    display_suffix="",
 ):
-    """Build the ParallelJob the handler runs for one job directory."""
+    """
+    Build the ParallelJob the handler runs for one job directory.
+
+    ``display_suffix`` is appended to the name the monitor shows: a run of
+    several tools at once (an analysis) tells their jobs apart that way.
+    """
     fmax_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.fmax_status_filename)
     synth_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.synth_status_filename)
 
@@ -502,7 +508,7 @@ def build_parallel_job(
         generate_command=arch_instance.generate_command,
         target=arch_instance.target,
         arch=arch_instance.arch_name,
-        display_name=arch_instance.arch_display_name,
+        display_name=arch_instance.arch_display_name + display_suffix,
         status_file=fmax_status_file,
         progress_file=synth_status_file,
         tmp_dir=arch_instance.tmp_dir,
@@ -510,6 +516,8 @@ def build_parallel_job(
         progress_mode=progress_mode,
         status="idle",
     )
+
+    job.console_log = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.console_log_filename)
 
     if steps:
         # The pipeline holds only what is left to do (see build_job_command);
@@ -535,6 +543,7 @@ def build_prepare_synthesis_job(
     steps=None,
     rerun_index=None,
     check_cancel=None,
+    display_suffix="",
 ):
     from odatix.lib.settings import OdatixSettings
     from odatix.lib.architecture_handler import Architecture
@@ -618,7 +627,7 @@ def build_prepare_synthesis_job(
                 shutil.copy2(arch_instance.file_copy_source, file_copy_dest)
             except Exception as e:
                 printc.error(
-                    'Could not copy "' + arch_instance.script_copy_source + '" to "' + os.path.realpath(file_copy_dest) + '"',
+                    'Could not copy "' + arch_instance.file_copy_source + '" to "' + os.path.realpath(file_copy_dest) + '"',
                     script_name,
                 )
                 printc.cyan("error details: ", end="", script_name=script_name)
@@ -650,6 +659,7 @@ def build_prepare_synthesis_job(
             flow=flow,
             log_size_limit=log_size_limit,
             progress_mode=progress_mode,
+            display_suffix=display_suffix,
         )
 
         job_list.append(running_arch)

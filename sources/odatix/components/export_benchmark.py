@@ -26,6 +26,7 @@ import yaml
 import argparse
 
 from odatix.lib.settings import OdatixSettings
+from odatix.components.cli_options import add_options
 import odatix.lib.re_helper as rh
 import odatix.lib.printc as printc
 
@@ -50,9 +51,7 @@ bad_value = None
 def add_arguments(parser):
   parser.add_argument('-b', '--benchmark', default=DEFAULT_BENCHMARK, help='benchmark to parse (default: ' + DEFAULT_BENCHMARK + ')')
   parser.add_argument('-S', '--sim_file', default=DEFAULT_SIM_FILE, help='simulation log file (default: ' + DEFAULT_SIM_FILE + ')')
-  parser.add_argument('-B', '--benchmark_file', help='output benchmark file')
-  parser.add_argument('-w', '--work', help='simulation work directory')
-  parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
+  add_options(parser, "benchmark_file", "work_path", "config", benchmark_file={"help": "output benchmark file"}, work_path={"help": "simulation work directory"})
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Process benchmark results')
@@ -159,8 +158,8 @@ def main(args, settings=None):
   else:
     benchmark_file = settings.benchmark_file
 
-  if args.work is not None:
-    work = args.work
+  if args.work_path is not None:
+    work = args.work_path
   else:
     work = settings.sim_work_path
 

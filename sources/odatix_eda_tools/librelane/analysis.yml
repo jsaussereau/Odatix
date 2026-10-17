@@ -1,0 +1,37 @@
+##################################################
+# RTL analysis: how LibreLane reports
+##################################################
+
+# The analysis of LibreLane lints the design with Verilator, then elaborates it
+# with Yosys (GHDL for VHDL). Its script gathers what both report in
+# log/analysis.log, the Verilator messages as they are, and the others as
+# "%Error: yosys: ...", "Warning: yosys: ..." or "%Error: librelane: ...": they
+# read like the messages of Verilator, plus the rules below.
+extends: verilator
+
+# Yosys elaborates VHDL too, through GHDL.
+languages: [verilog, systemverilog, vhdl]
+
+messages:
+
+  yosys_missing_module:
+    pattern: "^%Error: yosys: (?P<message>Module `\\\\?(?P<subject>[^']+)' referenced in module .* is not part of the design\\.?)"
+    severity: error
+    category: missing_module
+
+  yosys_error:
+    pattern: "^%Error: yosys: (?P<message>.*)"
+    severity: error
+    category: elaboration
+
+  yosys_warning:
+    pattern: "^Warning: yosys: (?P<message>.*)"
+    severity: warning
+
+  # What LibreLane says when a step fails: a consequence of the errors above,
+  # or the only word on a flow that could not run.
+  librelane_error:
+    pattern: "^%Error: librelane: (?P<message>.*)"
+    severity: error
+    category: elaboration
+    secondary: true

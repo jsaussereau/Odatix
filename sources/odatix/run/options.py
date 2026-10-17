@@ -144,3 +144,36 @@ class RunOptions(Settings):
     benchmark_file = Setting(None, type="any", doc="The benchmark to compare them against.")
     custom_metrics_file = Setting(None, type="any", doc="Extra metrics to read from the reports.")
     output_filename = Setting(None, type="any", doc="Name of the result file, when the run writes one.")
+
+    ######################################
+    # From a command line
+    ######################################
+
+    #: What a command does when it is not told otherwise: it asks before
+    #: starting, and attaches the monitor to the jobs it starts. A script is
+    #: the other way around (see the defaults above).
+    COMMAND_DEFAULTS = {"noask": False, "detach": False}
+
+    @classmethod
+    def from_namespace(cls, args, **overrides):
+        """
+        The options a command line gives, as parsed by argparse.
+
+        Every option of a run command lands in the setting of the same name
+        (see odatix.components.cli_options), so this is a plain copy. What the
+        command line leaves unset keeps the default of a command, and
+        "--noexport" is the empty result path that exports nothing.
+
+        Args:
+            args (argparse.Namespace): the parsed command line.
+            **overrides: settings the command works out itself from its own
+                options ("--from"/"--to"/"--step" into ``frequencies``, ...).
+        """
+        options = cls(**cls.COMMAND_DEFAULTS)
+        for name, value in vars(args).items():
+            if name in cls._specs and value is not None:
+                options[name] = value
+        if getattr(args, "noexport", False):
+            options.result_path = ""
+        options.update(overrides)
+        return options

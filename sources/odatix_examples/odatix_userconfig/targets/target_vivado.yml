@@ -5,6 +5,28 @@
 
 constraint_file: constraints.xdc
 
+# Constraint files of your own, read on top of the timing constraint Odatix
+# writes itself in "constraint_file" above. That one is rewritten whole at every
+# iteration of an fmax search, which is why yours live in files of their own.
+#
+# What is declared here is read by every target of this tool; what a target
+# declares under "target_settings" is added to it. A pinout belongs to a part or
+# to a board, so that is normally where it goes:
+#
+# constraints:
+#   - common_exceptions.xdc
+#
+# target_settings:
+#   xc7a100t-csg324-1:
+#     constraints:
+#       - files: [constraints/arty_a7_pinout.xdc]
+#         scope: pnr     # "synthesis", "pnr", or "all" (the default)
+#
+# Constraints belonging to a design rather than to a part go in the
+# "constraints" key of its architecture "_settings.yml" instead -- at its root
+# for what every job of it reads, or in an "overrides" rule for what only some
+# of them can read. All of them add up.
+
 tool_install_path: "" # Vivado should be in your $PATH
 
 force_single_thread: No # Setting this to 'Yes' may improve performance with a high number of parallel jobs

@@ -223,7 +223,9 @@ def replace_param_domains(param_domains: List[ParamDomain], design_path: str, ti
 
 def main(args):
     """Main function to handle argument parsing and execution of text replacement."""
-    replace_params(args.base_text_file, args.replacement_text_file, args.output_file, args.start_delimiter, args.stop_delimiter, args.replace_all_occurrences)
+    # Delimiters that match nothing leave the output a copy of the input: the
+    # command did not do what it was asked.
+    return replace_params(args.base_text_file, args.replacement_text_file, args.output_file, args.start_delimiter, args.stop_delimiter, args.replace_all_occurrences)
 
 if __name__ == "__main__":
     args = parse_arguments()

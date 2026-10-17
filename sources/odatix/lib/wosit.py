@@ -22,6 +22,44 @@
 import os
 from wosit.Maker import Maker
 
+def _command_list(commands, key, task_name):
+    if commands is None:
+        return []
+    if isinstance(commands, str):
+        commands = [commands]
+    if not isinstance(commands, list) or not all(isinstance(command, str) for command in commands):
+        raise ValueError(f"\"{key}\" of task \"{task_name}\" must be a list of commands.")
+    return commands
+
+
+def _and_chain(commands):
+    """
+    Commands as one shell line running them in order, each one only when the
+    previous one succeeded. A leading "@" (do not echo) is wosit's own, the
+    shell has no use for it.
+    """
+    lines = [command.strip() for command in commands]
+    lines = [line[1:] if line.startswith("@") else line for line in lines]
+    return " && ".join(line for line in lines if line)
+
+
+def task_command(commands, on_failure_commands=None, task_name=""):
+    """
+    What one task runs, as the command of a WoSIT rule.
+
+    The fallback ("on_failure_commands") runs when one of the commands fails,
+    and the task then succeeds if it does. It is folded into the command itself
+    rather than handed to WoSIT, because the jobs do not run their tasks through
+    WoSIT: the daemon runs each task's command line (see ParallelJobHandler).
+    """
+    commands = _command_list(commands, "commands", task_name)
+    on_failure_commands = _command_list(on_failure_commands, "on_failure_commands", task_name)
+
+    if not on_failure_commands or not _and_chain(commands):
+        return "\n".join(commands)
+    return "(" + _and_chain(commands) + ") || (" + _and_chain(on_failure_commands) + ")"
+
+
 def createTaskGraph(
     tasks: list,
     path = None,
@@ -40,8 +78,11 @@ def createTaskGraph(
             raise ValueError("Each task must have a 'name' key.")
         sources = task.get("dependencies", [])
 
-        commands = task.get("commands", [])
-        commands = "\n".join(commands)
+        commands = task_command(
+            task.get("commands", []),
+            task.get("on_failure_commands"),
+            task_name=target,
+        )
 
         # Optional task path. It can be absolute or relative to work directory.
         task_path = task.get("path", None) 
