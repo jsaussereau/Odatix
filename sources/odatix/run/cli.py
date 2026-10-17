@@ -89,6 +89,7 @@ def execute(run):
     What went wrong has already been reported as it happened, so there is
     nothing to print here: only the exit code is left to give.
     """
+    suggest_migration(run.workspace)
     try:
         run.execute()
     except RunCancelled:
@@ -96,3 +97,19 @@ def execute(run):
     except RunError as error:
         raise SystemExit(error.code)
     return run
+
+
+def suggest_migration(workspace):
+    """Point at "odatix migrate" when settings files still use a former format."""
+    from odatix.workspace.migrate import pending
+
+    try:
+        found = pending(workspace)
+    except Exception:
+        return  # a suggestion is never worth failing a run over
+    if found:
+        printc.tip(
+            '{0} settings file(s) of this workspace use a former format, still read: '
+            'run "odatix migrate" to rewrite them.'.format(len(found)),
+            "migrate",
+        )

@@ -253,6 +253,12 @@ class Settings(_SettingsBase):
     #: of them was rather than at the end of the file.
     replacement_key = None
 
+    #: Keys the class does not declare, that :meth:`normalize` may carry over
+    #: into a declared one, as ``(former key, key)`` pairs. Once carried over
+    #: (gone from ``extra``), the key takes the place of the former one in the
+    #: file.
+    moved_keys = ()
+
     def __init__(self, **values):
         object.__setattr__(self, "extra", {})
         # What the file held when it was read. Saving compares against it, so
@@ -578,6 +584,16 @@ def apply(settings, data):
             position = list(data.keys()).index(key)
             replaced_at = position if replaced_at is None else min(replaced_at, position)
         data.pop(key, None)
+
+    moved_to = []
+    for former, key in settings.moved_keys:
+        if former in data and former not in settings.extra:
+            if key not in data:
+                data.insert(list(data.keys()).index(former), key, None)  # filled below
+                moved_to.append(key)
+            data.pop(former)
+    for key in moved_to:
+        _separate_from_what_follows(data, list(data.keys()).index(key) + 1)
 
     for spec in settings.specs():
         if not spec.stored:

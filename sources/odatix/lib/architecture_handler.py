@@ -811,8 +811,8 @@ class ArchitectureHandler:
 
         # What the architecture has to say before a job can be built from it.
         settings_messages = workspace_architectures.validate(settings_data, settings_filename)
-        if settings_messages:
-            printc.messages(settings_messages, script_name)
+        printc.messages(settings_messages, script_name)
+        if any(message.level == "error" for message in settings_messages):
             self.banned_arch_param.append(arch_param_dir)
             self.plan.add(arch_display_name, Category.ERROR)
             return None
@@ -997,6 +997,7 @@ class ArchitectureHandler:
                 printc.magenta("fmax_synthesis:")
                 printc.magenta("  lower_bound: XXX")
                 printc.magenta("  upper_bound: XXX")
+                printc.tip('"odatix migrate" rewrites it that way', script_name)
 
             # check if frequencies are valid
             if run_mode == "fmax":

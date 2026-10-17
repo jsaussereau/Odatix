@@ -27,6 +27,7 @@ design is, how it is built, and how its parameters are substituted, plus the
 configurations of its parameter domains.
 """
 
+import copy
 import os
 
 import odatix.lib.hard_settings as hard_settings
@@ -125,6 +126,7 @@ class ArchitectureSettings(WithVariables, Settings):
 
     dropped_keys = LEGACY_CONFIGURATION_KEYS
     replacement_key = CONFIGURATIONS_KEY
+    moved_keys = (("fmax_lower_bound", "fmax_synthesis"), ("fmax_upper_bound", "fmax_synthesis"))
 
     # RTL generation
     generate_rtl = Setting(
@@ -234,6 +236,16 @@ class ArchitectureSettings(WithVariables, Settings):
     generate_configurations = Setting(False, type="bool", style="yesno", stored=False)
     generate_configurations_settings = Setting(type=ConfigGeneration, stored=False)
 
+    def normalize(self):
+        """
+        Carry what the former keys hold over to the ones that replace them (see
+        :meth:`WithVariables.normalize`), the fmax bounds written before
+        "fmax_synthesis" existed included (see :func:`carry_over_legacy_bounds`).
+        """
+        super(ArchitectureSettings, self).normalize()
+        carry_over_legacy_bounds(self)
+        return self
+
     def frequencies(self, target="", configuration="", tool="", flow="", mode="fmax", fallback=None):
         """
         The frequencies a run uses, for one configuration on one target (see
@@ -243,6 +255,81 @@ class ArchitectureSettings(WithVariables, Settings):
             self, target=target, configuration=configuration, tool=tool, flow=flow,
             mode=mode, fallback=fallback,
         )
+
+
+######################################
+# Fmax bounds written the former way
+######################################
+
+#: The keys the fmax bounds were written with before "fmax_synthesis" existed,
+#: each with the key of the block that replaces it.
+LEGACY_BOUND_KEYS = (("fmax_lower_bound", "lower_bound"), ("fmax_upper_bound", "upper_bound"))
+
+
+def _rules(settings):
+    rules = settings.extra.get("overrides")
+    return [rule for rule in rules if isinstance(rule, dict)] if isinstance(rules, list) else []
+
+
+def _holds_bound(block, key):
+    return isinstance(block, dict) and block.get(key) is not None
+
+
+def legacy_bound_keys(settings):
+    """
+    The former bound keys an :class:`ArchitectureSettings` still holds, at its
+    root or in a rule of its "overrides" section.
+    """
+    found = []
+    for old, _new in LEGACY_BOUND_KEYS:
+        if old in settings.extra or any(old in rule for rule in _rules(settings)):
+            found.append(old)
+    return found
+
+
+def carry_over_legacy_bounds(settings):
+    """
+    Move the former fmax bound keys into the "fmax_synthesis" blocks, wherever
+    that keeps every job running at the bounds it ran at.
+
+    A modern block wins over every former key (see
+    :func:`resolve_frequencies`), so a former key is either moved to the block
+    at its own level, when no block says that bound anywhere, or dropped, when
+    the block of the root does and nothing could ever read it. Former keys in
+    rules next to modern ones in other rules are left alone: which wins depends
+    on the jobs, and only the user can say it in one form. Returns the former
+    keys left, as :func:`legacy_bound_keys`.
+    """
+    if not legacy_bound_keys(settings):
+        return []
+    rules = copy.deepcopy(settings.extra.get("overrides"))
+    changed_rules = False
+    for old, new in LEGACY_BOUND_KEYS:
+        in_rules = [rule for rule in (rules if isinstance(rules, list) else []) if isinstance(rule, dict) and old in rule]
+        modern_root = getattr(settings.fmax_synthesis, new) is not None
+        modern_rules = any(
+            _holds_bound(rule.get("fmax_synthesis"), new)
+            for rule in (rules if isinstance(rules, list) else []) if isinstance(rule, dict)
+        )
+        if in_rules and modern_rules and not modern_root:
+            continue
+
+        if old in settings.extra:
+            value = settings.extra.pop(old)
+            if not modern_root and value is not None:
+                setattr(settings.fmax_synthesis, new, value)
+        for rule in in_rules:
+            value = rule.pop(old)
+            changed_rules = True
+            if modern_root or value is None:
+                continue
+            block = rule.get("fmax_synthesis")
+            if not isinstance(block, dict):
+                block = rule["fmax_synthesis"] = {}
+            block[new] = value
+    if changed_rules:
+        settings.extra["overrides"] = rules
+    return legacy_bound_keys(settings)
 
 
 ######################################
@@ -256,8 +343,9 @@ REQUIRED_SETTINGS = ("top_level_file", "top_level_module", "clock_signal", "rese
 
 def validate(settings, path=""):
     """
-    What keeps an architecture from being run, as a list of :class:`Message`
-    (empty when a run can build its jobs).
+    What is wrong with the settings of an architecture, as a list of
+    :class:`Message`. Its errors keep a run from building its jobs, its
+    warnings do not.
 
     This is only about what the settings file says, not about what is on disk:
     whether the RTL is where it says it is, and whether the top level really
@@ -299,6 +387,20 @@ def validate(settings, path=""):
         for key in ("file_copy_source", "file_copy_dest"):
             if not data.get(key):
                 missing(key, " while file_copy_enable=true")
+
+    # The former switch only meant something next to the block it switched on.
+    # Alone, the design space ignores it and no configuration is generated.
+    if (
+        parse_bool(data.get("generate_configurations"), False)
+        and not isinstance(data.get("generate_configurations_settings"), dict)
+        and not data.get("configurations")
+    ):
+        messages.append(Message(
+            "warning",
+            '"{0}" sets "generate_configurations" without a "generate_configurations_settings" block: '
+            'no configuration is generated.'.format(path),
+            hints=['describe the configurations in a "configurations" block (name, template) instead'],
+        ))
 
     return messages
 
@@ -452,9 +554,13 @@ def _resolve_fmax_bounds(blocks, legacy_levels, messages):
             else:
                 upper_bound = value
 
-    if blocks:
-        lower_bound, _ = _cascade(blocks, "lower_bound")
-        upper_bound, _ = _cascade(blocks, "upper_bound")
+    # A block bound left empty (None, which is what to_dict() writes for an
+    # unset one) does not hide the legacy bound or a less specific block.
+    for block in reversed(blocks):
+        if block.get("lower_bound") is not None:
+            lower_bound = block["lower_bound"]
+        if block.get("upper_bound") is not None:
+            upper_bound = block["upper_bound"]
 
     if lower_bound is None:
         lower_bound = hard_settings.default_fmax_lower_bound

@@ -162,6 +162,29 @@ class TestThroughSettings:
         resolved = architecture_settings.frequencies(target=TARGET, configuration=CONFIG)
         assert (resolved.lower_bound, resolved.upper_bound) == (100, 900)
 
+    def test_legacy_bounds_survive_the_settings_object(self):
+        # to_dict() writes an empty fmax_synthesis block, which must not hide them
+        architecture_settings = ArchitectureSettings.from_dict({"fmax_lower_bound": 100, "fmax_upper_bound": 900})
+        resolved = architecture_settings.frequencies()
+        assert (resolved.lower_bound, resolved.upper_bound) == (100, 900)
+        assert resolved.messages == []
+
+    def test_a_settings_object_and_a_run_agree_on_legacy_bounds(self):
+        data = {"top_level_module": "counter", "fmax_lower_bound": 100, "fmax_upper_bound": 900}
+        through_settings = ArchitectureSettings.from_dict(data).frequencies(target=TARGET, configuration=CONFIG)
+        raw = resolve_frequencies(data, target=TARGET, configuration=CONFIG)
+        assert (through_settings.lower_bound, through_settings.upper_bound) == (raw.lower_bound, raw.upper_bound)
+
+    def test_legacy_global_bounds_and_a_modern_block_for_a_target(self):
+        data = {
+            "top_level_module": "counter", "fmax_lower_bound": 100, "fmax_upper_bound": 900,
+            "overrides": [{"targets": TARGET, "fmax_synthesis": {"lower_bound": 250}}],
+        }
+        resolved = ArchitectureSettings.from_dict(data).frequencies(target=TARGET, configuration=CONFIG)
+        assert (resolved.lower_bound, resolved.upper_bound) == (250, 900)
+        other_target = ArchitectureSettings.from_dict(data).frequencies(target="other", configuration=CONFIG)
+        assert (other_target.lower_bound, other_target.upper_bound) == (100, 900)
+
     def test_a_custom_frequency_block_is_read_as_a_whole(self):
         architecture_settings = ArchitectureSettings.from_dict(
             settings(global_block={"lower_bound": 100, "upper_bound": 300, "step": 100}, key="custom_freq_synthesis")

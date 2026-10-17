@@ -186,7 +186,8 @@ fast.
 
 > [!NOTE]
 > The legacy root keys `fmax_lower_bound` and `fmax_upper_bound` are still read,
-> but deprecated in favour of the `fmax_synthesis` block.
+> but deprecated in favour of the `fmax_synthesis` block. `odatix migrate`
+> rewrites them that way (see [Commands](/docs/commands/#migration)).
 
 ## Configuration generation
 

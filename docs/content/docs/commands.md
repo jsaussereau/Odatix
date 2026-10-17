@@ -39,7 +39,7 @@ $ odatix-explorer -h
 | Execution | `odatix fmax`, `odatix synth`, `odatix pnr`, `odatix analyze`, `odatix sim`, `odatix workflow` | Enqueue and run synthesis, place & route, RTL analysis, simulation and workflow jobs. |
 | Daemon sessions | `odatix ls`, `odatix monitor`, `odatix stop` | Inspect, attach and stop daemon sessions. |
 | Export | `odatix results`, `odatix res_synth`, `odatix res_benchmark`, `odatix res_workflow`, `odatix res_simulation`, `odatix res_derived` | Export benchmark, synthesis, workflow and simulation results, and apply derived metrics. |
-| Maintenance | `odatix clean` | Remove generated files from a clean profile. |
+| Maintenance | `odatix clean`, `odatix migrate` | Remove generated files from a clean profile, and rewrite settings files written in a former format. |
 | Exploration | `odatix-explorer`, `odatix-gui` | Interactive visualization of results, and the full graphical interface. |
 
 ## Common runtime options
@@ -247,6 +247,18 @@ $ odatix clean
 $ odatix clean -f                # force cleanup for dangerous paths
 $ odatix clean -i odatix_userconfig/clean.yml
 {{< /code >}}
+
+### Migration
+
+Odatix still reads the settings files written in a former format, and points at `odatix migrate` when it meets one. The command rewrites them in the current format, keeping their comments and layout, and keeps each former version next to it as `<file>.bak`:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix migrate -n              # only say what would change
+$ odatix migrate
+$ odatix migrate --no-backup     # do not keep the .bak files
+{{< /code >}}
+
+It rewrites `generate_configurations` and `generate_configurations_settings` as `configurations` and `variables`, `fmax_lower_bound` and `fmax_upper_bound` as `fmax_synthesis` blocks, `disabled_targets` as commented-out entries of `targets`, and moves metrics written at the top level of a `_metrics.yml` file under `metrics`. Every job keeps running exactly as before. Former bounds set in some rules of `overrides` while other rules set `fmax_synthesis` are left alone, because which one wins depends on the job: the command reports them and exits with a non-zero status. The workspace settings page of the GUI offers the same migration.
 
 ### Explorer
 

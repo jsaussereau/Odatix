@@ -262,7 +262,7 @@ class Workspace(object):
                     workspace.root, cls.SETTINGS_FILENAME
                 )
             )
-        workspace.settings  # resolve now, so a broken settings file is reported here
+        workspace.paths  # resolve now, so a broken settings file is reported here and the tools path is latched
         return workspace
 
     @classmethod
@@ -331,9 +331,10 @@ class Workspace(object):
         OdatixSettings.user_tools_path = os.path.realpath(self._paths.tools_path)
 
     def reload(self):
-        """Read the settings file again, and forget the resolved paths."""
+        """Read the settings file again, and resolve the paths anew."""
         self._settings = None
         self._paths = None
+        self.paths  # latch the tools path of the file as it now stands
         return self
 
     def save_settings(self, values=None, **kwargs):

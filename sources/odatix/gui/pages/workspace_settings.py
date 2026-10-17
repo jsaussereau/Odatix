@@ -24,12 +24,13 @@ from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional#, Literal
 
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.page_scope import page_callback, scoped
+from odatix.workspace import migrate as workspace_migrate
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -366,6 +367,36 @@ def reset_to_defaults(
 def toggle_generate_settings(use_benchmark):
     return "animated-section" if use_benchmark else "animated-section hide"
 
+@page_callback(PAGE_SCOPE,
+    Output("workspace-migration", "className"),
+    Output("workspace-migration-text", "children"),
+    Output("workspace-migration-feedback", "children"),
+    Input(f"url_{page_path}", "search"),
+    Input("workspace-migrate", "n_clicks"),
+    State("odatix-settings", "data"),
+)
+def migration(search, n_clicks, odatix_settings):
+    """Offer to rewrite the settings files still written in a former format."""
+    feedback = dash.no_update
+    try:
+        workspace = get_workspace(odatix_settings)
+        if ctx.triggered_id == "workspace-migrate" and n_clicks:
+            migrations = workspace_migrate.migrate(workspace)
+            rewritten = [migration for migration in migrations if migration.changed]
+            left = [reason for migration in migrations for reason in migration.left]
+            if left:
+                feedback = ui.error("Rewritten: {0} file(s). Left to rewrite by hand: {1}".format(len(rewritten), " ".join(left)))
+            else:
+                feedback = ui.success("Rewritten: {0} file(s). The former versions are kept as .bak files.".format(len(rewritten)))
+        found = workspace_migrate.pending(workspace)
+    except Exception as e:
+        return "odx-migration hide", "", ui.error(f"Could not migrate: {e}")
+    if not found:
+        return "odx-migration hide", "", feedback
+    text = "{0} settings file(s) use a former format, still read but no longer documented.".format(len(found))
+    return "odx-migration", text, feedback
+
+
 ######################################
 # Layout
 ######################################
@@ -404,6 +435,21 @@ layout = html.Div(
             id={"page": page_path, "type": "workspace-title-div"},
         ),
         ui.feedback("workspace-save-feedback"),
+        html.Div(
+            [
+                html.Span(id="workspace-migration-text"),
+                ui.icon_button(
+                    id="workspace-migrate",
+                    icon=icon("check", className="icon"),
+                    text="Migrate",
+                    color="secondary",
+                    tooltip="Rewrite them in the current format, as \"odatix migrate\" does, keeping each former version as a .bak file",
+                ),
+            ],
+            id="workspace-migration",
+            className="odx-migration hide",
+        ),
+        ui.feedback("workspace-migration-feedback"),
         html.Div(id="workspace-form-container"),
         dcc.Store(id="save-state", data=""),
         dcc.Store(id="workspace-initial-settings", data=None),

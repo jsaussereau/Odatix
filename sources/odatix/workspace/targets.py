@@ -31,7 +31,6 @@ stays visible, and it can be turned back on later.
 """
 
 import copy
-import io
 import os
 import re
 
@@ -40,7 +39,7 @@ from ruamel.yaml.comments import CommentedMap
 
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, NotFoundError
-from odatix.workspace.yaml_io import parse_bool, read_yaml, write_text
+from odatix.workspace.yaml_io import dump_document, parse_bool, read_text, read_yaml, sequence_offset, write_text
 
 __all__ = ["Target", "TargetFile", "TargetFileCollection"]
 
@@ -448,9 +447,11 @@ class TargetFile(object):
         else:
             settings.pop("target_settings", None)
 
-        buffer = io.StringIO()
-        yaml_obj.dump(settings, buffer)
-        text = buffer.getvalue()
+        previous = read_text(path)
+        offset = sequence_offset(previous)
+        if offset:
+            yaml_obj.indent(mapping=2, sequence=offset + 2, offset=offset)
+        text = dump_document(settings, previous, yaml_obj=yaml_obj)
 
         if ordered:
             block_lines = ["targets:"]

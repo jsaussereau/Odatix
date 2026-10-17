@@ -44,6 +44,7 @@ import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.export_analysis as exp_analysis
 import odatix.components.clean as cln
+import odatix.components.migrate as migrate_cmd
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
 from odatix.components.cli_options import add_options
@@ -212,6 +213,11 @@ class ArgParser:
     cln.add_arguments(ArgParser.clean_parser)
     ArgParser.add_nobanner(ArgParser.clean_parser)
 
+    # Define parser for the 'migrate' command
+    ArgParser.migrate_parser = subparsers.add_parser("migrate", help="rewrite the settings files written in a former format", formatter_class=formatter)
+    migrate_cmd.add_arguments(ArgParser.migrate_parser)
+    ArgParser.add_nobanner(ArgParser.migrate_parser)
+
     # Try enabling autocompletion if argcomplete is installed
     try:
       import argcomplete
@@ -302,6 +308,9 @@ class ArgParser:
     print()
     printc.bold("Clean:\n  ", printc.colors.CYAN, end="")
     ArgParser.clean_parser.print_help()
+    print()
+    printc.bold("Migrate:\n  ", printc.colors.CYAN, end="")
+    ArgParser.migrate_parser.print_help()
     print()
     printc.bold("Init:\n  ", printc.colors.CYAN, end="")
     ArgParser.init_parser.print_help()
@@ -567,6 +576,7 @@ COMMANDS = {
   "res_analysis": lambda args: run_main(exp_analysis.main, args),
   "res_derived": lambda args: run_main(exp_derived.main, args),
   "clean": lambda args: run_main(cln.main, args),
+  "migrate": lambda args: run_main(migrate_cmd.main, args),
 }
 
 #: The other names of a command (see the "aliases" of its parser).

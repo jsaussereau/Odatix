@@ -193,7 +193,7 @@ class OdatixSettings:
         # Top-level settings must be a mapping.
         if not isinstance(settings_data, dict):
             printc.error(
-                "Workspace settings file \"" + settings_filename + "\" is not a valid YAML file.",
+                "Settings file \"" + settings_filename + "\" does not hold a list of settings.",
                 script_name,
             )
             return None

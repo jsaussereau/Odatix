@@ -768,6 +768,22 @@
     border-color: color-mix(in srgb, var(--theme-caution-color) 35%, transparent);
     background: color-mix(in srgb, var(--theme-caution-color) 10%, transparent);
 }
+/* Offer to rewrite settings files written in a former format. */
+.odx-migration {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    border-radius: var(--theme-normal-border-radius);
+    padding: var(--space-2) var(--space-4);
+    margin-bottom: var(--space-3);
+    font-size: 14px;
+    border: 1px solid var(--theme-border-color);
+    background: var(--theme-element-background-color);
+}
+.odx-migration.hide {
+    display: none;
+}
 /* On a page of centered cards, the line is centered with them. */
 .odx-feedback.centered {
     width: 100%;

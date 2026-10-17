@@ -39,6 +39,7 @@ file is replaced in one go, never truncated then filled.
 import copy
 import io
 import os
+import re
 import tempfile
 
 import yaml
@@ -193,14 +194,71 @@ def _umask():
     return mask
 
 
+_KEY_LINE = re.compile(r"^( *)[^\s#-][^:]*:\s*(#.*)?$")
+_ITEM_LINE = re.compile(r"^( *)- ")
+
+
+def sequence_offset(text):
+    """
+    How far the items of a list are indented under their key in a YAML text
+    ("key:" then "  - item" is 2), 0 when they are not or when it holds no
+    block list.
+    """
+    key_indent = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        item = _ITEM_LINE.match(line)
+        if key_indent is not None and item:
+            return max(0, len(item.group(1)) - key_indent)
+        key = _KEY_LINE.match(line)
+        key_indent = len(key.group(1)) if key else None
+    return 0
+
+
 def write_document(path, data, yaml_obj=None):
     """
-    Write a mapping to `path`, creating the parent directories if needed.
+    Write a mapping to `path`, creating the parent directories if needed,
+    keeping the layout of the file it replaces (see :func:`dump_document`).
     """
-    writer = yaml_obj if yaml_obj is not None else YAML()
+    write_text(path, dump_document(data, read_text(path), yaml_obj=yaml_obj))
+
+
+def read_text(path):
+    """The text of a file, empty when there is none to read."""
+    if not path or not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, "r") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def dump_document(data, previous="", yaml_obj=None):
+    """
+    The text of a mapping, laid out like `previous`, the text it replaces.
+
+    ruamel keeps comments and key order, but not two things a file written by
+    hand has: the indentation of its lists (ruamel knows one style per dump,
+    and would move every list of the file when a single setting changes) and
+    the blank lines it starts with. A writer given by the caller keeps its own
+    indentation.
+    """
+    writer = yaml_obj
+    if writer is None:
+        writer = YAML()
+        offset = sequence_offset(previous)
+        if offset:
+            writer.indent(mapping=2, sequence=offset + 2, offset=offset)
     buffer = io.StringIO()
     writer.dump(data, buffer)
-    write_text(path, buffer.getvalue())
+    text = buffer.getvalue()
+    leading = len(previous) - len(previous.lstrip("\n"))
+    if leading and not text.startswith("\n"):
+        text = "\n" * leading + text
+    return text
 
 
 def new_document(header=None):

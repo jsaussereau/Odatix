@@ -122,6 +122,28 @@ class TestCollections:
 # Architecture settings
 ######################################
 
+class TestGenerationSwitch:
+    BASE = {"top_level_file": "top.v", "top_level_module": "top", "clock_signal": "clk",
+            "reset_signal": "rst", "rtl_path": "rtl"}
+
+    def levels(self, **settings):
+        from odatix.workspace.architectures import validate
+
+        data = dict(self.BASE)
+        data.update(settings)
+        return [message.level for message in validate(data, "s.yml")]
+
+    def test_the_former_generation_switch_alone_is_warned_about(self):
+        assert self.levels(generate_configurations=True) == ["warning"]
+
+    @pytest.mark.parametrize("block", [
+        {"generate_configurations_settings": {"name": "${W}", "template": "${W}"}},
+        {"configurations": {"name": "${W}", "template": "${W}"}},
+    ])
+    def test_the_generation_switch_with_its_block_says_nothing(self, block):
+        assert self.levels(generate_configurations=True, **block) == []
+
+
 class TestArchitectureSettings:
     def test_settings_round_trip(self, architectures):
         architecture = architectures.create("archA")
@@ -893,6 +915,18 @@ class TestWorkspace:
         workspace = Workspace.open(str(tmp_path))
         workspace.save_settings(arch_path="my_archs")
         assert Workspace.open(str(tmp_path)).paths.arch_path == os.path.join(str(tmp_path), "my_archs")
+
+    def test_opening_a_workspace_tells_the_tool_helpers_where_its_tools_are(self, tmp_path, monkeypatch):
+        from odatix.lib.settings import OdatixSettings
+
+        monkeypatch.setattr(OdatixSettings, "user_tools_path", None)
+        (tmp_path / "odatix.yml").write_text("tools_path: my_tools\n")
+        workspace = Workspace.open(str(tmp_path))
+        assert OdatixSettings.user_tools_path == os.path.realpath(str(tmp_path / "my_tools"))
+
+        (tmp_path / "odatix.yml").write_text("tools_path: other_tools\n")
+        workspace.reload()
+        assert OdatixSettings.user_tools_path == os.path.realpath(str(tmp_path / "other_tools"))
 
     def test_derived_metrics_round_trip(self, tmp_path):
         workspace = Workspace.open(str(tmp_path))
