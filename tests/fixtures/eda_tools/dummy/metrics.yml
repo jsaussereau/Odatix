@@ -1,0 +1,63 @@
+##############################################
+# Metrics for dummy tool
+##############################################
+
+# Results are exported once per step of the flow (see odatix.lib.results_schema).
+# A metric reading a file whose name holds "$step" is measured again at every
+# step, from that step's own reports: the place & route flow below therefore
+# reports utilization from "place" on, and power from "signoff" on.
+
+fmax_synthesis_metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: ".*Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 1
+    format: "%.0f"
+    unit: MHz
+
+custom_freq_synthesis_metrics:
+  Frequency:
+    type: regex
+    settings:
+      file: frequency.txt
+      pattern: "([0-9_]+) MHz"
+      group_id: 1
+    format: "%.0f"
+    unit: MHz
+
+pnr_metrics:
+  Cell_count:
+    type: regex
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "Cell count: ([0-9_]+)"
+      group_id: 1
+    format: "%.0f"
+
+  Utilization:
+    type: regex
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "Utilization: ([0-9.]+)%"
+      group_id: 1
+    format: "%.1f"
+    unit: "%"
+
+  Total_power:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/power.rep
+      pattern: "Total Power: ([0-9.]+) mW"
+      group_id: 1
+    format: "%.2f"
+    unit: mW
+
+metrics:
+  Param_Domains:
+    type: yaml
+    error_if_missing: No
+    settings:
+      file: param_domains.yml

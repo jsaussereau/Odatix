@@ -284,6 +284,63 @@ class TestOnMultiple:
 # Scope
 ######################################
 
+class TestSteps:
+  """A flow split into steps is several source records for one job."""
+
+  @staticmethod
+  def stepped_records(**metrics_per_step):
+    """One synthesis record per step, the last one flagged as such."""
+    steps = list(metrics_per_step.items())
+    records = []
+    for index, (step, metrics) in enumerate(steps):
+      record = synthesis_record(metrics=metrics)
+      record["meta"][results_schema.META_STEP] = step
+      record["meta"][results_schema.META_STEP_INDEX] = index
+      record["meta"][results_schema.META_LAST_STEP] = index == len(steps) - 1
+      records.append(record)
+    return records
+
+  def test_the_last_step_is_the_one_read_by_default(self):
+    records = [simulation_record(metrics={"Cycles": 1000})]
+    records += self.stepped_records(synthesis={"LUT_count": 10}, pnr={"LUT_count": 12})
+    definition = {"metric": "LUT_count", "from": "synthesis", "apply_to": "simulation"}
+    derived_metrics.apply_derived_metrics(config_from({"Routed_LUT": definition}), records)
+    assert metrics_of(records[0])["Routed_LUT"] == 12
+
+  def test_a_step_can_be_named(self):
+    records = [simulation_record(metrics={"Cycles": 1000})]
+    records += self.stepped_records(synthesis={"LUT_count": 10}, pnr={"LUT_count": 12})
+    definition = {"metric": "LUT_count", "from": "synthesis", "apply_to": "simulation", "step": "synthesis"}
+    derived_metrics.apply_derived_metrics(config_from({"Synth_LUT": definition}), records)
+    assert metrics_of(records[0])["Synth_LUT"] == 10
+
+  def test_every_step_can_be_read_at_once(self):
+    records = [simulation_record(metrics={"Cycles": 1000})]
+    records += self.stepped_records(synthesis={"LUT_count": 10}, pnr={"LUT_count": 12})
+    definition = {
+      "metric": "LUT_count", "from": "synthesis", "apply_to": "simulation",
+      "step": "any", "on_multiple": "max",
+    }
+    derived_metrics.apply_derived_metrics(config_from({"Worst_LUT": definition}), records)
+    assert metrics_of(records[0])["Worst_LUT"] == 12
+
+  def test_a_record_of_a_job_without_steps_is_always_read(self):
+    records = [
+      simulation_record(metrics={"Cycles": 1000}),
+      synthesis_record(metrics={"LUT_count": 10}),  # no step at all
+    ]
+    definition = {"metric": "LUT_count", "from": "synthesis", "apply_to": "simulation"}
+    derived_metrics.apply_derived_metrics(config_from({"Synth_LUT": definition}), records)
+    assert metrics_of(records[0])["Synth_LUT"] == 10
+
+  def test_every_step_record_receives_the_metric(self):
+    records = [simulation_record(metrics={"Cycles": 1000})]
+    records += self.stepped_records(synthesis={"LUT_count": 10}, pnr={"LUT_count": 12})
+    derived_metrics.apply_derived_metrics(config_from({"Cycles": {"from": "simulation"}}), records)
+    assert metrics_of(records[1])["Cycles"] == 1000
+    assert metrics_of(records[2])["Cycles"] == 1000
+
+
 class TestScope:
   def test_for_restricts_which_records_get_the_metric(self):
     records = [
@@ -560,3 +617,20 @@ class TestInvariantDomainsInRecords:
   def test_declaring_none_keeps_every_domain(self):
     record = simulation_record(MEM="1024I")
     assert record["meta"]["MEM"] == "1024I"
+
+
+class TestUnreadableDefinitions:
+  @pytest.mark.parametrize("content", ["derived_metrics: [\n", "- a list\n", "derived_metrics: [a, b]\n"])
+  def test_an_unreadable_file_is_not_a_file_asking_for_nothing(self, tmp_path, content):
+    from odatix.components.export_derived_metrics import apply_derived_metrics
+
+    path = tmp_path / "derived_metrics.yml"
+    path.write_text(content)
+    assert derived_metrics.load_derived_metrics(str(path)).valid is False
+    assert apply_derived_metrics(str(tmp_path), str(path)) is False
+
+  def test_a_missing_or_empty_file_derives_nothing(self, tmp_path):
+    assert derived_metrics.load_derived_metrics(str(tmp_path / "none.yml")).valid is True
+    empty = tmp_path / "derived_metrics.yml"
+    empty.write_text("")
+    assert derived_metrics.load_derived_metrics(str(empty)).valid is True

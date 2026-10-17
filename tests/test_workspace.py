@@ -122,6 +122,75 @@ class TestCollections:
 # Architecture settings
 ######################################
 
+class TestWriting:
+    """Every workspace file is written through yaml_io.write_text."""
+
+    def test_writes_and_creates_the_directories(self, tmp_path):
+        from odatix.workspace.yaml_io import write_text
+
+        path = tmp_path / "a" / "b" / "file.yml"
+        write_text(str(path), "x: 1\n")
+        assert path.read_text() == "x: 1\n"
+        assert os.listdir(str(path.parent)) == ["file.yml"]  # no temporary left behind
+
+    def test_a_failed_write_leaves_the_previous_file_in_place(self, tmp_path):
+        from odatix.workspace.yaml_io import write_document
+
+        path = tmp_path / "odatix.yml"
+        path.write_text("arch_path: archs\n")
+        with pytest.raises(Exception):
+            write_document(str(path), {"unserializable": object()})
+        assert path.read_text() == "arch_path: archs\n"
+        assert os.listdir(str(tmp_path)) == ["odatix.yml"]
+
+    @pytest.mark.skipif(not hasattr(os, "symlink") or os.name == "nt", reason="symbolic links")
+    def test_a_symbolic_link_is_followed_not_replaced(self, tmp_path):
+        from odatix.workspace.yaml_io import write_text
+
+        real = tmp_path / "shared" / "odatix.yml"
+        real.parent.mkdir()
+        real.write_text("old\n")
+        link = tmp_path / "odatix.yml"
+        os.symlink(str(real), str(link))
+        write_text(str(link), "new\n")
+        assert os.path.islink(str(link))
+        assert real.read_text() == "new\n"
+
+    @pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
+    def test_the_permissions_of_the_replaced_file_are_kept(self, tmp_path):
+        from odatix.workspace.yaml_io import write_text
+
+        path = tmp_path / "odatix.yml"
+        path.write_text("old\n")
+        os.chmod(str(path), 0o640)
+        write_text(str(path), "new\n")
+        assert os.stat(str(path)).st_mode & 0o777 == 0o640
+
+
+class TestArchitectureValidation:
+    BASE = {"top_level_file": "top.v", "top_level_module": "top", "clock_signal": "clk",
+            "reset_signal": "rst", "rtl_path": "rtl"}
+
+    def errors(self, **settings):
+        from odatix.workspace.architectures import validate
+
+        data = dict(self.BASE)
+        data.update(settings)
+        return [message.text for message in validate(data, "s.yml")]
+
+    def test_a_complete_architecture_is_valid(self):
+        assert self.errors(use_parameters=True, start_delimiter="#(", stop_delimiter=")") == []
+
+    @pytest.mark.parametrize("empty", [None, ""])
+    def test_parameters_need_both_delimiters(self, empty):
+        errors = self.errors(use_parameters=True, start_delimiter=empty, stop_delimiter=")")
+        assert errors == ['Cannot find key "start_delimiter" in "s.yml" while use_parameters=true.']
+
+    def test_delimiters_do_not_matter_without_parameters(self):
+        assert self.errors(use_parameters=False, start_delimiter=None) == []
+
+
+
 class TestGenerationSwitch:
     BASE = {"top_level_file": "top.v", "top_level_module": "top", "clock_signal": "clk",
             "reset_signal": "rst", "rtl_path": "rtl"}
@@ -353,7 +422,7 @@ class TestConfigurationGeneration:
         architecture.settings.generate_configurations = True
         architecture.settings.generate_configurations_settings.name = "${width}bits"
         architecture.settings.generate_configurations_settings.template = "WIDTH = ${width}"
-        architecture.settings.generate_configurations_settings.set_variable(
+        architecture.settings.set_variable(
             "width", "range", {"from": 8, "to": 16, "step": 8}
         )
         architecture.save()
@@ -367,7 +436,7 @@ class TestConfigurationGeneration:
         architecture.settings.generate_configurations = True
         architecture.settings.generate_configurations_settings.name = "${w}"
         architecture.settings.generate_configurations_settings.template = "W = ${w}"
-        architecture.settings.generate_configurations_settings.set_variable(
+        architecture.settings.set_variable(
             "w", "list", {"list": [1, 2]}
         )
         preview = architecture.domains.main.preview_configurations()
@@ -379,7 +448,7 @@ class TestConfigurationGeneration:
         architecture.settings.generate_configurations = True
         architecture.settings.generate_configurations_settings.name = "${w}"
         architecture.settings.generate_configurations_settings.template = "W = ${w}"
-        architecture.settings.generate_configurations_settings.set_variable("w", "list", {"list": [1]})
+        architecture.settings.set_variable("w", "list", {"list": [1]})
         architecture.save()
         architecture.configs.write("1", "hand written")
 
@@ -393,9 +462,56 @@ class TestConfigurationGeneration:
         architecture.settings.generate_configurations = True
         architecture.settings.generate_configurations_settings.name = "${w}"
         architecture.settings.generate_configurations_settings.template = "W = ${w}"
-        architecture.settings.generate_configurations_settings.set_variable("w", "list", {"list": [1, 2]})
+        architecture.settings.set_variable("w", "list", {"list": [1, 2]})
         architecture.save()
         assert "list: [1, 2]" in open(architecture.settings_path).read()
+
+    def test_variables_are_written_at_the_root_of_the_settings_file(self, architectures):
+        architecture = architectures.create("archA")
+        architecture.settings.generate_configurations = True
+        architecture.settings.generate_configurations_settings.name = "${w}"
+        architecture.settings.generate_configurations_settings.template = "W = ${w}"
+        architecture.settings.set_variable("w", "list", {"list": [1, 2]})
+        architecture.save()
+
+        written = open(architecture.settings_path).read()
+        assert "\nvariables:" in written
+        assert architectures.entry("archA").settings.variable_names() == ["w"]
+
+    def test_variables_of_the_former_location_are_read_and_moved(self, architectures):
+        """A settings file written the way Odatix used to write them."""
+        architecture = architectures.create("archA")
+        with open(architecture.settings_path, "w") as settings_file:
+            settings_file.write(
+                "top_level_file: top.sv\n"
+                "generate_configurations: Yes\n"
+                "generate_configurations_settings:\n"
+                "  name: \"${w}\"\n"
+                "  template: \"W = ${w}\"\n"
+                "  variables:\n"
+                "    w:\n"
+                "      type: list\n"
+                "      settings:\n"
+                "        list: [1, 2]\n"
+            )
+
+        reloaded = architectures.entry("archA")
+        assert reloaded.settings.variable_names() == ["w"]
+        assert sorted(reloaded.domains.main.preview_configurations()) == ["1", "2"]
+
+        # Saving moves them where they now belong, and drops the keys that no
+        # longer say anything.
+        reloaded.save()
+        written = open(reloaded.settings_path).read()
+        assert "\nvariables:" in written
+        assert "  variables:" not in written
+        assert "generate_configurations" not in written
+        assert "configurations:" in written
+
+        # And what the file describes has not changed along the way.
+        again = architectures.entry("archA")
+        assert sorted(again.domains.main.preview_configurations()) == ["1", "2"]
+        assert again.domains.main.preview_configurations()["1"] == "W = 1"
 
     def test_variable_definition_helper(self):
         assert variable_definition("X", "range", {"from": 1, "to": 4}) == {
@@ -800,14 +916,14 @@ class TestTools:
     def test_a_workspace_tool_round_trips(self, tmp_path):
         workspace = Workspace.from_dict({"tools_path": "tools"}, root=str(tmp_path))
         tool = workspace.tools.create("my_tool", label="My Tool")
-        tool.settings.report_path = "reports"
+        tool.settings.target_file = "targets.yml"
         flow = tool.settings.default_flow
         flow.set_command("fmax_synthesis", ["make fmax"])
         tool.save()
 
         reloaded = workspace.tools["my_tool"]
         assert reloaded.settings.label == "My Tool"
-        assert reloaded.settings.report_path == "reports"
+        assert reloaded.settings.target_file == "targets.yml"
         assert reloaded.settings.default_flow.command("fmax_synthesis") == ["make fmax"]
         assert not reloaded.is_builtin
 

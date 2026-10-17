@@ -104,6 +104,46 @@ class TestExportSimulationResults:
         assert record["meta"]["architecture"] == "Example_Counter"
         assert record["metrics"]["cycles"] == "12"
 
+    def test_an_architecture_can_declare_its_own_metrics_file(self, workspace):
+        # The same testbench does not necessarily report the same figures for
+        # every design it runs on.
+        _write(
+            os.path.join(workspace["sim_path"], "TB_Demo", "_settings.yml"),
+            "architectures:\n"
+            "  - Example_Counter:\n"
+            "      metrics_file: _metrics_counter.yml\n",
+        )
+        _write(
+            os.path.join(workspace["sim_path"], "TB_Demo", "_metrics_counter.yml"),
+            "metrics:\n  errors:\n    type: csv\n    settings: {file: results.csv, key: errors}\n",
+        )
+        esr.export_simulation_results(
+            work_root=workspace["work_root"],
+            sim_path=workspace["sim_path"],
+            output_dir=workspace["results"],
+        )
+        loaded = results_schema.load_results_file(
+            os.path.join(workspace["results"], esr.DEFAULT_OUTPUT_FILENAME)
+        )
+        record = [r for r in loaded.records if r["meta"]["configuration"] == "04bits"][0]
+        assert set(record["metrics"]) == {"errors"}
+
+    def test_an_architecture_that_declares_none_uses_the_simulation_metrics(self, workspace):
+        _write(
+            os.path.join(workspace["sim_path"], "TB_Demo", "_settings.yml"),
+            "architectures:\n  - Example_Counter\n",
+        )
+        esr.export_simulation_results(
+            work_root=workspace["work_root"],
+            sim_path=workspace["sim_path"],
+            output_dir=workspace["results"],
+        )
+        loaded = results_schema.load_results_file(
+            os.path.join(workspace["results"], esr.DEFAULT_OUTPUT_FILENAME)
+        )
+        record = [r for r in loaded.records if r["meta"]["configuration"] == "04bits"][0]
+        assert set(record["metrics"]) == {"cycles", "errors"}
+
     def test_a_simulation_without_metrics_file_exports_nothing(self, tmp_path):
         run_dir = tmp_path / "work" / "TB_Bare" / "Arch" / "cfg"
         os.makedirs(str(run_dir))

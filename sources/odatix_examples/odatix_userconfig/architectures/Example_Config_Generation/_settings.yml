@@ -7,7 +7,6 @@ rtl_path: ""
 
 top_level_file: ""
 top_level_module: ""
-rtl_file_format: ""
 
 clock_signal: ""
 reset_signal: ""

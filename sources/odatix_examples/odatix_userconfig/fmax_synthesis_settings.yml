@@ -74,6 +74,11 @@ architectures:
   # - Example_Counter_chisel/48bits
   # - Example_Counter_chisel/64bits
 
+  # The same counter, parameterized on the command line instead of in its
+  # sources: "width" is a variable of the architecture, so this single entry
+  # runs one synthesis per value. Add "+width/16bits" to run just one of them.
+  # - Example_Counter_Chisel_CLI
+
   # - Example_ALU_sv/04bits
   # - Example_ALU_sv/08bits
   # - Example_ALU_sv/16bits
@@ -113,5 +118,14 @@ architectures:
   # - Example_Mult/32bits
   # - Example_Mult/48bits
   # - Example_Mult/64bits
+
+# Requires Vitis HLS (in addition to the synthesis tool)
+
+  # A FIR filter written in C++ and turned into RTL by Vitis HLS. "taps", "ii"
+  # and "partition" are variables of the architecture, so this single entry
+  # runs one high level synthesis, then one synthesis, per combination
+  # (3 x 3 x 3 = 27 points). The last two explore HLS pragmas.
+  # Add "+taps/16taps+ii/1+partition/complete" to run just one of them.
+  # - Example_FIR_hls
 
 ...

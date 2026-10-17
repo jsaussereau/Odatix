@@ -34,7 +34,7 @@ def test_fmax_runner_prepares_then_starts_the_same_job_handler(monkeypatch):
     assert captured["prepare"]["architecture_instances"] == ["arch"]
     assert captured["prepare"]["export_output_dir"] == "results"
     assert captured["prepare"]["use_benchmark"] is True
-    assert captured["start"] == (handler, {"detach": True, "session": "nightly"})
+    assert captured["start"] == (handler, {"detach": True, "session": "nightly", "configure": True})
 
 
 def test_simulation_runner_prepares_then_starts_the_same_job_handler(monkeypatch):
@@ -56,7 +56,7 @@ def test_simulation_runner_prepares_then_starts_the_same_job_handler(monkeypatch
 
     assert captured["prepare"]["simulation_instances"] == ["sim"]
     assert captured["prepare"]["export_sim_path"] == "simulations"
-    assert captured["start"] == (handler, {"detach": True, "session": "nightly"})
+    assert captured["start"] == (handler, {"detach": True, "session": "nightly", "configure": True})
 
 
 def test_workflow_runner_prepares_then_starts_the_same_job_handler(monkeypatch):
@@ -82,7 +82,7 @@ def test_workflow_runner_prepares_then_starts_the_same_job_handler(monkeypatch):
 
     assert captured["prepare"]["workflow_instances"] == ["workflow"]
     assert captured["prepare"]["export_workflow_path"] == "workflows"
-    assert captured["start"] == (handler, {"detach": True, "session": "nightly"})
+    assert captured["start"] == (handler, {"detach": True, "session": "nightly", "configure": True})
 
 
 def test_prepare_simulations_configures_per_job_and_batch_exports(monkeypatch):

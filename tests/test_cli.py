@@ -120,15 +120,15 @@ class TestFmaxCommand:
         assert args.overwrite is False
         assert args.noask is False
         assert args.noexport is False
-        assert args.from_freq is None
-        assert args.to_freq is None
+        assert args.lower_bound is None
+        assert args.upper_bound is None
         assert args.config == OdatixSettings.DEFAULT_SETTINGS_FILE
 
     def test_tool_and_bounds(self):
         args = parse("fmax", "-t", "openlane", "--from", "100", "--to", "500")
         assert args.tool == "openlane"
-        assert args.from_freq == 100
-        assert args.to_freq == 500
+        assert args.lower_bound == 100
+        assert args.upper_bound == 500
 
     def test_bounds_must_be_integers(self):
         with pytest.raises(SystemExit):
@@ -137,7 +137,8 @@ class TestFmaxCommand:
     def test_flags(self):
         args = parse("fmax", "-o", "-y", "-e", "-k", "-T", "--continue-on-error", "-d", "-S", "mysession")
         assert args.overwrite and args.noask and args.noexport and args.keep
-        assert args.trust and args.continue_on_error and args.detach
+        assert args.check_eda_tool is False
+        assert args.continue_on_error and args.detach
         assert args.session == "mysession"
 
     def test_force_is_a_deprecated_alias_of_continue_on_error(self):
@@ -232,11 +233,15 @@ class TestSimCommand:
 
     def test_paths(self):
         args = parse("sim", "-i", "s.yml", "-a", "archs", "-s", "sims", "-w", "work", "-j", "4")
-        assert args.input == "s.yml"
-        assert args.archpath == "archs"
-        assert args.simpath == "sims"
-        assert args.work == "work"
-        assert args.jobs == "4"
+        assert args.settings_file == "s.yml"
+        assert args.arch_path == "archs"
+        assert args.sim_path == "sims"
+        assert args.work_path == "work"
+        assert args.nb_jobs == "4"
+
+    def test_noexport(self):
+        assert parse("sim").noexport is False
+        assert parse("sim", "-e").noexport is True
 
 
 class TestWorkflowCommand:
@@ -249,8 +254,8 @@ class TestWorkflowCommand:
     def test_flags(self):
         args = parse("workflow", "-r", "-e", "-p", "wfs", "-w", "work")
         assert args.resume and args.noexport
-        assert args.workflowpath == "wfs"
-        assert args.work == "work"
+        assert args.workflow_path == "wfs"
+        assert args.work_path == "work"
 
 
 class TestDaemonCommands:
@@ -289,22 +294,20 @@ class TestResultsCommands:
         args = parse("results")
         assert args.command == "results"
         assert args.tool == "all"
-        assert args.format is None
-        assert args.use_benchmark is False
+        # Unset, so that the settings file says whether to use the benchmark.
+        assert args.use_benchmark is None
+        assert parse("results", "-u").use_benchmark is True
 
-    def test_results_format_choices(self):
-        assert parse("results", "-f", "csv").format == "csv"
-        assert parse("results", "-f", "yml").format == "yml"
-        assert parse("results", "-f", "all").format == "all"
-
-    def test_results_invalid_format_exits(self):
+    @pytest.mark.parametrize("command", ["results", "res_synth"])
+    def test_there_is_no_format_option(self, command):
+        # Results are only ever written as v2 YAML: there is nothing to choose.
         with pytest.raises(SystemExit):
-            parse("results", "-f", "xml")
+            parse(command, "-f", "csv")
 
     def test_res_benchmark(self):
         args = parse("res_benchmark", "-w", "work")
         assert args.command == "res_benchmark"
-        assert args.work == "work"
+        assert args.work_path == "work"
 
     def test_res_synth(self):
         args = parse("res_synth", "-t", "vivado")
@@ -314,7 +317,7 @@ class TestResultsCommands:
     def test_res_workflow(self):
         args = parse("res_workflow", "-w", "work")
         assert args.command == "res_workflow"
-        assert args.work == "work"
+        assert args.work_path == "work"
 
 
 class TestCleanCommand:
@@ -441,12 +444,32 @@ class TestCliSubprocess:
         assert generated.is_file()
         assert "parameter VALUE = 10;" in generated.read_text()
 
-    def test_generate_twice_without_overwrite_fails(self, example_workspace):
-        """Second run without -o: everything already exists, no valid config -> exit != 0."""
+    def test_generate_twice_changes_nothing(self, example_workspace):
+        """Generating what is already there is a no-op, not an error."""
+        generated = example_workspace / (
+            "odatix_userconfig/architectures/Example_Config_Generation/01_Range/config_10.txt"
+        )
         first = run_cli("generate", "-y", "-Q", cwd=str(example_workspace))
         assert first.returncode == 0
+        before = generated.read_text()
+
         second = run_cli("generate", "-y", "-Q", cwd=str(example_workspace))
-        assert second.returncode != 0
+        assert second.returncode == 0
+        assert generated.read_text() == before
+
+    def test_generate_leaves_an_edited_configuration_alone(self, example_workspace):
+        """An edit survives a second generation: that is what the manifest is for."""
+        generated = example_workspace / (
+            "odatix_userconfig/architectures/Example_Config_Generation/01_Range/config_10.txt"
+        )
+        assert run_cli("generate", "-y", "-Q", cwd=str(example_workspace)).returncode == 0
+        generated.write_text("parameter VALUE = 42;\n")
+
+        assert run_cli("generate", "-y", "-Q", cwd=str(example_workspace)).returncode == 0
+        assert generated.read_text() == "parameter VALUE = 42;\n"
+
+        assert run_cli("generate", "-y", "-Q", "-o", cwd=str(example_workspace)).returncode == 0
+        assert "parameter VALUE = 10;" in generated.read_text()
 
     def test_generate_twice_with_overwrite_succeeds(self, example_workspace):
         first = run_cli("generate", "-y", "-Q", cwd=str(example_workspace))
@@ -469,3 +492,363 @@ class TestCliSubprocess:
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "parameter W = 32" in output.read_text()
+
+
+######################################
+# Exit codes (subprocess)
+######################################
+
+@pytest.mark.integration
+class TestExitCodes:
+    """Every command says by its exit code whether it did what it was asked."""
+
+    def test_clean_succeeds(self, example_workspace):
+        assert run_cli("clean", "-Q", cwd=str(example_workspace)).returncode == 0
+
+    def test_clean_falls_back_to_the_default_settings(self, example_workspace):
+        (example_workspace / "odatix_userconfig" / "clean.yml").unlink()
+        result = run_cli("clean", "-Q", cwd=str(example_workspace))
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_clean_fails_on_an_invalid_settings_file(self, example_workspace):
+        (example_workspace / "bad.yml").write_text("remove_list: [\n")
+        assert run_cli("clean", "-Q", "-i", "bad.yml", cwd=str(example_workspace)).returncode != 0
+
+    @pytest.mark.parametrize("command", ["res_synth", "res_workflow", "res_simulation", "results"])
+    def test_exporting_nothing_succeeds(self, example_workspace, command):
+        (example_workspace / "empty_work").mkdir()
+        result = run_cli(command, "-Q", "-w", "empty_work", "-r", "out", cwd=str(example_workspace))
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_res_synth_fails_without_work_directory(self, example_workspace):
+        assert run_cli("res_synth", "-Q", "-w", "nowhere", "-r", "out", cwd=str(example_workspace)).returncode != 0
+
+    @pytest.mark.parametrize("command", ["res_workflow", "res_simulation"])
+    def test_a_results_file_that_cannot_be_written_fails(self, example_workspace, command):
+        (example_workspace / "empty_work").mkdir()
+        (example_workspace / "a_file").write_text("")
+        result = run_cli(command, "-Q", "-w", "empty_work", "-r", "a_file/out", cwd=str(example_workspace))
+        assert result.returncode != 0
+
+    def test_res_derived_without_definitions_succeeds(self, example_workspace):
+        assert run_cli("res_derived", "-Q", "-r", "out", "-d", "none.yml", cwd=str(example_workspace)).returncode == 0
+
+    def test_res_derived_fails_on_an_invalid_file(self, example_workspace):
+        (example_workspace / "bad.yml").write_text("derived_metrics: [\n")
+        result = run_cli("res_derived", "-Q", "-r", "out", "-d", "bad.yml", cwd=str(example_workspace))
+        assert result.returncode != 0
+
+    def test_ls_without_any_matching_session_succeeds(self, example_workspace):
+        assert run_cli("ls", "-S", "odatix-test-no-such-session", cwd=str(example_workspace)).returncode == 0
+
+    @pytest.mark.parametrize("command", ["stop", "monitor"])
+    def test_reaching_a_session_that_does_not_exist_fails(self, example_workspace, command):
+        assert run_cli(command, "-S", "odatix-test-no-such-session", cwd=str(example_workspace)).returncode != 0
+
+    def test_replace_fails_when_the_delimiters_match_nothing(self, tmp_path):
+        base = tmp_path / "top.v"
+        base.write_text("module m();\nendmodule\n")
+        replacement = tmp_path / "params.txt"
+        replacement.write_text("parameter W = 32\n")
+        result = run_cli(
+            "replace", "-Q", "-s", "#(", "-S", ")(",
+            "-i", str(base), "-o", str(tmp_path / "out.v"), "-r", str(replacement),
+            cwd=str(tmp_path),
+        )
+        assert result.returncode != 0
+
+    def test_a_run_outside_of_a_workspace_fails(self, tmp_path):
+        assert run_cli("fmax", "-Q", "-y", cwd=str(tmp_path)).returncode != 0
+
+
+######################################
+# Exit codes (in process)
+######################################
+
+def run_main(*argv):
+    """The exit code odatix_main.main() stops with, for this command line."""
+    with pytest.raises(SystemExit) as stop:
+        odatix_main.main(parse(*argv))
+    return stop.value.code
+
+
+class TestDaemonCommandStatus:
+    """The daemon commands need a daemon to succeed: theirs is replaced."""
+
+    def test_monitor(self, monkeypatch):
+        monkeypatch.setattr(odatix_main.daemon_control, "attach_monitor", lambda **kwargs: None)
+        assert run_main("monitor", "-S", "session") == 0
+
+        def fail(**kwargs):
+            raise RuntimeError("no session")
+
+        monkeypatch.setattr(odatix_main.daemon_control, "attach_monitor", fail)
+        assert run_main("monitor", "-S", "session") != 0
+
+    def test_stop(self, monkeypatch):
+        monkeypatch.setattr(odatix_main.daemon_control, "stop_daemon", lambda **kwargs: True)
+        assert run_main("stop", "-S", "session") == 0
+        monkeypatch.setattr(odatix_main.daemon_control, "stop_daemon", lambda **kwargs: False)
+        assert run_main("stop", "-S", "session") != 0
+
+    def test_stop_zombies(self, monkeypatch):
+        monkeypatch.setattr(
+            odatix_main.daemon_control, "kill_zombie_daemons",
+            lambda session=None: {"total": 1, "killed": 1, "failed": []},
+        )
+        assert run_main("stop", "-z") == 0
+        monkeypatch.setattr(
+            odatix_main.daemon_control, "kill_zombie_daemons",
+            lambda session=None: {"total": 1, "killed": 0, "failed": [{}]},
+        )
+        monkeypatch.setattr(odatix_main.daemon_control, "format_daemons_table", lambda *args, **kwargs: "")
+        assert run_main("stop", "-z") != 0
+
+    def test_ls(self, monkeypatch):
+        monkeypatch.setattr(odatix_main.daemon_control, "list_daemons", lambda **kwargs: [])
+        assert run_main("ls") == 0
+
+        def fail(**kwargs):
+            raise RuntimeError("unreachable")
+
+        monkeypatch.setattr(odatix_main.daemon_control, "list_daemons", fail)
+        assert run_main("ls") != 0
+
+
+class TestResultsStatus:
+    def test_a_results_file_that_cannot_be_written_is_a_failure(self, tmp_path, monkeypatch):
+        import odatix.components.export_results as export_results
+
+        def fail(*args, **kwargs):
+            raise OSError("read-only")
+
+        monkeypatch.setattr(export_results.results_cache, "store", fail)
+        assert export_results.export_results(
+            input=str(tmp_path), output=str(tmp_path / "out"), tools=["vivado"],
+            use_benchmark=False, benchmark_file=None,
+            result_types={"fmax_synthesis": {"key": "fmax_synthesis", "path": "fmax_synthesis"}},
+        ) is False
+
+    def test_results_fails_when_deriving_fails(self, example_workspace, monkeypatch):
+        import odatix.components.export_derived_metrics as exp_derived
+
+        (example_workspace / "work").mkdir(exist_ok=True)
+        monkeypatch.setattr(exp_derived, "run", lambda **kwargs: False)
+        assert run_main("results", "-Q") != 0
+
+
+######################################
+# What the run commands are told
+######################################
+
+RUN_COMMANDS = ["fmax", "synth", "pnr", "analyze", "sim", "workflow"]
+
+
+class TestRunOptionsFromCommandLine:
+    @pytest.mark.parametrize("command", RUN_COMMANDS)
+    def test_noexport_is_an_empty_result_path(self, command):
+        from odatix.run.options import RunOptions
+
+        assert RunOptions.from_namespace(parse(command, "-e")).result_path == ""
+        # Unset: the run exports to the workspace result directory.
+        assert RunOptions.from_namespace(parse(command)).result_path is None
+
+    def test_options_land_in_the_settings_of_the_same_name(self):
+        from odatix.run.options import RunOptions
+
+        options = RunOptions.from_namespace(parse(
+            "fmax", "-j", "4", "-a", "archs", "-i", "run.yml", "-w", "work", "-T", "-E",
+            "--logsize", "50", "--from", "10", "--to", "20", "-y", "-d", "-S", "night",
+        ))
+        assert options.nb_jobs == "4"
+        assert options.arch_path == "archs"
+        assert options.settings_file == "run.yml"
+        assert options.work_path == "work"
+        assert options.check_eda_tool is False
+        assert options.exit_when_done is True
+        assert options.log_size_limit == 50
+        assert (options.lower_bound, options.upper_bound) == (10, 20)
+        assert options.noask is True and options.detach is True
+        assert options.session == "night"
+
+    def test_a_command_asks_and_attaches_unless_told_otherwise(self):
+        from odatix.run.options import RunOptions
+
+        options = RunOptions.from_namespace(parse("sim"))
+        assert options.noask is False
+        assert options.detach is False
+
+
+class TestNoExport:
+    """"-e" goes all the way down: the jobs are not told to export anything."""
+
+    def _run_fmax(self, monkeypatch, *argv):
+        import odatix.components.run_fmax_synthesis as fmax
+
+        class Handler:
+            process_group = True
+
+        exports = {}
+        monkeypatch.setattr(
+            fmax, "check_settings",
+            lambda **kwargs: (["arch"], "prepare", [], "tool.yml", Handler(), True, 42, 3, "plan"),
+        )
+        monkeypatch.setattr(fmax, "prepare_synthesis_jobs", lambda **kwargs: "jobs")
+        monkeypatch.setattr(fmax.exp_res, "configure_synthesis_job_exports", lambda **kwargs: exports.update(job=kwargs))
+        monkeypatch.setattr(fmax.exp_derived, "configure_post_batch_derivation", lambda *args: exports.update(batch=args))
+        monkeypatch.setattr(fmax, "start_parallel_jobs", lambda jobs, **kwargs: None)
+        assert run_main("fmax", "-Q", "-y", *argv) == 0
+        return exports
+
+    def test_fmax_exports_by_default(self, example_workspace, monkeypatch):
+        exports = self._run_fmax(monkeypatch)
+        assert exports["job"]["output_dir"] == "results"
+        assert exports["batch"] == ("jobs", "results")
+
+    def test_fmax_noexport_exports_nothing(self, example_workspace, monkeypatch):
+        assert self._run_fmax(monkeypatch, "-e") == {}
+
+    # The analysis: see tests/test_analysis.py (TestCommands).
+
+
+######################################
+# Every option is read
+######################################
+
+def subcommand_parsers():
+    """Every subcommand parser of odatix, aliases included."""
+    parse()
+    action = next(
+        action for action in odatix_main.ArgParser.parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    return action.choices
+
+
+def _reads(source, dest):
+    import re
+
+    # Read as an attribute, or by name ("for name in ("tools", "flows")").
+    return re.search(r"args\." + dest + r"\b|[\"']" + dest + r"[\"']", source) is not None
+
+
+def _readers(command):
+    """The code that reads the options of a command."""
+    import inspect
+
+    import odatix.components.clean as cln
+    import odatix.components.export_benchmark as exp_bench
+    import odatix.components.export_analysis as exp_analysis
+    import odatix.components.export_derived_metrics as exp_derived
+    import odatix.components.export_results as exp_res
+    import odatix.components.export_simulation_results as exp_sim_res
+    import odatix.components.export_workflow_results as exp_workflow_res
+    import odatix.components.generate_configs as gen_configs
+    import odatix.components.migrate as migrate_cmd
+    import odatix.components.replace_params as replace_params
+    import odatix.components.run_analysis as run_analysis
+    import odatix.components.run_custom_synthesis as run_custom_synthesis
+    import odatix.components.run_dse as run_dse
+    import odatix.components.run_fmax_synthesis as run_fmax_synthesis
+    import odatix.components.run_pnr as run_pnr
+    import odatix.components.run_simulations as run_simulations
+    import odatix.components.run_workflow as run_workflow
+
+    readers = {
+        "init": [odatix_main.init_directory],
+        "migrate": [migrate_cmd.main],
+        "generate": [gen_configs.main],
+        "replace": [replace_params.main],
+        "fmax": [run_fmax_synthesis.main],
+        "synth": [run_custom_synthesis.main],
+        "pnr": [run_pnr.main],
+        "analyze": [run_analysis.main],
+        "sim": [run_simulations.main],
+        "workflow": [run_workflow.main],
+        "dse": [run_dse.main, run_dse.apply_arguments, run_dse.apply_campaign_arguments],
+        "monitor": [odatix_main.monitor_daemon],
+        "stop": [odatix_main.stop_daemon, odatix_main.kill_zombie_sessions],
+        "ls": [odatix_main.list_daemons],
+        "results": [odatix_main.export_all_results],
+        "res_benchmark": [exp_bench.main],
+        "res_synth": [exp_res.main],
+        "res_workflow": [exp_workflow_res.main],
+        "res_simulation": [exp_sim_res.main],
+        "res_analysis": [exp_analysis.main],
+        "res_derived": [exp_derived.main],
+        "clean": [cln.main],
+    }[odatix_main.COMMAND_ALIASES.get(command, command)]
+    return "\n".join(inspect.getsource(reader) for reader in readers)
+
+
+def _run_api_source():
+    import inspect
+
+    import odatix.run.flows as flows
+    import odatix.run.run as run
+
+    return inspect.getsource(flows) + inspect.getsource(run)
+
+
+#: Read by odatix_main.main() itself, whatever the command.
+GLOBAL_DESTS = {"help", "version", "init", "command", "nobanner"}
+
+
+class TestEveryOptionIsRead:
+    """An option nothing reads is a lie the help tells: there must be none."""
+
+    def test_every_command_is_dispatched(self):
+        for command in subcommand_parsers():
+            assert odatix_main.COMMAND_ALIASES.get(command, command) in odatix_main.COMMANDS, command
+
+    @pytest.mark.parametrize("command", sorted(odatix_main.COMMANDS))
+    def test_every_destination_is_read(self, command):
+        from odatix.run.options import RunOptions
+
+        parser = subcommand_parsers()[command]
+        source = _readers(command)
+        is_run_command = command in RUN_COMMANDS
+        run_api = _run_api_source()
+
+        for action in parser._actions:
+            dest = action.dest
+            if dest in GLOBAL_DESTS or isinstance(action, argparse._HelpAction):
+                continue
+            if _reads(source, dest):
+                continue
+            assert is_run_command, "{0}: {1} is never read".format(command, dest)
+            if dest == "noexport":
+                continue  # the empty result path of RunOptions.from_namespace
+            # Copied into the run options, which must then be used.
+            assert RunOptions.spec(dest) is not None, "{0}: {1} is never read".format(command, dest)
+            assert (
+                "options." + dest in run_api or "options." + dest in source
+                or '"' + dest + '"' in run_api or "run." + dest in run_api
+            ), "{0}: run option {1} is never used".format(command, dest)
+
+    def test_a_shared_option_keeps_its_destination(self):
+        from odatix.components.cli_options import OPTIONS
+
+        destinations = {}
+        for name, (flags, keywords) in OPTIONS.items():
+            for flag in flags:
+                if flag.startswith("--"):
+                    destinations[flag] = keywords.get("dest", name)
+
+        # Where a long option knowingly means something else.
+        exceptions = {
+            # A generic text tool, with letters of its own.
+            ("replace", "--input"),
+            # Repeatable: the exploration chooses among them.
+            ("dse", "--tool"), ("dse", "--flow"),
+            # The exploration's own settings file, not the workspace's.
+            ("dse", "--config"),
+            # The whole work tree a place & route reads its sources from.
+            ("pnr", "--work"),
+        }
+        for command, parser in subcommand_parsers().items():
+            command = odatix_main.COMMAND_ALIASES.get(command, command)
+            for action in parser._actions:
+                for flag in action.option_strings:
+                    if flag in destinations and (command, flag) not in exceptions:
+                        assert action.dest == destinations[flag], "{0} {1}".format(command, flag)

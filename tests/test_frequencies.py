@@ -2,9 +2,9 @@
 Tests for the frequency resolution of an architecture
 (odatix.workspace.architectures.resolve_frequencies).
 
-An architecture settings file can say its frequencies three times: for every
-target, for one target, and for one configuration of one target. Which one has
-the last word is what these tests pin down.
+An architecture settings file can say its frequencies for every job it produces,
+and again in each rule of its "overrides" section that selects only some of
+them. Which one has the last word is what these tests pin down.
 """
 
 import odatix.lib.hard_settings as hard_settings
@@ -15,17 +15,21 @@ CONFIG = "08bits"
 
 
 def settings(global_block=None, target_block=None, configuration_block=None, key="fmax_synthesis"):
-    """An architecture settings file saying its frequencies at up to three levels."""
+    """
+    An architecture settings file saying its frequencies at up to three levels:
+    for every job, for the jobs of one target, and for the jobs running one
+    configuration on that target.
+    """
     data = {"top_level_module": "counter"}
     if global_block is not None:
         data[key] = global_block
-    target_data = {}
+    rules = []
     if target_block is not None:
-        target_data[key] = target_block
+        rules.append({"targets": TARGET, key: target_block})
     if configuration_block is not None:
-        target_data[CONFIG] = {key: configuration_block}
-    if target_data:
-        data[TARGET] = target_data
+        rules.append({"targets": TARGET, "configurations": CONFIG, key: configuration_block})
+    if rules:
+        data["overrides"] = rules
     return data
 
 
@@ -62,7 +66,7 @@ class TestFmaxBounds:
         )
         assert (resolved.lower_bound, resolved.upper_bound) == (250, 800)
 
-    def test_configuration_overrides_target(self):
+    def test_a_later_rule_overrides_an_earlier_one(self):
         resolved = fmax(
             global_block={"lower_bound": 100, "upper_bound": 900},
             target_block={"lower_bound": 250, "upper_bound": 800},
@@ -79,14 +83,14 @@ class TestFmaxBounds:
 
     def test_legacy_keys_are_still_read_and_reported(self):
         data = settings()
-        data[TARGET] = {"fmax_lower_bound": 42, "fmax_upper_bound": 424}
+        data["overrides"] = [{"targets": TARGET, "fmax_lower_bound": 42, "fmax_upper_bound": 424}]
         resolved = resolve_frequencies(data, target=TARGET, configuration=CONFIG, mode="fmax")
         assert (resolved.lower_bound, resolved.upper_bound) == (42, 424)
         assert resolved.deprecated_bounds
 
     def test_the_modern_block_wins_over_the_legacy_keys(self):
         data = settings(global_block={"lower_bound": 100, "upper_bound": 900})
-        data[TARGET] = {"fmax_lower_bound": 42, "fmax_upper_bound": 424}
+        data["overrides"] = [{"targets": TARGET, "fmax_lower_bound": 42, "fmax_upper_bound": 424}]
         resolved = resolve_frequencies(data, target=TARGET, configuration=CONFIG, mode="fmax")
         assert (resolved.lower_bound, resolved.upper_bound) == (100, 900)
         assert resolved.deprecated_bounds
@@ -133,7 +137,7 @@ class TestCustomFrequencies:
         )
         assert resolved.frequencies == [25, 50, 100]
 
-    def test_list_append_walks_up_every_level(self):
+    def test_list_append_walks_up_every_rule(self):
         resolved = custom(
             global_block={"list": [200]},
             target_block={"list": [100], "list_append": True},
@@ -148,6 +152,57 @@ class TestCustomFrequencies:
             configuration_block={"list": [25], "list_append": True},
         )
         assert resolved.frequencies == [25, 100]
+
+
+######################################
+# Which jobs a rule applies to
+######################################
+
+class TestSelectors:
+    def test_a_rule_naming_no_selector_applies_to_every_job(self):
+        data = {"overrides": [{"fmax_synthesis": {"lower_bound": 111, "upper_bound": 222}}]}
+        resolved = resolve_frequencies(data, target="whatever", configuration="whatever", mode="fmax")
+        assert (resolved.lower_bound, resolved.upper_bound) == (111, 222)
+
+    def test_a_rule_of_another_target_is_not_read(self):
+        data = {"overrides": [{"targets": "other", "fmax_synthesis": {"lower_bound": 111}}]}
+        resolved = resolve_frequencies(data, target=TARGET, configuration=CONFIG, mode="fmax")
+        assert resolved.lower_bound == hard_settings.default_fmax_lower_bound
+
+    def test_a_pattern_selects_the_targets_it_matches(self):
+        data = {"overrides": [{"targets": "fpga*", "fmax_synthesis": {"lower_bound": 111}}]}
+        assert resolve_frequencies(data, target="fpga1", mode="fmax").lower_bound == 111
+        assert resolve_frequencies(data, target="asic1", mode="fmax").lower_bound != 111
+
+    def test_a_tool_covers_all_of_its_flows(self):
+        data = {"overrides": [{"tools": "vivado", "fmax_synthesis": {"lower_bound": 111}}]}
+        assert resolve_frequencies(data, tool="vivado", flow="power_opt", mode="fmax").lower_bound == 111
+        assert resolve_frequencies(data, tool="genus", flow="power_opt", mode="fmax").lower_bound != 111
+
+    def test_a_flow_is_named_after_its_tool(self):
+        data = {"overrides": [{"tools": "vivado@power_opt", "fmax_synthesis": {"lower_bound": 111}}]}
+        assert resolve_frequencies(data, tool="vivado", flow="power_opt", mode="fmax").lower_bound == 111
+        assert resolve_frequencies(data, tool="vivado", flow="standard", mode="fmax").lower_bound != 111
+
+    def test_every_selector_of_a_rule_has_to_match(self):
+        data = {"overrides": [{
+            "tools": ["vivado", "genus"],
+            "targets": "fpga*",
+            "configurations": "*bits",
+            "fmax_synthesis": {"lower_bound": 111},
+        }]}
+        matching = dict(tool="genus", target="fpga1", configuration="08bits", mode="fmax")
+        assert resolve_frequencies(data, **matching).lower_bound == 111
+        assert resolve_frequencies(data, **dict(matching, configuration="fast")).lower_bound != 111
+
+    def test_a_star_restricts_nothing(self):
+        data = {"overrides": [{"tools": "*", "targets": "*", "fmax_synthesis": {"lower_bound": 111}}]}
+        assert resolve_frequencies(data, target="anything", mode="fmax").lower_bound == 111
+
+    def test_an_invalid_section_is_reported_rather_than_raised(self):
+        resolved = resolve_frequencies({"overrides": "not a list"}, target=TARGET, mode="fmax")
+        assert [message.level for message in resolved.messages] == ["error"]
+        assert resolved.lower_bound == hard_settings.default_fmax_lower_bound
 
 
 ######################################

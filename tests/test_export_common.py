@@ -22,6 +22,12 @@ class TestParseRegex:
         f.write_text("v 1\nv 2\nv 3\n")
         assert ec.parse_regex_all(str(f), r"v (\d+)", 1) == ["1", "2", "3"]
 
+    def test_anchors_match_at_line_boundaries(self, tmp_path):
+        f = tmp_path / "area.rep"
+        f.write_text("  Hinst  Count  Area\n-----\ntop    84    7043.400\n sub   24    1838.200\n")
+        assert ec.parse_regex(str(f), r"^\S+\s+([0-9]+)\s+([0-9.]+)\s*$", 2) == "7043.400"
+        assert ec.parse_regex_all(str(f), r"^\s*\S+\s+([0-9]+)\s", 1) == ["84", "24"]
+
     def test_no_match_returns_none(self, tmp_path):
         f = tmp_path / "out.txt"
         f.write_text("nothing here\n")

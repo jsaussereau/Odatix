@@ -11,6 +11,7 @@ dash = pytest.importorskip("dash")
 from dash import dcc, html
 
 import odatix.gui.icons as icons
+import odatix.lib.hard_settings as hard_settings
 import odatix.gui.navigation as navigation
 import odatix.gui.themes as themes
 
@@ -71,8 +72,8 @@ KNOWN_ICONS = [
 ]
 
 KNOWN_PICTOGRAMS = [
-    "workflow", "architecture", "run", "monitor", "explorer", "workspace",
-    "documentation", "eda_tool", "fmax", "custom_freq", "analysis",
+    "workflow", "architecture", "run", "monitor", "explorer", "dse", "workspace",
+    "documentation", "tool", "target", "fmax", "custom_freq", "pnr", "analysis",
     "simulation", "workspace_empty", "workspace_examples",
 ]
 
@@ -80,18 +81,31 @@ KNOWN_PICTOGRAMS = [
 class TestIcons:
     @pytest.mark.parametrize("name", KNOWN_ICONS)
     def test_known_icons_build(self, name):
-        svg = icons.icon(name)
-        assert svg is not None
-        assert svg.viewBox == "0 0 24 24"
-        # line-art style: stroked with currentColor, no fill
-        assert svg.stroke == "currentColor"
-        assert svg.fill == "none"
-        assert len(svg.children) > 0
+        # A glyph is a span naming itself; the drawing lives in the stylesheet.
+        glyph = icons.icon(name)
+        assert glyph is not None
+        assert getattr(glyph, "data-icon", None) == name
+        assert "odx-icon" in glyph.className
 
-    def test_unknown_icon_returns_empty_svg(self):
-        svg = icons.icon("does_not_exist")
-        assert svg is not None
-        assert not getattr(svg, "children", None)
+    @pytest.mark.parametrize("name", KNOWN_ICONS)
+    def test_known_icons_are_drawn_by_the_stylesheet(self, name):
+        stylesheet = icons.icon_stylesheet()
+        assert '[data-icon="{0}"]'.format(name) in stylesheet
+        # line-art style: stroked with currentColor, no fill
+        assert "viewBox=%270 0 24 24%27" in stylesheet
+
+    def test_the_stylesheet_paints_with_the_inherited_color(self):
+        # What every ".icon <color>" rule of the theme relies on: the glyph is
+        # a mask, and the color it shows is the one it inherits.
+        stylesheet = icons.icon_stylesheet()
+        assert "background-color:currentColor" in stylesheet
+        assert "mask-image:var(--odx-icon)" in stylesheet
+
+    def test_unknown_icon_is_not_drawn(self):
+        glyph = icons.icon("does_not_exist")
+        assert glyph is not None
+        assert not getattr(glyph, "children", None)
+        assert "odx-icon" not in (glyph.className or "")
 
     @pytest.mark.parametrize("name", KNOWN_PICTOGRAMS)
     def test_known_pictograms_build(self, name):
@@ -106,9 +120,9 @@ class TestIcons:
         assert not getattr(svg, "children", None)
 
     def test_icon_size_is_applied(self):
-        svg = icons.icon("save", width="16px", height="16px")
-        assert svg.width == "16px"
-        assert svg.height == "16px"
+        glyph = icons.icon("save", width="16px", height="16px")
+        assert glyph.style["width"] == "16px"
+        assert glyph.style["height"] == "16px"
 
 
 ######################################
@@ -119,7 +133,7 @@ class TestNavigation:
     def test_nav_groups_structure(self):
         # membership only: the display order is a UI choice
         labels = {entry[0] for entry in navigation.nav_groups}
-        assert labels == {"Configure", "Run", "Monitor", "Explorer", "Settings"}
+        assert labels == {"Configure", "Run", "Monitor", "Explorer", "Workspace"}
 
         as_dict = {entry[0]: entry[1:] for entry in navigation.nav_groups}
 
@@ -136,9 +150,10 @@ class TestNavigation:
         assert run_href == "/choose_job_type"
         assert any(href.startswith("/run_jobs") for _, href in run_items)
 
-        settings_href, settings_items = as_dict["Settings"]
-        assert settings_href == "/workspace"
-        assert ("Workspace", "/workspace") in settings_items
+        workspace_href, workspace_items = as_dict["Workspace"]
+        assert workspace_href == ""
+        assert ("Settings", "/workspace") in workspace_items
+        assert ("Clean", "/clean") in workspace_items
 
         explorer_href, explorer_items = as_dict["Explorer"]
         assert explorer_href == "/explorer"
@@ -163,7 +178,7 @@ class TestNavigation:
         gui_page_paths = set()
         for module_name in (
             "architectures", "workflows", "tools", "derived_metrics", "choose_job_type",
-            "choose_eda_tool", "monitor", "workspace_settings",
+            "choose_eda_tool", "monitor", "workspace_settings", "dse", "clean",
         ):
             module = importlib.import_module(f"odatix.gui.pages.{module_name}")
             gui_page_paths.add(module.page_path)
@@ -223,7 +238,7 @@ class TestNavigation:
         assert "nav-menu" in rendered
 
     def test_top_bar_contains_theme_dropdown(self):
-        gui = SimpleNamespace(start_theme=themes.list[0] if themes.list else "dark")
+        gui = SimpleNamespace(start_theme=themes.default_theme)
         rendered = str(navigation.top_bar(gui))
         assert "theme-dropdown" in rendered
 
@@ -361,8 +376,11 @@ class TestWildcardSelectionExpansion:
 
         arch_name = "Example_Rom_Chisel"
         architecture = architecture_collection("odatix_userconfig/architectures")[arch_name]
+        # What the page itself feeds the expansion: the configurations each
+        # domain resolves to, which for this architecture are described by
+        # rules and written nowhere.
         domains_configs = {
-            domain.name: domain.configs.names()
+            domain.name: domain.configuration_names()
             for domain in architecture.domains
             if not domain.is_main
         }
@@ -555,6 +573,7 @@ class TestSavedBaselineOnLoad:
             switch_values,
             preview_values,
             [],                   # sim-selection stores (simulation mode only)
+            [],                   # sim-architectures stores (simulation mode only)
             [],                   # override-arch-frequencies
             [],                   # use-custom-freq-list
             "",                   # target_frequencies
@@ -572,6 +591,7 @@ class TestSavedBaselineOnLoad:
             switch_ids,
             preview_ids,
             [],                   # sim-selection store ids
+            [],                   # sim-architectures store ids
             saved_baseline,       # jobs-config-saved-selection = the emitted baseline
             search,
             "/run_jobs",
@@ -665,12 +685,14 @@ class TestSavedBaselineOnLoad:
             None,
             [v for v, _ in switches], [v for v, _ in previews],
             [],                            # sim-selection stores (simulation mode only)
+            [],                            # sim-architectures stores (simulation mode only)
             [], [], "", [], "", "", "",   # frequency inputs
             "", "",                        # lower/upper fmax bound
             None,                          # analysis-tools
             [], [], "16", [], "300", [], [],   # nb_jobs changed 8 -> 16
             [i for _, i in switches], [i for _, i in previews],
             [],                            # sim-selection store ids
+            [],                            # sim-architectures store ids
             baseline,
             "?type=fmax_synthesis", "/run_jobs", odatix_settings,
         )
@@ -703,18 +725,188 @@ class TestSavedBaselineOnLoad:
             None,
             [], [],                        # no arch widgets yet
             [],                            # sim-selection stores (simulation mode only)
+            [],                            # sim-architectures stores (simulation mode only)
             [], [], "", [], "", "", "",
             "", "",                        # lower/upper fmax bound
             ["vivado"],                    # analysis-tools already rendered
             [], [], "8", [], "300", [], [],
             [], [],
             [],                            # sim-selection store ids
+            [],                            # sim-architectures store ids
             None,                          # jobs-config-saved-selection still None
             "?type=analyze&tool=vivado", "/run_jobs", odatix_settings,
         )
         assert className is _dash.no_update
         assert tooltip is _dash.no_update
         assert store is _dash.no_update
+
+
+def _walk(node):
+    """Every component of a layout tree, depth first."""
+    if isinstance(node, (list, tuple)):
+        for item in node:
+            for found in _walk(item):
+                yield found
+        return
+    if node is None or isinstance(node, str):
+        return
+    yield node
+    children = getattr(node, "children", None)
+    if children is not None:
+        for found in _walk(children):
+            yield found
+
+
+class TestSimulationListedArchitectures:
+    """
+    The architectures a simulation runs on are edited on the page
+    (the cross on a card, the dropdown below them) but only written to the
+    simulations' own settings files by Save, like everything else the page
+    edits.
+    """
+
+    SIM = "TB_Example_Counter_GHDL"
+
+    @pytest.fixture(autouse=True)
+    def jobs_config_module(self, monkeypatch):
+        dash.Dash(__name__, use_pages=True, pages_folder="")
+        jc = import_jobs_config()
+        monkeypatch.setattr(jc, "ctx", SimpleNamespace(triggered_id="test-trigger"))
+        return jc
+
+    @staticmethod
+    def _settings(workspace):
+        return {
+            "arch_path": "odatix_userconfig/architectures",
+            "sim_path": "odatix_userconfig/simulations",
+            "simulation_settings_file": "odatix_userconfig/simulation_settings.yml",
+        }
+
+    def _load(self, jc, workspace):
+        odatix_settings = self._settings(workspace)
+        sections, _h, _t, baseline = jc.update_param_domains(
+            "?type=simulation", "/run_jobs", odatix_settings
+        )
+        return odatix_settings, sections, baseline
+
+    @staticmethod
+    def _stores(sections, id_type):
+        """(data, id) of every dcc.Store of that id type (_collect reads .value)."""
+        return [
+            (getattr(node, "data", None), nid)
+            for node, nid in [
+                (n, n.id)
+                for n in _walk(sections)
+                if isinstance(getattr(n, "id", None), dict) and n.id.get("type") == id_type
+            ]
+        ]
+
+    @staticmethod
+    def _sim_cards(sections, sim_name):
+        return [
+            nid.get("arch")
+            for _v, nid in TestSavedBaselineOnLoad._collect(sections, "sim-arch-card")
+            if nid.get("sim") == sim_name
+        ]
+
+    def _set_architectures(self, jc, workspace, names):
+        jc.get_workspace(self._settings(workspace)).simulations.entry(self.SIM).update(
+            architectures=list(names)
+        )
+
+    def _sim_settings_file(self, workspace):
+        return workspace / "odatix_userconfig" / "simulations" / self.SIM / "_settings.yml"
+
+    def test_empty_list_means_no_architecture(self, example_workspace):
+        jc = import_jobs_config()
+        path = self._sim_settings_file(example_workspace)
+        self._set_architectures(jc, example_workspace, [])
+
+        _settings, sections, baseline = self._load(jc, example_workspace)
+        assert self._sim_cards(sections, self.SIM) == []
+        assert baseline[jc.ARCHITECTURES_BASELINE_KEY][self.SIM] == []
+
+    def test_saving_the_list_keeps_what_an_architecture_holds(self, example_workspace):
+        # The page edits which architectures a simulation runs on, nothing else:
+        # the parameter domains an entry carries must survive a Save.
+        jc = import_jobs_config()
+        path = self._sim_settings_file(example_workspace)
+        workspace = jc.get_workspace(self._settings(example_workspace))
+        workspace.simulations.entry(self.SIM).update(architectures=[
+            {"Example_Counter_vhdl": {"param_domains": {"MEM": {"use_parameters": False}}}},
+            "Example_Counter_verilog",
+        ])
+
+        odatix_settings, sections, baseline = self._load(jc, example_workspace)
+        listed_ids = [{"type": "sim-architectures", "sim": self.SIM}]
+        className, tooltip, store, _feedback = self._save(
+            jc, odatix_settings, baseline, [["Example_Counter_vhdl"]], listed_ids,
+            save_clicks=1, sections=sections,
+        )
+        assert tooltip == "Nothing to save"
+        assert "Example_Counter_verilog" not in path.read_text()
+        entries = jc.sim_architectures.parse(
+            jc.get_workspace(odatix_settings).simulations.entry(self.SIM).settings.architectures
+        )
+        assert jc.sim_architectures.names(entries) == ["Example_Counter_vhdl"]
+        assert entries[0].param_domains == {"MEM": {"use_parameters": False}}
+
+    def test_editing_the_list_is_not_written_until_save(self, example_workspace):
+        jc = import_jobs_config()
+        path = self._sim_settings_file(example_workspace)
+        self._set_architectures(jc, example_workspace, ["Example_Counter_vhdl"])
+
+        odatix_settings, sections, baseline = self._load(jc, example_workspace)
+        assert self._sim_cards(sections, self.SIM) == ["Example_Counter_vhdl"]
+
+        # The dropdown adding an architecture only updates the store...
+        listed_ids = [{"type": "sim-architectures", "sim": self.SIM}]
+        edited = ["Example_Counter_vhdl", "Example_Counter_verilog"]
+        className, tooltip, store, _feedback = self._save(
+            jc, odatix_settings, baseline, [edited], listed_ids, save_clicks=None,
+            sections=sections,
+        )
+        assert tooltip == "Unsaved changes!"
+        assert "warning" in className
+        assert store is dash.no_update
+        assert "Example_Counter_verilog" not in path.read_text()
+
+        # ... and Save is what reaches the simulation's settings file.
+        className, tooltip, store, _feedback = self._save(
+            jc, odatix_settings, baseline, [edited], listed_ids, save_clicks=1,
+            sections=sections,
+        )
+        assert tooltip == "Nothing to save"
+        assert store[jc.ARCHITECTURES_BASELINE_KEY] == {self.SIM: edited}
+        assert jc._listed_architectures(
+            jc.get_workspace(odatix_settings).simulations, self.SIM
+        ) == edited
+
+    def _save(self, jc, odatix_settings, baseline, listed_values, listed_ids, save_clicks,
+              sections=None):
+        triggered = {"page": "/run_jobs", "action": "save-all"} if save_clicks else "test-trigger"
+        jc.ctx = SimpleNamespace(triggered_id=triggered)
+        # The simulation switches and selections are left as they were loaded, so
+        # only the architecture lists differ from the baseline.
+        switches = TestSavedBaselineOnLoad._collect(
+            sections or [], "arch-title", extra_key=("is_switch", True)
+        )
+        selections = self._stores(sections or [], "sim-selection")
+        return jc.save_architecture_selections(
+            save_clicks,
+            [v for v, _ in switches], [],
+            [v for v, _ in selections],
+            listed_values,
+            [], [], "", [], "", "", "",
+            "", "",
+            None,
+            [], [], "8", [], "300", [], [],
+            [i for _, i in switches], [],
+            [i for _, i in selections],
+            listed_ids,
+            baseline,
+            "?type=simulation", "/run_jobs", odatix_settings,
+        )
 
 
 class TestWorkflowCheckSettings:
@@ -1243,13 +1435,7 @@ class TestWorkflowEditorAddButtons:
         assert task_card.children.id == "wf-task-new"
 
         monkeypatch.setattr(workflow_editor_module, "ctx", SimpleNamespace(triggered_id="wf-task-new"))
-        result = workflow_editor_module.update_wf_task_cards(
-            new_click=1,
-            duplicate_clicks=[],
-            delete_clicks=[],
-            cards=[],
-            task_names=[], task_dependencies=[], task_commands=[], task_paths=[], task_platforms=[],
-        )
+        result = workflow_editor_module.update_wf_task_cards(1, [], [], [], [], [], [], [], [], [])
         ids = [getattr(card, "id", None) for card in result]
         assert any(isinstance(i, dict) and i.get("name") == "task1" for i in ids)
 
@@ -1267,17 +1453,19 @@ class TestChooseEdaToolPage:
     """
 
     @pytest.fixture(autouse=True)
-    def page(self, tmp_path, monkeypatch):
+    def page(self, tmp_path, monkeypatch, install_dummy_tool):
         # dash.register_page (called at page-module import) requires an app
         dash.Dash(__name__, use_pages=True, pages_folder="")
         import odatix.gui.pages.choose_eda_tool as choose_eda_tool
         import odatix.lib.eda_tools as eda_tools
         from odatix.lib.settings import OdatixSettings
 
-        # Keep the page on the built-in tools whatever the workspace holds, and
-        # on the "unix" flow declarations whatever the platform.
+        # Keep the page on the built-in tools (plus the "dummy" test tool)
+        # whatever the workspace holds, and on the "unix" flow declarations
+        # whatever the platform.
         tools_dir = tmp_path / "tools"
         tools_dir.mkdir()
+        install_dummy_tool(tools_dir)
         monkeypatch.setattr(OdatixSettings, "user_tools_path", str(tools_dir))
         monkeypatch.setattr(eda_tools, "platform_key", lambda: "unix")
         return choose_eda_tool
@@ -1313,10 +1501,21 @@ class TestChooseEdaToolPage:
         assert links
         assert all(link.startswith("/run_jobs?") for link in links)
 
-    def test_a_tool_with_nothing_to_choose_is_a_single_link(self, page):
-        # Genus has a single one shot flow: its whole card is the link.
+    def test_a_tool_with_nothing_to_choose_is_a_single_link(self, page, tmp_path):
+        # A tool with a single one shot flow: its whole card is the link.
+        tool_dir = tmp_path / "tools" / "oneshot"
+        tool_dir.mkdir()
+        (tool_dir / "tool.yml").write_text(
+            "label: One shot\n"
+            "default_flow: synthesis\n"
+            "unix:\n"
+            "  custom_freq_synthesis_command: [echo]\n"
+            "flows:\n"
+            "  synthesis:\n"
+            "    label: Synthesis\n"
+        )
         links = self.links(page, "custom_freq_synthesis", className="odx-tool-card")
-        assert "/run_jobs?type=custom_freq_synthesis&tool=genus&flow=synthesis" in links
+        assert "/run_jobs?type=custom_freq_synthesis&tool=oneshot&flow=synthesis" in links
 
     def test_the_flows_of_a_tool_are_buttons_inside_its_card(self, page):
         # dummy's "quick" flow runs in one go: one button, no stopping point.
@@ -1334,6 +1533,7 @@ class TestChooseEdaToolPage:
         # "wherever the flow stops by default", which is what the flow button
         # itself is for.
         assert links == [
+            "/run_jobs?type=custom_freq_synthesis&tool=vivado&flow=power_opt&until=elaboration",
             "/run_jobs?type=custom_freq_synthesis&tool=vivado&flow=power_opt&until=synthesis",
             "/run_jobs?type=custom_freq_synthesis&tool=vivado&flow=power_opt&until=pnr",
             "/run_jobs?type=custom_freq_synthesis&tool=vivado&flow=power_opt&until=bitstream",
@@ -1618,13 +1818,19 @@ class TestSimulationRunMode:
         assert context["config_link"]("TB_X") == "/metric_editor?simulation=TB_X"
 
     def test_page_load_lists_one_section_per_simulation(self, jobs_config_module, example_workspace):
+        # Selection written here rather than taken from the examples, which
+        # change what they enable over time.
+        (example_workspace / "odatix_userconfig" / "simulations_settings.yml").write_text(
+            "simulations:\n"
+            "  - TB_Example_Counter_GHDL:\n"
+            "    - Example_Counter_vhdl/04bits\n"
+        )
         sections, heading, _title, baseline = jobs_config_module.update_param_domains(
             "?type=simulation", "/run_jobs", self._settings()
         )
         assert heading == "Simulations"
         assert len(sections) == len(jobs_config_module._run_context("?type=simulation", self._settings())["instances"])
-        # The example settings file enables TB_Example_Counter_GHDL only.
-        assert "TB_Example_Counter_GHDL" in baseline["simulations"]
+        assert list(baseline["simulations"]) == ["TB_Example_Counter_GHDL"]
         assert "Example_Counter_vhdl/04bits" in baseline["simulations"]["TB_Example_Counter_GHDL"]
 
     def test_preview_is_the_union_of_the_architecture_panels(self, jobs_config_module):
@@ -1820,6 +2026,7 @@ class TestSimulationEditor:
             ["compile", "main"],
             ["", "compile"],
             ["echo a\necho b", "echo run"],
+            ["", ""],
             ["", "sub/dir"],
             ["", "linux, win32"],
         )
@@ -1831,7 +2038,7 @@ class TestSimulationEditor:
     def test_no_task_stays_no_task(self, sim_editor_module):
         # Unlike a workflow, a simulation may define no task at all: it then
         # runs "make sim". Nothing must be invented on its behalf.
-        assert sim_editor_module.build_tasks_list([], [], [], [], []) == []
+        assert sim_editor_module.build_tasks_list([], [], [], [], [], []) == []
 
     def test_settings_round_trip(self, sim_editor_module, example_workspace):
         from odatix.workspace.simulations import SimulationCollection
@@ -1843,11 +2050,62 @@ class TestSimulationEditor:
         assert settings["param_target_file"] == "tb/tb_counter.vhdl"
 
         settings["tasks"] = [{"name": "main", "commands": ["echo hello"]}]
-        simulation.update(settings)
+        # The page writes the architectures back the way the file holds them.
+        simulation.update(dict(
+            settings,
+            architectures=sim_editor_module.architectures_to_yaml(settings["architectures"]),
+        ))
         reloaded = sim_editor_module.normalize_simulation_settings(
             simulations["TB_Example_Counter_GHDL"].reload().settings.to_dict()
         )
         assert reloaded == settings
+
+    def test_a_card_carries_what_a_simulation_substitutes_untouched(self, sim_editor_module):
+        # The parameter domains are edited in the configuration editor: the card
+        # only lists the architecture, and must write back what it does not show.
+        architectures = sim_editor_module.normalize_architectures([
+            {"Example_Cordic_sv": {
+                "param_domains": {"width": {"param_dir": "tb_params"}},
+                "metrics_file": "_metrics_sv.yml",
+            }},
+            "Example_Cordic_vhdl",
+        ])
+        cards = sim_editor_module.arch_cards_from_settings(architectures)
+        assert cards[0]["extra"] == {"param_domains": {"width": {"param_dir": "tb_params"}}}
+        assert sim_editor_module.architectures_to_yaml(
+            sim_editor_module.arch_cards_to_settings(cards)
+        ) == [
+            {"Example_Cordic_sv": {
+                "metrics_file": "_metrics_sv.yml",
+                "param_domains": {"width": {"param_dir": "tb_params"}},
+            }},
+            # Listed, nothing overridden, and still listed after an edit.
+            "Example_Cordic_vhdl",
+        ]
+
+    def test_a_card_says_how_many_domains_it_overrides(self, sim_editor_module):
+        cards = sim_editor_module.arch_cards_from_settings(
+            sim_editor_module.normalize_architectures([
+                {"Example_Cordic_sv": {"param_domains": {"width": {}, "iterations": {}}}},
+                "Example_Cordic_vhdl",
+            ])
+        )
+        badges = []
+
+        def walk(component):
+            children = getattr(component, "children", None)
+            if isinstance(children, str):
+                badges.append(children)
+            elif isinstance(children, (list, tuple)):
+                for child in children:
+                    walk(child)
+            elif children is not None:
+                walk(children)
+
+        for card in cards:
+            walk(sim_editor_module.arch_card("a000", card))
+        assert "2 domains" in badges
+        assert "no override" in badges
 
 
 class TestSimulationMetricEditor:
@@ -1885,3 +2143,1408 @@ class TestSimulationMetricEditor:
         reloaded = simulations["TB_Example_Counter_GHDL"].metrics
         assert reloaded.metrics == metrics
         assert reloaded.metadata == metadata
+
+
+######################################
+# Architecture editor: overrides section
+######################################
+
+class TestArchitectureEditorOverrides:
+    """
+    The "overrides" section of an architecture, as the editor shows it: one card
+    per rule, its selectors comma-separated, and a constraint declaration
+    written one file per line.
+    """
+
+    @pytest.fixture(autouse=True)
+    def architecture_editor_module(self):
+        # dash.register_page (called at page-module import) requires an app
+        dash.Dash(__name__, use_pages=True, pages_folder="")
+        import odatix.gui.pages.architecture_editor as architecture_editor
+
+        return architecture_editor
+
+    @staticmethod
+    def build(module, tools=None, targets=None, configurations=None, fmax_lower=None,
+              fmax_upper=None, custom_freq="", constraints="", rest=None):
+        """One card's worth of form values, as build_overrides takes them."""
+        return module.build_overrides(
+            {"tools": [tools], "targets": [targets], "configurations": [configurations]},
+            [fmax_lower], [fmax_upper], [custom_freq], [constraints], [rest],
+        )
+
+    def test_a_constraint_declaration_survives_the_form(self, architecture_editor_module):
+        # Every shape a settings file accepts comes back as one line per file,
+        # and goes back to a declaration the run can read.
+        text = architecture_editor_module.constraints_to_text([
+            "pinout.xdc",
+            {"file": "floorplan.tcl", "scope": "pnr"},
+            {"files": ["a.sdc", "b.sdc"], "scope": "synthesis"},
+        ])
+        assert text.splitlines() == [
+            "pinout.xdc", "floorplan.tcl @ pnr", "a.sdc @ synthesis", "b.sdc @ synthesis",
+        ]
+        assert architecture_editor_module.constraints_from_text(text) == [
+            "pinout.xdc",
+            {"file": "floorplan.tcl", "scope": "pnr"},
+            {"file": "a.sdc", "scope": "synthesis"},
+            {"file": "b.sdc", "scope": "synthesis"},
+        ]
+
+    def test_an_at_sign_that_is_not_a_stage_is_part_of_the_path(self, architecture_editor_module):
+        assert architecture_editor_module.constraints_from_text("io@v2.xdc") == ["io@v2.xdc"]
+
+    def test_a_card_is_built_for_every_rule(self, architecture_editor_module):
+        cards = architecture_editor_module.override_cards([
+            {"targets": "xc7a100t-csg324-1", "fmax_synthesis": {"lower_bound": 250}},
+            {"tools": ["vivado", "genus@power_opt"], "constraints": ["floorplan.tcl"]},
+        ])
+        # One card per rule, in file order, plus the "add override" card.
+        assert [card.id.get("index") for card in cards[:-1]] == [0, 1]
+        assert cards[-1].id == "arch-add-override-card"
+
+    def test_a_selector_is_a_name_a_list_or_nothing(self, architecture_editor_module):
+        rules = self.build(architecture_editor_module, tools="vivado", targets=" xc7a*, xc7k* ",
+                           configurations="  ", fmax_lower=300)
+        assert rules == [{
+            "tools": "vivado",
+            "targets": ["xc7a*", "xc7k*"],
+            "fmax_synthesis": {"lower_bound": 300},
+        }]
+
+    def test_editing_a_rule_keeps_what_the_card_does_not_show(self, architecture_editor_module):
+        # A key the form has no field for must not be dropped by a save.
+        rest = {"file_copy_enable": True, "file_copy_source": "extra.v"}
+        rules = self.build(
+            architecture_editor_module, targets="xc7a100t-csg324-1",
+            fmax_lower=300, fmax_upper=900, custom_freq="50, 100",
+            constraints="pinout.xdc @ pnr", rest=rest,
+        )
+        assert rules == [{
+            "file_copy_enable": True,
+            "file_copy_source": "extra.v",
+            "targets": "xc7a100t-csg324-1",
+            "fmax_synthesis": {"lower_bound": 300, "upper_bound": 900},
+            "custom_freq_synthesis": {"list": [50, 100]},
+            "constraints": [{"file": "pinout.xdc", "scope": "pnr"}],
+        }]
+
+    def test_a_rule_emptied_of_everything_keeps_no_empty_block(self, architecture_editor_module):
+        rules = self.build(
+            architecture_editor_module, targets="fpga1", fmax_lower=None, fmax_upper="",
+            rest={"fmax_synthesis": {"lower_bound": 250}, "constraints": ["old.xdc"]},
+        )
+        assert rules == [{"targets": "fpga1"}]
+
+    def test_a_rule_saying_nothing_at_all_is_not_written(self, architecture_editor_module):
+        # An override with neither selector nor setting is the architecture
+        # repeating itself: it is dropped rather than written.
+        assert self.build(architecture_editor_module) == []
+
+    def test_a_section_read_from_file_compares_equal_to_the_form(self, architecture_editor_module):
+        # What normalize_form_settings stores at page load must be what the
+        # cards rebuild, or the save button reports unsaved changes on load.
+        section = [{
+            "targets": ["xc7a100t-csg324-1"],
+            "fmax_synthesis": {"lower_bound": 250, "upper_bound": 900},
+            "custom_freq_synthesis": {"list": [50, 100]},
+            "constraints": [{"files": ["a.xdc", "b.xdc"], "scope": "pnr"}],
+        }]
+        stored = architecture_editor_module.normalize_form_settings({"overrides": section})["overrides"]
+        card = architecture_editor_module.override_cards(stored)[0]
+        body = card.children[-1].children
+        rebuilt = self.build(
+            architecture_editor_module,
+            targets="xc7a100t-csg324-1", fmax_lower=250, fmax_upper=900,
+            custom_freq="50, 100", constraints=body[-2].children[-1].value,
+            rest=body[-1].data,
+        )
+        assert rebuilt == stored
+
+
+######################################
+# Configuration editor: rules and origins
+######################################
+
+class TestConfigurationRules:
+    """
+    The configuration editor is where a parameter domain is described, whether
+    it holds files written by hand or rules that produce configurations. The
+    rules used to be a page of their own, generating files as its only effect;
+    they are now a panel inside the domain they belong to, and the cards below
+    it show what the domain resolves to -- generated configurations included,
+    with nothing written to disk.
+    """
+
+    @pytest.fixture(autouse=True)
+    def pages(self):
+        dash.Dash(__name__, use_pages=True, pages_folder="")
+        import odatix.gui.config_rules as config_rules
+        import odatix.gui.pages.config_editor as config_editor
+        import odatix.gui.pages.config_generator as config_generator
+
+        return SimpleNamespace(rules=config_rules, editor=config_editor, generator=config_generator)
+
+    RULES = {
+        "configurations": {"name": "${width}bits", "template": "  parameter BITS = ${width}"},
+        "variables": {"width": {"type": "list", "settings": {"list": [8, 16, 32]}}},
+    }
+
+    def domain(self, tmp_path, settings=None, files=None):
+        """A parameter domain on disk, with rules and/or configuration files."""
+        import yaml
+
+        from odatix.workspace.architectures import ArchitectureCollection
+
+        root = tmp_path / "architectures"
+        path = root / "arch"
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "_settings.yml").write_text(yaml.safe_dump(settings or {}))
+        for name, content in (files or {}).items():
+            (path / name).write_text(content)
+        return ArchitectureCollection(None, str(root))["arch"].main_domain
+
+    ######################################
+    # Reading a domain
+    ######################################
+
+    def test_a_described_configuration_gets_a_card_without_any_file(self, pages, tmp_path):
+        domain = self.domain(tmp_path, self.RULES)
+        cards = pages.editor.build_config_cards(domain, "main", "normal")
+
+        # The three configurations of the rules, plus the "show more" and "add" cards
+        assert len(cards) == 5
+        assert not list((tmp_path / "architectures" / "arch").glob("*.txt"))
+
+    def test_main_domain_resolves_explicit_default_rules(self, pages, tmp_path):
+        domain = self.domain(tmp_path, {
+            "configurations": {"enabled": True},
+            "variables": {"width": {"type": "list", "settings": {"list": [8, 16]}}},
+        })
+
+        assert [(config.name, config.content) for config in domain.resolve_configurations()] == [
+            ("8", "8"),
+            ("16", "16"),
+        ]
+
+    def test_a_card_says_where_its_configuration_comes_from(self, pages, tmp_path):
+        domain = self.domain(
+            tmp_path, self.RULES,
+            files={"16bits.txt": "  parameter BITS = 16 // corrected", "extra.txt": "  parameter BITS = 7"},
+        )
+        cards = pages.editor.build_config_cards(domain, "main", "normal")
+        origins = {}
+        for card in cards[:-2]:
+            store = [child for child in card.children if getattr(child, "data", None)][0]
+            origins[store.data["config_name"]] = store.data["origin"]
+
+        assert origins == {
+            "8bits.txt": "generated",
+            "16bits.txt": "edited",
+            "32bits.txt": "generated",
+            "extra.txt": "manual",
+        }
+
+    def test_a_generated_configuration_cannot_be_renamed_in_place(self, pages, tmp_path):
+        # Its name is the name template: renaming the file would only leave the
+        # rule's own name to reappear next to the copy.
+        domain = self.domain(tmp_path, self.RULES)
+        card = pages.editor.build_config_cards(domain, "main", "normal")[0]
+        title = card.children[0].children[0]
+        assert title.readOnly is True
+
+    def test_a_hand_written_configuration_can_still_be_renamed(self, pages, tmp_path):
+        domain = self.domain(tmp_path, files={"only.txt": "parameter BITS = 8"})
+        card = pages.editor.build_config_cards(domain, "main", "normal")[0]
+        title = card.children[0].children[0]
+        assert title.readOnly is False
+
+    ######################################
+    # The rules panel
+    ######################################
+
+    def test_the_rules_panel_opens_filled_in(self, pages):
+        (blocks, variables) = pages.rules.rule_set_fields(self.RULES)
+        [(_key, name, template, _constraints)] = blocks
+        assert name == "${width}bits"
+        assert template == "  parameter BITS = ${width}"
+        assert list(variables) == ["width"]
+
+    def test_the_rules_panel_reads_the_settings_odatix_used_to_write(self, pages):
+        from conftest import make_generation_settings
+
+        (blocks, variables) = pages.rules.rule_set_fields(make_generation_settings())
+        [(_key, name, template, _constraints)] = blocks
+        assert name == "w$WIDTH"
+        assert template == "parameter WIDTH = $WIDTH"
+        assert list(variables) == ["WIDTH"]
+
+    def test_saving_the_rules_writes_the_current_form_of_the_settings(self, pages):
+        settings = pages.rules.rules_settings("${w}bits", "parameter W = ${w}", {"w": {"type": "bool"}})
+        assert settings == {
+            "configurations": {"name": "${w}bits", "template": "parameter W = ${w}"},
+            "variables": {"w": {"type": "bool"}},
+        }
+
+    def test_rule_settings_keep_the_configuration_blacklist(self, pages):
+        saved = pages.rules.rules_settings(
+            "${w}", "W = ${w}", {"w": {"type": "list", "settings": {"list": [8, 16]}}},
+            blacklist=["16"],
+        )
+
+        current = pages.rules.form_rules_settings(
+            [(0, "${w}", "W = ${w}", [])],
+            {"w": {"type": "list", "settings": {"list": [8, 16]}}},
+            hard_settings.main_parameter_domain, saved,
+        )
+        space = pages.rules.rules_space(current)
+
+        assert current == saved
+        assert [point.name for point in space.points()] == ["8"]
+
+    def test_generated_configuration_can_be_blacklisted_and_restored(self, pages, monkeypatch, tmp_path):
+        import yaml
+
+        from odatix.workspace.architectures import ArchitectureCollection
+
+        root = tmp_path / "architectures"
+        path = root / "arch"
+        path.mkdir(parents=True)
+        (path / "_settings.yml").write_text(yaml.safe_dump(self.RULES))
+        instances = ArchitectureCollection(None, str(root))
+        monkeypatch.setattr(
+            pages.editor, "get_instance_collection_context",
+            lambda search, settings: ("arch", "arch", instances),
+        )
+
+        domain_metadata = [{"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain}]
+        generated_metadata = [{
+            "domain_uuid": "main-uuid",
+            "config_uuid": "16-uuid",
+            "config_name": "16bits.txt",
+            "origin": "generated",
+        }]
+        saved = pages.rules.rules_settings(
+            self.RULES["configurations"]["name"], self.RULES["configurations"]["template"], self.RULES["variables"],
+        )
+        import odatix.gui.page_scope as page_scope
+
+        fake = SimpleNamespace(
+            triggered_id={"type": "delete-config", "domain_uuid": "main-uuid", "config_uuid": "16-uuid"},
+            inputs_list=[[{"id": {"type": "delete-config", "domain_uuid": "main-uuid",
+                                  "config_uuid": "16-uuid"}}]],
+            states_list=[],
+        )
+        monkeypatch.setattr(pages.editor, "ctx", fake)
+        monkeypatch.setattr(page_scope, "ctx", fake)
+
+        stores, counters, _rows = pages.editor.toggle_generated_configuration_blacklist(
+            [1], generated_metadata, domain_metadata, [saved], [0], "normal", "?arch=arch", {},
+        )
+        domain = instances["arch"].main_domain
+        assert stores[0]["configurations"]["blacklist"] == ["16bits"]
+        assert counters == [1]
+        assert "16bits" not in domain.configuration_names()
+        assert [config.name for config in domain.blacklisted_configurations()] == ["16bits"]
+
+        blacklisted_card = next(
+            card for card in pages.editor.build_config_cards(domain, "main-uuid", "normal")
+            if card.id.get("type") == "config-card"
+            and next(child.data for child in card.children if hasattr(child, "data"))["config_name"] == "16bits.txt"
+        )
+        restore_button = blacklisted_card.children[3].children[1].children[2]
+        restore_icon = restore_button.children.children[0]
+        assert "odx-config-blacklisted" in blacklisted_card.className
+        assert restore_icon.id["type"] == "restore-config-icon"
+
+        blacklisted_metadata = [{**generated_metadata[0], "origin": "blacklisted"}]
+        stores, counters, _rows = pages.editor.toggle_generated_configuration_blacklist(
+            [2], blacklisted_metadata, domain_metadata, stores, counters, "normal", "?arch=arch", {},
+        )
+        written = yaml.safe_load((path / "_settings.yml").read_text())
+        assert "blacklist" not in stores[0]["configurations"]
+        assert "blacklist" not in written["configurations"]
+        domain.reload()
+        assert "16bits" in domain.configuration_names()
+
+    def test_saving_blank_main_rules_records_the_default_choice(self, pages, monkeypatch, tmp_path):
+        import yaml
+
+        from odatix.workspace.architectures import ArchitectureCollection
+
+        root = tmp_path / "architectures"
+        path = root / "arch"
+        path.mkdir(parents=True)
+        (path / "_settings.yml").write_text(yaml.safe_dump({}))
+        instances = ArchitectureCollection(None, str(root))
+        monkeypatch.setattr(
+            pages.rules, "get_instance_collection_context",
+            lambda search, settings: ("arch", "arch", instances),
+        )
+
+        variables = {"main-uuid": ["width"]}
+        monkeypatch.setattr(
+            pages.rules, "ctx",
+            self.fake_ctx(pages, variables, triggered_id={"type": "cfg-save-rules", "domain_uuid": "main-uuid"}),
+        )
+        fields = self.field_values(variables, {("main-uuid", "width"): {"type": "list", "list": "8, 16"}})
+        saved = pages.rules.rules_settings(
+            "", "", {"width": {"type": "list", "settings": {"list": [8, 16]}}},
+        )
+
+        stores, bumps = pages.rules.save_rules(
+            [1], None, None, [""], [""], [""], [""], *fields,
+            [{"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain}],
+            [saved], [0], "?arch=arch", {},
+        )
+
+        written = yaml.safe_load((path / "_settings.yml").read_text())
+        assert written["configurations"]["enabled"] is True
+        assert stores[0]["configurations"]["enabled"] is True
+        assert bumps == [1]
+
+    def test_a_domain_with_no_rules_says_so(self, pages):
+        assert pages.rules.describes_configurations({}) is False
+        assert pages.rules.describes_configurations(self.RULES) is True
+
+    def test_the_panel_of_each_domain_has_its_own_components(self, pages):
+        # Two domains on one page must not share the ids of a variable of the
+        # same name, or editing one would edit the other.
+        first = pages.rules.rules_section("domain-a", self.RULES)
+        second = pages.rules.rules_section("domain-b", self.RULES)
+
+        def variable_ids(section):
+            row = section.children[2]
+            return [card.id for card in row.children if isinstance(getattr(card, "id", None), dict)]
+
+        assert {"type": "cfg-variable-card", "name": "width", "domain_uuid": "domain-a"} in variable_ids(first)
+        assert {"type": "cfg-variable-card", "name": "width", "domain_uuid": "domain-b"} in variable_ids(second)
+
+    def test_every_component_of_a_variable_card_carries_its_domain(self, pages):
+        # A pattern-matching callback of the panel outputs one value per
+        # component of a pattern: a field whose id forgot the domain matches
+        # nothing, and the callback dies on the mismatch.
+        import odatix.gui.variable_editor as ve
+
+        card = ve.variable_card_from_config(
+            "cfg-", "width", {"type": "range", "settings": {"from": 1, "to": 4}},
+            scope={"domain_uuid": "domain-a"},
+        )
+
+        def identifiers(component):
+            found = []
+            component_id = getattr(component, "id", None)
+            if isinstance(component_id, dict):
+                found.append(component_id)
+            children = getattr(component, "children", None)
+            for child in children if isinstance(children, list) else [children]:
+                if hasattr(child, "children") or hasattr(child, "id"):
+                    found += identifiers(child)
+            return found
+
+        forgotten = [i for i in identifiers(card) if i.get("domain_uuid") != "domain-a"]
+        assert forgotten == []
+
+    def test_the_panel_of_an_untouched_domain_has_nothing_to_save(self, pages):
+        # A settings file and a form do not spell the same thing identically (a
+        # list of numbers comes back as text, a range without step comes back
+        # with one): opening a panel must not report unsaved changes.
+        import odatix.gui.variable_editor as ve
+
+        for settings in (
+            self.RULES,
+            {"configurations": {"name": "w${n}", "template": "$n"},
+             "variables": {"n": {"type": "range", "settings": {"from": 1, "to": 4}}}},
+            {"configurations": {"name": "w${p}", "template": "$p"},
+             "variables": {"p": {"type": "format", "settings": {"source": "$n", "format": "%02d"}}}},
+        ):
+            blocks, variables = pages.rules.rule_set_fields(settings)
+            [(_key, name, template, _constraints)] = blocks
+            saved = pages.rules.rules_settings(name, template, variables)
+            # What the cards of that panel hand back, untouched.
+            assert saved == pages.rules.rules_settings(name, template, ve.normalized_variables(variables))
+
+    def test_a_format_variable_keeps_its_format(self, pages):
+        # The format string of a "format" variable lives in its settings, where
+        # the generator reads it; any other variable carries one next to them.
+        import odatix.gui.variable_editor as ve
+
+        variables = {
+            "padded": {"type": "format", "settings": {"source": "$bits", "format": "%02d"}},
+            "bits": {"type": "list", "settings": {"list": [4, 8]}, "format": "%03d"},
+        }
+        assert ve.normalized_variables(variables) == variables
+
+    def test_a_domain_of_a_single_variable_needs_neither_template(self, pages, monkeypatch):
+        # Writing "${width}" twice for a domain sweeping "width" says nothing
+        # the variable does not: the fields stay empty and suggest it instead.
+        settings = {"variables": {"width": {"type": "list", "settings": {"list": [8, 16]}}}}
+        [(_key, name, template, _constraints)], _variables = pages.rules.rule_set_fields(settings)
+        assert (name, template) == ("", "")
+        assert pages.rules.describes_configurations(settings)
+
+        variables = {"domain-a": ["width"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        fields = self.field_values(variables, {("domain-a", "width"): {"type": "list", "list": "8, 16"}})
+        # A named domain: the main one shares its file with the architecture,
+        # whose variables may feed its commands instead.
+        _previews, summaries, config_previews, name_hints, template_hints = pages.rules.update_rules_preview(
+            [""], [""], [""], [None], "normal", *fields, [[]], [],
+            [{"domain_uuid": "domain-a", "domain_name": "width"}],
+        )
+        assert summaries[0][0].children == "2 configurations"
+        assert name_hints == template_hints == ["${width}"]
+        titles = [child.children[0].children for child in config_previews[0][1].children]
+        assert titles == ["8", "16"]
+
+        # The main domain previews the same defaults before they are saved.
+        _previews, summaries, config_previews, _n, _t = pages.rules.update_rules_preview(
+            [""], [""], [""], [None], "normal", *fields, [[]], [],
+            [{"domain_uuid": "domain-a", "domain_name": hard_settings.main_parameter_domain}],
+        )
+        assert summaries[0][0].children == "2 configurations"
+        titles = [child.children[0].children for child in config_previews[0][1].children]
+        assert titles == ["8", "16"]
+
+    @pytest.mark.parametrize(
+        "name, template, expected_name, expected_content",
+        [
+            ("", "", "8", "8"),
+            ("w${width}", "", "w8", "8"),
+            ("", "value = ${width}", "8", "value = 8"),
+            ("w${width}", "value = ${width}", "w8", "value = 8"),
+        ],
+        ids=["defaults", "name-only", "template-only", "both"],
+    )
+    def test_main_preview_fills_missing_templates(
+        self, pages, monkeypatch, name, template, expected_name, expected_content,
+    ):
+        variables = {"domain-a": ["width"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        fields = self.field_values(variables, {("domain-a", "width"): {"type": "list", "list": "8"}})
+
+        config_preview = pages.rules.update_rules_preview(
+            [name], [template], [""], [None], "normal", *fields, [[]], [],
+            [{"domain_uuid": "domain-a", "domain_name": hard_settings.main_parameter_domain}],
+        )[2][0]
+        card = config_preview[1].children[0]
+
+        assert card.children[0].children == expected_name
+        assert card.children[1].children == expected_content
+
+    def test_the_configurations_the_rules_describe_are_previewed_until_saved(self, pages, monkeypatch):
+        variables = {"domain-a": ["width"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        fields = self.field_values(variables, {("domain-a", "width"): {"type": "list", "list": "8, 16"}})
+        metadata = [{"domain_uuid": "domain-a", "domain_name": hard_settings.main_parameter_domain}]
+
+        def preview(saved):
+            return pages.rules.update_rules_preview(
+                ["${width}bits"], ["parameter W = ${width}"], [""], [saved], "normal", *fields, [[]], [], metadata,
+            )[2][0]
+
+        # Nothing saved yet: the cards of the domain show none of this.
+        titles = [
+            child.children[0].children
+            for child in preview(None)[1].children
+        ]
+        assert titles == ["8bits", "16bits"]
+        # Saved: the configuration cards below are the real thing.
+        saved = pages.rules.rules_settings(
+            "${width}bits", "parameter W = ${width}",
+            {"width": {"type": "list", "settings": {"list": [8, 16]}}},
+        )
+        assert preview(saved) == []
+
+    def test_preview_updates_generated_content_before_rules_are_saved(self, pages, monkeypatch):
+        variables = {"domain-a": ["width"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        fields = self.field_values(variables, {("domain-a", "width"): {"type": "list", "list": "8"}})
+        metadata = [{"domain_uuid": "domain-a", "domain_name": hard_settings.main_parameter_domain}]
+        saved = pages.rules.rules_settings(
+            "${width}", "old value = ${width}",
+            {"width": {"type": "list", "settings": {"list": [8]}}},
+        )
+        held = [{
+            "domain_uuid": "domain-a",
+            "config_name": "8.txt",
+            "origin": "generated",
+            "config_content": "old value = 8",
+        }]
+
+        config_preview = pages.rules.update_rules_preview(
+            ["${width}"], ["new value = ${width}"], [""], [saved], "normal", *fields, [[]], held, metadata,
+        )[2][0]
+        card = config_preview[1].children[0]
+
+        assert "odx-config-preview-changed" in card.className
+        assert card.children[1].children == "new value = 8"
+
+    def test_preview_pane_uses_unsaved_generated_content(self, pages, monkeypatch):
+        variables = {"domain-a": ["width"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        fields = self.field_values(variables, {("domain-a", "width"): {"type": "list", "list": "8"}})
+        metadata = [{"domain_uuid": "domain-a", "domain_name": hard_settings.main_parameter_domain}]
+        saved = pages.rules.rules_settings(
+            "${width}", "old value = ${width}",
+            {"width": {"type": "list", "settings": {"list": [8]}}},
+        )
+
+        pending = pages.editor.unsaved_rule_configurations(
+            ["${width}"], ["new value = ${width}"], [saved], fields, metadata,
+        )
+        replacement_text = pages.editor.replacement_text_for_preview(
+            "config-8", "domain-a", {"config-8": "old value = 8"},
+            [{
+                "domain_uuid": "domain-a",
+                "config_uuid": "config-8",
+                "config_name": "8.txt",
+                "origin": "generated",
+            }],
+            pending["domain-a"],
+        )
+
+        assert replacement_text == "new value = 8"
+
+        monkeypatch.setattr(
+            pages.editor, "get_instance_collection_context",
+            lambda search, settings: ("arch", "arch", {"arch": object()}),
+        )
+        monkeypatch.setattr(
+            pages.editor, "preview_pane",
+            lambda domain_uuid, mode, settings, domain_settings, text, base_path=None: text,
+        )
+        result = pages.editor.update_preview_all(
+            "?arch=arch", None,
+            [[True]], [""], [""], [""], [{}],
+            # The contents no longer trigger the callback: the debounced signal
+            # does, and outside a callback every pane is rebuilt anyway.
+            None, ["old value = 8"], ["config-8"],
+            ["${width}"], ["new value = ${width}"], [""], [saved], *fields,
+            [{
+                "domain_uuid": "domain-a",
+                "config_uuid": "config-8",
+                "config_name": "8.txt",
+                "origin": "generated",
+            }],
+            metadata, {},
+        )
+
+        assert result == ["new value = 8"]
+
+    def test_preview_pane_keeps_the_selected_blacklisted_configuration(self, pages):
+        replacement_text = pages.editor.replacement_text_for_preview(
+            "config-16", "domain-a",
+            {"config-16": "value = 16", "config-8": "value = 8"},
+            [{
+                "domain_uuid": "domain-a",
+                "config_uuid": "config-16",
+                "config_name": "16.txt",
+                "origin": "blacklisted",
+            }],
+            {"8": "new value = 8"},
+        )
+
+        assert replacement_text == "value = 16"
+
+    def test_the_preview_shows_the_whole_list_the_rules_would_leave_behind(self, pages, monkeypatch):
+        # One list, in order: what a change means is the list it results in, and
+        # a new configuration reads in its place among the old ones.
+        variables = {"domain-a": ["width"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        metadata = [{"domain_uuid": "domain-a", "domain_name": "width"}]
+
+        def held(*configs):
+            return [
+                {"domain_uuid": "domain-a", "config_name": name + ".txt",
+                 "origin": origin, "config_content": name}
+                for name, origin in configs
+            ]
+
+        def preview(values, configurations):
+            fields = self.field_values(variables, {("domain-a", "width"): {"type": "list", "list": values}})
+            return pages.rules.update_rules_preview(
+                [""], [""], [""], [None], "normal", *fields, [[]], configurations, metadata,
+            )[2][0]
+
+        def names_and_chips(cards):
+            return [(card.children[0].children, card.children[2].children.children) for card in cards]
+
+        holds = held(("8", "generated"), ("custom", "manual"))
+
+        # One value added to a domain that already holds the other: the whole
+        # list, the new one among the ones it keeps, sorted by name.
+        cards = preview("8, 16", holds)[1].children
+        assert names_and_chips(cards) == [("8", "generated"), ("16", "preview"), ("custom", "manual")]
+
+        # One value dropped instead: the configuration it produced is on its way
+        # out, and says so where a new one says "preview".
+        cards = preview("16", holds)[1].children
+        assert names_and_chips(cards) == [("8", "removed"), ("16", "preview"), ("custom", "manual")]
+        assert "odx-config-preview-removed" in cards[0].className
+        # A configuration written by hand is not the rules' to take away.
+        assert "odx-config-preview-kept" in cards[2].className
+
+        # The rules describing exactly what the domain holds change nothing.
+        assert preview("8", held(("8", "generated"))) == []
+
+    def test_the_variables_of_a_domain_are_always_shown(self, pages):
+        # No fold of its own: a variable is a row saying what it holds, so the
+        # list is readable without opening anything.
+        section = pages.rules.rules_section("main", self.RULES)
+        row = section.children[2]
+        assert row.id == {"type": "cfg-variable-cards-row", "domain_uuid": "main"}
+        assert not (getattr(row, "style", None) or {}).get("display") == "none"
+
+    ######################################
+    # Several sets of rules, one domain
+    ######################################
+
+    #: A domain whose configurations are the union of two sets of rules: what a
+    #: parameter deciding which *other* parameters mean anything asks for.
+    RULE_SETS = {
+        "configurations": [
+            {"name": "M${width}", "template": "mode = 0\nwidth = ${width}",
+             "constraints": ["${width} > 4"]},
+            {"name": "P${depth}", "template": "mode = 1\ndepth = ${depth}"},
+        ],
+        "variables": {
+            "width": {"type": "list", "settings": {"list": [4, 8]}},
+            "depth": {"type": "list", "settings": {"list": [1, 2]}},
+        },
+    }
+
+    @staticmethod
+    def components(component, wanted):
+        """Every component of one id type in a tree of components, in the order built."""
+        found = []
+        identifier = getattr(component, "id", None)
+        if isinstance(identifier, dict) and identifier.get("type") == wanted:
+            found.append(component)
+        children = getattr(component, "children", None)
+        for child in children if isinstance(children, list) else [children]:
+            if child is not None and not isinstance(child, str):
+                found += TestConfigurationRules.components(child, wanted)
+        return found
+
+    @staticmethod
+    def component_ids(component, wanted):
+        """Every id of one type in a tree of components, in the order built."""
+        return [found.id for found in TestConfigurationRules.components(component, wanted)]
+
+    def test_a_domain_of_several_rule_sets_opens_one_card_per_set(self, pages):
+        blocks, variables = pages.rules.rule_set_fields(self.RULE_SETS)
+        assert [(name, constraints) for _key, name, _template, constraints in blocks] == [
+            ("M${width}", ["${width} > 4"]),
+            ("P${depth}", []),
+        ]
+        assert list(variables) == ["width", "depth"]
+
+        section = pages.rules.domain_advanced_section("domain-a", self.RULE_SETS)
+        # One field of each kind per set of rules, each carrying the block it
+        # edits: a card of the panel is one set of rules, and is saved as one.
+        for field in ("cfg-gen-name", "cfg-gen-template", "cfg-gen-constraints"):
+            assert [i["rule_set"] for i in self.component_ids(section, field)] == [0, 1]
+        # And a way to delete either of them, or to add another.
+        assert [i["rule_set"] for i in self.component_ids(section, "cfg-delete-rule-set")] == [0, 1]
+        assert len(self.component_ids(section, "cfg-new-rule-set")) == 1
+        # The panel opens by itself: a union is never what a domain says by
+        # declaring its variables alone.
+        assert section.children[1].style == {"marginTop": "12px"}
+
+    def test_a_domain_of_one_set_of_rules_has_nothing_to_delete(self, pages):
+        # A domain describes its configurations with one set of rules or
+        # several, never with none: the only one has no delete button.
+        section = pages.rules.domain_advanced_section("domain-a", self.RULES)
+        assert self.component_ids(section, "cfg-delete-rule-set") == []
+        assert [i["rule_set"] for i in self.component_ids(section, "cfg-gen-name")] == [0]
+
+    def test_the_panel_of_a_domain_of_several_rule_sets_has_nothing_to_save(self, pages):
+        # The union is written back as it stands: a panel nobody touched must
+        # not report unsaved changes, or "Save all" would flatten the file.
+        blocks, variables = pages.rules.rule_set_fields(self.RULE_SETS)
+        stored = pages.rules.stored_rules_settings(self.RULE_SETS, blocks, variables, "domain-a")
+        current = pages.rules.form_rules_settings(
+            blocks, variables, "domain-a", stored, match={},
+        )
+        assert current == stored
+        assert stored["configurations"] == self.RULE_SETS["configurations"]
+
+    def test_the_configurations_of_a_union_are_not_combined(self, pages, monkeypatch):
+        # Two sets of rules over the same variables: what the domain holds is
+        # what each of them produces, side by side -- never their product.
+        variables = {"domain-a": ["width", "depth"]}
+        monkeypatch.setattr(
+            pages.rules, "ctx",
+            self.fake_ctx(pages, variables, rule_sets_by_domain={"domain-a": 2}),
+        )
+        fields = self.field_values(variables, {
+            ("domain-a", "width"): {"type": "list", "list": "4, 8"},
+            ("domain-a", "depth"): {"type": "list", "list": "1, 2"},
+        })
+        _previews, summaries, config_previews, _n, _t = pages.rules.update_rules_preview(
+            ["M${width}", "P${depth}"],
+            ["mode = 0\nwidth = ${width}", "mode = 1\ndepth = ${depth}"],
+            ["${width} > 4", ""],
+            [None], "normal", *fields, [[]], [],
+            [{"domain_uuid": "domain-a", "domain_name": "mode"}],
+        )
+        # One "M" left by the constraint, and both "P": three, not four times two.
+        assert summaries[0][0].children == "3 configurations"
+        titles = [card.children[0].children for card in config_previews[0][1].children]
+        assert titles == ["M8", "P1", "P2"]
+
+    def test_a_set_of_rules_can_be_added_duplicated_and_deleted(self, pages, monkeypatch):
+        variables = {"domain-a": ["width"]}
+        fields = self.field_values(variables, {("domain-a", "width"): {"type": "list", "list": "8"}})
+        metadata = [{"domain_uuid": "domain-a", "domain_name": "mode"}]
+
+        def cards(names, templates, constraints, triggered, rule_sets):
+            monkeypatch.setattr(
+                pages.rules, "ctx",
+                self.fake_ctx(pages, variables, triggered_id=triggered,
+                              rule_sets_by_domain={"domain-a": rule_sets}),
+            )
+            kind = triggered["type"]
+            clicks = [1] if kind == "cfg-new-rule-set" else []
+            duplicates = [1] if kind == "cfg-duplicate-rule-set" else []
+            deletes = [1] if kind == "cfg-delete-rule-set" else []
+            return pages.rules.update_rule_set_cards(
+                clicks, deletes, duplicates, names, templates, constraints, metadata, *fields,
+            )[0]
+
+        def names_of(row):
+            return [
+                component.value
+                for card in row
+                for component in self.components(card, "cfg-gen-name")
+            ]
+
+        def keys_of(row):
+            return [
+                identifier["rule_set"]
+                for card in row
+                for identifier in self.component_ids(card, "cfg-gen-name")
+            ]
+
+        # One set of rules, and one more: the new one is empty and last.
+        row = cards(["w${width}"], ["W = ${width}"], [""],
+                    {"type": "cfg-new-rule-set", "domain_uuid": "domain-a"}, 1)
+        assert keys_of(row) == [0, 1]
+
+        # And back: deleting one leaves the other exactly as it was.
+        row = cards(["w${width}", ""], ["W = ${width}", ""], ["", ""],
+                    {"type": "cfg-delete-rule-set", "domain_uuid": "domain-a", "rule_set": 1}, 2)
+        assert keys_of(row) == [0]
+
+        # A duplicate is what the set says now, right after it.
+        row = cards(["w${width}", "d${width}"], ["W = ${width}", "D = ${width}"], ["", ""],
+                    {"type": "cfg-duplicate-rule-set", "domain_uuid": "domain-a", "rule_set": 0}, 2)
+        assert keys_of(row) == [0, 2, 1]
+        assert names_of(row) == ["w${width}", "w${width}", "d${width}"]
+
+    def test_a_domain_of_one_set_of_rules_is_still_written_as_one_block(self, pages):
+        # Adding a set of rules is what makes a domain a union; a domain of one
+        # keeps the shape every settings file has always had.
+        variables = {"width": {"type": "list", "settings": {"list": [8]}}}
+        one = pages.rules.form_rules_settings([(0, "w${width}", "W = ${width}", [])], variables, "mode")
+        two = pages.rules.form_rules_settings(
+            [(0, "w${width}", "W = ${width}", []), (1, "d${width}", "D = ${width}", [])],
+            variables, "mode",
+        )
+        assert isinstance(one["configurations"], dict)
+        assert isinstance(two["configurations"], list)
+        assert [block["name"] for block in two["configurations"]] == ["w${width}", "d${width}"]
+
+    def test_editing_one_set_of_rules_keeps_what_the_others_hide(self, pages):
+        # The blacklist of a block is not something the form edits: it has to
+        # survive an edit of any card, its own included.
+        saved = {
+            "configurations": [
+                {"name": "M${w}", "template": "m", "blacklist": ["M8"]},
+                {"name": "P${w}", "template": "p", "variables": ["w"]},
+            ],
+            "variables": {"w": {"type": "list", "settings": {"list": [8]}}},
+        }
+        written = pages.rules.form_rules_settings(
+            [(0, "M${w}", "MODE = m", []), (1, "P${w}", "p", [])],
+            saved["variables"], "mode", saved,
+        )["configurations"]
+        assert written[0] == {"name": "M${w}", "template": "MODE = m", "blacklist": ["M8"]}
+        assert written[1] == {"name": "P${w}", "template": "p", "variables": ["w"]}
+
+    def test_the_templates_are_folded_away_next_to_the_target_file(self, pages):
+        # A domain of a single variable needs neither template: they open only
+        # when they are not optional.
+        single = pages.rules.domain_advanced_section(
+            "main", {"variables": {"width": {"type": "list", "settings": {"list": [8]}}}},
+            domain_name="width",
+        )
+        written = pages.rules.domain_advanced_section("main", self.RULES, domain_name="width")
+        assert single.children[1].style == {"display": "none"}
+        assert written.children[1].style == {"marginTop": "12px"}
+
+    ######################################
+    # Where the generator page used to be
+    ######################################
+
+    def test_the_old_generator_url_leads_to_the_domain_it_named(self, pages):
+        assert pages.generator.editor_link("?arch=ALU&domain=Mul") == "/config_editor?arch=ALU&domain=Mul"
+        assert pages.generator.editor_link("?workflow=train") == "/config_editor?workflow=train"
+
+    ######################################
+    # Several domains, one page
+    ######################################
+
+    def fake_ctx(self, pages, variables_by_domain, triggered_id=None, rule_sets_by_domain=None):
+        """
+        The callback context of a page showing several domains: the ids Dash
+        matched for every variable field, in the order it returns their values.
+        """
+        ids = [
+            {"type": "cfg-variable-title", "name": name, "domain_uuid": domain_uuid}
+            for domain_uuid, names in variables_by_domain.items()
+            for name in names
+        ]
+        # And the ids of the rules fields: one set of rules per domain unless
+        # the test says otherwise, in the order their values come back.
+        rule_sets = rule_sets_by_domain or dict((domain_uuid, 1) for domain_uuid in variables_by_domain)
+        rule_ids = [
+            {"type": "cfg-gen-name", "domain_uuid": domain_uuid, "rule_set": key}
+            for domain_uuid, count in rule_sets.items()
+            for key in range(count)
+        ]
+        return SimpleNamespace(
+            triggered_id=triggered_id,
+            inputs_list=[
+                [{"id": identifier} for identifier in ids],
+                [{"id": identifier} for identifier in rule_ids],
+            ],
+            states_list=[],
+        )
+
+    def field_values(self, variables_by_domain, values):
+        """
+        The flat per-field value lists Dash hands a callback, filled from
+        {(domain_uuid, variable): {field: value}}.
+        """
+        keys = [(domain_uuid, name) for domain_uuid, names in variables_by_domain.items() for name in names]
+        lists = []
+        for pattern in ["variable-title", "variable-type", "variable-field-base", "variable-field-from",
+                        "variable-field-to", "variable-field-from_2_pow", "variable-field-to_2_pow",
+                        "variable-field-from_type", "variable-field-to_type", "variable-field-step",
+                        "variable-field-op", "variable-field-list", "variable-field-source",
+                        "variable-field-sources", "variable-field-format", "variable-field-group"]:
+            field = pattern.replace("variable-field-", "").replace("variable-", "")
+            lists.append([
+                key[1] if field == "title" else values[key].get(field, "")
+                for key in keys
+            ])
+        return lists
+
+    def test_each_domain_previews_its_own_variables(self, pages, monkeypatch):
+        # Two domains, each with a variable called "width": the values of one
+        # must not leak into the preview of the other.
+        variables = {"domain-a": ["width"], "domain-b": ["width"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        fields = self.field_values(variables, {
+            ("domain-a", "width"): {"type": "list", "list": "8, 16"},
+            ("domain-b", "width"): {"type": "list", "list": "1, 2, 3"},
+        })
+        previews, summaries, config_previews, _n, _t = pages.rules.update_rules_preview(
+            ["${width}bits", "d${width}"],
+            ["parameter W = ${width}", "parameter D = ${width}"],
+            ["", ""], [None, None], "normal",
+            *fields, [[], []], [],
+            [{"domain_uuid": "domain-a", "domain_name": hard_settings.main_parameter_domain},
+             {"domain_uuid": "domain-b", "domain_name": "depth"}],
+        )
+        # The badge of each summary counts the configurations of that domain
+        assert summaries[0][0].children == "2 configurations"
+        assert summaries[1][0].children == "3 configurations"
+        # And each variable row says the values of its own variable.
+        assert [row[1].children for row in previews] == ["8, 16", "1, 2, 3"]
+
+    def test_a_domain_without_rules_says_what_it_holds_instead(self, pages, monkeypatch):
+        variables = {"main": []}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        previews, summaries, config_previews, _n, _t = pages.rules.update_rules_preview(
+            [""], [""], [""], [None], "normal", *self.field_values(variables, {}), [[]], [],
+            [{"domain_uuid": "main", "domain_name": hard_settings.main_parameter_domain}],
+        )
+        assert summaries[0][0].children == "no rules"
+
+    def test_saving_writes_only_the_domain_whose_button_was_pressed(self, pages, monkeypatch, tmp_path):
+        import yaml
+
+        from odatix.workspace.architectures import ArchitectureCollection
+
+        root = tmp_path / "architectures"
+        for domain in ("arch", "arch/depth"):
+            (root / domain).mkdir(parents=True)
+            (root / domain / "_settings.yml").write_text(yaml.safe_dump({}))
+
+        instances = ArchitectureCollection(None, str(root))
+        monkeypatch.setattr(
+            pages.rules, "get_instance_collection_context",
+            lambda search, settings: ("arch", "arch", instances),
+        )
+        variables = {"main-uuid": ["width"], "depth-uuid": ["depth"]}
+        monkeypatch.setattr(
+            pages.rules, "ctx",
+            self.fake_ctx(pages, variables, triggered_id={"type": "cfg-save-rules", "domain_uuid": "main-uuid"}),
+        )
+        fields = self.field_values(variables, {
+            ("main-uuid", "width"): {"type": "list", "list": "8, 16"},
+            ("depth-uuid", "depth"): {"type": "list", "list": "4"},
+        })
+        metadata = [
+            {"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain},
+            {"domain_uuid": "depth-uuid", "domain_name": "depth"},
+        ]
+        stores, bumps = pages.rules.save_rules(
+            [1, 0], None, None,
+            ["${width}bits", "d${depth}"],
+            ["parameter W = ${width}", "parameter D = ${depth}"],
+            ["", ""], ["", ""],
+            *fields,
+            metadata, [None, None], [0, 0], "?arch=arch", {},
+        )
+        written = yaml.safe_load((root / "arch" / "_settings.yml").read_text())
+        assert written["configurations"]["name"] == "${width}bits"
+        assert list(written["variables"]) == ["width"]
+        # The other domain was left alone, and only the saved one asks for its
+        # configurations to be read again.
+        assert yaml.safe_load((root / "arch" / "depth" / "_settings.yml").read_text()) == {}
+        assert bumps[0] == 1
+        assert bumps[1] is dash.no_update
+
+    def test_save_all_writes_every_domain_whose_rules_changed(self, pages, monkeypatch, tmp_path):
+        import yaml
+
+        from odatix.workspace.architectures import ArchitectureCollection
+
+        root = tmp_path / "architectures"
+        for domain in ("arch", "arch/depth"):
+            (root / domain).mkdir(parents=True)
+            (root / domain / "_settings.yml").write_text(yaml.safe_dump({}))
+
+        instances = ArchitectureCollection(None, str(root))
+        monkeypatch.setattr(
+            pages.rules, "get_instance_collection_context",
+            lambda search, settings: ("arch", "arch", instances),
+        )
+        variables = {"main-uuid": ["width"], "depth-uuid": ["depth"]}
+        monkeypatch.setattr(
+            pages.rules, "ctx",
+            self.fake_ctx(pages, variables, triggered_id={"page": "/config_editor", "action": "save-all"}),
+        )
+        fields = self.field_values(variables, {
+            ("main-uuid", "width"): {"type": "list", "list": "8, 16"},
+            ("depth-uuid", "depth"): {"type": "list", "list": "4"},
+        })
+        metadata = [
+            {"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain},
+            {"domain_uuid": "depth-uuid", "domain_name": "depth"},
+        ]
+        pages.rules.save_rules(
+            [0, 0], None, [1],
+            ["${width}bits", "d${depth}"],
+            ["parameter W = ${width}", "parameter D = ${depth}"],
+            ["", ""], ["", ""],
+            *fields,
+            metadata, [None, None], [0, 0], "?arch=arch", {},
+        )
+        assert yaml.safe_load((root / "arch" / "_settings.yml").read_text())["configurations"]["name"] == "${width}bits"
+        assert yaml.safe_load((root / "arch" / "depth" / "_settings.yml").read_text())["configurations"]["name"] == "d${depth}"
+
+    def test_the_save_button_of_a_domain_lights_up_only_for_its_own_change(self, pages, monkeypatch):
+        variables = {"main-uuid": ["width"], "depth-uuid": ["depth"]}
+        monkeypatch.setattr(pages.rules, "ctx", self.fake_ctx(pages, variables))
+        fields = self.field_values(variables, {
+            ("main-uuid", "width"): {"type": "list", "list": "8, 16"},
+            ("depth-uuid", "depth"): {"type": "list", "list": "4"},
+        })
+        saved_depth = pages.rules.rules_settings(
+            "d${depth}", "parameter D = ${depth}",
+            {"depth": {"type": "list", "settings": {"list": [4]}}},
+            # As a panel stores it: the selectors of a directory are saved with
+            # its rules, so an untouched one holds an empty block of them.
+            match={},
+        )
+        classes, tooltips, _match_classes, _match_tooltips = pages.rules.update_save_rules_button(
+            ["${width}bits", "d${depth}"],
+            ["parameter W = ${width}", "parameter D = ${depth}"],
+            ["", ""], ["", ""],
+            [None, saved_depth],
+            *fields,
+            [{"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain},
+             {"domain_uuid": "depth-uuid", "domain_name": "depth"}],
+        )
+        assert "warning" in classes[0]
+        assert "disabled" in classes[1]
+
+    def test_adding_a_variable_touches_only_its_own_domain(self, pages, monkeypatch):
+        variables = {"main-uuid": ["width"], "depth-uuid": ["depth"]}
+        monkeypatch.setattr(
+            pages.rules, "ctx",
+            self.fake_ctx(pages, variables, triggered_id={"type": "cfg-new-variable", "domain_uuid": "depth-uuid"}),
+        )
+        rows = [
+            pages.rules.rules_section("main-uuid", self.RULES).children[1].children,
+            pages.rules.rules_section("depth-uuid", self.RULES).children[1].children,
+        ]
+        metadata = [
+            {"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain},
+            {"domain_uuid": "depth-uuid", "domain_name": "depth"},
+        ]
+        updated = pages.rules.update_variable_cards(
+            [0, 1], [], [], rows, metadata, *self.field_values(variables, {
+                ("main-uuid", "width"): {"type": "list", "list": "8"},
+                ("depth-uuid", "depth"): {"type": "list", "list": "4"},
+            }),
+        )
+        assert updated[0] is dash.no_update
+        ids = [card.id for card in updated[1] if isinstance(getattr(card, "id", None), dict)]
+        assert {"type": "cfg-variable-card", "name": "var", "domain_uuid": "depth-uuid"} in ids
+        # The add card stays last
+        assert ids[-1] == {"type": "cfg-add-variable-card", "domain_uuid": "depth-uuid"}
+
+
+class TestConfigurationEditorScoping:
+    """
+    A domain holding hundreds of configurations turned every keystroke into a
+    round-trip carrying the whole page. What is left on the server now answers
+    only for what actually changed: these are the rules that keep it that way.
+    """
+
+    @pytest.fixture(autouse=True)
+    def editor(self):
+        dash.Dash(__name__, use_pages=True, pages_folder="")
+        import odatix.gui.pages.config_editor as config_editor
+
+        return config_editor
+
+    def triggered(self, editor, monkeypatch, prop_ids):
+        monkeypatch.setattr(editor, "ctx", SimpleNamespace(triggered_prop_ids=prop_ids))
+
+    def test_a_keystroke_only_makes_its_own_domain_stale(self, editor, monkeypatch):
+        self.triggered(editor, monkeypatch, {"config-content-debounce.data": "config-content-debounce"})
+        stale = editor.preview_domains_to_refresh({"stamp": 1, "domains": ["domain-a"]})
+        assert stale == {"domain-a"}
+
+    def test_typing_in_two_domains_makes_both_stale(self, editor, monkeypatch):
+        self.triggered(editor, monkeypatch, {"config-content-debounce.data": "config-content-debounce"})
+        stale = editor.preview_domains_to_refresh({"stamp": 1, "domains": ["domain-a", "domain-b"]})
+        assert stale == {"domain-a", "domain-b"}
+
+    def test_a_domain_scoped_field_only_makes_its_domain_stale(self, editor, monkeypatch):
+        self.triggered(editor, monkeypatch, {
+            "x.value": {"type": "start_delimiter", "domain_uuid": "domain-b"},
+        })
+        assert editor.preview_domains_to_refresh(None) == {"domain-b"}
+
+    def test_a_structural_change_makes_every_pane_stale(self, editor, monkeypatch):
+        # The section was rebuilt: nothing says which domain, so all of them.
+        self.triggered(editor, monkeypatch, {"param-domains-section.children": "param-domains-section"})
+        assert editor.preview_domains_to_refresh(None) is None
+
+    def test_the_debounce_can_ask_for_every_pane(self, editor, monkeypatch):
+        # A trigger the client could not tie to a domain publishes no domain list.
+        self.triggered(editor, monkeypatch, {"config-content-debounce.data": "config-content-debounce"})
+        assert editor.preview_domains_to_refresh({"stamp": 1, "domains": None}) is None
+
+    def test_outside_a_callback_every_pane_is_stale(self, editor):
+        assert editor.preview_domains_to_refresh(None) is None
+
+    def test_a_card_carries_its_looks_as_classes(self, editor):
+        # The style dictionaries the cards used to carry were sent once per card
+        # on every round-trip of a row.
+        card = editor.config_card("domain-a", "config-1", "8.txt", "", "")
+        assert getattr(card, "style", None) is None
+        assert "odx-config-card" in card.className
+        title, content = card.children[0].children[0], card.children[1]
+        assert getattr(title, "style", None) is None
+        assert getattr(content, "style", None) is None
+        assert "odx-config-name" in title.className
+        assert "odx-config-content" in content.className
+
+    def test_the_layout_switch_keeps_what_a_card_is(self, editor):
+        assert "wide" in editor.card_class("wide", False)
+        assert "wide" not in editor.card_class("normal", False)
+        blacklisted = editor.card_class("wide", True)
+        assert "odx-config-blacklisted" in blacklisted and "odx-config-card" in blacklisted
+
+
+class TestConfigurationPaging:
+    """
+    A domain holding hundreds of configurations only gives cards to the first of
+    them. What is left has no card, no text area and no store: it is counted,
+    and read from the domain again when the show more card is clicked.
+    """
+
+    @pytest.fixture(autouse=True)
+    def pages(self):
+        dash.Dash(__name__, use_pages=True, pages_folder="")
+        import odatix.gui.pages.config_editor as config_editor
+
+        return config_editor
+
+    def domain(self, tmp_path, count):
+        """A parameter domain holding `count` configuration files."""
+        import yaml
+
+        from odatix.workspace.architectures import ArchitectureCollection
+
+        root = tmp_path / "architectures"
+        path = root / "arch"
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "_settings.yml").write_text(yaml.safe_dump({}))
+        for index in range(count):
+            (path / f"config{index:03d}.txt").write_text(f"WIDTH = {index}")
+        return ArchitectureCollection(None, str(root))
+
+    def cards_of(self, row):
+        return [card for card in row if getattr(card, "id", {}).get("type") == "config-card"]
+
+    def show_more(self, row):
+        return next(card for card in row if getattr(card, "id", {}).get("type") == "show-more-card")
+
+    def hidden_of(self, row):
+        return self.show_more(row).children[1].data
+
+    def test_a_long_domain_only_gets_a_page_of_cards(self, pages, tmp_path):
+        instances = self.domain(tmp_path, pages.initial_configs_per_page + 12)
+        row = pages.build_config_cards(instances["arch"].main_domain, "main-uuid", "normal")
+
+        assert len(self.cards_of(row)) == pages.initial_configs_per_page
+        assert self.hidden_of(row) == 12
+        assert "odx-hidden" not in self.show_more(row).className
+
+    def test_a_short_domain_hides_the_show_more_card(self, pages, tmp_path):
+        instances = self.domain(tmp_path, 3)
+        row = pages.build_config_cards(instances["arch"].main_domain, "main-uuid", "normal")
+
+        assert len(self.cards_of(row)) == 3
+        assert self.hidden_of(row) == 0
+        assert "odx-hidden" in self.show_more(row).className
+
+    def test_the_cards_that_are_there_are_the_first_ones(self, pages, tmp_path):
+        instances = self.domain(tmp_path, pages.initial_configs_per_page + 5)
+        row = pages.build_config_cards(instances["arch"].main_domain, "main-uuid", "normal")
+        names = [card.children[0].children[0].value for card in self.cards_of(row)]
+
+        assert names == [f"config{index:03d}" for index in range(pages.initial_configs_per_page)]
+
+    def test_the_add_card_stays_last(self, pages, tmp_path):
+        instances = self.domain(tmp_path, 3)
+        row = pages.build_config_cards(instances["arch"].main_domain, "main-uuid", "normal")
+
+        assert row[-1].id["type"] == "add-config-card"
+        # A new configuration joins the others, not the cards that close the row.
+        pages.insert_config_card(row, pages.config_card("main-uuid", "new-uuid", "new.txt", "", ""))
+        assert [getattr(card, "id", {}).get("type") for card in row[-3:]] == [
+            "config-card", "show-more-card", "add-config-card",
+        ]
+
+    def test_showing_more_asks_the_domain_for_what_has_no_card(self, pages, monkeypatch, tmp_path):
+        total = pages.initial_configs_per_page + 5
+        instances = self.domain(tmp_path, total)
+        monkeypatch.setattr(
+            pages, "get_instance_collection_context", lambda search, settings: ("arch", "arch", instances),
+        )
+        monkeypatch.setattr(
+            pages, "ctx", SimpleNamespace(
+                triggered_id={"type": "show-more-configs", "domain_uuid": "main-uuid"},
+                outputs_list=[[{"id": {"domain_uuid": "main-uuid"}}]] * 5,
+            ),
+        )
+        shown = [
+            {"domain_uuid": "main-uuid", "config_uuid": f"u{index}", "config_name": f"config{index:03d}.txt"}
+            for index in range(pages.initial_configs_per_page)
+        ]
+        domain_metadata = [{"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain}]
+
+        row, label, count, class_name, hidden = pages.show_more_configs(
+            [1], shown, domain_metadata, [None], [{"domain_uuid": "main-uuid"}], "normal", "?arch=arch", {},
+        )
+
+        # Nothing is left over: the five that had no card now have one.
+        assert hidden == [0]
+        assert label == [""] and count == [""]
+        assert "odx-hidden" in class_name[0]
+        # The row is patched rather than rewritten, and the cards go where the
+        # ones already shown end.
+        patch = row[0].to_plotly_json()
+        assert [operation["operation"] for operation in patch["operations"]] == ["Insert"] * 5
+        positions = [operation["params"]["index"] for operation in patch["operations"]]
+        assert positions == list(range(pages.initial_configs_per_page, total))
+
+    def test_showing_more_stops_at_one_page(self, pages, monkeypatch, tmp_path):
+        # One first page shown, two full batches still hidden: one click takes
+        # a batch, and what is left is exactly the next one.
+        instances = self.domain(tmp_path, pages.initial_configs_per_page + pages.configs_per_page * 2)
+        monkeypatch.setattr(
+            pages, "get_instance_collection_context", lambda search, settings: ("arch", "arch", instances),
+        )
+        monkeypatch.setattr(
+            pages, "ctx", SimpleNamespace(
+                triggered_id={"type": "show-more-configs", "domain_uuid": "main-uuid"},
+                outputs_list=[[{"id": {"domain_uuid": "main-uuid"}}]] * 5,
+            ),
+        )
+        shown = [
+            {"domain_uuid": "main-uuid", "config_uuid": f"u{index}", "config_name": f"config{index:03d}.txt"}
+            for index in range(pages.initial_configs_per_page)
+        ]
+        domain_metadata = [{"domain_uuid": "main-uuid", "domain_name": hard_settings.main_parameter_domain}]
+
+        row, label, count, class_name, hidden = pages.show_more_configs(
+            [1], shown, domain_metadata, [None], [{"domain_uuid": "main-uuid"}], "normal", "?arch=arch", {},
+        )
+
+        assert hidden == [pages.configs_per_page]
+        assert label == [f"Show {pages.configs_per_page} more"]
+        assert "odx-hidden" not in class_name[0]
+        assert len(row[0].to_plotly_json()["operations"]) == pages.configs_per_page
+
+    def test_a_rebuilt_row_keeps_what_was_revealed(self, pages, tmp_path):
+        instances = self.domain(tmp_path, pages.configs_per_page * 2)
+        revealed = [
+            {"domain_uuid": "main-uuid", "config_name": f"config{index:03d}.txt"}
+            for index in range(pages.initial_configs_per_page + 7)
+        ]
+        row = pages.build_config_cards(
+            instances["arch"].main_domain, "main-uuid", "normal",
+            shown=pages.cards_shown(revealed, "main-uuid"),
+        )
+
+        assert len(self.cards_of(row)) == pages.initial_configs_per_page + 7
+
+    def test_a_shortened_domain_still_counts_everything_it_holds(self, pages):
+        metadata = [
+            {"domain_uuid": "main-uuid", "config_uuid": f"u{index}", "origin": "manual"}
+            for index in range(pages.configs_per_page)
+        ]
+        counters = pages.update_config_counters(
+            metadata, [12], [None], [{"domain_uuid": "main-uuid", "domain_name": "main"}],
+        )
+        stats = [stat.children[0].children for stat in counters[0]]
+
+        assert stats[0] == str(pages.configs_per_page + 12)
+        assert stats[1] == "12"
+
+
+######################################
+# Task editor (workflows and simulations)
+######################################
+
+class TestTaskEditor:
+    """The task cards of the workflow and simulation editors, shared."""
+
+    @pytest.fixture
+    def workflow_editor_module(self):
+        dash.Dash(__name__, use_pages=True, pages_folder="")
+        import odatix.gui.pages.workflow_editor as workflow_editor
+
+        return workflow_editor
+
+    @pytest.fixture
+    def sim_editor_module(self):
+        dash.Dash(__name__, use_pages=True, pages_folder="")
+        import odatix.gui.pages.sim_editor as sim_editor
+
+        return sim_editor
+
+    @staticmethod
+    def _fields(cards):
+        """The value of every task field of the cards, as the page reads them."""
+        import odatix.gui.task_editor as te
+
+        def walk(component):
+            yield component
+            children = getattr(component, "children", None)
+            for child in children if isinstance(children, list) else [children]:
+                if child is not None and not isinstance(child, str):
+                    yield from walk(child)
+
+        columns = {field: [] for field in te.TASK_FIELDS}
+        for card in cards:
+            for component in walk(card):
+                cid = getattr(component, "id", None)
+                if isinstance(cid, dict) and cid.get("type", "").endswith(tuple("-task-field-" + f for f in te.TASK_FIELDS)):
+                    field = cid["type"].split("-task-field-", 1)[1]
+                    columns[field].append(component.value)
+        return [columns[field] for field in te.TASK_FIELDS]
+
+    def test_tasks_round_trip_through_their_cards(self):
+        import odatix.gui.task_editor as te
+        import yaml
+
+        import os
+
+        from conftest import EXAMPLES_DIR
+
+        with open(os.path.join(EXAMPLES_DIR, "odatix_userconfig", "workflows", "tensorflow", "_settings.yml")) as f:
+            tasks = yaml.safe_load(f)["tasks"]
+        assert any("on_failure_commands" in task for task in tasks)
+
+        for prefix in ("wf", "sim"):
+            cards = te.cards_from_tasks(prefix, tasks)
+            assert te.build_tasks_list(*self._fields(cards)) == tasks
+
+    def test_a_fallback_is_shown_without_unfolding(self):
+        import odatix.gui.task_editor as te
+
+        with_fallback = te.task_card("wf", "env", values={"commands": "a", "on_failure_commands": "b"})
+        without = te.task_card("wf", "env", values={"commands": "a"})
+
+        def panel(card):
+            return next(
+                c for c in self._walk_all(card)
+                if getattr(c, "id", None) == {"type": "wf-more-task-field-div", "name": "env"}
+            )
+
+        assert panel(with_fallback).style["display"] != "none"
+        assert panel(without).style["display"] == "none"
+
+    @staticmethod
+    def _walk_all(component):
+        yield component
+        children = getattr(component, "children", None)
+        for child in children if isinstance(children, list) else [children]:
+            if child is not None and not isinstance(child, str):
+                yield from TestTaskEditor._walk_all(child)
+
+    def test_both_editors_listen_to_every_field(self, workflow_editor_module, sim_editor_module):
+        import odatix.gui.task_editor as te
+
+        for module, prefix, callback in (
+            (workflow_editor_module, "wf", "save_and_status"),
+            (sim_editor_module, "sim", "save_and_status"),
+        ):
+            source = __import__("inspect").getsource(getattr(module, callback))
+            assert "task_on_failure_commands" in source
+        assert len(te.task_field_dependencies("wf", dash.State)) == len(te.TASK_FIELDS)
+
+    def test_a_workflow_always_keeps_its_main_task(self, workflow_editor_module):
+        tasks = workflow_editor_module.wf_build_tasks_list(["prep"], [""], ["echo"], [""], [""], [""])
+        assert [task["name"] for task in tasks] == ["main", "prep"]
+
+    def test_duplicating_a_task_keeps_its_fallback(self, workflow_editor_module, monkeypatch):
+        from types import SimpleNamespace
+
+        cards = workflow_editor_module.wf_cards_from_tasks(
+            [{"name": "main", "commands": ["a"], "on_failure_commands": ["b"]}]
+        )
+        cards = [card.to_plotly_json() if hasattr(card, "to_plotly_json") else card for card in cards]
+        monkeypatch.setattr(
+            workflow_editor_module, "ctx",
+            SimpleNamespace(triggered_id={"type": "wf-duplicate-task", "name": "main"}),
+        )
+        result = workflow_editor_module.update_wf_task_cards(
+            None, [1], [None], cards, ["main"], [""], ["a"], ["b"], [""], [""],
+        )
+        names, _, _, fallbacks, _, _ = self._fields([c for c in result if not isinstance(c, dict)])
+        assert "main_copy1" in names
+        assert fallbacks[names.index("main_copy1")] == "b"

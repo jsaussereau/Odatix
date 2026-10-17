@@ -19,9 +19,8 @@ tasks:
 # One configuration per channel_gain value. Each run's results.csv holds
 # several EBNO points -- see _metrics.yml for how they get expanded into
 # one record per point (rather than one record per configuration).
-generate_configurations_settings:
-  variables:
-    channel_gain:
-      type: list
-      settings:
-        list: [0.5, 1.0]
+variables:
+  channel_gain:
+    type: list
+    settings:
+      list: [0.5, 1.0]

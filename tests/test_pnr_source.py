@@ -61,3 +61,54 @@ def test_pnr_handler_turns_a_source_into_a_parameter_free_job(tmp_path, monkeypa
     assert instance.param_domains == []
     assert instance.install_path == "pnr-install"
     assert instance.tmp_dir.endswith("vivado@timing/xc7/counter/fast/100MHz")
+
+def _handler(tmp_path, target_file):
+    return pnr_handler.PnrJobHandler(
+        work_path="pnr-work", source_work_root=str(tmp_path), script_path="scripts",
+        work_rtl_path="rtl", work_script_path="scripts", work_log_path="logs", work_report_path="reports",
+        process_group=True, command="run-pnr", eda_target_filename=str(target_file), overwrite=False,
+    )
+
+
+def test_pnr_jobs_copy_the_technology_script_of_their_target(tmp_path, monkeypatch):
+    job_dir = _completed_source(tmp_path)
+    source = pnr_source.discover_sources(str(tmp_path))[0]
+    (job_dir / hard_settings.yaml_config_filename).write_text("placeholder")
+    monkeypatch.setattr(
+        pnr_handler.Architecture, "read_yaml",
+        staticmethod(lambda _: SimpleNamespace(install_path="", constraint_filename="")),
+    )
+
+    tech = tmp_path / "technology_setup.tcl"
+    tech.write_text("# tech")
+    target_file = tmp_path / "target_pnr.yml"
+    target_file.write_text(
+        "script_copy_enable: No\n"
+        "script_copy_source: /dev/null\n"
+        "targets: [xc7, other]\n"
+        "target_settings:\n"
+        "  xc7:\n"
+        "    script_copy_enable: Yes\n"
+        "    script_copy_source: " + str(tech) + "\n"
+        "  other:\n"
+        "    script_copy_enable: Yes\n"
+        "    script_copy_source: " + str(tmp_path / "missing.tcl") + "\n"
+    )
+    handler = _handler(tmp_path, target_file)
+    monkeypatch.setattr(handler, "classify_job", lambda *args, **kwargs: ("new", None))
+
+    scripts = handler._read_target_scripts(install_path="")
+    assert scripts == {"": None, "xc7": str(tech), "other": None}
+
+    instance = handler._build_instance(source, ["xc7"], "", "", target_scripts=scripts)
+    assert instance.script_copy_enable is True
+    assert instance.script_copy_source == str(tech)
+
+
+def test_pnr_jobs_fall_back_to_the_global_technology_script(tmp_path):
+    tech = tmp_path / "technology_setup.tcl"
+    tech.write_text("# tech")
+    target_file = tmp_path / "target_pnr.yml"
+    target_file.write_text("script_copy_enable: Yes\nscript_copy_source: " + str(tech) + "\ntargets: [xc7]\n")
+
+    assert _handler(tmp_path, target_file)._read_target_scripts(install_path="") == {"": str(tech)}

@@ -1,6 +1,8 @@
 """Tests for small lib modules: re_helper, variables, wosit."""
 
 import re
+import subprocess
+import sys
 
 import pytest
 
@@ -99,3 +101,43 @@ class TestCreateTaskGraph:
     def test_empty_task_list(self):
         maker = wosit.createTaskGraph([])
         assert maker is not None
+
+
+class TestOnFailureCommands:
+    def test_without_fallback_the_commands_are_kept_as_they_are(self):
+        assert wosit.task_command(["echo a", "echo b"]) == "echo a\necho b"
+
+    def test_the_fallback_runs_when_the_commands_fail(self):
+        command = wosit.task_command(["@echo a", "false"], ["echo b"])
+        assert command == "(echo a && false) || (echo b)"
+
+    def test_an_invalid_fallback_is_refused(self):
+        with pytest.raises(ValueError):
+            wosit.createTaskGraph([{"name": "main", "commands": ["true"], "on_failure_commands": {"a": 1}}])
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell commands")
+    @pytest.mark.parametrize("commands, fallback, code, output", [
+        (["echo primary"], ["echo fallback"], 0, "primary\n"),
+        (["false", "echo never"], ["echo fallback"], 0, "fallback\n"),
+        (["false"], ["false"], 1, ""),
+    ])
+    def test_as_the_daemon_runs_it(self, tmp_path, commands, fallback, code, output):
+        """Through the task graph, and the command line a job's task becomes."""
+        from odatix.lib.parallel_job_handler import ParallelJobHandler
+
+        maker = wosit.createTaskGraph([{"name": "main", "commands": commands, "on_failure_commands": fallback}])
+        stages = maker.getStages(name="main", max_process=1)
+        (task,) = [task for tasks in stages.values() for task in tasks]
+        line = ParallelJobHandler._task_full_command(task)
+
+        result = subprocess.run(line, shell=True, cwd=str(tmp_path), stdout=subprocess.PIPE, universal_newlines=True)
+        assert (result.returncode, result.stdout) == (code, output)
+
+    def test_workflow_placeholders_are_substituted_in_the_fallback(self):
+        import odatix.components.run_workflow as run_workflow
+
+        tasks = run_workflow._resolve_workflow_tasks(
+            [{"name": "main", "commands": ["run ${n}"], "on_failure_commands": ["retry ${n}"]}],
+            {"n": "4"},
+        )
+        assert tasks[0]["on_failure_commands"] == ["retry 4"]

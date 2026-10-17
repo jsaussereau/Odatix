@@ -6,6 +6,7 @@ job preparation (architecture/simulation resolution), not synthesis itself.
 """
 
 import os
+import textwrap
 import shutil
 
 import pytest
@@ -119,6 +120,47 @@ class TestArchitectureResolution:
         assert len(instances) >= 2
         assert any("04bits" in n for n in names)
 
+    def test_a_described_configuration_needs_nothing_generated(self, example_workspace):
+        """
+        A run resolves the configurations its architecture describes, without
+        "odatix generate" ever having been run.
+        """
+        arch_dir = example_workspace / "odatix_userconfig" / "architectures" / "Example_Counter_verilog"
+        for existing in arch_dir.glob("*.txt"):
+            existing.unlink()
+        settings = arch_dir / "_settings.yml"
+        settings.write_text(settings.read_text() + textwrap.dedent(
+            """
+
+            configurations:
+              name: "${padded}bits"
+              template: "  parameter BITS = ${bits}"
+
+            variables:
+              bits:
+                type: range
+                settings: {from: 4, to: 16, step: 4}
+              padded:
+                type: format
+                settings:
+                  source: $bits
+                  format: "%02d"
+            """
+        ))
+
+        handler = make_arch_handler()
+        instances = handler.get_architectures(
+            ["Example_Counter_verilog/*"], [TARGET], run_mode="fmax", timestamp="ts"
+        )
+        assert sorted(a.arch_name for a in instances) == [
+            "Example_Counter_verilog/04bits",
+            "Example_Counter_verilog/08bits",
+            "Example_Counter_verilog/12bits",
+            "Example_Counter_verilog/16bits",
+        ]
+        # Nothing was added to what the user keeps.
+        assert list(arch_dir.glob("*.txt")) == []
+
     def test_unknown_architecture_is_rejected(self, example_workspace):
         handler = make_arch_handler()
         instances = handler.get_architectures(
@@ -126,6 +168,43 @@ class TestArchitectureResolution:
         )
         assert instances == []
         assert handler.get_valid_arch_count() == 0
+
+    @pytest.mark.parametrize("key, kind", [
+        ("clock_signal", "clock signal name"),
+        ("reset_signal", "reset signal name"),
+        ("top_level_module", "top level module name"),
+    ])
+    def test_a_name_absent_from_the_top_level_file_is_rejected(self, example_workspace, capsys, key, kind):
+        settings = example_workspace / "odatix_userconfig" / "architectures" / "Example_Counter_verilog" / "_settings.yml"
+        text = settings.read_text()
+        start = text.index(key + ":")
+        line = text[start:text.index("\n", start)]
+        settings.write_text(text.replace(line, key + ': "no_such_name"'))
+
+        handler = make_arch_handler()
+        instances = handler.get_architectures(
+            ["Example_Counter_verilog/04bits"], [TARGET], run_mode="fmax", timestamp="ts"
+        )
+        assert instances == []
+        assert 'There is no occurence of {0} "no_such_name"'.format(kind) in capsys.readouterr().out
+
+    @pytest.mark.parametrize("value", ["", '""'])
+    def test_an_empty_delimiter_is_reported_not_dropped(self, example_workspace, capsys, value):
+        from odatix.lib.run_report import Category
+
+        settings = example_workspace / "odatix_userconfig" / "architectures" / "Example_Counter_verilog" / "_settings.yml"
+        text = settings.read_text()
+        start = text.index("start_delimiter:")
+        line = text[start:text.index("\n", start)]
+        settings.write_text(text.replace(line, "start_delimiter: " + value))
+
+        handler = make_arch_handler()
+        instances = handler.get_architectures(
+            ["Example_Counter_verilog/04bits"], [TARGET], run_mode="fmax", timestamp="ts"
+        )
+        assert instances == []
+        assert handler.plan.names(Category.ERROR, colored=False) == ["Example_Counter_verilog/04bits"]
+        assert 'Cannot find key "start_delimiter"' in capsys.readouterr().out
 
     def test_unknown_configuration_is_rejected(self, example_workspace):
         handler = make_arch_handler()
@@ -561,6 +640,7 @@ class TestSimulationResolution:
 
     def test_a_simulation_without_settings_file_uses_the_makefile(self, example_workspace):
         # No "_settings.yml": no task, so the Makefile "sim" rule is what runs.
+        os.remove("odatix_userconfig/simulations/TB_Example_Counter_Verilator/_settings.yml")
         handler = self.make_sim_handler()
         simulations = handler.get_simulations(
             [{"TB_Example_Counter_Verilator": ["Example_Counter_verilog/04bits"]}]

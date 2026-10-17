@@ -37,6 +37,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES_DIR = os.path.join(REPO_ROOT, "sources")
 EXAMPLES_DIR = os.path.join(SOURCES_DIR, "odatix_examples")
 INIT_DIR = os.path.join(SOURCES_DIR, "odatix_init")
+FIXTURES_DIR = os.path.join(REPO_ROOT, "tests", "fixtures")
+DUMMY_TOOL_DIR = os.path.join(FIXTURES_DIR, "eda_tools", "dummy")
+DUMMY_TARGET_FILE = os.path.join(FIXTURES_DIR, "eda_tools", "target_dummy.yml")
 
 if SOURCES_DIR not in sys.path:
     sys.path.insert(0, SOURCES_DIR)
@@ -60,6 +63,30 @@ def example_workspace(tmp_path, monkeypatch):
     shutil.copy(os.path.join(INIT_DIR, "odatix.yml"), str(tmp_path / "odatix.yml"))
     monkeypatch.chdir(tmp_path)
     return tmp_path
+
+
+@pytest.fixture
+def install_dummy_tool():
+    """
+    Copy the "dummy" test tool (tests/fixtures/eda_tools/dummy) into a tools
+    directory. The tool only needs tclsh: it simulates a stepped synthesis,
+    place & route and bitstream flow. It is not shipped with Odatix.
+    """
+    def install(tools_dir):
+        shutil.copytree(DUMMY_TOOL_DIR, os.path.join(str(tools_dir), "dummy"))
+        return tools_dir
+
+    return install
+
+
+@pytest.fixture
+def dummy_workspace(example_workspace, install_dummy_tool):
+    """The example workspace, with the "dummy" test tool and its target file."""
+    userconfig = example_workspace / "odatix_userconfig"
+    (userconfig / "tools").mkdir(exist_ok=True)
+    install_dummy_tool(userconfig / "tools")
+    shutil.copy(DUMMY_TARGET_FILE, str(userconfig / "targets" / "target_dummy.yml"))
+    return example_workspace
 
 
 @pytest.fixture

@@ -20,12 +20,14 @@ tasks:
 
   - name: /tmp/odatix_tensorflow_example_env/bin/python3
     commands:
-      - python3.10 -m venv /tmp/odatix_tensorflow_example_env
+      - python3 -m venv /tmp/odatix_tensorflow_example_env
       - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install --upgrade pip
       - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install tensorflow
-      - echo "Virtual environment setup successful with python 3.14."
+      - echo "Virtual environment setup successful with the default python."
+    # TensorFlow is not available for every python version: start again with
+    # one it supports.
     on_failure_commands:
-      - python3.10 -m venv /tmp/odatix_tensorflow_example_env
+      - python3.10 -m venv --clear /tmp/odatix_tensorflow_example_env
       - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install --upgrade pip
       - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install tensorflow
       - echo "Virtual environment setup successful with python 3.10."

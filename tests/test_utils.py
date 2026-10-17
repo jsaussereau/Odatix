@@ -101,6 +101,41 @@ class TestCopytree:
         assert (dst / "sub" / "c.txt").exists()
         assert not (dst / "work").exists()
 
+    def test_keeps_permission_bits_and_mtime(self, source_tree, tmp_path):
+        script = source_tree / "run.sh"
+        script.write_text("#!/bin/sh\n")
+        os.chmod(str(script), 0o750)
+        os.utime(str(script), (1000000000, 1000000000))
+        dst = tmp_path / "dst"
+        copytree(str(source_tree), str(dst))
+        copied = os.stat(str(dst / "run.sh"))
+        assert copied.st_mode & 0o777 == 0o750
+        assert int(copied.st_mtime) == 1000000000
+
+    def test_slow_file_system_copies_in_parallel(self, source_tree, tmp_path, monkeypatch):
+        import odatix.lib.utils as utils
+        for i in range(40):
+            (source_tree / "sub" / ("f%d.v" % i)).write_text(str(i))
+        # Every file looks slow: the probe switches to the thread pool
+        monkeypatch.setattr(utils, "COPYTREE_SLOW_FILE_SECONDS", -1)
+        monkeypatch.setattr(utils, "COPYTREE_PROBE_FILES", 2)
+        dst = tmp_path / "dst"
+        copytree(str(source_tree), str(dst), blacklist=["*.log"])
+        for i in range(40):
+            assert (dst / "sub" / ("f%d.v" % i)).read_text() == str(i)
+        assert (dst / "a.txt").exists()
+        assert not (dst / "b.log").exists()
+
+    def test_parallel_copy_error_is_raised(self, source_tree, tmp_path, monkeypatch):
+        import odatix.lib.utils as utils
+        for i in range(10):
+            (source_tree / ("f%d.v" % i)).write_text(str(i))
+        os.symlink(str(source_tree / "missing"), str(source_tree / "zz_broken"))
+        monkeypatch.setattr(utils, "COPYTREE_SLOW_FILE_SECONDS", -1)
+        monkeypatch.setattr(utils, "COPYTREE_PROBE_FILES", 1)
+        with pytest.raises(OSError):
+            copytree(str(source_tree), str(tmp_path / "dst"))
+
 
 ######################################
 # Misc helpers

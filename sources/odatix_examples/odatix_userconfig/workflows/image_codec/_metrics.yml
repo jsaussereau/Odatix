@@ -1,0 +1,36 @@
+##############################################
+# Metrics for this workflow
+##############################################
+#
+# What the codec wrote to "workflow_results.json" after it ran. These are the
+# names an exploration writes under "objectives" and "constraints", and the
+# ones the result explorer plots.
+
+metrics:
+  bitrate_bpp:
+    type: json
+    unit: bpp
+    settings:
+      file: workflow_results.json
+      key: bitrate_bpp
+
+  psnr_db:
+    type: json
+    unit: dB
+    settings:
+      file: workflow_results.json
+      key: psnr_db
+
+  encode_time_ms:
+    type: json
+    unit: ms
+    settings:
+      file: workflow_results.json
+      key: encode_time_ms
+
+  compressed_bytes:
+    type: json
+    unit: B
+    settings:
+      file: workflow_results.json
+      key: compressed_bytes

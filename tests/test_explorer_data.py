@@ -50,6 +50,67 @@ def test_cascaded_dimensions_keep_a_dimension_reenableable(tmp_path):
     assert dimensions[schema.COL_CONFIGURATION] == ["fast"]
 
 
+def _stepped_results(tmp_path):
+    """A job exported step by step: synthesis, then place & route."""
+    _write_results(
+        tmp_path / "results_demo.yml",
+        [
+            {
+                "meta": {
+                    "type": "fmax_synthesis", "architecture": "counter", "configuration": "fast",
+                    "step": "synthesis", "_step_index": 0, "_last_step": False,
+                },
+                "metrics": {"area": 10},
+            },
+            {
+                "meta": {
+                    "type": "fmax_synthesis", "architecture": "counter", "configuration": "fast",
+                    "step": "pnr", "_step_index": 1, "_last_step": True,
+                },
+                "metrics": {"area": 12},
+            },
+        ],
+    )
+    store = ResultStore()
+    store.configure(tmp_path)
+    return store
+
+
+def test_steps_are_a_dimension_ordered_by_the_flow(tmp_path):
+    store = _stepped_results(tmp_path)
+    dimensions, _metrics = query.discover(store.dataframe(), store)
+
+    # Flow order, not alphabetical order ("pnr" would come first).
+    assert dimensions[schema.COL_STEP] == ["synthesis", "pnr"]
+
+
+def test_only_the_last_step_is_selected_by_default(tmp_path):
+    store = _stepped_results(tmp_path)
+    dimensions = query.cascaded_dimensions(store, ["demo"], {})
+
+    # Both scopes are offered...
+    assert dimensions[schema.COL_STEP_SCOPE] == [schema.STEP_SCOPE_INTERMEDIATE, schema.STEP_SCOPE_LAST]
+    # ...but only the finished result starts out checked, so the steps a job
+    # went past do not double every curve.
+    assert schema.default_selected(schema.COL_STEP_SCOPE, schema.STEP_SCOPE_LAST) is True
+    assert schema.default_selected(schema.COL_STEP_SCOPE, schema.STEP_SCOPE_INTERMEDIATE) is False
+    # Which prunes the cross-filtered step list down to the last step alone.
+    assert dimensions[schema.COL_STEP] == ["pnr"]
+
+
+def test_a_record_without_steps_counts_as_a_finished_result(tmp_path):
+    _write_results(
+        tmp_path / "results_demo.yml",
+        [{"meta": {"type": "workflow", "configuration": "fast"}, "metrics": {"score": 1}}],
+    )
+    store = ResultStore()
+    store.configure(tmp_path)
+    dimensions, _metrics = query.discover(store.dataframe(), store)
+
+    # A job with no steps at all has no step scope to filter on: nothing to hide.
+    assert schema.COL_STEP_SCOPE not in dimensions
+
+
 def test_filter_callback_helper_rebuilds_the_selection_state():
     filters = build_filters_dict(
         [["counter"], [], ["fast", "slow"]],
@@ -61,7 +122,6 @@ def test_filter_callback_helper_rebuilds_the_selection_state():
         "target": [],
         "configuration": ["fast", "slow"],
     }
-
 
 ######################################
 # Audit lot 4: what the explorer shows is what the data says

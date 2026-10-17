@@ -1,0 +1,108 @@
+##############################################
+# Settings for dummy tool
+##############################################
+
+# Group processes
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: "$tool_path/metrics.yml"
+
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: synthesis
+
+unix:
+  # This command is used to check if the tool is installed
+  tool_test_command: echo 'exit 0' | tclsh
+
+  # You can use lists to define your command with multiple lines
+  fmax_synthesis_command: tclsh $script_path/find_fmax.tcl
+
+  # Split into ordered steps. Each step hands its state over to the next one
+  # through a checkpoint file, the way a real tool would (write_checkpoint /
+  # read_checkpoint and their equivalents).
+  #
+  # Run only part of it with "--until", and a later run picks up at the first
+  # step left to do instead of redoing everything:
+  #
+  #   odatix synth -t dummy --until pnr    # stop before the bitstream
+  #   odatix synth -t dummy                # only runs "bitstream"
+  #
+  # The steps declare "args" rather than a whole command: they are fragments of
+  # the session below, so the steps of a run are run by a *single* process
+  # instead of one process each. Here that fragment is just the step name, which
+  # session.tcl turns into the script to source; Vivado is given a "-source"
+  # instead. What matters is that the tool is opened once per run.
+  custom_freq_synthesis_session:
+    command: tclsh $script_path/session.tcl $work_path
+
+  custom_freq_synthesis_steps:
+    - name: synthesis
+      args: synthesis
+    - name: pnr
+      args: pnr
+    - name: bitstream
+      args: bitstream
+
+  # Place & route of a design *another* run has already synthesized, possibly
+  # with another tool ("odatix pnr"). Unlike the "pnr" step above, which
+  # continues the synthesis of the same job, this one starts from the netlist a
+  # separate synthesis job left behind: $source_netlist and $source_sdc point at
+  # it, and $source_work_path at the job directory it came from.
+  #
+  # This is what makes a Design Compiler + Innovus or Genus + ICC2 chain two
+  # commands instead of one monolithic flow. The dummy tool implements it end to
+  # end so the chain can be exercised without a licence:
+  #
+  #   odatix synth -t dummy               # writes result/netlist.v, design.sdc, design.sdf
+  #   odatix pnr  -t dummy --from-tool dummy
+  #
+  # These steps declare a whole command each, and no session: they are run one
+  # process per step, which is what a tool that cannot chain several scripts in
+  # one invocation is left with.
+  pnr_steps:
+    - name: place
+      command: tclsh $script_path/step_pnr_place.tcl $work_path
+    - name: route
+      command: tclsh $script_path/step_pnr_route.tcl $work_path
+    - name: signoff
+      command: tclsh $script_path/step_pnr_signoff.tcl $work_path
+
+##############################################
+# Flows
+##############################################
+# Different ways of running the same job type with this tool. What the default
+# flow runs is declared in the platform sections above; another flow starts from
+# that and changes only what it says, steps being merged by name.
+
+flows:
+  synthesis:
+    label: "Synthesis"
+    description: "Simulated synthesis, place & route and bitstream, as resumable steps"
+
+  # Same tool, one shot: a flow can replace an inherited split into steps with a
+  # plain command, and the other way round.
+  quick:
+    label: "Quick"
+    description: "Simulated synthesis in one go, without resumable steps"
+    unix:
+      custom_freq_synthesis_command: tclsh $script_path/custom_freq_synth_script.tcl
+
+# Log formatting
+format:
+
+  # Format tags (replaced by the corresponding format escape code)
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+  
+  # Replace sequences (regular expressions)
+  replace:
+    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
+    - "(Slack \\(MET\\))": "<green>$1<end>"

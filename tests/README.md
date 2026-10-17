@@ -25,7 +25,7 @@ python -m pytest tests/test_config_generator.py -k power_of_two   # one area
 | `test_param_domain.py` | `lib/param_domain.py` — domain resolution from settings files |
 | `test_results_schema.py` | `lib/results_schema.py` — format v2, v1→v2 conversion (synthèse + workflow), identity/upsert, load/dump roundtrip |
 | `test_run_settings.py` | `lib/run_settings.py` + `lib/settings.py` (OdatixSettings) |
-| `test_workspace.py` | `components/workspace.py` — architectures, domaines, workflows, fichiers de configuration, helpers |
+| `test_workspace.py` | `workspace/` (API de configuration) — collections, settings typés (round-trip, préservation des commentaires et des clés inconnues), domaines de paramètres, configurations et génération, fichiers de run, targets, tools et overlays, façade `Workspace` |
 | `test_generate_configs.py` | `components/generate_configs.py` — génération de fichiers de configuration sur arborescence réelle |
 | `test_handlers.py` | `lib/architecture_handler.py` + `lib/simulation_handler.py` — parsing des requêtes et résolution complète sur le workspace d'exemple (marque `integration`) |
 | `test_yaml_inputs.py` | Robustesse de **tous les fichiers YAML d'entrée** : fichiers de jobs (fmax/sim/workflow), `_settings.yml` (génération + domaines + architecture), `odatix.yml`, fichiers target, fichiers de résultats — variantes vide / YAML invalide / scalaire / mauvais types / booléens YAML (`Yes`/`On`) / `#` dans les chaînes / ancres & alias / clés dupliquées / unicode / overrides par cible |
@@ -41,13 +41,20 @@ python -m pytest tests/test_config_generator.py -k power_of_two   # one area
   aucun outil EDA.
 - `arch_dir` — architecture minimale avec un domaine de paramètres et une
   configuration.
+- `install_dummy_tool` — copie l'outil de test `dummy` dans un répertoire
+  d'outils. Il ne demande que `tclsh` et simule un flow en étapes (synthèse,
+  placement-routage, bitstream). Il n'est pas livré avec Odatix : ses sources
+  sont dans `tests/fixtures/eda_tools/dummy`.
+- `dummy_workspace` — `example_workspace` avec l'outil `dummy` installé dans
+  `odatix_userconfig/tools` et son fichier `targets/target_dummy.yml`.
 
 ## Conventions
 
 - Marqueurs : `integration` (workspace d'exemple, plus lent), `gui` (composants
   Dash). Tout le reste est unitaire et rapide.
-- La CI exécute la suite sur Python 3.11 et 3.13 et rejette toute baisse sous
-  le seuil de couverture défini dans `.coveragerc`. Ce seuil doit être relevé
+- La CI exécute la suite sur un clone propre, en Python 3.6 (version minimale,
+  dans un conteneur) et en Python 3.11, 3.13 et 3.14. Sur les versions récentes,
+  elle rejette toute baisse sous le seuil de couverture défini dans `.coveragerc`. Ce seuil doit être relevé
   à mesure que les exécuteurs EDA, le daemon et les pages Dash sont couverts.
 - Un fichier de test par module source ; classes `Test*` par fonctionnalité.
 - Les tests qui documentent un bug corrigé (ex. bornes de `power_of_two`,

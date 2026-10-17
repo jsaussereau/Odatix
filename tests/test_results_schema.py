@@ -48,6 +48,20 @@ class TestRecordIdentity:
     def test_non_dict_meta(self):
         assert schema.record_identity(None) == tuple()
 
+    def test_step_tells_records_apart(self):
+        # One record per step: the step is a dimension, not a detail.
+        synthesis = {"type": "fmax_synthesis", "target": "t", "step": "synthesis"}
+        pnr = {"type": "fmax_synthesis", "target": "t", "step": "pnr"}
+        assert schema.record_identity(synthesis) != schema.record_identity(pnr)
+
+    def test_records_of_one_job_share_a_job_identity(self):
+        synthesis = {"type": "fmax_synthesis", "target": "t", "step": "synthesis", "_step_index": 0}
+        pnr = {"type": "fmax_synthesis", "target": "t", "step": "pnr", "_step_index": 1}
+        assert schema.job_identity(synthesis) == schema.job_identity(pnr)
+
+    def test_another_job_has_another_job_identity(self):
+        assert schema.job_identity({"target": "a", "step": "pnr"}) != schema.job_identity({"target": "b", "step": "pnr"})
+
 
 class TestUpsertRecords:
     def test_appends_new_record(self):
@@ -70,6 +84,42 @@ class TestUpsertRecords:
     def test_non_dict_records_ignored(self):
         merged = schema.upsert_records([], ["garbage", 42])
         assert merged == []
+
+    @staticmethod
+    def step_record(step, index, last, **metrics):
+        meta = {"target": "a", "step": step, "_step_index": index, "_last_step": last}
+        return schema.make_record(meta, metrics)
+
+    def test_a_resumed_job_keeps_the_records_of_its_earlier_steps(self):
+        existing = [self.step_record("synthesis", 0, True, LUT_count=10)]
+        new = [
+            self.step_record("synthesis", 0, False, LUT_count=10),
+            self.step_record("pnr", 1, True, LUT_count=12),
+        ]
+        merged = schema.upsert_records(existing, new)
+        assert [record["meta"]["step"] for record in merged] == ["synthesis", "pnr"]
+        # Going past a step clears its "last step" flag.
+        assert merged[0]["meta"]["_last_step"] is False
+
+    def test_a_re_run_drops_the_records_of_the_steps_it_invalidated(self):
+        # The job was re-run from "synthesis" and stopped there: "pnr" no longer
+        # matches anything the job directory holds.
+        existing = [
+            self.step_record("synthesis", 0, False, LUT_count=10),
+            self.step_record("pnr", 1, True, LUT_count=12),
+        ]
+        new = [self.step_record("synthesis", 0, True, LUT_count=7)]
+        merged = schema.upsert_records(existing, new)
+        assert [record["meta"]["step"] for record in merged] == ["synthesis"]
+        assert merged[0]["metrics"]["LUT_count"] == 7
+
+    def test_records_of_other_jobs_are_untouched(self):
+        other = schema.make_record({"target": "b", "step": "pnr", "_last_step": True}, {"Fmax": 1})
+        existing = [other, self.step_record("pnr", 1, True, Fmax=2)]
+        merged = schema.upsert_records(existing, [self.step_record("pnr", 1, True, Fmax=3)])
+        assert len(merged) == 2
+        assert merged[0] is other
+        assert merged[1]["metrics"]["Fmax"] == 3
 
 
 ######################################

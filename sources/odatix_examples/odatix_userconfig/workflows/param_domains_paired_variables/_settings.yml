@@ -27,29 +27,28 @@ tasks:
 #
 # Total variants: 2 road profiles x 2 num_vehicles x 2 signal_timing = 8
 # (versus 2 x 2 x 2 x 2 = 16 without pairing).
-generate_configurations_settings:
-  variables:
-    max_speed:
-      type: list
-      unit: kmh
-      group: road_profile
-      settings:
-        list: [35, 90]
+variables:
+  max_speed:
+    type: list
+    unit: kmh
+    group: road_profile
+    settings:
+      list: [35, 90]
 
-    road_length:
-      type: list
-      unit: km
-      group: road_profile
-      settings:
-        list: [1, 10]
+  road_length:
+    type: list
+    unit: km
+    group: road_profile
+    settings:
+      list: [1, 10]
 
-    num_vehicles:
-      type: list
-      settings:
-        list: [100, 300]
+  num_vehicles:
+    type: list
+    settings:
+      list: [100, 300]
 
-    signal_timing:
-      type: list
-      unit: s
-      settings:
-        list: [15, 45]
+  signal_timing:
+    type: list
+    unit: s
+    settings:
+      list: [15, 45]

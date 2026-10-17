@@ -117,6 +117,33 @@ class TestConfigGeneratorFiles:
         with pytest.raises(SystemExit):
             ConfigGenerator(path=self.write_settings(tmp_path, "a: [unclosed"), silent=True)
 
+    def test_a_list_instead_of_settings_exits_cleanly(self, tmp_path, capsys):
+        with pytest.raises(SystemExit):
+            ConfigGenerator(path=self.write_settings(tmp_path, "- a\n- b\n"), silent=True)
+        assert 'holds a "list" while it should hold a mapping' in capsys.readouterr().out
+
+    @pytest.mark.parametrize("variable", [
+        "{type: range, settings: {from: , to: 3}}",
+        "{type: range, settings: {from: 1, to: [3]}}",
+        "{type: range, settings: }",
+        "{type: range, settings: [1, 3]}",
+        "{type: list, settings: {list: }}",
+        "{type: multiples, settings: {from: , to: 8, base: 2}}",
+        "{type: multiples, settings: {from: 1, to: 8, base: 0}}",
+        "",
+    ])
+    def test_an_empty_or_misplaced_value_is_reported_not_raised(self, tmp_path, capsys, variable):
+        text = "configurations: {name: '${w}'}\nvariables:\n  w: " + variable + "\n"
+        gen = ConfigGenerator(path=self.write_settings(tmp_path, text), silent=True)
+        configs, _ = gen.generate()
+        assert configs == {}
+        assert "error" in capsys.readouterr().out
+
+    def test_an_empty_step_falls_back_on_one(self, tmp_path):
+        text = "configurations: {name: '${w}'}\nvariables:\n  w: {type: range, settings: {from: 1, to: 3, step: }}\n"
+        configs, _ = ConfigGenerator(path=self.write_settings(tmp_path, text), silent=True).generate()
+        assert sorted(configs) == ["1", "2", "3"]
+
     def test_generation_key_absent(self, tmp_path):
         gen = ConfigGenerator(path=self.write_settings(tmp_path, "use_parameters: false\n"), silent=True)
         assert not gen.enabled
@@ -229,6 +256,46 @@ class TestConfigGeneratorFiles:
 ######################################
 # Workspace settings file (odatix.yml)
 ######################################
+
+class TestCustomFrequencySettings:
+    """The "frequencies" section of the custom frequency synthesis settings."""
+
+    def load(self, tmp_path, text):
+        from odatix.components.run_custom_synthesis import _load_settings_custom_frequencies
+
+        f = tmp_path / "custom_freq_synthesis_settings.yml"
+        f.write_text(text)
+        return _load_settings_custom_frequencies(str(f))
+
+    def test_list_and_range(self, tmp_path):
+        text = "frequencies:\n  override: Yes\n  list: [100, 120]\n  range: {from: 100, to: 130, step: 10}\n"
+        assert self.load(tmp_path, text) == ([100, 120, 110, 130], True)
+
+    @pytest.mark.parametrize("text", [
+        "",
+        "frequencies:\n",
+        "frequencies:\n  range:\n",
+        "frequencies:\n  list:\n",
+        "frequencies:\n  range: {from: '', to: '', step: ''}\n",
+    ])
+    def test_an_empty_key_asks_for_nothing(self, tmp_path, text):
+        assert self.load(tmp_path, text) == ([], False)
+
+    def test_a_single_frequency_is_a_list_of_one(self, tmp_path):
+        assert self.load(tmp_path, "frequencies:\n  list: 100\n") == ([100], False)
+
+    @pytest.mark.parametrize("text, said", [
+        ("frequencies: [100, 200]\n", '"frequencies" holds a "list"'),
+        ("frequencies:\n  range: [100, 200]\n", '"frequencies: range" holds a "list"'),
+        ("frequencies:\n  list: [100, fast]\n", '"frequencies: list" is'),
+        ("frequencies:\n  range: {from: 100, to: 200}\n", 'has no "step"'),
+        ("frequencies:\n  range: {from: a, to: 200, step: 10}\n", "should be an integer"),
+    ])
+    def test_a_value_of_the_wrong_kind_stops_the_run_with_a_message(self, tmp_path, capsys, text, said):
+        with pytest.raises(SystemExit):
+            self.load(tmp_path, text)
+        assert said in capsys.readouterr().out
+
 
 class TestOdatixSettingsFiles:
     def test_all_paths_overridden(self, tmp_path, monkeypatch):
@@ -453,9 +520,9 @@ class TestArchitectureSettingsVariations:
         assert instances == []
 
     def test_global_frequency_bounds_fallback(self, example_workspace):
-        # remove the target-specific override: global bounds must apply
+        # remove the rules of this target: the global bounds must apply
         data = load_arch_yaml()
-        del data[TARGET]
+        data["overrides"] = [r for r in data.get("overrides", []) if r.get("targets") != TARGET]
         save_arch_yaml(data)
         _, instances = self.resolve()
         assert len(instances) == 1
@@ -464,7 +531,7 @@ class TestArchitectureSettingsVariations:
 
     def test_wrong_type_for_bounds_rejects(self, example_workspace):
         data = load_arch_yaml()
-        del data[TARGET]
+        data["overrides"] = [r for r in data.get("overrides", []) if r.get("targets") != TARGET]
         data["fmax_synthesis"] = {"lower_bound": "not_a_number", "upper_bound": 900}
         save_arch_yaml(data)
         handler, instances = self.resolve()

@@ -15,4 +15,3 @@ start_delimiter: 'WIDTH : integer := '
 stop_delimiter: ';'
 
 # Configuration generation
-generate_configurations: No

@@ -91,6 +91,35 @@ class TestAutoLineGrouping:
             assert list(trace.x) == sorted(trace.x)
 
 
+class TestScatterAxes:
+    def _df_with_missing(self):
+        # The second configuration has no Fmax at all (failed run): its trace
+        # alone must not turn the numeric x axis categorical.
+        return pd.DataFrame(
+            {
+                schema.COL_CONFIGURATION: ["a", "a", "b", "b"],
+                "Fmax": [250.0, 100.0, None, None],
+                "Area": [10.0, 20.0, 30.0, 40.0],
+                "variant": ["v16", None, "v8", "v32"],
+            }
+        )
+
+    def test_missing_values_never_reach_a_numeric_axis(self):
+        df = self._df_with_missing()
+        spec = FigureSpec(kind="scatter", x="Fmax", y="Area", color_by=schema.COL_CONFIGURATION)
+        fig = builder.build_figure(df, spec, _dimensions(df), metrics=["Fmax", "Area"], units={}, chrome={})
+        xs = [value for trace in fig.data for value in trace.x]
+        assert sorted(xs) == [100.0, 250.0]
+        assert fig.layout.xaxis.type != "category"
+
+    def test_categorical_axis_is_naturally_sorted_without_missing(self):
+        df = self._df_with_missing()
+        spec = FigureSpec(kind="scatter", x="variant", y="Area")
+        fig = builder.build_figure(df, spec, _dimensions(df), metrics=["Area"], units={}, chrome={})
+        assert list(fig.layout.xaxis.categoryarray) == ["v8", "v16", "v32"]
+        assert schema.MISSING_VALUE not in [value for trace in fig.data for value in trace.x]
+
+
 class TestScatterLabels:
     def test_labels_follow_their_points_when_lines_reorder_them(self):
         df = pd.DataFrame({

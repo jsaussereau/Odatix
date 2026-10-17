@@ -12,4 +12,3 @@ start_delimiter: 'parameter ITERATIONS = '
 stop_delimiter: '\n'
 
 # Configuration generation
-generate_configurations: No

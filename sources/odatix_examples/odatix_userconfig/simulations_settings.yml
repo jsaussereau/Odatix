@@ -50,6 +50,10 @@ simulations:
     - Example_Cordic_sv + iterations/* + width/*
     - Example_Cordic_vhdl + iterations/* + width/*
 
+  - TB_Example_Cordic_Vivado:
+    - Example_Cordic_sv + iterations/* + width/*
+    - Example_Cordic_vhdl + iterations/* + width/*
+
   # - TB_Example_Counter_GHDL:
   #   - Example_Counter_vhdl/04bits
   #   - Example_Counter_vhdl/08bits

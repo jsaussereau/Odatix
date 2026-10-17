@@ -1,3 +1,7 @@
-# This parameter domain is used for command placeholder substitution.
-# Placeholders are injected in task commands through ${signal_timing}.
-use_parameters: No
+# This parameter domain is written into the workflow's json parameter file.
+# "simulate_traffic.py" takes no argument: it reads "workflow_params.json",
+# so the value has to be substituted there rather than in a task command.
+use_parameters: Yes
+param_target_file: "workflow_params.json"
+start_delimiter: '"signal_timing": '
+stop_delimiter: ','

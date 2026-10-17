@@ -1,0 +1,66 @@
+##############################################
+# A small image codec, run once per setting
+##############################################
+#
+# Four knobs handed to a script on its command line, and three numbers read
+# back from what it wrote. Nothing about it is hardware: a workflow runs
+# whatever a command runs, and is measured the same way a synthesis is.
+#
+# The four of them describe 3150 encoders, and they pull against each other:
+# every one buys quality with bitrate or bitrate with quality, and there is no
+# setting that is best at both. That is what "odatix dse" is for -- see
+# "dse_campaigns/image_codec_rate_quality.yml", which searches this workflow
+# for the encoders nothing beats instead of running all 3150 of them.
+
+# Design sources (that will be copied into each work directory)
+sources:
+  path: examples/workflow_image_codec
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress: ([0-9]+)"
+
+# Nothing is substituted into a file: the knobs reach the codec as "${name}"
+# in the command below.
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    commands:
+      - python3 encode_image.py --block_size ${block_size} --quality ${quality} --downsample ${downsample} --dead_zone ${dead_zone}
+
+variables:
+  # How finely the transform coefficients are quantized. The knob that costs
+  # bits and buys back everything else.
+  quality:
+    type: range
+    settings:
+      from: 1
+      to: 99
+      step: 2
+
+  # The size of the transform blocks, in pixels. Bigger blocks compress the
+  # smooth parts better and take longer to encode.
+  block_size:
+    type: power_of_two
+    settings:
+      from: 4
+      to: 16
+
+  # Encode at full resolution, at half, or at a quarter. Cheap, and the first
+  # thing that stops paying off.
+  downsample:
+    type: list
+    settings:
+      list: [1, 2, 4]
+
+  # How much wider the interval that quantizes to zero is, in percent. Turns
+  # detail into runs of zeros.
+  dead_zone:
+    type: range
+    settings:
+      from: 0
+      to: 60
+      step: 10

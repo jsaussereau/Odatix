@@ -43,6 +43,19 @@ class TestGetParamDelimiters:
         settings = {"use_parameters": True, "start_delimiter": "a"}
         assert ParamDomain.get_param_delimiters(settings, "f.yml") == (None, None, None, None)
 
+    @pytest.mark.parametrize("key", ["start_delimiter", "stop_delimiter"])
+    @pytest.mark.parametrize("empty", [None, ""])
+    def test_an_empty_delimiter_is_as_good_as_missing(self, capsys, key, empty):
+        settings = {"use_parameters": True, "start_delimiter": "a", "stop_delimiter": "b"}
+        settings[key] = empty
+        assert ParamDomain.get_param_delimiters(settings, "f.yml") == (None, None, None, None)
+        assert 'Cannot find key "{0}"'.format(key) in capsys.readouterr().out
+
+    def test_a_target_file_left_empty_defaults_to_top_level(self):
+        settings = {"use_parameters": True, "start_delimiter": "a", "stop_delimiter": "b", "param_target_file": None}
+        _, _, _, target = ParamDomain.get_param_delimiters(settings, "f.yml", top_level_file="top.v")
+        assert target == "top.v"
+
 
 class TestGetParamDomain:
     def test_resolves_domain(self, arch_dir):

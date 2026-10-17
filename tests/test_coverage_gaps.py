@@ -110,25 +110,25 @@ def test_svg_converter_normalizes_style_namespaces_and_classes(tmp_path):
 
 
 def test_analysis_export_upserts_records_and_tags_jobs(tmp_path):
-    summary = {
-        "results": [{
-            "architecture": "counter/fast", "status": "WARNING", "errors": ["lint"],
-            "blackbox_warnings": ["blackbox"], "error_count": 1, "warning_count": 2,
-            "standard_warning_count": 1,
-        }]
-    }
-    output = export_analysis.export_analysis_results(summary, str(tmp_path), "dummy", flow="standard")
-    assert output is not None
+    import odatix.lib.analysis as analysis
 
-    updated_summary = {"results": [{**summary["results"][0], "status": "PASSED", "error_count": 0}]}
-    export_analysis.export_analysis_results(updated_summary, str(tmp_path), "dummy", flow="standard")
+    result = analysis.AnalysisResult(
+        "dummy", "counter", "fast", flow="standard", status=analysis.STATUS_WARNING,
+        findings=[analysis.Finding("warning", "latch", "latch inferred for q")],
+    )
+    assert export_analysis.export_analysis_results([result], str(tmp_path))
+    result.status = analysis.STATUS_PASSED
+    result.findings = []
+    assert export_analysis.export_analysis_results([result], str(tmp_path))
+    output = str(tmp_path / export_analysis.analysis_results_filename("dummy"))
     records = results_schema.load_results_file(output).records
     assert len(records) == 1
-    assert records[0]["meta"]["_status"] == "PASSED"
-    assert records[0]["metrics"]["critical_warning_count"] == 1
+    assert records[0]["meta"]["_status"] == "passed"
 
     job = SimpleNamespace(tmp_dir=str(tmp_path / "work" / "dummy@standard" / "target" / "counter" / "fast"))
     handler = SimpleNamespace(job_list=[job, SimpleNamespace(tmp_dir=str(tmp_path / "outside"))])
     assert export_analysis.configure_analysis_job_exports(handler, analysis_work_root=tmp_path / "work", output_dir=tmp_path) == 1
-    assert job.post_run_export["architecture"] == "counter/fast"
+    assert job.post_run_export["on_failure"] is True
     assert job.post_run_export["flow"] == "standard"
+
+

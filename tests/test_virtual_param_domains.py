@@ -62,6 +62,13 @@ class TestHelpers:
         }
         assert vpd.build_variants(settings, "settings.yml") == []
 
+    def test_variants_are_not_generated_when_a_configurations_block_describes_them(self):
+        settings = {
+            "configurations": {"name": "${width}bits", "template": "WIDTH = ${width}"},
+            "variables": {"width": {"type": "list", "settings": {"list": ["8"]}}},
+        }
+        assert vpd.build_variants(settings, "settings.yml") == []
+
     def test_variants_cover_every_combination(self):
         settings = {
             "generate_configurations": False,

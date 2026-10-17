@@ -1,0 +1,60 @@
+##############################################
+# Odatix design space exploration campaign
+##############################################
+---
+# An exploration of a workflow rather than of a synthesis.
+#
+# Nothing changes but "run": what evaluates one design is "odatix workflow"
+# instead of "odatix fmax", so the names under "architectures" are workflows
+# and the metrics under "objectives" are the ones the workflow's "_metrics.yml"
+# reads. Everything else -- the search, the front, the archive -- is the same.
+
+# what evaluating one design runs
+#
+# A workflow is not run by an eda tool, so there is no tool, no flow and no
+# target to name here: the workflow's own commands are what runs.
+run:              workflow  # fmax_synthesis, custom_freq_synthesis or workflow
+tool:             ""
+flow:             ""
+target:           ""
+
+# simulations every design is run through, before it is measured
+simulations:      []
+
+# what makes a design better than another
+#
+# The two things an encoder is asked for at once, and cannot have at once: the
+# smallest file and the best picture. Nothing here says how many dB a bit is
+# worth -- that is the answer's job, not the question's -- so what comes back
+# is the whole rate/quality curve: every setting that no other setting beats on
+# both.
+objectives:
+  - metric: bitrate_bpp
+    goal: min
+  - metric: psnr_db
+    goal: max
+
+# what a design has to be for it to count at all
+#
+# An encoder that takes a quarter of a second per frame is not a slower
+# trade-off, it is out: the codec has a frame budget, and a setting that misses
+# it is not on the curve however good its picture is.
+constraints:
+  - metric: encode_time_ms
+    max: 120
+
+# how the search looks for it
+search:
+  strategy:       genetic  # genetic, random or exhaustive - overridden by --strategy
+  budget:         60       # designs evaluated at most, per architecture - overridden by --budget
+  batch:          10       # designs evaluated together, between two decisions
+  patience:       0        # stop after this many batches that do not improve (0: never)
+  improvement:    0        # how much the front has to grow for a batch to count (0.02: 2%)
+  seed:                    # empty: a different search every time
+
+# workflows to explore, one search each
+#
+# Named exactly the way "workflow_settings.yml" names them, and selected the
+# same way: "image_codec" searches every variable it declares.
+architectures:
+  - image_codec

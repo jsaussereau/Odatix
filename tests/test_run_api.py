@@ -79,23 +79,52 @@ class TestRunOptions:
         assert run.options.tool == ["vivado", "yosys"]
 
 
+class TestTargets:
+    """
+    A run works on every target its tool's file enables, unless it is told
+    otherwise -- which is what lets something else run one target at a time
+    without editing that file underneath the other runs sharing it.
+    """
+
+    def two_targets(self, dummy_workspace):
+        path = dummy_workspace / "odatix_userconfig" / "targets" / "target_dummy.yml"
+        path.write_text(path.read_text().replace(
+            "  - dummy_target", "  - dummy_target\n  - other_target"
+        ))
+        return Workspace.open()
+
+    def test_a_run_works_on_every_enabled_target(self, dummy_workspace):
+        workspace = self.two_targets(dummy_workspace)
+        both = Run(workspace, "custom_freq_synthesis", tool="dummy").check()
+        one_each = both.run_count() // 2
+
+        run = Run(workspace, "custom_freq_synthesis", tool="dummy", targets=["other_target"])
+        assert run.check().run_count() == one_each
+
+    def test_a_target_the_tool_does_not_enable_is_refused(self, dummy_workspace):
+        workspace = self.two_targets(dummy_workspace)
+        run = Run(workspace, "custom_freq_synthesis", tool="dummy", targets=["no_such_target"])
+        with pytest.raises(RunError):
+            run.check()
+
+
 ######################################
 # Checking
 ######################################
 
 class TestCheck:
-    def test_a_run_knows_what_it_would_do(self, example_workspace):
+    def test_a_run_knows_what_it_would_do(self, dummy_workspace):
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy")
         plan = run.check()
         assert plan.run_count() > 0
         assert len(run.jobs) == plan.run_count()
         assert run.was_checked
 
-    def test_checking_twice_does_not_check_twice(self, example_workspace):
+    def test_checking_twice_does_not_check_twice(self, dummy_workspace):
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy")
         assert run.checked() is run.checked()
 
-    def test_an_unusable_settings_file_raises(self, example_workspace):
+    def test_an_unusable_settings_file_raises(self, dummy_workspace):
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy", settings_file="nope.yml")
         with pytest.raises(RunError):
             run.check()
@@ -200,6 +229,28 @@ class TestJobPlanner:
             {"tmp_dir": directory, "status": "failed", "session_id": "s1"},
         ])
         assert self.planner(tmp_path).classify_job(directory, '"job"')[0] == "new"
+
+    def test_overwriting_takes_over_a_job_a_session_finished(self, tmp_path, monkeypatch):
+        import odatix.lib.job_steps as job_steps
+        import odatix.run.planner as planner_module
+
+        directory = self.job_directory(tmp_path)
+        monkeypatch.setattr(job_steps, "resume_index", lambda directory, steps: len(steps))
+        monkeypatch.setattr(planner_module, "list_daemon_jobs", lambda workspace_root=None: [
+            {"tmp_dir": directory, "status": "success", "session_id": "s1"},
+        ])
+        # Without -o, what is done is left alone...
+        planner = self.planner(tmp_path, requested_steps=["search"])
+        assert planner.classify_job(directory, '"job"')[0] == "cached"
+        # ...with it, it is run again: that is what overwriting means.
+        planner = self.planner(tmp_path, requested_steps=["search"], overwrite=True)
+        assert planner.classify_job(directory, '"job"')[0] == "overwrite"
+        # A job still running stays its session's, overwrite or not.
+        monkeypatch.setattr(planner_module, "list_daemon_jobs", lambda workspace_root=None: [
+            {"tmp_dir": directory, "status": "running", "session_id": "s1"},
+        ])
+        planner = self.planner(tmp_path, requested_steps=["search"], overwrite=True)
+        assert planner.classify_job(directory, '"job"')[0] == "daemon"
 
     def test_the_plan_only_holds_what_will_be_run(self, tmp_path):
         from odatix.lib.run_report import Category

@@ -1,0 +1,70 @@
+# Derived metrics
+#
+# A derived metric is a metric a result does not hold itself, but gets from
+# another result. It is what links simulation results to synthesis results: a
+# simulation knows how many cycles a benchmark takes, a synthesis knows at which
+# frequency the design runs, and neither can give a runtime on its own.
+#
+# Derived metrics are recomputed over the whole result set every time results are
+# exported, so they are never stale and applying them twice changes nothing.
+#
+# Run them explicitly with:
+#   odatix res_derived
+
+######################################
+# Groups
+######################################
+
+# A group is a named list of patterns, and "@name" stands for that list anywhere
+# patterns are accepted. Groups are not tied to architectures: the same
+# mechanism names sets of simulations, workflows or targets.
+
+groups:
+  # counters: ["Example_Counter_*"]
+  # cpus: ["AsteRISC/*", "Ibex/*"]
+  # benchmarks: ["TB_Dhrystone", "TB_Coremark"]
+
+######################################
+# Derived metrics
+######################################
+
+derived_metrics:
+  # Copy the cycle count of the matching simulation onto every synthesis result.
+  #
+  # Cycles:
+  #   from: simulation        # simulation | workflow | fmax_synthesis | custom_freq_synthesis | synthesis | any
+  #   metric: Cycles          # metric to read in the source (default: the name below "derived_metrics")
+  #   for: "@cpus"            # which results get it: "*" (default), a pattern, a list, or "@group"
+  #   apply_to: synthesis     # which kinds of results get it (default: synthesis)
+  #   unit: cycles
+
+  # Compute a value from metrics the result already has, imported ones included.
+  #
+  # Runtime:
+  #   type: operation
+  #   op: "Cycles / Frequency"
+  #   for: "@cpus"
+  #   unit: us
+
+  # By default, a source result matches when both results agree on every
+  # dimension they have in common (architecture, configuration and parameter
+  # domains). A dimension only one of them carries is not a constraint, which is
+  # how a simulation declaring "invariant_domains" in its _settings.yml applies
+  # to every value of that domain with nothing to write here.
+  #
+  # When the simulation was not declared invariant, the same result is obtained
+  # by telling which value to read:
+  #
+  # Cycles:
+  #   from: simulation
+  #   for: "@cpus"
+  #   match:
+  #     pin: {MEM: 1024I_1024D}   # read this value of MEM, whatever the target's
+  #     ignore: [Voltage]         # do not constrain on this domain at all
+  #     map: {MEM: Cache}         # the domain is not named the same on both sides
+  #     on: [architecture, configuration]   # join on exactly these, nothing else
+  #   on_multiple: error          # error | first | last | skip | mean | min | max | sum
+  #   where: {target: "xc7a100t*"}        # only results matching this get the metric
+  #   source_where: {simulation: "@benchmarks"}   # only read these results
+  #   optional: true              # do not warn when no source result matches
+  #   overwrite: false            # do not replace a value the result already has

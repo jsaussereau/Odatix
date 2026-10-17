@@ -40,5 +40,10 @@ workflows:
   # Multiple parameter domains replaced in a json
   - param_domains_json + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
 
+  # A small image codec, whose four knobs are variables of its command line.
+  # 3150 configurations: worth exploring rather than running (see
+  # "dse_campaigns/image_codec_rate_quality.yml"), so nothing is selected here.
+  #- image_codec
+
   # TensorFlow training workflow example (requires TensorFlow in your Python environment)
   - tensorflow + epochs/*
