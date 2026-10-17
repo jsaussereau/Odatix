@@ -84,7 +84,7 @@ def add_arguments(parser):
       parser (ArgumentParser): Argument parser instance.
   """
   add_options(
-    parser, "tool", "use_benchmark", "benchmark_file", "work_path", "result_path", "metrics", "config",
+    parser, "tool", "work_path", "result_path", "metrics", "config",
     tool={"default": "all", "help": "eda tool in use, or 'all' (default: all)"},
   )
 
@@ -216,13 +216,28 @@ def missing_is_an_error(file, path, error_if_missing):
   return error_if_missing
 
 
-def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis", step=None):
+_warned_benchmark_metrics = set()
+
+
+def _warn_benchmark_metric(metric, metrics_file):
+  """Say once per metric that benchmark metrics are gone, and what replaces them."""
+  if (metrics_file, metric) in _warned_benchmark_metrics:
+    return
+  _warned_benchmark_metrics.add((metrics_file, metric))
+  printc.warning(
+    'Metric "' + str(metric) + '" of "' + str(metrics_file) + '" reads a benchmark, which is no longer supported: it is skipped',
+    script_name,
+  )
+  printc.tip("Declare a benchmark score as a simulation metric (_metrics.yml), and combine it with synthesis results through derived metrics", script_name)
+
+
+def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type="fmax_synthesis", step=None):
   """
   Extract metrics from synthesis results based on tool-specific settings.
 
   This function processes various types of synthesis metrics, such as 
   `fmax_synthesis` or `custom_freq_synthesis`, by parsing tool output 
-  files (e.g., regex, CSV, YAML) and optionally using benchmark values.
+  files (e.g., regex, CSV, YAML).
 
   Args:
       metrics_data (dict): The loaded settings for the EDA tool, containing 
@@ -231,8 +246,6 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       cur_path (str): Current path to the directory containing synthesis results.
       arch (str): Identifier for the architecture being processed.
       arch_path (str): Full path to the architecture-specific directory.
-      use_benchmark (bool): Whether to use benchmark data for extracting metrics.
-      benchmark_file (str): Path to the benchmark YAML file.
       type (str): Type of synthesis (e.g., "fmax_synthesis" or "custom_freq_synthesis").
                   Defaults to "fmax_synthesis".
       step (str | None): Step of the flow being exported, None for a job whose
@@ -259,7 +272,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
   Notes:
       - Metrics are extracted from files (regex, CSV, or YAML) defined in the tool
         settings. Each metric can specify its own type and extraction settings.
-      - Metrics marked as "benchmark_only" are only included if `use_benchmark` is True.
+      - Metrics of type "benchmark", and those marked "benchmark_only", are no
+        longer extracted: a benchmark score is a simulation metric.
       - Global lists `banned_metrics` and `banned_arch` are updated to exclude metrics
         or architectures that encounter errors during extraction.
       - An "operation" metric reads the values extracted for the same record, so
@@ -303,7 +317,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       continue
 
     benchmark_only = read_from_list("benchmark_only", content, metrics_file, parent=metric, raise_if_missing=False, type=bool, print_error=False, script_name=script_name)
-    if benchmark_only and not use_benchmark:
+    if benchmark_only or type == "benchmark":
+      _warn_benchmark_metric(metric, metrics_file)
       banned_metrics.append(metric)
       continue
 
@@ -355,21 +370,6 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
       path = step_file(cur_path, file, step)
       value = parse_xml(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
-    elif type == "benchmark":
-      if not use_benchmark:
-        banned_metrics.append(metric)
-        continue
-      if arch in banned_arch:
-        continue
-      try:
-        key = read_from_list("key", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
-      except (KeyNotInListError, BadValueInListError):
-        banned_metrics.append(metric)
-        continue
-      key = arch + "[" + key + "]"
-      value = parse_yaml(benchmark_file, key, error_if_missing, error_prefix)
-      if value is None:
-        banned_arch.append(arch)
     elif type == "operation":
       try:
         op = read_from_list("op", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -481,7 +481,7 @@ def _walk_configurations(job_root, has_frequency_level):
           yield target, architecture, configuration, None
 
 
-def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=None, flow=None, source=None):
+def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, tool=None, flow=None, source=None):
   """
   Process the configuration for a specific architecture and extract relevant metrics.
 
@@ -499,8 +499,6 @@ def process_configuration(input, target, architecture, configuration, frequency,
       units (dict): Dictionary to store metric units for the synthesis results.
       metrics_data (dict): Settings specific to the EDA tool being used.
       metrics_file (str): Path to the YAML file containing tool settings.
-      use_benchmark (bool): Whether to use benchmark values for metric extraction.
-      benchmark_file (str): Path to the benchmark YAML file.
       tool (str | None): eda tool the job ran with, written to the record meta.
       flow (str | None): flow of that tool the job ran with, written to the record meta.
 
@@ -613,7 +611,7 @@ def process_configuration(input, target, architecture, configuration, frequency,
   records = []
   for step in (completed_steps if completed_steps else [None]):
     metrics, cur_units, measured = extract_metrics(
-      metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type, step=step
+      metrics_data, metrics_file, cur_path, arch, arch_path, type, step=step
     )
 
     param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)
@@ -642,7 +640,7 @@ def process_configuration(input, target, architecture, configuration, frequency,
   return records
 
 
-def export_results(input, output, tools, use_benchmark, benchmark_file, result_types, custom_metrics_file=None):
+def export_results(input, output, tools, result_types, custom_metrics_file=None):
   """
   Export synthesis results for multiple tools, configurations and architectures
   to the v2 results files.
@@ -655,8 +653,6 @@ def export_results(input, output, tools, use_benchmark, benchmark_file, result_t
       input (str): Base directory containing synthesis results.
       output (str): Directory where the exported results will be saved.
       tools (list | str): List of EDA tools to process or "All" to process all available tools.
-      use_benchmark (bool): Whether to include benchmark data in the metrics.
-      benchmark_file (str): Path to the benchmark YAML file.
       result_types (dict): Dictionary specifying the yaml key and path for each result type to process (e.g., `fmax_synthesis` and `custom_freq_synthesis`) 
       custom_metrics_file (str): Path to a metrics definition YAML file.
 
@@ -764,7 +760,7 @@ def export_results(input, output, tools, use_benchmark, benchmark_file, result_t
             job_records = process_configuration(
               job_root, target, architecture, configuration, frequency,
               result_type, result_key, units, metrics_data, metrics_file,
-              use_benchmark, benchmark_file, tool=tool, flow=flow,
+              tool=tool, flow=flow,
             )
             if job_records is not None:
               records += job_records
@@ -837,8 +833,6 @@ def configure_synthesis_job_exports(
   tool,
   output_dir,
   flow=None,
-  use_benchmark=False,
-  benchmark_file=None,
   custom_metrics_file=None,
 ):
   if work_path is None or output_dir is None or tool is None:
@@ -914,8 +908,6 @@ def configure_synthesis_job_exports(
       "architecture": str(architecture),
       "configuration": str(configuration),
       "frequency": str(frequency) if frequency is not None else None,
-      "use_benchmark": bool(use_benchmark),
-      "benchmark_file": benchmark_file,
       "custom_metrics_file": custom_metrics_file,
     }
     configured += 1
@@ -957,12 +949,6 @@ def export_single_job_result(job, export_config=None):
     printc.error("Per-job custom frequency export is missing frequency", script_name=script_name)
     return False
 
-  use_benchmark = bool(config.get("use_benchmark", False))
-  benchmark_file = config.get("benchmark_file", None)
-  if use_benchmark and not benchmark_file:
-    printc.warning("Benchmark export enabled but benchmark file is not configured. Disabling benchmark metrics.", script_name=script_name)
-    use_benchmark = False
-
   metrics_data, metrics_file = _load_metrics_for_tool(
     tool=tool,
     custom_metrics_file=config.get("custom_metrics_file", None),
@@ -988,8 +974,6 @@ def export_single_job_result(job, export_config=None):
     units=units,
     metrics_data=metrics_data,
     metrics_file=metrics_file,
-    use_benchmark=use_benchmark,
-    benchmark_file=benchmark_file,
     tool=tool,
     flow=flow,
     source=config.get("source", None),
@@ -1028,24 +1012,6 @@ def main(args, settings=None):
     if not settings.valid and (args.work_path is None or args.result_path is None):
       printc.error("Could not load settings from file \"" + args.config + "\" and -w and/or -r options are not used", script_name=script_name)
       sys.exit(-1)
-
-  if args.use_benchmark is not None:
-    use_benchmark = args.use_benchmark
-  else:
-    if settings.valid:
-      use_benchmark = settings.use_benchmark
-    else:
-      use_benchmark = False
-      benchmark_file = None
-
-  if args.benchmark_file is not None:
-    benchmark_file = args.benchmark_file
-  else:
-    if settings.valid:
-      benchmark_file = settings.benchmark_file
-    else:
-      use_benchmark = False
-      benchmark_file = None
 
   if args.work_path is not None:
     input = args.work_path
@@ -1091,8 +1057,6 @@ def main(args, settings=None):
     input=input,
     output=output,
     tools=tools,
-    use_benchmark=use_benchmark,
-    benchmark_file=benchmark_file,
     result_types=result_types,
     custom_metrics_file=metrics_file,
   )

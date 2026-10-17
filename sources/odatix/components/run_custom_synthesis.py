@@ -55,11 +55,11 @@ def _check_cancel(cancel_event):
 
 
 def add_arguments(parser):
-    add_options(parser, "tool", "flow", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs", "check_eda_tool", "debug")
-    parser.add_argument("--from", dest="from_freq", type=int, help="override range lower bound for custom frequency synthesis (in MHz)")
-    parser.add_argument("--to", dest="to_freq", type=int, help="override range upper bound for custom frequency synthesis (in MHz)")
-    parser.add_argument("--step", dest="step_freq", type=int, help="override range step bound for custom frequency synthesis (in MHz)")
-    parser.add_argument("--at", dest="at_freq", action='append', type=int, help="override freqency at which custom frequency synthesis should be run (in MHz)")
+    add_options(parser, "tool", "flow", "targets", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs", "check_eda_tool", "debug")
+    parser.add_argument("--from", dest="from_freq", type=int, help="lowest frequency of the range, in MHz")
+    parser.add_argument("--to", dest="to_freq", type=int, help="highest frequency of the range, in MHz")
+    parser.add_argument("--step", dest="step_freq", type=int, help="step of the range, in MHz")
+    parser.add_argument("--at", dest="at_freq", action='append', type=int, help="run the synthesis at this frequency, in MHz (repeatable)")
     add_options(parser, "keep", "log_size_limit", "export_options", "config", keep={"help": "store synthesis batch with a timestamp in the configuration name"})
 
 
@@ -181,8 +181,6 @@ def run_synthesis(
     debug=False,
     keep=False,
     export_output_dir=None,
-    use_benchmark=False,
-    benchmark_file=None,
     custom_metrics_file=None,
     cancel_event=None,
     detach=False,
@@ -210,8 +208,6 @@ def run_synthesis(
         frequencies=custom_freq_list or [],
         debug=debug,
         keep=keep,
-        use_benchmark=use_benchmark,
-        benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
         detach=detach,
         session=daemon_session,
@@ -391,8 +387,6 @@ def prepare_synthesis(
     export_tool=None,
     export_flow=None,
     export_work_path=None,
-    use_benchmark=False,
-    benchmark_file=None,
     custom_metrics_file=None,
 ):
     parallel_jobs = prepare_synthesis_jobs(
@@ -419,8 +413,6 @@ def prepare_synthesis(
             tool=export_tool,
             flow=export_flow,
             output_dir=export_output_dir,
-            use_benchmark=use_benchmark,
-            benchmark_file=benchmark_file,
             custom_metrics_file=custom_metrics_file,
         )
 

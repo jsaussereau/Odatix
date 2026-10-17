@@ -66,39 +66,48 @@ def collect(sink):
     except ValueError:
       pass
 
+# What every message of a command is prefixed with ("odatix fmax"), instead of
+# the module that prints it. The module name means nothing to someone typing a
+# command; set once, by the command line, before the command runs.
+_command = None
+
+def set_command(label):
+  """Prefix every message with `label` (e.g. "odatix fmax") from now on; None to go back to module names."""
+  global _command
+  _command = label
+
+def _prefix(script_name):
+  if script_name == "":
+    return ""
+  return colors.GREY + "[" + (_command or script_name) + "]" + colors.ENDC + " "
+
 def say(message="", script_name="", color=colors.ENDC, end="\n"):
-  if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  script_name = _prefix(script_name)
   print(script_name + color + message + colors.ENDC, end=end)
 
 def error(message, script_name="", end="\n"):
   _emit("error", message, script_name)
-  if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  script_name = _prefix(script_name)
   print(script_name + colors.BOLD + colors.RED + "error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC, end=end)
 
 def internal_error(message, script_name="", end="\n"):
   _emit("error", message, script_name)
-  if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  script_name = _prefix(script_name)
   print(script_name + colors.BOLD + colors.RED + "internal error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC, end=end)
 
 def warning(message, script_name="", end="\n"):
   _emit("warning", message, script_name)
-  if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  script_name = _prefix(script_name)
   print(script_name + colors.YELLOW + "warning: " + message + colors.ENDC, end=end)
 
 def note(message, script_name="", end="\n"):
   _emit("note", message, script_name)
-  if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  script_name = _prefix(script_name)
   print(script_name + colors.CYAN + "note: " + message + colors.ENDC, end=end)
 
 def tip(message, script_name="", end="\n"):
   _emit("tip", message, script_name)
-  if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  script_name = _prefix(script_name)
   print(script_name + colors.MAGENTA + "tip: " + message + colors.ENDC, end=end)
 
 def messages(message_list, script_name=""):

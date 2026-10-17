@@ -104,8 +104,6 @@ class OdatixSettings:
     # looked up in this directory (the userconfig root), so workspaces created
     # before target_path defaulted to "<userconfig>/targets" keep working.
     DEFAULT_TARGET_FALLBACK_PATH = DEFAULT_USERCONFIG_PATH
-    DEFAULT_USE_BENCHMARK = False
-    DEFAULT_BENCHMARK_FILE = "results/benchmark.yml"
     # Resource guard of the job scheduler: pause running jobs while the CPU or
     # memory usage of the machine is above these percentages.
     DEFAULT_RESOURCE_GUARD = True
@@ -235,8 +233,6 @@ class OdatixSettings:
         OdatixSettings.user_theme_path = os.path.realpath(self.gui_theme_path)
         self.workflow_path, _ = get_from_dict("workflow_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_PATH, silent=silent, script_name=script_name)
         self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, silent=silent, script_name=script_name)
-        self.use_benchmark, _ = get_from_dict("use_benchmark", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_USE_BENCHMARK, type=bool, silent=silent, script_name=script_name)
-        self.benchmark_file, _ = get_from_dict("benchmark_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_BENCHMARK_FILE, silent=silent, script_name=script_name)
         self.resource_guard, self.cpu_limit, self.mem_limit = OdatixSettings.read_resource_guard(settings_data, settings_filename)
         OdatixSettings.resource_guard_settings = (self.resource_guard, self.cpu_limit, self.mem_limit)
         self.clean_settings_file, _ = get_from_dict("clean_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE, silent=silent, script_name=script_name)
@@ -437,7 +433,6 @@ class OdatixSettings:
         from odatix.workspace.core import PATH_SETTINGS
 
         settings = dict((name, getattr(self, name)) for name, _default in PATH_SETTINGS)
-        settings["use_benchmark"] = self.use_benchmark
         return settings
 
     @staticmethod

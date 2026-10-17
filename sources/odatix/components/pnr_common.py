@@ -73,6 +73,7 @@ def load_pnr_context(
     debug=False,
     flow=None,
     check_cancel=None,
+    selected_targets=None,
 ):
     """
     Load what a place & route run needs to build its job list: the run settings
@@ -99,6 +100,7 @@ def load_pnr_context(
         settings_reader=get_pnr_settings,
         selection_key="sources",
         selection_noun="place & route sources",
+        selected_targets=selected_targets,
     )
 
 

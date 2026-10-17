@@ -186,8 +186,6 @@ class SynthesisFlow(Flow):
             export_tool=run.options.tool,
             export_flow=run.options.flow,
             export_work_path=run.work_path,
-            use_benchmark=run.use_benchmark,
-            benchmark_file=run.benchmark_file,
             custom_metrics_file=run.options.custom_metrics_file,
         )
 
@@ -279,6 +277,7 @@ class PnrFlow(Flow):
             debug=options.debug,
             cancel_event=run.cancel_event,
             tool_check_sink=run.tool_check_sink,
+            selected_targets=options.targets,
         ))
 
     def prepare(self, run, checked):
@@ -296,8 +295,6 @@ class PnrFlow(Flow):
             export_tool=run.options.tool,
             export_flow=run.options.flow,
             export_work_path=run.work_path,
-            use_benchmark=run.use_benchmark,
-            benchmark_file=run.benchmark_file,
             custom_metrics_file=run.options.custom_metrics_file,
         )
 

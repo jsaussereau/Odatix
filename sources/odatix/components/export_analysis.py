@@ -27,7 +27,7 @@ findings (see odatix.lib.analysis). Each of those results is a record of
 "results_analysis_<tool>.yml" in the workspace result directory, written as
 soon as its job ends -- whether the tool succeeded or not: an analysis that
 found errors is a result too -- so that Odatix Explorer shows it on its RTL
-Analysis page, and "odatix res_analysis" can report it again.
+Analysis page, and "odatix results analysis" can report it again.
 
 Analysis records use ``type: analysis``. What they found is held by
 informational ("_"-prefixed) meta keys, so that it is neither a chart dimension
@@ -211,7 +211,7 @@ def export_single_analysis_job(job, export_config=None):
 
 
 ######################################
-# From the work directory ("odatix res_analysis")
+# From the work directory ("odatix results analysis")
 ######################################
 
 def export_analysis_from_work(analysis_root, output_dir, tools=None, expected=None, export=True):

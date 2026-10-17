@@ -15,6 +15,16 @@ workspace layouts can share one directory.
 
 {{< toc >}}
 
+## Default tool
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `default_tool` | string | *(none)* | The eda tool `odatix fmax`, `odatix synth` and `odatix analyze` run when `-t/--tool` names none. `odatix init` sets it to `vivado`. |
+
+Without it, a workspace that has a target file for a single tool runs that
+tool; any other is told to name one, with the list of the tools it has a target
+file for. An analysis whose settings file lists `tools` runs those instead.
+
 ## Work directories
 
 Jobs run in `<work_path>/<job type path>/<tool>/<target>/<design>/<config>/`.
@@ -62,7 +72,7 @@ Each run command reads one settings file; these keys say which.
 | `workflow_settings_file` | path | `odatix_userconfig/workflow_settings.yml` | `odatix workflow` |
 | `pnr_settings_file` | path | `odatix_userconfig/pnr_settings.yml` | `odatix pnr` |
 | `clean_settings_file` | path | `odatix_userconfig/clean.yml` | `odatix clean` |
-| `derived_metrics_file` | path | `odatix_userconfig/derived_metrics.yml` | `odatix res_derived` and every export |
+| `derived_metrics_file` | path | `odatix_userconfig/derived_metrics.yml` | `odatix results derived` and every export |
 
 Every one of them is also overridable per run with `-i/--input` (`--config` for
 the workspace file itself).
@@ -72,8 +82,9 @@ the workspace file itself).
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `result_path` | path | `results` | Where exported result files are written. |
-| `use_benchmark` | bool | `false` | Include benchmark values in synthesis exports. |
-| `benchmark_file` | path | `results/benchmark.yml` | Benchmark data read when `use_benchmark` is on. |
+
+`use_benchmark` and `benchmark_file` are no longer read: a benchmark score is a
+[simulation metric](/docs/results/metrics/).
 
 See [Results & export](/docs/results/) for what lands there.
 
@@ -87,7 +98,7 @@ target_path: ../shared/targets
 work_path:   /scratch/odatix_work
 result_path: results
 
-use_benchmark: Yes
+default_tool: genus
 {{< /code >}}
 
 ## In the GUI

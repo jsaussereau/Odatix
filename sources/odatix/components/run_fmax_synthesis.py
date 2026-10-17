@@ -54,8 +54,8 @@ def _check_cancel(cancel_event):
 
 
 def add_arguments(parser):
-    add_options(parser, "tool", "flow", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs")
-    parser.add_argument("--continue-on-error", "--force", dest="continue_on_error", action="store_true", help="force fmax synthesis to continue on synthesis error")
+    add_options(parser, "tool", "flow", "targets", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs")
+    parser.add_argument("--continue-on-error", dest="continue_on_error", action="store_true", help="keep searching when a synthesis of the fmax search fails")
     add_options(parser, "check_eda_tool", "debug")
     parser.add_argument("--from", dest="lower_bound", type=int, help="override lower bound for fmax synthesis (in MHz)")
     parser.add_argument("--to", dest="upper_bound", type=int, help="override upper bound for fmax synthesis (in MHz)")
@@ -94,8 +94,6 @@ def run_synthesis(
     debug=False,
     keep=False,
     export_output_dir=None,
-    use_benchmark=False,
-    benchmark_file=None,
     custom_metrics_file=None,
     cancel_event=None,
     detach=False,
@@ -127,8 +125,6 @@ def run_synthesis(
         upper_bound=forced_fmax_upper_bound,
         debug=debug,
         keep=keep,
-        use_benchmark=use_benchmark,
-        benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
         detach=detach,
         session=daemon_session,
@@ -332,8 +328,6 @@ def prepare_synthesis(
     export_tool=None,
     export_flow=None,
     export_work_path=None,
-    use_benchmark=False,
-    benchmark_file=None,
     custom_metrics_file=None,
 ):
     parallel_jobs = prepare_synthesis_jobs(
@@ -360,8 +354,6 @@ def prepare_synthesis(
             tool=export_tool,
             flow=export_flow,
             output_dir=export_output_dir,
-            use_benchmark=use_benchmark,
-            benchmark_file=benchmark_file,
             custom_metrics_file=custom_metrics_file,
         )
 

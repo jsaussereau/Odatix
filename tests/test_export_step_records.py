@@ -97,8 +97,6 @@ def export(work_path, units=None):
         units=units if units is not None else {},
         metrics_data=METRICS_DATA,
         metrics_file="metrics.yml",
-        use_benchmark=False,
-        benchmark_file=None,
         tool="dummy",
         flow="standard",
     )

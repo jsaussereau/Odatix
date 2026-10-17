@@ -307,7 +307,6 @@ class TestOdatixSettingsFiles:
                 arch_path: my/archs
                 sim_path: my/sims
                 result_path: my_results
-                use_benchmark: yes
                 """
             )
         )
@@ -317,7 +316,6 @@ class TestOdatixSettingsFiles:
         assert settings.arch_path == "my/archs"
         assert settings.sim_path == "my/sims"
         assert settings.result_path == "my_results"
-        assert settings.use_benchmark is True
 
     def test_invalid_yaml_is_invalid(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -339,12 +337,12 @@ class TestOdatixSettingsFiles:
         settings = OdatixSettings(silent=True)
         assert settings.valid  # only a deprecation warning
 
-    def test_wrong_type_falls_back_to_default(self, tmp_path, monkeypatch):
+    def test_the_former_benchmark_keys_are_ignored(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "odatix.yml").write_text("use_benchmark: 42\n")
+        (tmp_path / "odatix.yml").write_text("use_benchmark: yes\nbenchmark_file: b.yml\n")
         settings = OdatixSettings(silent=True)
         assert settings.valid
-        assert settings.use_benchmark == OdatixSettings.DEFAULT_USE_BENCHMARK
+        assert not hasattr(settings, "use_benchmark")
 
 
 ######################################

@@ -27,13 +27,13 @@ def test_fmax_runner_prepares_then_starts_the_same_job_handler(monkeypatch):
     fmax.run_synthesis(
         "run.yml", "architectures", "vivado", "standard", None, None, "work", "targets",
         False, True, False, None, "auto", False, True,
-        export_output_dir="results", use_benchmark=True, benchmark_file="benchmark.yml",
+        export_output_dir="results",
         custom_metrics_file="metrics.yml", detach=True, daemon_session="nightly",
     )
 
     assert captured["prepare"]["architecture_instances"] == ["arch"]
     assert captured["prepare"]["export_output_dir"] == "results"
-    assert captured["prepare"]["use_benchmark"] is True
+    assert "use_benchmark" not in captured["prepare"]
     assert captured["start"] == (handler, {"detach": True, "session": "nightly", "configure": True})
 
 

@@ -41,14 +41,13 @@ Simulation and workflow files use a single `metrics` section, plus an optional
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `type` | Yes | Extraction method: `regex`, `csv`, `yaml`, `json`, `xml`, `benchmark` or `operation`. |
+| `type` | Yes | Extraction method: `regex`, `csv`, `yaml`, `json`, `xml` or `operation`. A metric of the former `benchmark` type, or marked `benchmark_only`, is skipped with a warning: declare a benchmark score as a simulation metric, and combine it with synthesis results through [derived metrics](/docs/results/derived_metrics/). |
 | `settings` | Yes | Type-specific settings, below. |
 | `format` | No | Numeric formatting string, e.g. `"%.2f"`. |
 | `unit` | No | Unit label exported with the value, e.g. `MHz`. |
 | `error_if_missing` | No | Default `true`. Set to `false` when a value may legitimately be absent. |
 | `step` | No | Synthesis only. Name of the [flow step](/docs/tools/add_flows/) the metric belongs to. The metric then appears in the record of that step alone. Left out, the metric is extracted for **every** step of the job. |
 | `$step` in `settings.file` | — | Not a key: results are exported once per step, and `$step` resolves to the step of the record being written. A metric reading `report/$step/utilization.rep` is therefore measured again at each step, from that step's own reports; a step that wrote no such file simply has no value for it, which is not an error. |
-| `benchmark_only` | No | Synthesis only. Extract only when benchmark export is enabled. |
 | `multiple` | No | Workflows and simulations only. Default `false`; `true` extracts every match and expands the run into one record per row. Supported by `regex`, `csv` and `xml`. |
 
 ### Type-specific `settings`
@@ -60,7 +59,6 @@ Simulation and workflow files use a single `metrics` section, plus an optional
 | `yaml` | `file`, optional `key` |
 | `json` | `file`, optional `key` |
 | `xml` | `file`, optional `key` (ElementTree path, optional trailing `@attribute`) |
-| `benchmark` | `key` |
 | `operation` | `op` — an expression over metrics extracted earlier in the same file |
 
 {{< code lang=yaml filename="workflows/<name>/_metrics.yml" >}}

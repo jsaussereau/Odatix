@@ -28,7 +28,7 @@ from collections import namedtuple
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
-from odatix.components.cli_options import add_options
+from odatix.components.cli_options import add_options, deprecated_option
 from odatix.lib.architecture_handler import ArchitectureHandler
 import odatix.workspace.space as space
 from odatix.workspace.errors import WorkspaceError
@@ -53,13 +53,14 @@ def add_arguments(parser):
     help="architecture directory (optional path, default from settings if omitted)",
   )
   parser.add_argument(
-    "-w",
+    "-p",
     "--workflowpath",
     dest="workflow_path",
     nargs="?",
     const="",
     help="workflow directory (optional path, default from settings if omitted)",
   )
+  deprecated_option(parser, "-w", "-p/--workflowpath", dest="workflow_path", nargs="?", const="")
   add_options(parser, "debug", "config")
 
 

@@ -25,20 +25,23 @@ $ odatix-explorer -h
 
 | Option | Description |
 |--------|-------------|
-| `-h`, `--help` | Show global and subcommand help. |
+| `-h`, `--help` | List the commands, by group (Run, Results, Daemon, Utilities). `odatix <command> -h` gives the options of one. |
 | `-v`, `--version` | Print the Odatix version and exit. |
-| `--init` | Interactive initialization of the current directory. |
+
+The messages of a command are prefixed with the command (`[odatix fmax]`). An
+unexpected error prints a one-line message and writes the full trace to
+`odatix_error.log`, to attach to a bug report.
 
 ## Command map
 
 | Category | Commands | Purpose |
 |----------|----------|---------|
-| Initialization | `odatix init` | Initialize workspace files (non-interactive). |
+| Initialization | `odatix init` | Initialize workspace files. |
 | Configuration | `odatix config` | Read and change the configuration of the workspace. |
 | Generation | `odatix generate`, `odatix replace` | Generate parameter files and replace delimited sections. |
 | Execution | `odatix fmax`, `odatix synth`, `odatix pnr`, `odatix analyze`, `odatix sim`, `odatix workflow` | Enqueue and run synthesis, place & route, RTL analysis, simulation and workflow jobs. |
 | Daemon sessions | `odatix ls`, `odatix monitor`, `odatix stop` | Inspect, attach and stop daemon sessions. |
-| Export | `odatix results`, `odatix res_synth`, `odatix res_benchmark`, `odatix res_workflow`, `odatix res_simulation`, `odatix res_derived` | Export benchmark, synthesis, workflow and simulation results, and apply derived metrics. |
+| Export | `odatix results [all\|synth\|sim\|workflow\|analysis\|derived]` | Export synthesis, simulation, workflow and analysis results, and apply derived metrics. |
 | Maintenance | `odatix clean`, `odatix migrate` | Remove generated files from a clean profile, and rewrite settings files written in a former format. |
 | Exploration | `odatix-explorer`, `odatix-gui` | Interactive visualization of results, and the full graphical interface. |
 
@@ -50,6 +53,8 @@ $ odatix-explorer -h
 |--------|---------|
 | `-o`, `--overwrite` | Overwrite existing results. |
 | `-y`, `--noask` | Do not ask for confirmation before launch. |
+| `-t`, `--tool` | The eda tool (`fmax`, `synth`, `pnr`, `analyze`). Default: `default_tool` of `odatix.yml`, else the only tool the workspace has a target file for. |
+| `--target` | Run on this target only, out of those the target file of the tool enables. Repeatable. No short form: `-T` is `--trust`. (`fmax`, `synth`, `pnr`). |
 | `-d`, `--detach` | Enqueue jobs and return immediately (no monitor). |
 | `-S`, `--session` | Session name/selector for enqueue/attach/stop. |
 | `-j`, `--jobs` | Maximum parallel jobs (`auto` = available CPUs − 1). |
@@ -64,20 +69,38 @@ $ odatix-explorer -h
 
 | Command | Additional options |
 |---------|--------------------|
-| `odatix fmax` | `-t/--tool`, `-f/--flow`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--continue-on-error`, `-T/--trust`, `-e/--noexport` |
-| `odatix synth` | `-t/--tool`, `-f/--flow`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--step`, `--at` (repeatable), `-T/--trust`, `-e/--noexport` |
+| `odatix fmax` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--continue-on-error`, `-T/--trust`, `-e/--noexport` |
+| `odatix synth` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--step`, `--at` (repeatable), `-T/--trust`, `-e/--noexport` |
 | `odatix analyze` | `-t/--tool` (repeatable), `-f/--flow` (repeatable), `-T/--trust`, `-e/--noexport` |
-| `odatix pnr` | `-t/--tool`, `-f/--flow`, `-u/--until`, `--rerun-from`, `--from-type`, `--from-tool`, `--from-flow`, `-i/--input`, `-w/--work`, `-T/--trust`, `-e/--noexport` |
+| `odatix pnr` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from-type`, `--from-tool`, `--from-flow`, `-i/--input`, `-w/--work`, `-T/--trust`, `-e/--noexport` |
 | `odatix sim` | `-a/--archpath`, `-s/--simpath`, `-w/--work` |
 | `odatix workflow` | `-p/--workflowpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
 
-> [!NOTE]
-> `--continue-on-error` used to be called `-f/--force`. The long form `--force`
-> is still accepted, but `-f` now selects a flow.
+### Former spellings
 
-> [!NOTE]
-> `odatix synth` used to be called `odatix freq`. `freq` (and `synthesis`) are
-> still accepted as aliases.
+These still work for one more version, with a warning saying what to type
+instead:
+
+| Former | Now |
+|--------|-----|
+| `odatix --init` | `odatix init` |
+| `odatix freq` | `odatix synth` |
+| `odatix res_synth`, `res_simulation`, `res_workflow`, `res_analysis`, `res_derived` | `odatix results synth`, `sim`, `workflow`, `analysis`, `derived` |
+| `odatix init -e` | `odatix init --examples` |
+| `odatix generate -w` | `odatix generate -p/--workflowpath`, as `odatix workflow` |
+| `odatix clean -f/--force` | `odatix clean -y/--yes`, as the other commands that skip a question |
+| `odatix dse -T` | `odatix dse --target` |
+
+Gone without a transition: `odatix synthesis` and `odatix explore` (use
+`synth` and `dse`), the `--force` spelling of `--continue-on-error`, `clean -v`
+(now `-V/--verbose`: `-v` is the version), and `odatix res_benchmark` with the
+`-u/--use_benchmark`, `-B/--benchmark_file` and `-S/--sim_file` options of the
+exports: a benchmark score is a [simulation metric](/docs/results/metrics/) now.
+
+> [!WARNING]
+> `odatix dse -c/--config` names the workspace settings file, as everywhere
+> else. The exploration settings file is given with `-i/--input`; one given to
+> `-c` is refused with that hint.
 
 ## Selecting a flow
 
@@ -137,10 +160,13 @@ settings, so a run stays one click away whatever the tool offers.
 ### Initialization
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix --init            # interactive init
-$ odatix init              # non-interactive init
-$ odatix init --examples   # init and copy examples
+$ odatix init                  # asks before writing, and whether to add the examples
+$ odatix init -y               # asks nothing (what a script, or no terminal, gets)
+$ odatix init -y --examples    # same, with the examples
 {{< /code >}}
+
+The `odatix.yml` it writes sets `default_tool: vivado`, the tool the run
+commands use when `-t/--tool` names none.
 
 ### Configuration
 
@@ -166,7 +192,7 @@ $ odatix config job show fmax_synthesis
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix generate
 $ odatix generate -a odatix_userconfig/architectures
-$ odatix generate -w odatix_userconfig/workflows
+$ odatix generate -p odatix_userconfig/workflows
 
 $ odatix replace -s "// <start>" -S "// </end>" -i input.v -r params.txt -o output.v
 {{< /code >}}
@@ -174,7 +200,9 @@ $ odatix replace -s "// <start>" -S "// </end>" -i input.v -r params.txt -o outp
 ### Synthesis and simulation
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix fmax                              # default_tool of odatix.yml
 $ odatix fmax --tool vivado
+$ odatix fmax --tool vivado --target xc7a100t-csg324-1
 $ odatix fmax --tool design_compiler --from 100 --to 900
 
 $ odatix synth --tool openlane --at 50 --at 100 --at 150
@@ -228,23 +256,27 @@ $ odatix stop --all
 ### Results export
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix results
-$ odatix results -u              # include benchmark values
-$ odatix results -f csv          # csv, yml, or all
-$ odatix results -t vivado -r results
+$ odatix results                          # everything: synth, sim and workflow, then derived
+$ odatix results -t vivado -r results     # the same, synthesis results of one tool only
 
-$ odatix res_synth
-$ odatix res_benchmark
-$ odatix res_workflow
-$ odatix res_simulation
-$ odatix res_derived            # apply derived metrics to the result files
+$ odatix results synth                    # synthesis and place & route
+$ odatix results sim
+$ odatix results workflow
+$ odatix results analysis
+$ odatix results derived                  # post-processing: apply derived metrics
 {{< /code >}}
+
+Without a type, `odatix results` exports every kind of result that was run (a
+kind whose work directory does not exist is skipped), then applies the derived
+metrics, which read what the others wrote. The options of a type come after it:
+`odatix results sim -o sim.yml`.
 
 ### Cleanup
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix clean
-$ odatix clean -f                # force cleanup for dangerous paths
+$ odatix clean -y                # also remove the paths that look dangerous
+$ odatix clean -V                # say what is removed
 $ odatix clean -i odatix_userconfig/clean.yml
 {{< /code >}}
 

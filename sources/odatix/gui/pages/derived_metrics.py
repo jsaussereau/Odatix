@@ -91,7 +91,7 @@ ON_MULTIPLE_OPTIONS = [{"label": choice, "value": choice} for choice in derived_
 
 PAGE_TOOLTIP = (
     "Metrics a result gets from another result. Recomputed over the whole result set every "
-    'time results are exported, and by "odatix res_derived".'
+    'time results are exported, and by "odatix results derived".'
 )
 GROUP_TOOLTIP = (
     'A named list of patterns, used as "@name" in any pattern field of this page. Groups are not '

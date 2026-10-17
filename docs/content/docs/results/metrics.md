@@ -49,12 +49,11 @@ metrics:
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `type` | Yes | Extraction method: `regex`, `csv`, `yaml`, `json`, `xml`, `benchmark` or `operation`. |
+| `type` | Yes | Extraction method: `regex`, `csv`, `yaml`, `json`, `xml` or `operation`. |
 | `settings` | Yes | Type-specific settings (see below). |
 | `format` | No | Numeric formatting string, e.g. `"%.2f"`. |
 | `unit` | No | Unit label exported alongside the value, e.g. `MHz`. |
 | `error_if_missing` | No | Default `true`. Set to `false` when a value may legitimately be absent. |
-| `benchmark_only` | No | Synthesis only. Extract the metric only when benchmark export is enabled (`odatix results -u`). |
 | `multiple` | No | Workflows only. Extract *every* match instead of the first — see [below](#expanding-one-run-into-several-records). |
 
 All paths in `settings.file` are relative to the job's work directory.
@@ -136,20 +135,6 @@ Total_power:
 |---------|-------------|
 | `file` | XML file, relative to the work directory. |
 | `key` | ElementTree path to an element, relative to the root. Add a trailing `@attribute` to read an attribute instead of the element's text. Omit `key` to use the root element. |
-{{% /tab %}}
-
-{{% tab name="benchmark" %}}
-Synthesis only. Pull a value from the benchmark file, so simulation figures can sit next to synthesis figures in the same record.
-
-{{< code lang=yaml filename="metrics.yml" >}}
-Cycles:
-  type: benchmark
-  settings:
-    key: cycles
-  benchmark_only: true
-{{< /code >}}
-
-Include these in the export with `odatix results -u`.
 {{% /tab %}}
 
 {{% tab name="operation" %}}

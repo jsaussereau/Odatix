@@ -38,7 +38,6 @@ import odatix.components.run_analysis as analyze
 import odatix.components.run_workflow as run_workflow
 import odatix.components.run_dse as run_dse
 import odatix.components.export_results as exp_res
-import odatix.components.export_benchmark as exp_bench
 import odatix.components.export_simulation_results as exp_sim_res
 import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.components.export_derived_metrics as exp_derived
@@ -47,7 +46,7 @@ import odatix.components.clean as cln
 import odatix.components.migrate as migrate_cmd
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
-from odatix.components.cli_options import add_options
+from odatix.components.cli_options import add_options, deprecated_option
 
 import odatix.lib.parallel_job_handler.daemon_control as daemon_control
 from odatix.lib.settings import OdatixSettings
@@ -62,106 +61,195 @@ EXIT_SUCCESS = 0
 
 error_logfile = "odatix_error.log"
 
-prog = os.path.basename(sys.argv[0])
+prog = "odatix"
 script_name = os.path.basename(__file__)
 
 ######################################
 # Parse Arguments
 ######################################
 
+######################################
+# Commands
+######################################
+
+#: Every command, by group, in the order the help lists them.
+COMMAND_GROUPS = (
+  ("Run", ("fmax", "synth", "pnr", "analyze", "sim", "workflow", "dse")),
+  ("Results", ("results",)),
+  ("Daemon", ("monitor", "ls", "stop")),
+  ("Utilities", ("init", "generate", "replace", "clean", "migrate")),
+)
+
+#: What "odatix results" exports: "all" does every other one in turn.
+RESULT_TYPES = ("all", "synth", "sim", "workflow", "analysis", "derived")
+
+#: Former command names, still accepted for one version, and what they now read.
+DEPRECATED_COMMANDS = {
+  "freq": ["synth"],
+  "res_synth": ["results", "synth"],
+  "res_simulation": ["results", "sim"],
+  "res_workflow": ["results", "workflow"],
+  "res_analysis": ["results", "analysis"],
+  "res_derived": ["results", "derived"],
+}
+
+#: Former commands that are gone, and what to do instead.
+REMOVED_COMMANDS = {
+  "res_benchmark": "benchmark results are no longer exported: declare a benchmark score as a simulation metric (_metrics.yml)",
+  "explore": 'use "odatix dse"',
+  "synthesis": 'use "odatix synth"',
+}
+
+#: Where the words of Odatix are defined.
+GLOSSARY_URL = "https://odatix.readthedocs.io/docs/glossary/"
+
+#: Options of the root parser, which take no value.
+ROOT_FLAGS = ("-v", "--version", "-h", "--help", "--init")
+
+
+def normalize_argv(argv):
+  """
+  The command line as the parser reads it, with the former spellings of the
+  commands rewritten, and what was rewritten.
+
+  argparse cannot alias "res_synth" to "results synth", nor give "results" a
+  default type, so this is done on the words themselves before parsing.
+
+  Returns:
+      tuple: (argv, warnings), argv without the program name.
+
+  Raises:
+      SystemExit: a command that no longer exists.
+  """
+  argv = list(argv)
+  warnings = []
+  position = 0
+  while position < len(argv) and argv[position] in ROOT_FLAGS:
+    if argv[position] == "--init":
+      del argv[position]
+      argv.insert(position, "init")
+      warnings.append('"odatix --init" is deprecated and will be removed in a future version: use "odatix init"')
+      break
+    position += 1
+  if position >= len(argv):
+    return argv, warnings
+
+  command = argv[position]
+  if command in REMOVED_COMMANDS:
+    printc.error('"odatix ' + command + '" no longer exists: ' + REMOVED_COMMANDS[command], "odatix")
+    raise SystemExit(2)
+  if command in DEPRECATED_COMMANDS:
+    replacement = DEPRECATED_COMMANDS[command]
+    argv[position:position + 1] = replacement
+    warnings.append(
+      '"odatix ' + command + '" is deprecated and will be removed in a future version: use "odatix ' + " ".join(replacement) + '"'
+    )
+    command = replacement[0]
+  if command == "results":
+    following = argv[position + 1] if position + 1 < len(argv) else None
+    if following is None or (following.startswith("-") and following not in ("-h", "--help")):
+      argv.insert(position + 1, "all")
+  return argv, warnings
+
+
 class ArgParser:
 
   def add_nobanner(parser):
     add_options(parser, "nobanner")
 
-  def parse_arguments():
+  def parse_arguments(argv=None):
     formatter = OdatixHelpFormatter
+    argv, warnings = normalize_argv(sys.argv[1:] if argv is None else argv)
+    for warning in warnings:
+      printc.warning(warning, "odatix")
+
     ArgParser.parser = argparse.ArgumentParser(
-      conflict_handler="resolve", 
+      prog="odatix",
+      conflict_handler="resolve",
       formatter_class=formatter,
-      add_help=False
+      add_help=False,
     )
-    ArgParser.parser.add_argument('-v', '--version', action='store_true', help='show version and exit')
-    ArgParser.parser.add_argument('-h', '--help', action='store_true', help='show this help message and exit')
-    ArgParser.parser.add_argument('--init', action='store_true', help="init current directory by adding all the necessary config files")
-    args, remaining_args = ArgParser.parser.parse_known_args()
+    ArgParser.parser.add_argument("-v", "--version", action="store_true", help="show version and exit")
+    ArgParser.parser.add_argument("-h", "--help", action="store_true", help="show this help message and exit")
 
-    # Parse other arguments
-    subparsers = ArgParser.parser.add_subparsers(dest="command")
-    
-    # Define parser for the 'init' command
-    ArgParser.init_parser = subparsers.add_parser("init", help="init current directory by adding all the necessary config files (without any prompt)", formatter_class=formatter)
-    ArgParser.init_parser.add_argument("-e", "--examples", action="store_true", help="Include examples")
-    ArgParser.add_nobanner(ArgParser.init_parser)
+    subparsers = ArgParser.parser.add_subparsers(dest="command", metavar="<command>")
+    ArgParser.subparsers = subparsers
+    add = lambda name, help, **keywords: subparsers.add_parser(name, help=help, description=help[:1].upper() + help[1:], formatter_class=formatter, **keywords)
 
-    # Define parser for the 'generate' command
-    ArgParser.gen_configs_parser = subparsers.add_parser("generate", help="generate configurations", formatter_class=formatter)
-    gen_configs.add_arguments(ArgParser.gen_configs_parser)
-    ArgParser.add_nobanner(ArgParser.gen_configs_parser)
-
-    # Define parser for the 'replace' command
-    ArgParser.replace_parser = subparsers.add_parser("replace", help="replace content between delimiters in a text file", formatter_class=formatter)
-    replace_params.add_arguments(ArgParser.replace_parser)
-    ArgParser.add_nobanner(ArgParser.replace_parser)
-
-    # Define parser for the 'fmax' command
-    ArgParser.fmax_parser = subparsers.add_parser("fmax", help="run fmax synthesis", formatter_class=formatter)
+    # Run
+    ArgParser.fmax_parser = add("fmax", "run fmax synthesis")
     run_synth.add_arguments(ArgParser.fmax_parser)
     ArgParser.add_nobanner(ArgParser.fmax_parser)
 
-    # Define parser for the 'synth' command (formerly 'freq', kept as alias)
-    ArgParser.range_parser = subparsers.add_parser("synth", aliases=["synthesis", "freq"], help="run synthesis at custom frequencies", formatter_class=formatter)
+    ArgParser.range_parser = add("synth", "run synthesis at given frequencies")
     run_custom_synthesis_module.add_arguments(ArgParser.range_parser)
     ArgParser.add_nobanner(ArgParser.range_parser)
 
-    # Define parser for the 'pnr' command
-    ArgParser.pnr_parser = subparsers.add_parser("pnr", help="place & route designs already synthesized by another eda tool", formatter_class=formatter)
+    ArgParser.pnr_parser = add("pnr", "place & route designs already synthesized")
     run_pnr_cmd.add_arguments(ArgParser.pnr_parser)
     ArgParser.add_nobanner(ArgParser.pnr_parser)
 
-    # Define parser for the 'analyze' command
-    ArgParser.analyze_parser = subparsers.add_parser("analyze", help="run rtl analysis", formatter_class=formatter)
+    ArgParser.analyze_parser = add("analyze", "run RTL analysis")
     analyze.add_arguments(ArgParser.analyze_parser)
     ArgParser.add_nobanner(ArgParser.analyze_parser)
 
-    # Define parser for the 'sim' command
-    ArgParser.sim_parser = subparsers.add_parser("sim", help="run simulations", formatter_class=formatter)
+    ArgParser.sim_parser = add("sim", "run simulations")
     run_sim.add_arguments(ArgParser.sim_parser)
     ArgParser.add_nobanner(ArgParser.sim_parser)
 
-    # Define parser for the 'workflow' command
-    ArgParser.workflow_parser = subparsers.add_parser("workflow", help="run workflows", formatter_class=formatter)
+    ArgParser.workflow_parser = add("workflow", "run workflows")
     run_workflow.add_arguments(ArgParser.workflow_parser)
     ArgParser.add_nobanner(ArgParser.workflow_parser)
 
-    # Define parser for the 'dse' command
-    ArgParser.dse_parser = subparsers.add_parser("dse", aliases=["explore"], help="explore a design space instead of sweeping it", formatter_class=formatter)
+    ArgParser.dse_parser = add("dse", "explore a design space with a search campaign instead of sweeping it")
     run_dse.add_arguments(ArgParser.dse_parser)
     ArgParser.add_nobanner(ArgParser.dse_parser)
 
-    # Define parser for the 'monitor' command
-    ArgParser.monitor_parser = subparsers.add_parser("monitor", help="attach to background daemon monitor", formatter_class=formatter)
+    # Results
+    ArgParser.res_parser = add("results", "export the results of the work directory (all of them by default)")
+    ArgParser.add_nobanner(ArgParser.res_parser)
+    result_types = ArgParser.res_parser.add_subparsers(dest="result_type", metavar="<type>")
+    result_types.required = True
+    add_type = lambda name, help: result_types.add_parser(name, help=help, description=help[:1].upper() + help[1:], formatter_class=formatter)
+
+    ArgParser.res_all_parser = add_type("all", "export synthesis, simulation and workflow results, then apply derived metrics")
+    add_options(
+      ArgParser.res_all_parser, "tool", "work_path", "result_path", "metrics", "config",
+      tool={"default": "all", "help": "eda tool whose synthesis results to export, or 'all' (default: all)"},
+    )
+    ArgParser.add_nobanner(ArgParser.res_all_parser)
+
+    ArgParser.exp_res_parser = add_type("synth", "export synthesis and place & route results")
+    exp_res.add_arguments(ArgParser.exp_res_parser)
+    ArgParser.add_nobanner(ArgParser.exp_res_parser)
+
+    ArgParser.exp_sim_res_parser = add_type("sim", "export simulation results")
+    exp_sim_res.add_arguments(ArgParser.exp_sim_res_parser)
+    ArgParser.add_nobanner(ArgParser.exp_sim_res_parser)
+
+    ArgParser.exp_workflow_res_parser = add_type("workflow", "export workflow results")
+    exp_workflow_res.add_arguments(ArgParser.exp_workflow_res_parser)
+    ArgParser.add_nobanner(ArgParser.exp_workflow_res_parser)
+
+    ArgParser.exp_analysis_parser = add_type("analysis", "report the RTL analyses of the work directory, and export them again")
+    exp_analysis.add_arguments(ArgParser.exp_analysis_parser)
+    ArgParser.add_nobanner(ArgParser.exp_analysis_parser)
+
+    ArgParser.exp_derived_parser = add_type("derived", "apply derived metrics to the result files (post-processing)")
+    exp_derived.add_arguments(ArgParser.exp_derived_parser)
+    ArgParser.add_nobanner(ArgParser.exp_derived_parser)
+
+    # Daemon
+    ArgParser.monitor_parser = add("monitor", "attach the monitor to a session")
     add_options(
       ArgParser.monitor_parser, "session", "endpoint_options",
       remote={"help": "attach to a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
 
-    # Define parser for the 'stop' command
-    ArgParser.stop_parser = subparsers.add_parser("stop", help="stop background daemon", formatter_class=formatter)
-    stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
-    add_options(stop_selector_group, "session")
-    stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all daemon sessions')
-    add_options(
-      ArgParser.stop_parser, "zombies", "endpoint_options",
-      zombies={"help": "also kill zombie sessions (unresponsive daemons and leftover state files)"},
-      remote={"help": "stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
-    )
-
-    # Define parser for the 'ls' command
-    ArgParser.ls_parser = subparsers.add_parser("ls", help="list active background daemons", formatter_class=formatter)
+    ArgParser.ls_parser = add("ls", "list the active sessions")
     add_options(
       ArgParser.ls_parser, "session", "zombies", "endpoint_options",
-      session={"help": "filter daemon sessions by name/prefix"},
+      session={"help": "filter sessions by name or prefix"},
       zombies={"help": "also list zombie sessions (unresponsive daemons and leftover state files)"},
       host={"help": "daemon API host (optional explicit endpoint)"},
       port={"help": "daemon API port (optional explicit endpoint)"},
@@ -169,52 +257,36 @@ class ArgParser:
     )
     ArgParser.ls_parser.add_argument('--json', action='store_true', help='print the session list as JSON, session tokens included (this is what a remote odatix reads over ssh: do not pipe it anywhere public)')
 
-    # Define parser for the 'results' command
-    ArgParser.res_parser = subparsers.add_parser("results", help="export benchmark results", formatter_class=formatter)
-    add_options(ArgParser.res_parser, "tool", "use_benchmark", tool={"default": "all", "help": "eda tool in use, or 'all'"})
-    ArgParser.res_parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default=exp_bench.DEFAULT_BENCHMARK, help='benchmark to parse (default: ' + exp_bench.DEFAULT_BENCHMARK + ')')
-    add_options(ArgParser.res_parser, "benchmark_file", benchmark_file={"help": "output benchmark file"})
-    ArgParser.res_parser.add_argument('-S', '--sim_file', default=exp_bench.DEFAULT_SIM_FILE, help='simulation log file (default: ' + exp_bench.DEFAULT_SIM_FILE + ')')
-    add_options(ArgParser.res_parser, "work_path", "result_path", "metrics", "config")
-    ArgParser.add_nobanner(ArgParser.res_parser)
+    ArgParser.stop_parser = add("stop", "stop a session")
+    stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
+    add_options(stop_selector_group, "session")
+    stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all sessions')
+    add_options(
+      ArgParser.stop_parser, "zombies", "endpoint_options",
+      zombies={"help": "also kill zombie sessions (unresponsive daemons and leftover state files)"},
+      remote={"help": "stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
+    )
 
-    # Define parser for the 'res_benchmark' command
-    ArgParser.bm_res_parser = subparsers.add_parser("res_benchmark", help="export benchmark results", formatter_class=formatter)
-    exp_bench.add_arguments(ArgParser.bm_res_parser)
-    ArgParser.add_nobanner(ArgParser.bm_res_parser)
+    # Utilities
+    ArgParser.init_parser = add("init", "create the configuration files of a workspace in the current directory")
+    ArgParser.init_parser.add_argument("-y", "--yes", dest="noask", action="store_true", help="do not ask anything: create the files, without the examples unless --examples is given")
+    ArgParser.init_parser.add_argument("--examples", action="store_true", default=None, help="include the examples")
+    deprecated_option(ArgParser.init_parser, "-e", "--examples", action="store_true", dest="examples")
+    ArgParser.add_nobanner(ArgParser.init_parser)
 
-    # Define parser for the 'res_synth' command
-    ArgParser.exp_res_parser = subparsers.add_parser("res_synth", help="export synthesis results", formatter_class=formatter)
-    exp_res.add_arguments(ArgParser.exp_res_parser)
-    ArgParser.add_nobanner(ArgParser.exp_res_parser)
+    ArgParser.gen_configs_parser = add("generate", "generate configurations")
+    gen_configs.add_arguments(ArgParser.gen_configs_parser)
+    ArgParser.add_nobanner(ArgParser.gen_configs_parser)
 
-    # Define parser for the 'res_workflow' command
-    ArgParser.exp_workflow_res_parser = subparsers.add_parser("res_workflow", help="export workflow results", formatter_class=formatter)
-    exp_workflow_res.add_arguments(ArgParser.exp_workflow_res_parser)
-    ArgParser.add_nobanner(ArgParser.exp_workflow_res_parser)
+    ArgParser.replace_parser = add("replace", "replace the text between two delimiters of a file")
+    replace_params.add_arguments(ArgParser.replace_parser)
+    ArgParser.add_nobanner(ArgParser.replace_parser)
 
-    # Define parser for the 'res_simulation' command
-    ArgParser.exp_sim_res_parser = subparsers.add_parser("res_simulation", help="export simulation results", formatter_class=formatter)
-    exp_sim_res.add_arguments(ArgParser.exp_sim_res_parser)
-    ArgParser.add_nobanner(ArgParser.exp_sim_res_parser)
-
-    # Define parser for the 'res_analysis' command
-    ArgParser.exp_analysis_parser = subparsers.add_parser("res_analysis", help="report the RTL analyses of the work directory, and export them again", formatter_class=formatter)
-    exp_analysis.add_arguments(ArgParser.exp_analysis_parser)
-    ArgParser.add_nobanner(ArgParser.exp_analysis_parser)
-
-    # Define parser for the 'res_derived' command
-    ArgParser.exp_derived_parser = subparsers.add_parser("res_derived", help="apply derived metrics to the result files", formatter_class=formatter)
-    exp_derived.add_arguments(ArgParser.exp_derived_parser)
-    ArgParser.add_nobanner(ArgParser.exp_derived_parser)
-
-    # Define parser for the 'clean' command
-    ArgParser.clean_parser = subparsers.add_parser("clean", help="clean directory", formatter_class=formatter)
+    ArgParser.clean_parser = add("clean", "remove generated files, as a clean profile says")
     cln.add_arguments(ArgParser.clean_parser)
     ArgParser.add_nobanner(ArgParser.clean_parser)
 
-    # Define parser for the 'migrate' command
-    ArgParser.migrate_parser = subparsers.add_parser("migrate", help="rewrite the settings files written in a former format", formatter_class=formatter)
+    ArgParser.migrate_parser = add("migrate", "rewrite the settings files written in a former format")
     migrate_cmd.add_arguments(ArgParser.migrate_parser)
     ArgParser.add_nobanner(ArgParser.migrate_parser)
 
@@ -225,102 +297,29 @@ class ArgParser:
     except ImportError:
       pass  # No error if argcomplete is missing
 
-    # Parse arguments
-    return ArgParser.parser.parse_args()
+    return ArgParser.parser.parse_args(argv)
+
+  def command_help(name):
+    """The one-line help of a command, as its parser declares it."""
+    for action in ArgParser.subparsers._choices_actions:
+      if action.dest == name:
+        return action.help or ""
+    return ""
 
   def help():
+    """The help of "odatix", generated from the commands it has."""
     full_header(description="Odatix - a FPGA/ASIC toolbox for design space exploration")
-    printc.bold("Global:\n  ", printc.colors.CYAN, end="")
-    ArgParser.parser.print_help()
+    print("usage: " + printc.colors.BOLD + "odatix" + printc.colors.ENDC + " [-h] [-v] <command> [<options>]")
+    width = max(len(name) for _group, names in COMMAND_GROUPS for name in names) + 2
+    for group, names in COMMAND_GROUPS:
+      print()
+      printc.bold(group + ":", printc.colors.CYAN)
+      for name in names:
+        print("  " + printc.colors.BOLD + name.ljust(width) + printc.colors.ENDC + ArgParser.command_help(name))
     print()
-    printc.bold("Generate Configurations:\n  ", printc.colors.CYAN, end="")
-    ArgParser.gen_configs_parser.print_help()
-    print()
-    printc.bold("Replace Parameters:\n  ", printc.colors.CYAN, end="")
-    ArgParser.replace_parser.print_help()
-    print()
-    printc.bold("Fmax Synthesis:\n  ", printc.colors.CYAN, end="")
-    ArgParser.fmax_parser.print_help()
-    print()
-    printc.bold("Custom Frequency Synthesis:\n  ", printc.colors.CYAN, end="")
-    ArgParser.range_parser.print_help()
-    print()
-    printc.bold("Place & Route:\n  ", printc.colors.CYAN, end="")
-    ArgParser.pnr_parser.print_help()
-    print()
-    printc.bold("RTL Analysis:\n  ", printc.colors.CYAN, end="")
-    ArgParser.analyze_parser.print_help()
-    print()
-    printc.bold("Simulation:\n  ", printc.colors.CYAN, end="")
-    ArgParser.sim_parser.print_help()
-    print()
-    printc.bold("Workflow:\n  ", printc.colors.CYAN, end="")
-    ArgParser.workflow_parser.print_help()
-    print()
-    printc.bold("Monitor:\n  ", printc.colors.CYAN, end="")
-    ArgParser.monitor_parser.print_help()
-    print()
-    printc.bold("Daemon Control:\n  ", printc.colors.CYAN, end="")
-    ArgParser.stop_parser.print_help()
-    print()
-    printc.bold("Daemon List:\n  ", printc.colors.CYAN, end="")
-    ArgParser.ls_parser.print_help()
-    print()
-    printc.bold("Results:", printc.colors.CYAN)
-    printc.cyan("- All Results:\n  ", end="")
-    ArgParser.res_parser.print_help()
-    print()
-    printc.cyan("- Benchmark Results:\n  ", end="")
-    print(ArgParser.bm_res_parser.format_usage(), end="")
-    print("  run ", end="")
-    printc.bold(prog + " res_benchmark -h", end="")
-    print(" for more details")
-    print()
-    printc.cyan("- Synthesis Results:\n  ", end="")
-    print(ArgParser.exp_res_parser.format_usage(), end="")
-    print("  run ", end="")
-    printc.bold(prog + " res_synth -h", end="")
-    print(" for more details")
-    print()
-    printc.cyan("- Workflow Results:\n  ", end="")
-    print(ArgParser.exp_workflow_res_parser.format_usage(), end="")
-    print("  run ", end="")
-    printc.bold(prog + " res_workflow -h", end="")
-    print(" for more details")
-    print()
-    printc.cyan("- Simulation Results:\n  ", end="")
-    print(ArgParser.exp_sim_res_parser.format_usage(), end="")
-    print("  run ", end="")
-    printc.bold(prog + " res_simulation -h", end="")
-    print(" for more details")
-    print()
-    printc.cyan("- RTL Analysis Results:\n  ", end="")
-    print(ArgParser.exp_analysis_parser.format_usage(), end="")
-    print("  run ", end="")
-    printc.bold(prog + " res_analysis -h", end="")
-    print(" for more details")
-    print()
-    printc.cyan("- Derived Metrics:\n  ", end="")
-    print(ArgParser.exp_derived_parser.format_usage(), end="")
-    print("  run ", end="")
-    printc.bold(prog + " res_derived -h", end="")
-    print(" for more details")
-    print()
-    printc.bold("Clean:\n  ", printc.colors.CYAN, end="")
-    ArgParser.clean_parser.print_help()
-    print()
-    printc.bold("Migrate:\n  ", printc.colors.CYAN, end="")
-    ArgParser.migrate_parser.print_help()
-    print()
-    printc.bold("Init:\n  ", printc.colors.CYAN, end="")
-    ArgParser.init_parser.print_help()
-    print()
-    printc.bold("Result exploration:\n  ", printc.colors.CYAN, end="")
-    print("usage: odatix-explorer [-h] [-i INPUT] [-n] [--normal_term_mode] [--safe_mode]")
-    print("  run ", end="")
-    printc.bold("odatix-explorer -h", end="")
-    print(" for more details")
-    print()
+    print('Run "odatix <command> -h" for the options of a command.')
+    print("Also: odatix-gui (graphical interface), odatix-explorer (results explorer).")
+    print("Words of Odatix: " + GLOSSARY_URL)
 
 class OdatixHelpFormatter(argparse.HelpFormatter):
   def __init__(self, prog):
@@ -518,27 +517,33 @@ def list_daemons(args):
   return success
 
 def export_all_results(args):
-  if args.use_benchmark:
-    newargs = argparse.Namespace(
-      benchmark = args.benchmark,
-      sim_file = args.sim_file,
-      benchmark_file = args.benchmark_file,
-      work_path = args.work_path,
-      config = args.config,
-    )
-    if not run_main(exp_bench.main, newargs):
-      return False
+  """
+  "odatix results": every kind of result there is, then the derived metrics,
+  which read what the others wrote. A kind with no work directory has simply
+  not been run, and is skipped.
+  """
+  settings = OdatixSettings(args.config)
+  work_root = args.work_path if args.work_path is not None else settings.work_path
+  success = True
 
-  newargs = argparse.Namespace(
-    tool = args.tool,
-    use_benchmark = args.use_benchmark,
-    benchmark_file = args.benchmark_file,
-    work_path = args.work_path,
-    result_path = args.result_path,
-    metrics = args.metrics,
-    config = args.config,
-  )
-  success = run_main(exp_res.main, newargs)
+  if os.path.isdir(work_root):
+    success = run_main(exp_res.main, argparse.Namespace(
+      tool=args.tool, work_path=work_root, result_path=args.result_path, metrics=args.metrics, config=args.config,
+    )) and success
+  else:
+    printc.note('No work directory "' + work_root + '": no synthesis results to export', script_name)
+
+  for kind, module, work_key in (
+    ("simulation", exp_sim_res, "simulation_work_path"),
+    ("workflow", exp_workflow_res, "workflow_work_path"),
+  ):
+    kind_root = os.path.join(str(work_root), str(getattr(settings, work_key)))
+    if not os.path.isdir(kind_root):
+      continue
+    options = argparse.Namespace(
+      work_path=kind_root, result_path=args.result_path, output=module.DEFAULT_OUTPUT_FILENAME, config=args.config, sim_path=None,
+    )
+    success = run_main(module.main, options) and success
 
   # Derived metrics come last: they read the records the exports above just
   # wrote, plus the simulation and workflow ones already on disk.
@@ -550,10 +555,29 @@ def export_all_results(args):
     success = False
   return success
 
-def init_directory(args):
-  return OdatixSettings.init_directory_nodialog(args.examples, prog)
+#: What runs each type of "odatix results".
+RESULT_COMMANDS = {
+  "all": export_all_results,
+  "synth": lambda args: run_main(exp_res.main, args),
+  "sim": lambda args: run_main(exp_sim_res.main, args),
+  "workflow": lambda args: run_main(exp_workflow_res.main, args),
+  "analysis": lambda args: run_main(exp_analysis.main, args),
+  "derived": lambda args: run_main(exp_derived.main, args),
+}
 
-#: What runs each command, by every name it can be called.
+def export_results_command(args):
+  return RESULT_COMMANDS[args.result_type](args)
+
+def init_directory(args):
+  """
+  "odatix init": asks before writing, unless told not to (-y) or there is no
+  one to ask (no terminal, as in a script).
+  """
+  if args.noask or not sys.stdin.isatty():
+    return OdatixSettings.init_directory_nodialog(bool(args.examples), prog)
+  return OdatixSettings.init_directory_dialog(include_examples=args.examples, prog=prog)
+
+#: What runs each command.
 COMMANDS = {
   "init": init_directory,
   "generate": lambda args: run_main(gen_configs.main, args),
@@ -568,22 +592,9 @@ COMMANDS = {
   "monitor": monitor_daemon,
   "stop": stop_daemon,
   "ls": list_daemons,
-  "results": export_all_results,
-  "res_benchmark": lambda args: run_main(exp_bench.main, args),
-  "res_synth": lambda args: run_main(exp_res.main, args),
-  "res_workflow": lambda args: run_main(exp_workflow_res.main, args),
-  "res_simulation": lambda args: run_main(exp_sim_res.main, args),
-  "res_analysis": lambda args: run_main(exp_analysis.main, args),
-  "res_derived": lambda args: run_main(exp_derived.main, args),
+  "results": export_results_command,
   "clean": lambda args: run_main(cln.main, args),
   "migrate": lambda args: run_main(migrate_cmd.main, args),
-}
-
-#: The other names of a command (see the "aliases" of its parser).
-COMMAND_ALIASES = {
-  "synthesis": "synth",
-  "freq": "synth",
-  "explore": "dse",
 }
 
 ######################################
@@ -605,11 +616,11 @@ def main(args=None):
     ArgParser.help()
     sys.exit(0)
 
-  # If no command is selected 
-  if args.command is None and not args.init:
+  # If no command is selected
+  if args.command is None:
     full_header()
     print("run ", end="")
-    printc.bold(prog + " -h", end="")
+    printc.bold("odatix -h", end="")
     print(" to get a list of useful commands")
     sys.exit(0)
 
@@ -621,19 +632,28 @@ def main(args=None):
   if args.command in ("monitor", "stop", "ls"):
     args.nobanner = True
 
-  # Display init dialog
-  if args.init:
-    OdatixSettings.init_directory_dialog(prog=prog)
-    sys.exit(0)
+  # What is said from here on is said by the command, not by the module
+  # saying it.
+  label = "odatix " + args.command
+  if args.command == "results":
+    label += " " + args.result_type
+  printc.set_command(label)
 
   # Display the banner
   if not args.nobanner:
     motd()
     print()
 
-  # Dispatch the command to the appropriate function
-  command = COMMAND_ALIASES.get(args.command, args.command)
-  success = command_status(COMMANDS[command](args))
+  try:
+    success = command_status(COMMANDS[args.command](args))
+  except KeyboardInterrupt:
+    print()
+    printc.note("Interrupted", "odatix")
+    success = False
+  except Exception as e:
+    # A short message and the log holding the trace, rather than the trace.
+    internal_error(e, error_logfile, script_name)
+    success = False
 
   sys.exit(EXIT_SUCCESS if success else 1)
 

@@ -115,16 +115,6 @@ class Run(object):
             return self.options.result_path
         return self.workspace.paths.result_path
 
-    @property
-    def use_benchmark(self):
-        if self.options.use_benchmark is not None:
-            return bool(self.options.use_benchmark)
-        return bool(self.workspace.settings.get("use_benchmark", False))
-
-    @property
-    def benchmark_file(self):
-        return self.options.benchmark_file or self.workspace.paths.benchmark_file
-
     ######################################
     # What it would do
     ######################################
@@ -142,8 +132,40 @@ class Run(object):
             RunError: the run cannot be started at all.
             RunCancelled: it was asked to stop.
         """
-        self._checked = self._step("check", lambda: self.flow.check(self))
+        self._checked = self._step("check", self._check)
         return self._checked.plan
+
+    def _check(self):
+        self.resolve_tool()
+        return self.flow.check(self)
+
+    #: The runs that need an eda tool, and take the default one when not told which.
+    TOOL_MODES = ("fmax_synthesis", "custom_freq_synthesis", "analysis")
+
+    def resolve_tool(self):
+        """
+        Settle which eda tool the run uses: the one it was told, else the
+        default tool of the workspace (see :attr:`Workspace.default_tool`), and
+        refuse a tool Odatix does not know, saying which ones it does.
+        """
+        if self.mode not in self.TOOL_MODES and self.mode != "pnr":
+            return
+        if not self.options.tool and self.mode in self.TOOL_MODES:
+            tool = self.workspace.default_tool
+            if tool is None:
+                configured = self.workspace.configured_tools()
+                printc.error('No eda tool to run: -t/--tool names none, and odatix.yml has no "default_tool"', "run")
+                printc.note("Tools with a target file in this workspace: " + (", ".join(configured) or "none"), "run")
+                printc.tip('Set "default_tool" in odatix.yml, or name the tool with -t/--tool', "run")
+                raise SystemExit(-1)
+            self.options.tool = [tool] if self.mode == "analysis" else tool
+        tools = self.options.tool if isinstance(self.options.tool, (list, tuple)) else [self.options.tool]
+        known = self.workspace.tools.all_names()
+        unknown = [str(tool) for tool in tools if tool and str(tool) not in known]
+        if unknown:
+            printc.error('Unknown eda tool "{0}"'.format('", "'.join(unknown)), "run")
+            printc.note("Available tools: " + ", ".join(known), "run")
+            raise SystemExit(-1)
 
     @property
     def was_checked(self):

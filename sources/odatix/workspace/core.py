@@ -68,7 +68,6 @@ PATH_SETTINGS = (
     ("analysis_work_path", "DEFAULT_ANALYSIS_WORK_PATH"),
     ("workflow_work_path", "DEFAULT_WORKFLOW_WORK_PATH"),
     ("result_path", "DEFAULT_RESULT_PATH"),
-    ("benchmark_file", "DEFAULT_BENCHMARK_FILE"),
     ("clean_settings_file", "DEFAULT_CLEAN_SETTINGS_FILE"),
     ("simulation_settings_file", "DEFAULT_SIMULATION_SETTINGS_FILE"),
     ("fmax_synthesis_settings_file", "DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE"),
@@ -99,6 +98,11 @@ class WorkspaceSettings(Settings):
 
     workspace = Setting("odatix", type="str", doc="Marks the directory as an Odatix workspace.")
 
+    default_tool = Setting(
+        "", type="str", skip_if_empty=True, section="Tools",
+        doc="EDA tool the run commands use when \"-t/--tool\" does not name one.",
+    )
+
     arch_path = _path("Main paths", "Where the architectures are.")
     sim_path = _path(doc="Where the simulations are.")
     workflow_path = _path(doc="Where the workflows are.")
@@ -126,8 +130,6 @@ class WorkspaceSettings(Settings):
     workflow_work_path = _path(doc="Sub-directory of the work path for workflows.")
 
     result_path = _path("Results", "Where results are written.")
-    use_benchmark = Setting("", type="any", skip_if_empty=True, doc="Include benchmark results.")
-    benchmark_file = _path(doc="The benchmark results file.")
 
     resource_guard = Setting(
         "", type="any", skip_if_empty=True, section="Resource guard",
@@ -313,6 +315,23 @@ class Workspace(object):
             data = OdatixSettings.get_settings_file_dict(self.settings_file, silent=True)
             self._settings = data if isinstance(data, dict) else {}
         return self._settings
+
+    @property
+    def default_tool(self):
+        """
+        The eda tool a run uses when it is not told which: "default_tool" of
+        the settings file, or else the only tool this workspace has a target
+        file for. None when neither singles one out.
+        """
+        tool = self.settings.get("default_tool")
+        if tool:
+            return str(tool)
+        configured = self.configured_tools()
+        return configured[0] if len(configured) == 1 else None
+
+    def configured_tools(self):
+        """The eda tools this workspace has a target file for."""
+        return [name for name in self.tools.all_names() if self.targets[name].exists]
 
     @property
     def paths(self):

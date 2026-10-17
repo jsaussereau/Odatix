@@ -125,7 +125,7 @@ def build_driver(workspace, settings, session, paths=None, architectures=None, c
         # The log of the driver is the story of the search, from its first line:
         # the banner belongs to the terminal the command was typed in.
         "--nobanner",
-        "--config", _quote(paths["settings_file"]),
+        "--input", _quote(paths["settings_file"]),
         "--session", _quote(session),
     ])
 

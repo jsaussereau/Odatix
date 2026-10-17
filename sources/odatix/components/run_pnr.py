@@ -75,8 +75,8 @@ def _check_cancel(cancel_event):
 
 
 def add_arguments(parser):
-    add_options(parser, "tool", "flow", "until", "rerun_from",
-                tool={"default": None, "help": "eda tool running the place & route"},
+    add_options(parser, "tool", "flow", "targets", "until", "rerun_from",
+                tool={"help": "eda tool running the place & route"},
                 until={"help": "last step of the flow to run, inclusive (default: all its steps)"})
     parser.add_argument(
         "--from-type",
@@ -177,6 +177,7 @@ def check_settings(
     debug=False,
     cancel_event=None,
     tool_check_sink=None,
+    selected_targets=None,
 ):
     """
     Build the job list of a place & route run and confirm it, exactly like the
@@ -199,6 +200,7 @@ def check_settings(
         debug=debug,
         flow=flow,
         check_cancel=lambda: _check_cancel(cancel_event),
+        selected_targets=selected_targets,
     )
 
     steps = context["flow_steps"]
@@ -294,8 +296,6 @@ def prepare_pnr(
     export_tool=None,
     export_flow=None,
     export_work_path=None,
-    use_benchmark=False,
-    benchmark_file=None,
     custom_metrics_file=None,
 ):
     parallel_jobs = prepare_synthesis_jobs(
@@ -321,8 +321,6 @@ def prepare_pnr(
             tool=export_tool,
             flow=export_flow,
             output_dir=export_output_dir,
-            use_benchmark=use_benchmark,
-            benchmark_file=benchmark_file,
             custom_metrics_file=custom_metrics_file,
         )
 
@@ -373,8 +371,6 @@ def run_pnr(
     from_flow=None,
     debug=False,
     export_output_dir=None,
-    use_benchmark=False,
-    benchmark_file=None,
     custom_metrics_file=None,
     cancel_event=None,
     detach=False,
@@ -404,8 +400,6 @@ def run_pnr(
         from_tool=from_tool,
         from_flow=from_flow,
         debug=debug,
-        use_benchmark=use_benchmark,
-        benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
         detach=detach,
         session=daemon_session,

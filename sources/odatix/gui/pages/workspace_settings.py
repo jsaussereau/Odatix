@@ -52,7 +52,6 @@ dash.register_page(
 
 def workspace_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
-    use_benchmark = defval("use_benchmark", "")
 
     return ui.grid(
         children=[
@@ -152,31 +151,6 @@ def workspace_form(settings):
                     placeholder=OdatixSettings.DEFAULT_RESULT_PATH,
                     tooltip="The path where all results files will be stored after synthesis and simulation.",
                 ),
-                ui.form_dropdown(
-                    label="Use benchmark results",
-                    id="use_benchmark",
-                    placeholder=f"{'Yes' if OdatixSettings.DEFAULT_USE_BENCHMARK else 'No'}",
-                    options=[
-                        {"label": "Yes", "value": True},
-                        {"label": "No", "value": False},
-                    ],
-                    value=use_benchmark,
-                    tooltip="Include benchmark results in synthesis results.",
-                ),
-                html.Div(
-                    children=[
-                        ui.form_field(
-                            label="Benchmark file",
-                            id="benchmark_file",
-                            value=defval("benchmark_file", ""),
-                            placeholder=OdatixSettings.DEFAULT_BENCHMARK_FILE,
-                            tooltip="The path to the benchmark file.",
-                        ),
-                    ],
-                    id="benchmark-file-container",
-                    className="animated-section" + (" hide" if not use_benchmark else ""),
-                    style={"overflow": "visible"},
-                ),
             ]),
             ui.panel(body=[
                 ui.caption("Resource guard"),
@@ -252,8 +226,6 @@ def init_form(search, page):
     Input("fmax_synthesis_work_path", "value"),
     Input("custom_freq_synthesis_work_path", "value"),
     Input("result_path", "value"),
-    Input("use_benchmark", "value"),
-    Input("benchmark_file", "value"),
     Input("resource_guard", "value"),
     Input("cpu_limit", "value"),
     Input("mem_limit", "value"),
@@ -267,7 +239,6 @@ def save_and_status(
     clean_settings_file, simulation_settings_file, fmax_synthesis_settings_file,
     custom_freq_synthesis_settings_file, work_path, simulation_work_path,
     fmax_synthesis_work_path, custom_freq_synthesis_work_path, result_path,
-    use_benchmark, benchmark_file,
     resource_guard, cpu_limit, mem_limit,
     page, initial_settings, saved_settings
 ):
@@ -288,8 +259,6 @@ def save_and_status(
         "fmax_synthesis_work_path": fmax_synthesis_work_path,
         "custom_freq_synthesis_work_path": custom_freq_synthesis_work_path,
         "result_path": result_path,
-        "use_benchmark": "" if use_benchmark is None else use_benchmark,
-        "benchmark_file": benchmark_file,
         # A cleared field (None) means "use the default", like an empty one.
         "resource_guard": "" if resource_guard is None else resource_guard,
         "cpu_limit": "" if cpu_limit is None else cpu_limit,
@@ -333,8 +302,6 @@ def save_and_status(
     Output("fmax_synthesis_work_path", "value"),
     Output("custom_freq_synthesis_work_path", "value"),
     Output("result_path", "value"),
-    Output("use_benchmark", "value"),
-    Output("benchmark_file", "value"),
     Output("resource_guard", "value"),
     Output("cpu_limit", "value"),
     Output("mem_limit", "value"),
@@ -353,19 +320,12 @@ def reset_to_defaults(
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return [dash.no_update] * 17
+        return [dash.no_update] * 15
     
     if triggered_id == {"page": page_path, "action": "reset-defaults"}:
         # Reset to defaults
-        return [""] * 17
-    return [dash.no_update] * 17
-
-@dash.callback(
-    Output("benchmark-file-container", "className"),
-    Input("use_benchmark", "value"),
-)
-def toggle_generate_settings(use_benchmark):
-    return "animated-section" if use_benchmark else "animated-section hide"
+        return [""] * 15
+    return [dash.no_update] * 15
 
 @page_callback(PAGE_SCOPE,
     Output("workspace-migration", "className"),

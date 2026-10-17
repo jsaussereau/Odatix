@@ -34,44 +34,41 @@ That same property is what makes manual export useful: if a metric was missing o
 
 | Command | Exports |
 |---------|---------|
-| `odatix results` | Synthesis, custom-frequency and place & route results, then derived metrics. |
-| `odatix res_synth` | Synthesis, custom-frequency and place & route results only. |
-| `odatix res_simulation` | Simulation results only. |
-| `odatix res_workflow` | Workflow results only. |
-| `odatix res_benchmark` | Benchmark (simulation) values only. |
-| `odatix res_derived` | Recompute [derived metrics](/docs/results/derived_metrics/) over the result files already on disk. |
+| `odatix results` | Everything that was run: synthesis, custom-frequency and place & route results, simulation and workflow results, then derived metrics. |
+| `odatix results synth` | Synthesis, custom-frequency and place & route results only. |
+| `odatix results sim` | Simulation results only. |
+| `odatix results workflow` | Workflow results only. |
+| `odatix results analysis` | RTL analysis results, with their report. |
+| `odatix results derived` | Recompute [derived metrics](/docs/results/derived_metrics/) over the result files already on disk. |
 
-Each command exports the job types it owns, so a full post-processing pass after a mixed batch is explicit:
+`odatix results` alone skips a kind of job whose work directory does not exist,
+and applies the derived metrics last, since they read what the others wrote.
+One type at a time is for a single kind of result:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix res_synth       # synthesis and place & route
-$ odatix res_simulation  # values defined in simulations/*/_metrics.yml
-$ odatix res_workflow    # values defined in workflows/*/_metrics.yml
-$ odatix res_derived     # join and compute cross-source metrics
+$ odatix results synth      # synthesis and place & route
+$ odatix results sim        # values defined in simulations/*/_metrics.yml
+$ odatix results workflow   # values defined in workflows/*/_metrics.yml
+$ odatix results derived    # join and compute cross-source metrics
 {{< /code >}}
-
-`odatix results` is the convenient shorthand after a synthesis run: it exports the synthesis and P&R results, then recomputes derived metrics using any simulation and workflow result files already present. It does *not* rebuild those files — use `res_simulation` and `res_workflow` for that.
 
 Useful options for `odatix results`:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix results -u              # include benchmark values
-$ odatix results -f csv          # format: csv, yml, or all
 $ odatix results -t vivado -r results
 {{< /code >}}
 
 | Option | Meaning |
 |--------|---------|
-| `-u` | Include benchmark values in the export. |
-| `-f`, `--format` | Output format: `csv`, `yml` or `all`. |
-| `-t`, `--tool` | Restrict the export to a given tool. |
-| `-r` | Results directory to write to. |
+| `-t`, `--tool` | Restrict the synthesis export to a given tool. |
+| `-w`, `--work` | Work directory to read. |
+| `-r`, `--respath` | Results directory to write to. |
 
 ## Metrics come with the tools
 
 You do not have to declare anything to get results. Every EDA tool shipped with Odatix comes with its own `metrics.yml`, which already defines the values worth extracting from that tool's reports — LUT and register counts, BRAM and DSP usage, Fmax, area, static and dynamic power, and so on. Run a Vivado synthesis and you get the Vivado metrics; run Design Compiler and you get the Design Compiler ones.
 
-Those definitions are just YAML, and they are not a closed list. You can **add your own metrics** to a tool, or define metrics for your own [workflows](/docs/reference/workflow/) and simulations in their `_metrics.yml` file, using `regex`, `csv`, `yaml`, `json`, `xml`, `benchmark` or `operation` rules. Anything your tool or your script writes to a file can become a metric.
+Those definitions are just YAML, and they are not a closed list. You can **add your own metrics** to a tool, or define metrics for your own [workflows](/docs/reference/workflow/) and simulations in their `_metrics.yml` file, using `regex`, `csv`, `yaml`, `json`, `xml` or `operation` rules. Anything your tool or your script writes to a file can become a metric.
 
 {{< card title="Metrics" link="/docs/results/metrics/" >}}
 How metrics are declared, the extraction rule types available, and how to add metrics to a tool, a workflow or a simulation.
@@ -109,13 +106,13 @@ $ odatix clean
 $ odatix clean -i odatix_userconfig/clean.yml
 {{< /code >}}
 
-The profile's `remove_list` (see [Configuration reference](/docs/reference/run_settings/#cleanyml)) lists the glob patterns to delete. Keep in mind that once the work directories are gone, re-exporting is no longer possible — only `res_derived`, which works from the result files themselves, still is.
+The profile's `remove_list` (see [Configuration reference](/docs/reference/run_settings/#cleanyml)) lists the glob patterns to delete. Keep in mind that once the work directories are gone, re-exporting is no longer possible — only `odatix results derived`, which works from the result files themselves, still is.
 
 ## In this section
 
 {{< doc-cards cols="3" >}}
 {{< doc-card title="Metrics" link="/docs/results/metrics/" icon="gauge" accent="#db2777" >}}
-Extract any value from a job's reports and outputs with `regex`, `csv`, `yaml`, `json`, `xml`, `benchmark` or `operation` rules.
+Extract any value from a job's reports and outputs with `regex`, `csv`, `yaml`, `json`, `xml` or `operation` rules.
 {{< /doc-card >}}
 
 {{< doc-card title="Derived metrics" link="/docs/results/derived_metrics/" icon="route" accent="#db2777" >}}

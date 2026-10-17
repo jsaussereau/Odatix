@@ -119,7 +119,7 @@ class TestOdatixSettings:
         from odatix.workspace.core import PATH_SETTINGS
 
         settings = OdatixSettings(silent=True).to_dict()
-        assert set(settings) == set(name for name, _default in PATH_SETTINGS) | {"use_benchmark"}
+        assert set(settings) == set(name for name, _default in PATH_SETTINGS)
         assert settings["gui_theme_path"] == OdatixSettings.DEFAULT_GUI_THEME_PATH
 
     def test_resource_guard_defaults_when_left_out(self):

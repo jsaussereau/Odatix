@@ -5,3 +5,8 @@
 # Default workspace settings can be overridden here.
 
 workspace: odatix
+
+# EDA tool the run commands (fmax, synth, analyze) use when -t/--tool does
+# not name one. Without it, a workspace with a single target file uses that
+# tool, and any other asks for -t/--tool.
+default_tool: vivado

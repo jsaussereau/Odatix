@@ -40,7 +40,6 @@ class TestGlobalFlags:
         assert args.command is None
         assert args.version is False
         assert args.help is False
-        assert args.init is False
 
     def test_version_flag(self):
         assert parse("-v").version is True
@@ -49,8 +48,9 @@ class TestGlobalFlags:
     def test_help_flag(self):
         assert parse("-h").help is True
 
-    def test_init_flag(self):
-        assert parse("--init").init is True
+    def test_init_flag_is_a_deprecated_spelling_of_init(self, capsys):
+        assert parse("--init").command == "init"
+        assert "deprecated" in capsys.readouterr().out
 
     def test_unknown_command_exits(self):
         with pytest.raises(SystemExit):
@@ -65,11 +65,19 @@ class TestInitCommand:
     def test_defaults(self):
         args = parse("init")
         assert args.command == "init"
-        assert args.examples is False
+        # None: the dialog asks whether to add the examples
+        assert args.examples is None
+        assert args.noask is False
 
-    def test_examples_flag(self):
-        assert parse("init", "-e").examples is True
+    def test_examples_flag(self, capsys):
         assert parse("init", "--examples").examples is True
+        assert "deprecated" not in capsys.readouterr().out
+        assert parse("init", "-e").examples is True
+        assert "deprecated" in capsys.readouterr().out
+
+    def test_yes_skips_the_dialog(self):
+        assert parse("init", "-y").noask is True
+        assert parse("init", "--yes").noask is True
 
 
 class TestGenerateCommand:
@@ -116,7 +124,9 @@ class TestFmaxCommand:
     def test_defaults(self):
         args = parse("fmax")
         assert args.command == "fmax"
-        assert args.tool == "vivado"
+        # None: the run takes the default tool of the workspace
+        assert args.tool is None
+        assert args.targets is None
         assert args.overwrite is False
         assert args.noask is False
         assert args.noexport is False
@@ -141,31 +151,48 @@ class TestFmaxCommand:
         assert args.continue_on_error and args.detach
         assert args.session == "mysession"
 
-    def test_force_is_a_deprecated_alias_of_continue_on_error(self):
-        assert parse("fmax", "--force").continue_on_error is True
+    def test_force_is_no_longer_an_alias_of_continue_on_error(self):
+        with pytest.raises(SystemExit):
+            parse("fmax", "--force")
+
+    @pytest.mark.parametrize("command", ["fmax", "synth", "pnr"])
+    def test_target_is_repeatable_and_has_no_short_form(self, command):
+        assert parse(command, "--target", "a", "--target", "b").targets == ["a", "b"]
+        # -T is --trust everywhere
+        assert parse(command, "-T").check_eda_tool is False
 
     def test_flow(self):
         assert parse("fmax").flow is None
         assert parse("fmax", "-f", "synthesis").flow == "synthesis"
-        assert parse("freq", "--flow", "bitstream").flow == "bitstream"
+        assert parse("synth", "--flow", "bitstream").flow == "bitstream"
         assert parse("analyze", "-f", "vivado:implementation").flow == ["vivado:implementation"]
 
 
-class TestFreqCommand:
+class TestSynthCommand:
     def test_defaults(self):
-        args = parse("freq")
-        assert args.command == "freq"
-        assert args.tool == "vivado"
+        args = parse("synth")
+        assert args.command == "synth"
+        assert args.tool is None
         assert args.at_freq is None
         assert args.step_freq is None
 
     def test_at_is_repeatable(self):
-        args = parse("freq", "--at", "50", "--at", "100")
+        args = parse("synth", "--at", "50", "--at", "100")
         assert args.at_freq == [50, 100]
 
     def test_range_override(self):
-        args = parse("freq", "--from", "50", "--to", "200", "--step", "25")
+        args = parse("synth", "--from", "50", "--to", "200", "--step", "25")
         assert (args.from_freq, args.to_freq, args.step_freq) == (50, 200, 25)
+
+    def test_freq_is_a_deprecated_name_of_synth(self, capsys):
+        assert parse("freq", "--at", "50").command == "synth"
+        assert '"odatix synth"' in capsys.readouterr().out
+
+    @pytest.mark.parametrize("command", ["synthesis", "explore", "res_benchmark"])
+    def test_removed_commands_say_what_to_do_instead(self, command, capsys):
+        with pytest.raises(SystemExit):
+            parse(command)
+        assert "no longer exists" in capsys.readouterr().out
 
 
 class TestAnalyzeCommand:
@@ -290,34 +317,44 @@ class TestDaemonCommands:
 
 
 class TestResultsCommands:
-    def test_results_defaults(self):
+    def test_results_alone_exports_everything(self):
         args = parse("results")
         assert args.command == "results"
+        assert args.result_type == "all"
         assert args.tool == "all"
-        # Unset, so that the settings file says whether to use the benchmark.
-        assert args.use_benchmark is None
-        assert parse("results", "-u").use_benchmark is True
 
-    @pytest.mark.parametrize("command", ["results", "res_synth"])
-    def test_there_is_no_format_option(self, command):
+    def test_options_without_a_type_are_those_of_all(self):
+        args = parse("results", "-w", "work", "-r", "out")
+        assert args.result_type == "all"
+        assert (args.work_path, args.result_path) == ("work", "out")
+
+    @pytest.mark.parametrize("result_type", ["all", "synth", "sim", "workflow", "analysis", "derived"])
+    def test_every_type(self, result_type):
+        assert parse("results", result_type).result_type == result_type
+
+    @pytest.mark.parametrize("argv", [("results",), ("results", "synth")])
+    def test_there_is_no_format_option(self, argv):
         # Results are only ever written as v2 YAML: there is nothing to choose.
         with pytest.raises(SystemExit):
-            parse(command, "-f", "csv")
+            parse(*argv, "-f", "csv")
 
-    def test_res_benchmark(self):
-        args = parse("res_benchmark", "-w", "work")
-        assert args.command == "res_benchmark"
-        assert args.work_path == "work"
+    @pytest.mark.parametrize("argv", [("results", "-u"), ("results", "synth", "-B", "b.yml"), ("results", "-S", "sim.log")])
+    def test_the_benchmark_options_are_gone(self, argv):
+        with pytest.raises(SystemExit):
+            parse(*argv)
 
-    def test_res_synth(self):
+    @pytest.mark.parametrize("former, result_type", [
+        ("res_synth", "synth"), ("res_simulation", "sim"), ("res_workflow", "workflow"),
+        ("res_analysis", "analysis"), ("res_derived", "derived"),
+    ])
+    def test_the_former_commands_are_deprecated_names_of_a_type(self, former, result_type, capsys):
+        args = parse(former, "-r", "out")
+        assert (args.command, args.result_type, args.result_path) == ("results", result_type, "out")
+        assert '"odatix results ' + result_type + '"' in capsys.readouterr().out
+
+    def test_res_synth_keeps_its_options(self):
         args = parse("res_synth", "-t", "vivado")
-        assert args.command == "res_synth"
         assert args.tool == "vivado"
-
-    def test_res_workflow(self):
-        args = parse("res_workflow", "-w", "work")
-        assert args.command == "res_workflow"
-        assert args.work_path == "work"
 
 
 class TestCleanCommand:
@@ -328,9 +365,59 @@ class TestCleanCommand:
         assert args.verbose is False
         assert args.quiet is False
 
-    def test_flags(self):
-        args = parse("clean", "-f", "-v")
+    def test_flags(self, capsys):
+        args = parse("clean", "-y", "-V")
         assert args.force and args.verbose
+        assert "deprecated" not in capsys.readouterr().out
+
+    @pytest.mark.parametrize("former", ["-f", "--force"])
+    def test_force_is_a_deprecated_spelling_of_yes(self, former, capsys):
+        assert parse("clean", former).force is True
+        assert '"-y/--yes"' in capsys.readouterr().out
+
+    def test_v_is_only_the_version(self):
+        with pytest.raises(SystemExit):
+            parse("clean", "-v")
+
+
+class TestRenamedOptions:
+    def test_generate_takes_its_workflow_directory_like_workflow(self, capsys):
+        assert parse("generate", "-p", "wfs").workflow_path == "wfs"
+        assert "deprecated" not in capsys.readouterr().out
+        assert parse("generate", "-w", "wfs").workflow_path == "wfs"
+        assert '"-p/--workflowpath"' in capsys.readouterr().out
+
+    def test_dse_reads_its_settings_file_as_an_input(self):
+        args = parse("dse", "-i", "dse.yml")
+        assert args.config_file == "dse.yml"
+        assert args.config == OdatixSettings.DEFAULT_SETTINGS_FILE
+
+    def test_dse_target_has_no_short_form_any_more(self, capsys):
+        assert parse("dse", "--target", "a").targets == ["a"]
+        assert parse("dse", "-T", "a").targets == ["a"]
+        assert '"--target"' in capsys.readouterr().out
+
+
+class TestHelp:
+    def test_every_command_is_listed_in_a_group(self):
+        parse()
+        grouped = [name for _group, names in odatix_main.COMMAND_GROUPS for name in names]
+        assert sorted(grouped) == sorted(odatix_main.COMMANDS)
+        assert len(grouped) == len(set(grouped))
+
+    def test_the_help_is_generated(self, capsys):
+        parse()
+        odatix_main.ArgParser.help()
+        out = capsys.readouterr().out
+        for name in odatix_main.COMMANDS:
+            assert odatix_main.ArgParser.command_help(name)
+            assert name in out
+        assert "odatix-gui" in out and "odatix-explorer" in out
+        assert odatix_main.GLOSSARY_URL in out
+
+    def test_the_program_is_called_odatix(self):
+        parse()
+        assert odatix_main.ArgParser.parser.prog == "odatix"
 
 
 ######################################
@@ -625,7 +712,6 @@ class TestResultsStatus:
         monkeypatch.setattr(export_results.results_cache, "store", fail)
         assert export_results.export_results(
             input=str(tmp_path), output=str(tmp_path / "out"), tools=["vivado"],
-            use_benchmark=False, benchmark_file=None,
             result_types={"fmax_synthesis": {"key": "fmax_synthesis", "path": "fmax_synthesis"}},
         ) is False
 
@@ -715,14 +801,28 @@ class TestNoExport:
 # Every option is read
 ######################################
 
+def _subparsers(parser):
+    return next(action for action in parser._actions if isinstance(action, argparse._SubParsersAction)).choices
+
+
 def subcommand_parsers():
-    """Every subcommand parser of odatix, aliases included."""
+    """Every command parser of odatix, by command line: "fmax", "results synth"..."""
     parse()
-    action = next(
-        action for action in odatix_main.ArgParser.parser._actions
-        if isinstance(action, argparse._SubParsersAction)
-    )
-    return action.choices
+    parsers = {}
+    for name, parser in _subparsers(odatix_main.ArgParser.parser).items():
+        if name == "results":
+            for result_type, type_parser in _subparsers(parser).items():
+                parsers["results " + result_type] = type_parser
+        else:
+            parsers[name] = parser
+    return parsers
+
+
+#: Every command line a parser reads.
+COMMAND_LINES = sorted(
+    [name for name in odatix_main.COMMANDS if name != "results"]
+    + ["results " + result_type for result_type in odatix_main.RESULT_TYPES]
+)
 
 
 def _reads(source, dest):
@@ -737,7 +837,6 @@ def _readers(command):
     import inspect
 
     import odatix.components.clean as cln
-    import odatix.components.export_benchmark as exp_bench
     import odatix.components.export_analysis as exp_analysis
     import odatix.components.export_derived_metrics as exp_derived
     import odatix.components.export_results as exp_res
@@ -769,15 +868,14 @@ def _readers(command):
         "monitor": [odatix_main.monitor_daemon],
         "stop": [odatix_main.stop_daemon, odatix_main.kill_zombie_sessions],
         "ls": [odatix_main.list_daemons],
-        "results": [odatix_main.export_all_results],
-        "res_benchmark": [exp_bench.main],
-        "res_synth": [exp_res.main],
-        "res_workflow": [exp_workflow_res.main],
-        "res_simulation": [exp_sim_res.main],
-        "res_analysis": [exp_analysis.main],
-        "res_derived": [exp_derived.main],
+        "results all": [odatix_main.export_all_results, odatix_main.export_results_command],
+        "results synth": [exp_res.main],
+        "results workflow": [exp_workflow_res.main],
+        "results sim": [exp_sim_res.main],
+        "results analysis": [exp_analysis.main],
+        "results derived": [exp_derived.main],
         "clean": [cln.main],
-    }[odatix_main.COMMAND_ALIASES.get(command, command)]
+    }[command]
     return "\n".join(inspect.getsource(reader) for reader in readers)
 
 
@@ -791,17 +889,17 @@ def _run_api_source():
 
 
 #: Read by odatix_main.main() itself, whatever the command.
-GLOBAL_DESTS = {"help", "version", "init", "command", "nobanner"}
+GLOBAL_DESTS = {"help", "version", "command", "result_type", "nobanner"}
 
 
 class TestEveryOptionIsRead:
     """An option nothing reads is a lie the help tells: there must be none."""
 
     def test_every_command_is_dispatched(self):
-        for command in subcommand_parsers():
-            assert odatix_main.COMMAND_ALIASES.get(command, command) in odatix_main.COMMANDS, command
+        assert sorted(subcommand_parsers()) == COMMAND_LINES
+        assert sorted(odatix_main.RESULT_COMMANDS) == sorted(odatix_main.RESULT_TYPES)
 
-    @pytest.mark.parametrize("command", sorted(odatix_main.COMMANDS))
+    @pytest.mark.parametrize("command", COMMAND_LINES)
     def test_every_destination_is_read(self, command):
         from odatix.run.options import RunOptions
 
@@ -841,13 +939,12 @@ class TestEveryOptionIsRead:
             ("replace", "--input"),
             # Repeatable: the exploration chooses among them.
             ("dse", "--tool"), ("dse", "--flow"),
-            # The exploration's own settings file, not the workspace's.
-            ("dse", "--config"),
+            # The exploration's own settings file, not a run settings file.
+            ("dse", "--input"),
             # The whole work tree a place & route reads its sources from.
             ("pnr", "--work"),
         }
         for command, parser in subcommand_parsers().items():
-            command = odatix_main.COMMAND_ALIASES.get(command, command)
             for action in parser._actions:
                 for flag in action.option_strings:
                     if flag in destinations and (command, flag) not in exceptions:

@@ -165,19 +165,6 @@ metrics:
     format: "%.8f"
     unit: mW
 
-  DMIPS_per_MHz:
-    type: benchmark
-    settings:
-      key: DMIPS_per_MHz
-    format: "%.3f"
-
-  DMIPS:
-    type: operation
-    benchmark_only: True
-    settings:
-      op: DMIPS_per_MHz * Fmax
-    format: "%.0f"
-
   Param_Domains:
     type: yaml
     error_if_missing: No

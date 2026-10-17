@@ -27,7 +27,7 @@ import argparse
 import odatix.lib.printc as printc
 from odatix.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
 from odatix.lib.settings import OdatixSettings
-from odatix.components.cli_options import add_options
+from odatix.components.cli_options import add_options, deprecated_option
 from odatix.workspace.clean import DANGEROUS_PATHS, remove_path as remove_matching_paths
 import odatix.lib.yaml_loader as yaml_loader
 
@@ -39,8 +39,10 @@ script_name = os.path.basename(__file__)
 
 def add_arguments(parser):
   add_options(parser, "settings_file")
-  parser.add_argument("-f", "--force", action="store_true", help="force delete (dangerous!)")
-  parser.add_argument("-v", "--verbose", action="store_true", help="print extra details")
+  parser.add_argument("-y", "--yes", dest="force", action="store_true", help="do not ask before removing a dangerous path")
+  deprecated_option(parser, "-f", "-y/--yes", action="store_true", dest="force")
+  deprecated_option(parser, "--force", "-y/--yes", action="store_true", dest="force")
+  parser.add_argument("-V", "--verbose", action="store_true", help="print extra details")
   parser.add_argument("-q", "--quiet", action="store_true", help="do not print anything, except errors")
   add_options(parser, "config")
 
@@ -70,7 +72,7 @@ def remove_path(path, force=False, verbose=False, quiet=False):
 
   for removal in result.skipped:
     if not quiet:
-      printc.warning("Deleting \"" + removal.path + "\" seams dangerous! Use --force to force deletion (use at your own risks!)", script_name=script_name)
+      printc.warning("Deleting \"" + removal.path + "\" seems dangerous: it is left alone. Use -y/--yes to delete it anyway (at your own risk)", script_name=script_name)
 
   if verbose:
     for pattern in result.unmatched:

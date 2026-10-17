@@ -44,12 +44,12 @@ script_name = os.path.basename(__file__)
 
 def add_arguments(parser):
     """Add command-line arguments."""
-    parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="Start delimiter (supports \\n, \\r, \\t escape sequences)")
-    parser.add_argument("-S", "--stopdel", dest="stop_delimiter", required=True, help="Stop delimiter (supports \\n, \\r, \\t escape sequences)")
-    parser.add_argument("-i", "--input", dest="base_text_file", required=True, help="Input base text file")
-    parser.add_argument("-o", "--output", dest="output_file", required=True, help="Output text file")
-    parser.add_argument("-r", "--replace", dest="replacement_text_file", required=True, help="Replacement text file")
-    parser.add_argument("-a", "--all", dest="replace_all_occurrences", action="store_true", help="Replace all occurrences")
+    parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="start delimiter (supports \\n, \\r, \\t escape sequences)")
+    parser.add_argument("-S", "--stopdel", dest="stop_delimiter", required=True, help="stop delimiter (supports \\n, \\r, \\t escape sequences)")
+    parser.add_argument("-i", "--input", dest="base_text_file", required=True, help="input base text file")
+    parser.add_argument("-o", "--output", dest="output_file", required=True, help="output text file")
+    parser.add_argument("-r", "--replace", dest="replacement_text_file", required=True, help="replacement text file")
+    parser.add_argument("-a", "--all", dest="replace_all_occurrences", action="store_true", help="replace all occurrences")
 
 def parse_arguments():
     """Parses command-line arguments."""

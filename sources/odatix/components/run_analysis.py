@@ -68,7 +68,7 @@ def add_arguments(parser):
   add_options(
     parser, "tool", "flow", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path",
     "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "keep", "log_size_limit", "export_options", "config",
-    tool={"nargs": "+", "default": None, "help": "eda tool(s) in use (overrides the 'tools' list of the analysis settings file; default: vivado)"},
+    tool={"nargs": "+", "default": None, "help": "eda tool(s) to run (default: \"tools\" of the analysis settings file, else \"default_tool\" of odatix.yml)"},
     flow={"nargs": "+", "help": "flow(s) to run, as \"flow\" (applied to every tool) or \"tool:flow\" (default: each tool's default flow)"},
   )
 
@@ -84,7 +84,8 @@ def parse_arguments():
 ######################################
 
 
-DEFAULT_ANALYSIS_TOOLS = ["vivado"]
+#: Nothing: the run then uses the default tool of the workspace (see Run.resolve_tool).
+DEFAULT_ANALYSIS_TOOLS = []
 
 
 def parse_flow_selection(flow_args, tools):
@@ -655,7 +656,7 @@ def main(args):
   # Attached to the monitor, the jobs are over when it returns: their report
   # is what the user is waiting for. Detached, they are only starting.
   if options.detach:
-    printc.note("Run \"odatix res_analysis\" once the jobs are done to get their report", script_name)
+    printc.note("Run \"odatix results analysis\" once the jobs are done to get their report", script_name)
     return
 
   job_dirs = {os.path.realpath(instance.tmp_dir) for _build_job, instance in run.jobs}

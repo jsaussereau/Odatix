@@ -32,7 +32,7 @@ import os
 import sys
 
 import odatix.lib.printc as printc
-from odatix.components.cli_options import add_options
+from odatix.components.cli_options import add_options, deprecated_option
 
 EXIT_SUCCESS = 0
 
@@ -51,18 +51,23 @@ def add_arguments(parser):
                         help="eda tool the evaluations run with (repeatable: the search chooses)")
     parser.add_argument("-f", "--flow", action="append", dest="flows",
                         help="flow of that tool (repeatable: the search chooses)")
-    parser.add_argument("-T", "--target", action="append", dest="targets",
+    parser.add_argument("--target", action="append", dest="targets",
                         help="target the evaluations run on (repeatable: the search chooses)")
+    deprecated_option(parser, "-T", "--target", dest="targets", action="append")
     parser.add_argument("-p", "--campaign", action="append", dest="campaigns",
-                        help="campaign to run (repeatable, overrides the settings file)")
+                        help="campaign to run, i.e. a file of dse_campaigns/ saying what to search, "
+                             "for which objectives and how (repeatable, overrides the settings file)")
     parser.add_argument("-a", "--architecture", action="append", dest="architectures",
                         help="architecture to explore (repeatable, overrides the campaign file)")
     parser.add_argument("-r", "--run", help="what evaluating one design runs (fmax_synthesis, ...)")
-    parser.add_argument("-s", "--strategy", help="how the designs to evaluate are chosen "
-                                                 "(genetic, random, exhaustive, bayesian)")
+    parser.add_argument("-s", "--strategy", help="how the designs to evaluate are chosen: "
+                                                 "exhaustive (a space small enough to measure whole), "
+                                                 "random (a baseline, or a first look at a large space), "
+                                                 "genetic (a large space, designs cheap to evaluate), "
+                                                 "bayesian (designs that take hours to evaluate)")
     parser.add_argument("-m", "--mode", choices=["batch", "async"],
-                        help="wait for a whole batch between two decisions, or fill "
-                             "slots as they free up (batch, async)")
+                        help="batch: decide once a whole batch is back (designs that take about as long as each other); "
+                             "async: start a design as soon as a slot frees (some designs take far longer than others)")
     parser.add_argument("-b", "--budget", type=int, help="how many designs to evaluate at most")
     parser.add_argument("-B", "--batch", type=int, help="how many designs to evaluate together")
     parser.add_argument("--seed", type=int, help="make the search reproducible")
@@ -77,9 +82,11 @@ def add_arguments(parser):
     # Not for users: what the daemon runs to be the search itself. Everything a
     # user says has already been resolved into the settings file it is given.
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
-    # Not the global settings file of the other commands: the exploration
-    # reads the workspace's own, and this names its settings.
-    add_options(parser, "config", config={"dest": "config_file", "default": None, "help": "exploration settings file"})
+    # Its own settings file is an input, like the run settings file of the
+    # other commands; -c/--config is the workspace's, as everywhere.
+    add_options(parser, "settings_file", "config", settings_file={
+        "dest": "config_file", "help": "exploration settings file (default: \"dse_settings_file\" of odatix.yml)",
+    })
     parser.add_argument("-C", "--check", action="store_true",
                         help="say what the exploration would do, without running anything")
     return parser
@@ -138,6 +145,31 @@ def apply_campaign_arguments(campaign, args):
 # The command
 ######################################
 
+def refuse_former_config(config):
+    """
+    "-c/--config" used to name the exploration settings file of "odatix dse",
+    and names the workspace settings file now, as for every other command.
+    An exploration settings file given there is refused rather than read as a
+    workspace.
+    """
+    if not config or not os.path.isfile(config):
+        return
+    from odatix.workspace.yaml_io import read_yaml
+
+    data = read_yaml(config, default={})
+    if isinstance(data, dict) and "workspace" not in data and "campaigns" in data:
+        printc.error('"{0}" is an exploration settings file, and -c/--config names the workspace settings file'.format(config), script_name)
+        printc.tip("give the exploration settings file with -i/--input", script_name)
+        sys.exit(-1)
+
+
+def command_workspace(args):
+    """The workspace the exploration runs in, read from -c/--config when it names another settings file."""
+    import odatix.run.cli as run_cli
+
+    return run_cli.command_workspace(getattr(args, "config", None), script_name)
+
+
 def main(args, settings=None):
     """Run the exploration the workspace describes."""
     from odatix.dse.campaign import CampaignError, Exploration
@@ -146,8 +178,9 @@ def main(args, settings=None):
     from odatix.workspace.errors import WorkspaceError
     from odatix.workspace.settings import load_settings
 
+    refuse_former_config(getattr(args, "config", None))
     try:
-        workspace = Workspace.open()
+        workspace = command_workspace(args)
     except WorkspaceError as error:
         printc.error(str(error), script_name)
         sys.exit(-1)

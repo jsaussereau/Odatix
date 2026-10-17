@@ -137,11 +137,9 @@ class RunOptions(Settings):
     source_work_root = Setting(None, type="any", doc="Work directory a place & route reads its sources from.")
 
     ######################################
-    # Benchmarking
+    # Exporting
     ######################################
 
-    use_benchmark = Setting(None, type="any", doc="Compare the results against the benchmark file.")
-    benchmark_file = Setting(None, type="any", doc="The benchmark to compare them against.")
     custom_metrics_file = Setting(None, type="any", doc="Extra metrics to read from the reports.")
     output_filename = Setting(None, type="any", doc="Name of the result file, when the run writes one.")
 
