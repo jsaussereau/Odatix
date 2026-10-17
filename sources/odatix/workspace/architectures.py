@@ -109,6 +109,27 @@ class CustomFrequencies(Settings):
     )
 
 
+class Testbench(Settings):
+    """
+    The testbench of a design, which every simulation template runs it with,
+    unless the simulation names its own (see :mod:`odatix.sim.templates`).
+    """
+
+    top = Setting(
+        "", type="str", skip_if_empty=True,
+        doc="Module or entity at the top of the testbench. Guessed from its files when empty.",
+    )
+    files = Setting(
+        factory=list, type="str_list", style="flow", skip_if_empty=True,
+        doc="Its sources, relative to the workspace, like rtl_path. Glob patterns are accepted.",
+    )
+    parameters = Setting(
+        factory=dict, type="dict", skip_if_empty=True,
+        doc="Parameters (generics) its top is given. Values may use the placeholders of the "
+            "simulation commands: ${width} is the value of the domain \"width\".",
+    )
+
+
 class ArchitectureSettings(WithVariables, Settings):
     """
     Settings of an architecture ("<architecture>/_settings.yml"), which are also
@@ -192,6 +213,13 @@ class ArchitectureSettings(WithVariables, Settings):
         doc="Constraint files read by the jobs of this architecture. Either file "
             "paths, or mappings with a \"files\" key and a \"scope\" among "
             "\"synthesis\", \"pnr\" and \"all\".",
+    )
+
+    # Testbench run by the simulation templates
+    testbench = Setting(
+        type=Testbench, section="Testbench", skip_if_empty=True,
+        doc="Testbench of the design: \"top\", \"files\" and \"parameters\". "
+            "Any simulation template runs it, unless the simulation names its own.",
     )
 
     # Frequencies
@@ -449,6 +477,13 @@ def validate(settings, path=""):
         for key in ("file_copy_source", "file_copy_dest"):
             if not data.get(key):
                 missing(key, " while file_copy_enable=true")
+
+    if data.get("testbench") is not None:
+        from odatix.sim.design_info import check_testbench
+
+        problem = check_testbench(data.get("testbench"))
+        if problem:
+            messages.append(Message("error", '"testbench" in "{0}" {1}.'.format(path, problem)))
 
     # The former switch only meant something next to the block it switched on.
     # Alone, the design space ignores it and no configuration is generated.

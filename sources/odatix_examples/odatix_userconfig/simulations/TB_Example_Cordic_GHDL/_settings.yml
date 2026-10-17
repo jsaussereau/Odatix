@@ -1,17 +1,12 @@
 ##############################################
 # Settings for this simulation
 ##############################################
+# The CORDIC testbench run with GHDL. Nothing to write here: the
+# "ghdl" template compiles and runs the design, and the testbench comes
+# with each architecture ("testbench" in its _settings.yml), in its own
+# language. Only the metrics of the testbench are added, in _metrics.yml.
 
-# What to do for this simulation. The "main" task is the entry point
-tasks:
-- name: main
-  commands:
-  - make sim CFG_WIDTH=${width} CFG_ITERATIONS=${iterations} --no-print-directory
-
-# Where Odatix should look for progress information, and how to parse it
-progress:
-  file: "log/progress.log"
-  regex: "(.*): ([0-9]+)%(.*)"
+template: ghdl
 
 # Architectures this testbench runs on. Only an indication: running it on
 # another one works, and only prints a warning.

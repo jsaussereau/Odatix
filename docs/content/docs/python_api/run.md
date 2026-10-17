@@ -145,6 +145,8 @@ Declared settings:
 | `tool` | `any` |  | EDA tool the jobs run with, or the tools an analysis runs. |
 | `flow` | `any` |  | Flow of that tool. Its default flow when unset. |
 | `targets` | `str_list` |  | Synthesis targets to run on, out of those the tool's target file enables. All of them when empty. |
+| `architectures` | `str_list` |  | Architectures to run, as entries of the run settings file's "architectures". Its own list when empty. |
+| `simulations` | `str_list` |  | Simulations to run, by name. Every simulation of the run settings file when empty. |
 | `until` | `any` |  | Last step of the flow to run, inclusive. |
 | `rerun_from` | `any` |  | Step to run again, with the ones after it. |
 | `overwrite` | `bool` | `False` | Run again what is already done. |

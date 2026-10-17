@@ -127,6 +127,37 @@ initialization file, a generated package, a licence.
 | `file_copy_source` | path | If enabled | File to copy. |
 | `file_copy_dest` | path | If enabled | Destination inside the copied RTL tree. |
 
+## Testbench
+
+The testbench of the design. Any [simulation
+template](/docs/reference/simulation/#templates) runs the design with it, so a
+run can simulate the design with any simulator without a simulation of its own.
+
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `testbench.top` | string | No | Module or entity at the top of the testbench. Guessed from its files when empty. |
+| `testbench.files` | path or list | Yes | Its sources, relative to the workspace (like `rtl_path`). Glob patterns are accepted. |
+| `testbench.parameters` | mapping | No | Parameters (generics) given to its top. Values may use the [simulation placeholders](/docs/reference/simulation/#placeholders-available-in-commands). |
+
+{{< code lang=yaml filename="architectures/Example_Cordic_vhdl/_settings.yml" >}}
+testbench:
+  top: tb_cordic
+  files: [examples/cordic_tb/tb_cordic.vhdl]
+  parameters:
+    WIDTH: ${width}
+    ITERATIONS: ${iterations}
+{{< /code >}}
+
+`${width}` is the value of the parameter domain `width` of the configuration
+under test: the testbench receives the configuration it runs on, without
+reading the RTL. The files are copied into the `testbench/` directory of each
+simulation job, headers and subdirectories included.
+
+A simulation naming its own testbench files runs its own; otherwise the
+architecture's comes first (see [which testbench runs](/docs/reference/simulation/#testbench)).
+Files that match nothing, or a testbench in a language the simulator does not
+compile, are reported when the run is checked.
+
 ## Frequency settings
 
 Two blocks, one per synthesis job type. Both are optional at the root of the

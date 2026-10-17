@@ -50,8 +50,8 @@ module tb_cordic #(
   // Design under test
   // ------------------------------------------------------------------
   // Instantiated by name only: the very same instantiation binds either the
-  // VHDL entity or the SystemVerilog module, whichever was compiled into the
-  // work library by scripts/sim.do.
+  // VHDL entity or the SystemVerilog module, whichever the simulation
+  // template compiled into the work library.
   cordic #(
     .WIDTH      (WIDTH),
     .ITERATIONS (ITERATIONS)
@@ -312,6 +312,8 @@ module tb_cordic #(
     $display("  rms angle error : %0.6f deg", rms_angle_error_deg);
     $display("  snr             : %0.6f dB", snr_db);
     $display("  status          : %s", all_ok ? "OK" : "KO");
+    // Read by the simulation templates, for the simulated cycles per second
+    $display("odatix_cycles: %0d", cycle);
 
     // ------------------------------------------------------------------
     // Export the results

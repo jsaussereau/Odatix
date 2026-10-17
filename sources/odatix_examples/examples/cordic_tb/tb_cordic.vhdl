@@ -334,6 +334,8 @@ begin
     else
       report "  status          : KO" severity warning;
     end if;
+    -- Read by the simulation templates, for the simulated cycles per second
+    report "odatix_cycles: " & integer'image(cycle);
 
     -- ------------------------------------------------------------------
     -- Export the results

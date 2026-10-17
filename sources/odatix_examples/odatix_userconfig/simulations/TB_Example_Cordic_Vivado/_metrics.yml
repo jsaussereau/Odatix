@@ -1,8 +1,10 @@
 ##############################################
 # Metrics for this simulation
 ##############################################
-# Extracted from "results.yml", written by the testbench itself
-# (see tb/tb_cordic.sv).
+# Extracted from "results.yml", written by the testbench of the architecture
+# (see examples/cordic_tb/tb_cordic.sv or tb_cordic.vhdl).
+# Added to the metrics of the "xsim" template: status, errors,
+# warnings, compile, elaboration and simulation times, cycles per second.
 
 metrics:
   # ----- Configuration ------------------------------------------------

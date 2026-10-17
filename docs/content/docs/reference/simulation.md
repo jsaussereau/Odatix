@@ -109,9 +109,18 @@ testbench:
     ITERATIONS: ${iterations}
 {{< /code >}}
 
-Without `files`, every HDL file of the simulation's `tb/` directory is taken.
 Without `top`, Odatix takes `tb_<top_level_module>` when the testbench defines
 it, otherwise the only module or entity no other one instantiates.
+
+The testbench a job runs is, by priority:
+
+1. the `files` the simulation names here;
+2. the [testbench of the architecture](/docs/reference/architecture/#testbench),
+   copied into the job's `testbench/` directory: this is how a
+   [template](#templates) runs any design with no simulation of its own;
+3. every HDL file of the simulation's `tb/` directory.
+
+`parameters` go with the testbench chosen.
 
 ## What Odatix tells the simulation
 
@@ -518,7 +527,7 @@ simulations:
 {{< /code >}}
 
 The testbench then comes from the architecture (see [`testbench` in the
-architecture settings](/docs/reference/architecture/)).
+architecture settings](/docs/reference/architecture/#testbench)).
 
 **Start a simulation from it**, with the `template` key, and say only what
 changes, usually the testbench:

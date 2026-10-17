@@ -226,7 +226,8 @@ $ odatix synth --tool vivado --from 100 --to 500 --step 50
 
 $ odatix sim
 $ odatix sim -s TB_Example_Cordic_GHDL                     # one simulation, on its architectures
-$ odatix sim -s TB_Example_Cordic_Verilator -a "Example_Cordic_sv + iterations/* + width/16bits"
+$ odatix sim -s TB_Example_Cordic_Verilator -a "Example_Cordic_sv + iterations/* + width/8"
+$ odatix sim -s questa -a "Example_Cordic_vhdl + iterations/* + width/*"   # a simulation template
 {{< /code >}}
 
 `-s/--sim` runs some of the simulations of `sim_settings.yml`, on the

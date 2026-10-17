@@ -119,7 +119,9 @@ def sim_dir(tmp_path, monkeypatch):
     info = {
         "dut": {"top": "dut", "languages": ["sv"]},
         "sources": {"vhdl": [], "verilog": [], "sv": ["rtl/a.sv", "rtl/b.sv"], "include_dirs": ["rtl/inc"]},
-        "testbench": {"top": "tb", "files": ["tb/tb.sv"], "languages": ["sv"], "parameters": {"W": "8"}},
+        "testbench": {
+            "top": "tb", "files": ["tb/tb.sv"], "languages": ["sv"], "parameters": {"W": "8"}, "include_dirs": ["tb"],
+        },
     }
     (tmp_path / "odatix_sim.yml").write_text(yaml.dump(info))
     monkeypatch.chdir(tmp_path)
@@ -139,7 +141,7 @@ class TestRunner:
         assert sim.files("sv", testbench=False) == ["rtl/a.sv", "rtl/b.sv"]
         assert sim.files("sv", design=False) == ["tb/tb.sv"]
         assert sim.files("vhdl") == []
-        assert sim.include_dirs == ["rtl/inc"]
+        assert sim.include_dirs == ["rtl/inc", "tb"]
         assert sim.tb_parameters == {"W": "8"}
 
     def test_a_language_it_does_not_compile_is_refused(self, sim_dir):
@@ -221,15 +223,18 @@ class TestRunner:
 # Runs
 ######################################
 
-def template_simulation(workspace, name, template, testbench, parameters=True):
-    """A simulation starting from `template`, holding only the Cordic testbench."""
+def template_simulation(workspace, name, template, testbench):
+    """A simulation starting from `template`, naming a copy of the Cordic testbench as its own."""
     sims = workspace / "odatix_userconfig" / "simulations"
-    source = sims / ("TB_Example_Cordic_GHDL/tb/tb_cordic.vhdl" if testbench.endswith(".vhdl") else "TB_Example_Cordic_QuestaSim/tb/tb_cordic.sv")
     (sims / name / "tb").mkdir(parents=True)
-    shutil.copy(str(source), str(sims / name / "tb" / testbench))
-    settings = {"template": template}
-    if parameters:
-        settings["testbench"] = {"parameters": {"WIDTH": "${width}", "ITERATIONS": "${iterations}"}}
+    shutil.copy(str(workspace / "examples" / "cordic_tb" / testbench), str(sims / name / "tb" / testbench))
+    settings = {
+        "template": template,
+        "testbench": {
+            "files": ["tb/" + testbench],
+            "parameters": {"WIDTH": "${width}", "ITERATIONS": "${iterations}"},
+        },
+    }
     (sims / name / "_settings.yml").write_text(yaml.dump(settings))
 
 
@@ -237,23 +242,44 @@ def plan_names(plan, category):
     return [entry["name"] for entry in plan.entries if entry["category"] == category]
 
 
+def prepared_info(workspace, simulation, architecture):
+    """Prepare one job, and read the information file of its work directory."""
+    Run(Workspace.open(), "simulation", simulations=[simulation], architectures=[architecture], noask=True).prepare()
+    work = next(
+        root for root, _dirs, files in os.walk(str(workspace / "work" / "simulations" / simulation))
+        if "odatix_sim.yml" in files
+    )
+    with open(os.path.join(work, "odatix_sim.yml")) as f:
+        return work, yaml.safe_load(f)
+
+
+def set_architecture_testbench(workspace, architecture, testbench):
+    path = workspace / "odatix_userconfig" / "architectures" / architecture / "_settings.yml"
+    data = yaml.safe_load(path.read_text())
+    data["testbench"] = testbench
+    path.write_text(yaml.dump(data))
+
+
+CORDIC = "Example_Cordic_{} + iterations/12 + width/8"
+
+
 class TestRuns:
     def test_a_template_is_named_in_a_run(self, example_workspace):
-        plan = Run(
-            Workspace.open(), "simulation", simulations=["ghdl"],
-            architectures=["Example_Cordic_vhdl + iterations/12 + width/8"],
-        ).check()
+        plan = Run(Workspace.open(), "simulation", simulations=["ghdl"], architectures=[CORDIC.format("vhdl")]).check()
         assert [entry["name"] for entry in plan.entries] == ["ghdl: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
         assert plan_names(plan, "error") == []
 
     def test_a_language_the_simulator_does_not_compile_is_refused_at_check(self, example_workspace):
-        run = Run(
-            Workspace.open(), "simulation", simulations=["verilator", "ghdl"],
-            architectures=["Example_Cordic_vhdl + iterations/12 + width/8"],
-        )
+        run = Run(Workspace.open(), "simulation", simulations=["verilator", "ghdl"], architectures=[CORDIC.format("vhdl")])
         plan = run.check()
         assert plan_names(plan, "error") == ["verilator: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
         assert any('"verilator" cannot compile vhdl' in str(message) for message in run.reporter.messages)
+
+    def test_so_is_the_language_of_the_testbench(self, example_workspace):
+        set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"files": ["examples/cordic_tb/tb_cordic.vhdl"]})
+        with pytest.raises(RunError) as error:
+            Run(Workspace.open(), "simulation", simulations=["verilator"], architectures=[CORDIC.format("sv")]).check()
+        assert "cannot compile vhdl, the language of the testbench" in str(error.value)
 
     def test_an_unknown_simulation(self, example_workspace):
         with pytest.raises(RunError) as error:
@@ -266,42 +292,112 @@ class TestRuns:
         (sims / "TB_mine" / "run.py").write_text("# mine\n")
         (sims / "TB_mine" / "_metrics.yml").write_text("metrics: {}\n")
 
-        Run(
-            Workspace.open(), "simulation", simulations=["TB_mine"],
-            architectures=["Example_Cordic_sv + iterations/12 + width/8"], noask=True,
-        ).prepare()
-        work = next(
-            root for root, _dirs, files in os.walk(str(example_workspace / "work" / "simulations" / "TB_mine"))
-            if "odatix_sim.yml" in files
-        )
+        work, info = prepared_info(example_workspace, "TB_mine", CORDIC.format("sv"))
         assert open(os.path.join(work, "run.py")).read() == "# mine\n"
-        with open(os.path.join(work, "odatix_sim.yml")) as f:
-            info = yaml.safe_load(f)
         assert info["testbench"]["parameters"] == {"WIDTH": "8", "ITERATIONS": "12"}
         with open(os.path.join(work, "sim_meta.yml")) as f:
             meta = yaml.safe_load(f)
         assert [os.path.basename(os.path.dirname(path)) for path in meta["metrics_files"]] == ["questa", "TB_mine"]
 
+
+class TestTestbench:
+    """Which testbench a job runs: the simulation's files, the architecture's, the "tb" directory."""
+
+    def test_the_architecture_s_testbench(self, example_workspace):
+        work, info = prepared_info(example_workspace, "questa", CORDIC.format("vhdl"))
+        assert info["testbench"] == {
+            "top": "tb_cordic",
+            "files": ["testbench/tb_cordic.vhdl"],
+            "languages": ["vhdl"],
+            "parameters": {"WIDTH": "8", "ITERATIONS": "12"},
+            "include_dirs": [],
+        }
+        assert os.path.isfile(os.path.join(work, "testbench", "tb_cordic.vhdl"))
+
+    def test_the_files_a_simulation_names_come_first(self, example_workspace):
+        template_simulation(example_workspace, "TB_mine", "questa", "tb_cordic.sv")
+        _work, info = prepared_info(example_workspace, "TB_mine", CORDIC.format("vhdl"))
+        assert info["testbench"]["files"] == ["tb/tb_cordic.sv"]
+
+    def test_the_tb_directory_comes_last(self, example_workspace):
+        sims = example_workspace / "odatix_userconfig" / "simulations"
+        (sims / "TB_dir" / "tb").mkdir(parents=True)
+        (sims / "TB_dir" / "tb" / "tb_other.sv").write_text("module tb_other; endmodule\n")
+        (sims / "TB_dir" / "_settings.yml").write_text("template: questa\n")
+
+        _work, info = prepared_info(example_workspace, "TB_dir", CORDIC.format("vhdl"))
+        assert info["testbench"]["files"] == ["testbench/tb_cordic.vhdl"]
+
+        set_architecture_testbench(example_workspace, "Example_Cordic_vhdl", {})
+        shutil.rmtree(str(example_workspace / "work"))
+        _work, info = prepared_info(example_workspace, "TB_dir", CORDIC.format("vhdl"))
+        assert info["testbench"]["files"] == ["tb/tb_other.sv"]
+        assert info["testbench"]["top"] == "tb_other"
+
+    def test_the_layout_of_the_files_is_kept(self, example_workspace):
+        bench = example_workspace / "bench"
+        (bench / "inc").mkdir(parents=True)
+        (bench / "tb_cordic.sv").write_text('`include "defs.svh"\nmodule tb_cordic; endmodule\n')
+        (bench / "inc" / "defs.svh").write_text("`define X 1\n")
+        (bench / "inc" / "helper.sv").write_text("module helper; endmodule\n")
+        set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"files": ["bench/*.sv", "bench/inc/*"]})
+
+        work, info = prepared_info(example_workspace, "questa", CORDIC.format("sv"))
+        assert info["testbench"]["files"] == ["testbench/tb_cordic.sv", "testbench/inc/helper.sv"]
+        assert os.path.isfile(os.path.join(work, "testbench", "inc", "defs.svh"))
+        assert info["testbench"]["include_dirs"] == ["testbench", "testbench/inc"]
+
+    def test_files_that_match_nothing_are_refused_at_check(self, example_workspace):
+        set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"files": ["nowhere/*.sv"]})
+        with pytest.raises(RunError) as error:
+            Run(Workspace.open(), "simulation", simulations=["questa"], architectures=[CORDIC.format("sv")]).check()
+        assert "match no file" in str(error.value)
+
+    def test_the_setting_is_validated(self, example_workspace):
+        set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"file": "tb.sv"})
+        with pytest.raises(RunError) as error:
+            Run(Workspace.open(), "simulation", simulations=["questa"], architectures=[CORDIC.format("sv")]).check()
+        assert 'unknown keys: "file"' in str(error.value)
+
+
+class TestExamples:
+    """The Cordic examples: a testbench per language, run by any simulator."""
+
     CASES = [
-        ("ghdl", "tb_cordic.vhdl", "Example_Cordic_vhdl"),
-        ("verilator", "tb_cordic.sv", "Example_Cordic_sv"),
-        ("questa", "tb_cordic.sv", "Example_Cordic_vhdl"),
-        ("questa", "tb_cordic.sv", "Example_Cordic_sv"),
-        ("xsim", "tb_cordic.sv", "Example_Cordic_vhdl"),
-        ("icarus", "tb_cordic.sv", "Example_Cordic_sv"),
+        ("TB_Example_Cordic_GHDL", "vhdl"),
+        ("TB_Example_Cordic_Verilator", "sv"),
+        ("TB_Example_Cordic_QuestaSim", "vhdl"),
+        ("TB_Example_Cordic_QuestaSim", "sv"),
+        ("TB_Example_Cordic_Vivado", "vhdl"),
+        ("icarus", "sv"),
     ]
+    TEMPLATES = {
+        "TB_Example_Cordic_GHDL": "ghdl",
+        "TB_Example_Cordic_Verilator": "verilator",
+        "TB_Example_Cordic_QuestaSim": "questa",
+        "TB_Example_Cordic_Vivado": "xsim",
+        "icarus": "icarus",
+    }
+
+    def test_the_example_simulations_hold_no_script(self):
+        from conftest import EXAMPLES_DIR
+
+        for simulation in self.TEMPLATES:
+            if simulation == "icarus":
+                continue
+            directory = os.path.join(EXAMPLES_DIR, "odatix_userconfig", "simulations", simulation)
+            assert sorted(os.listdir(directory)) == ["_metrics.yml", "_settings.yml"], simulation
 
     @pytest.mark.integration
-    @pytest.mark.parametrize("template, testbench, architecture", CASES)
-    def test_cordic_runs_with_every_simulator(self, example_workspace, template, testbench, architecture):
-        if shutil.which(SIMULATORS[template]) is None:
-            pytest.skip("needs " + SIMULATORS[template])
+    @pytest.mark.parametrize("simulation, language", CASES)
+    def test_cordic_runs_with_every_simulator(self, example_workspace, simulation, language):
+        executable = SIMULATORS[self.TEMPLATES[simulation]]
+        if shutil.which(executable) is None:
+            pytest.skip("needs " + executable)
         import odatix.components.export_simulation_results as exp_sim_res
 
-        template_simulation(example_workspace, "TB_" + template, template, testbench)
         jobs = Run(
-            Workspace.open(), "simulation", simulations=["TB_" + template],
-            architectures=[architecture + " + iterations/12 + width/8"], noask=True,
+            Workspace.open(), "simulation", simulations=[simulation], architectures=[CORDIC.format(language)], noask=True,
         ).prepare().job_list
         assert len(jobs) == 1
         job = jobs[0]
@@ -315,9 +411,104 @@ class TestRuns:
         sim_path = str(example_workspace / "odatix_userconfig" / "simulations")
         records, _units = exp_sim_res._extract_records_for_run(job.directory, work_root, sim_path)
         metrics = records[0]["metrics"]
+        # The template's metrics...
         assert metrics["sim_status"] == "passed"
         assert metrics["sim_errors"] == 0
-        assert metrics["simulation_time"] > 0
-        # The testbench's own result file was written, with the configuration's width.
-        with open(os.path.join(job.directory, "results.yml")) as f:
-            assert yaml.safe_load(f)["width"] == 8
+        assert metrics["simulated_cycles"] > 0 and metrics["cycles_per_second"] > 0
+        # ...and the testbench's, for the configuration run
+        if simulation != "icarus":
+            assert metrics["status"] == "OK"
+            assert metrics["width"] == 8
+
+
+class TestTutorial:
+    """The design of the "Simulate your own RTL" tutorial: configurations built from a variable."""
+
+    COUNTER = """
+        module counter #(
+          parameter BITS = 8
+        )(
+          input  wire            clock,
+          input  wire            reset,
+          input  wire            i_init,
+          input  wire            i_inc_dec,
+          output wire [BITS-1:0] o_value
+        );
+          reg [BITS-1:0] value;
+          always @(posedge clock) begin
+            if (reset)       value <= 0;
+            else if (i_init) value <= 0;
+            else             value <= i_inc_dec ? value + 1 : value - 1;
+          end
+          assign o_value = value;
+        endmodule
+        """
+    TESTBENCH = """
+        `timescale 1ns / 1ps
+        module tb_counter #(parameter BITS = 8);
+          logic clock = 0, reset = 1;
+          logic [BITS-1:0] o_value, expected = 0;
+          counter #(.BITS(BITS)) dut (.clock(clock), .reset(reset), .i_init(1'b0), .i_inc_dec(1'b1), .o_value(o_value));
+          always #5 clock = ~clock;
+          initial begin
+            repeat (2) @(negedge clock);
+            reset = 0;
+            repeat (100) begin
+              @(posedge clock);
+              #1;
+              expected = expected + 1;
+              if (o_value !== expected) $error("got %0d, expected %0d", o_value, expected);
+            end
+            $display("odatix_cycles: %0d", 100);
+            $finish;
+          end
+        endmodule
+        """
+    SETTINGS = """
+        rtl_path: "rtl"
+        top_level_file: "counter.v"
+        top_level_module: "counter"
+        clock_signal: "clock"
+        reset_signal: "reset"
+        use_parameters: Yes
+        start_delimiter: "#("
+        stop_delimiter: ")("
+        configurations:
+          name: "${width}bits"
+          template: "  parameter BITS = ${width}"
+        variables:
+          width:
+            type: power_of_two
+            settings:
+              from: 8
+              to: 32
+        testbench:
+          top: tb_counter
+          files: [tb/tb_counter.sv]
+          parameters:
+            BITS: ${width}
+        """
+
+    @pytest.fixture
+    def workspace(self, example_workspace):
+        write(example_workspace, "rtl/counter.v", self.COUNTER)
+        write(example_workspace, "tb/tb_counter.sv", self.TESTBENCH)
+        write(example_workspace, "odatix_userconfig/architectures/MyCounter/_settings.yml", self.SETTINGS)
+        return example_workspace
+
+    def test_the_testbench_gets_the_variables_of_the_configuration(self, workspace):
+        for bits in ("8", "16", "32"):
+            _work, info = prepared_info(workspace, "icarus", "MyCounter/" + bits + "bits")
+            assert info["testbench"]["parameters"] == {"BITS": bits}
+            shutil.rmtree(str(workspace / "work"))
+
+    @pytest.mark.integration
+    def test_it_runs(self, workspace):
+        if shutil.which("iverilog") is None:
+            pytest.skip("needs iverilog")
+        jobs = Run(Workspace.open(), "simulation", simulations=["icarus"], architectures=["MyCounter/*"], noask=True).prepare().job_list
+        assert len(jobs) == 3
+        for job in jobs:
+            completed = subprocess.run(job.command, shell=True, cwd=job.directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            assert completed.returncode == 0, completed.stdout[-2000:]
+            assert report(job.directory)["cycles"] == 100

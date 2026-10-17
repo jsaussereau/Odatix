@@ -138,7 +138,9 @@ class TestTestbench:
         write(tmp_path, "tb/tb_dut.sv", "module tb_dut; dut u (.a(1)); endmodule\n")
         write(tmp_path, "tb/model.cpp", "int main() {}\n")
         testbench = design_info.collect_testbench(str(tmp_path), dut_top="dut")
-        assert testbench == {"top": "tb_dut", "files": ["tb/tb_dut.sv"], "languages": ["sv"], "parameters": {}}
+        assert testbench == {
+            "top": "tb_dut", "files": ["tb/tb_dut.sv"], "languages": ["sv"], "parameters": {}, "include_dirs": ["tb"],
+        }
 
     def test_the_top_is_the_unit_nothing_instantiates(self, tmp_path):
         write(tmp_path, "tb/bench.vhd", """
@@ -162,6 +164,7 @@ class TestTestbench:
         )
         assert testbench == {
             "top": "b", "files": ["bench/a.sv", "bench/b.sv"], "languages": ["sv"], "parameters": {"WIDTH": "8"},
+            "include_dirs": ["bench"],
         }
 
     def test_the_setting_is_checked(self):
@@ -246,7 +249,7 @@ class TestSimulationJobs:
     def test_the_commands_get_the_placeholders(self, example_workspace):
         settings = example_workspace / "odatix_userconfig" / "simulations" / "TB_Example_Cordic_QuestaSim" / "_settings.yml"
         data = yaml.safe_load(settings.read_text())
-        data["tasks"][0]["commands"] = ["echo ${tb_top} ${languages} ${vhdl_files} ${tb_files} ${reset_signal} ${width}"]
+        data["tasks"] = [{"name": "main", "commands": ["echo ${tb_top} ${languages} ${vhdl_files} ${tb_files} ${reset_signal} ${width}"]}]
         settings.write_text(yaml.dump(data))
 
         run = Run(
@@ -254,7 +257,7 @@ class TestSimulationJobs:
             architectures=["Example_Cordic_vhdl + iterations/12 + width/8"], noask=True,
         )
         jobs = run.prepare().job_list
-        assert [job.command for job in jobs] == ["echo tb_cordic vhdl rtl/cordic.vhdl tb/tb_cordic.sv reset 8"]
+        assert [job.command for job in jobs] == ["echo tb_cordic vhdl rtl/cordic.vhdl testbench/tb_cordic.vhdl reset 8"]
 
     def test_every_placeholder_is_offered_by_the_editors(self):
         from odatix.gui.builtin_variables import BUILTIN_VARIABLES, DEPRECATED_VARIABLES

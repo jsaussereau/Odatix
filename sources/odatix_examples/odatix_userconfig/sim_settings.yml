@@ -40,6 +40,11 @@ simulations:
 # Examples
 #--------------------------------------------#
 
+  # A simulation template Odatix provides (ghdl, verilator, questa, xsim,
+  # icarus) can be named directly: it runs the testbench of the architecture.
+  #- questa:
+  #  - Example_Cordic_vhdl + iterations/12 + width/*
+
   - TB_Example_Cordic_Verilator:
     - Example_Cordic_sv + iterations/* + width/*
  

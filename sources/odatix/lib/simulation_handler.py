@@ -35,6 +35,7 @@ import odatix.workspace.selection as selection
 import odatix.workspace.sim_architectures as sim_architectures
 import odatix.lib.yaml_loader as yaml_loader
 import odatix.sim.design_info as design_info
+from odatix.sim.design_info import check_testbench
 import odatix.sim.templates as sim_templates
 
 script_name = os.path.basename(__file__)
@@ -96,35 +97,6 @@ class Simulation:
     # in that order. source_sim_dir is the last one, the simulation's own.
     self.definition_dirs = list(definition_dirs) if definition_dirs else [source_sim_dir]
     self.metrics_files = list(metrics_files) if metrics_files else []
-
-
-# What a "testbench" setting holds: its top, its files, and the parameters
-# (generics) its top is given, whose values may use the placeholders of the
-# simulation commands, ${width} for instance.
-TESTBENCH_KEYS = ("top", "files", "parameters")
-
-
-def check_testbench(testbench):
-  """
-  What is wrong with a "testbench" setting ({"top": name, "files": file or
-  list of files, "parameters": {name: value}}), or None when it is valid.
-  """
-  if not isinstance(testbench, dict):
-    return "must be a mapping with the keys \"top\" and \"files\""
-  unknown = sorted(str(key) for key in testbench if key not in TESTBENCH_KEYS)
-  if unknown:
-    return "has unknown keys: \"" + "\", \"".join(unknown) + "\" (expected \"" + "\", \"".join(TESTBENCH_KEYS) + "\")"
-  if testbench.get("top") is not None and not isinstance(testbench.get("top"), str):
-    return "\"top\" must be the name of a module or an entity"
-  files = testbench.get("files")
-  if files is not None and not isinstance(files, str) and not (
-    isinstance(files, list) and all(isinstance(path, str) for path in files)
-  ):
-    return "\"files\" must be a file or a list of files"
-  parameters = testbench.get("parameters")
-  if parameters is not None and not isinstance(parameters, dict):
-    return "\"parameters\" must be a mapping of parameter names to values"
-  return None
 
 
 class SimulationHandler:
@@ -224,22 +196,29 @@ class SimulationHandler:
     self._definitions_cache[sim] = definition
     return definition
 
-  def check_languages(self, sim, settings, architecture):
+  def check_languages(self, sim, settings, architecture, testbench_languages=()):
     """
-    Why the simulation cannot compile the design, or None when it can: a
-    template says which languages its simulator compiles. A generated RTL is
-    only known once generated, and is not checked.
+    Why the simulation cannot compile the design or its testbench, or None
+    when it can: a template says which languages its simulator compiles. A
+    generated RTL is only known once generated, and is not checked.
     """
     accepted = sim_templates.accepted_languages(settings)
-    if accepted is None or architecture.generate_rtl or not architecture.rtl_path:
+    if accepted is None:
       return None
-    refused = [language for language in design_info.source_languages(architecture.rtl_path) if language not in accepted]
-    if not refused:
-      return None
-    return (
-      "\"" + sim + "\" cannot compile " + ", ".join(refused) + ", the language of \"" + architecture.arch_name
-      + "\" (it compiles " + ", ".join(accepted) + ")"
-    )
+    if not architecture.generate_rtl and architecture.rtl_path:
+      refused = [language for language in design_info.source_languages(architecture.rtl_path) if language not in accepted]
+      if refused:
+        return (
+          "\"" + sim + "\" cannot compile " + ", ".join(refused) + ", the language of \"" + architecture.arch_name
+          + "\" (it compiles " + ", ".join(accepted) + ")"
+        )
+    refused = [language for language in testbench_languages if language not in accepted]
+    if refused:
+      return (
+        "\"" + sim + "\" cannot compile " + ", ".join(refused) + ", the language of the testbench of \""
+        + architecture.arch_name + "\" (it compiles " + ", ".join(accepted) + ")"
+      )
+    return None
 
   def check_architectures(self, sim, architectures):
     """
@@ -406,13 +385,6 @@ class SimulationHandler:
     testbench = {}
     progress_file = hard_settings.sim_progress_file
     progress_regex = hard_settings.sim_status_pattern.pattern
-
-    # a template refuses a design written in a language its simulator does not compile
-    language_error = self.check_languages(sim, merged_settings, architecture)
-    if language_error:
-      printc.error(language_error, script_name)
-      self.plan.add(sim_display_name, Category.ERROR)
-      return None
 
     # check if settings file exists
     if sim not in self.no_settings_sims:
@@ -733,6 +705,28 @@ class SimulationHandler:
                   param_target_file=domain_overrides.get('param_target_file', '') or architecture.top_level_filename,
                   param_file=new_domain_param_file,
                 ))
+
+    # The testbench of the architecture, which the simulation runs unless it
+    # names its own files (see run_simulations.select_testbench)
+    testbench_languages = []
+    arch_testbench = getattr(architecture, "testbench", None) or {}
+    if arch_testbench.get("files") and not testbench.get("files"):
+      matched = design_info.match_files(arch_testbench["files"])
+      if not matched:
+        printc.error(
+          "The testbench files of \"" + architecture.arch_name + "\" (" + ", ".join(arch_testbench["files"])
+          + ") match no file", script_name
+        )
+        self.plan.add(sim_display_name, Category.ERROR)
+        return None
+      testbench_languages = design_info.languages_of(design_info.split_by_language(matched))
+
+    # a template refuses a design written in a language its simulator does not compile
+    language_error = self.check_languages(sim, merged_settings, architecture, testbench_languages)
+    if language_error:
+      printc.error(language_error, script_name)
+      self.plan.add(sim_display_name, Category.ERROR)
+      return None
 
     # Without tasks, the simulation is run through its Makefile's "sim" rule:
     # that Makefile is then mandatory. Task-based simulations do not need one.

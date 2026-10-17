@@ -7,10 +7,10 @@ badgeColor: "#16a34a"
 cta: true
 weight: 6
 features:
+  - title: "No script to write"
+    description: "Templates for GHDL, Verilator, Questa, xsim and Icarus compile and run your testbench."
   - title: "Any simulator"
     description: "Odatix drives the simulator through commands you provide, so any tool fits."
-  - title: "Ready-made examples"
-    description: "Verilator and GHDL examples are included to get you running in minutes."
   - title: "Per-configuration runs"
     description: "Simulate every configuration of your design to validate the whole design space."
   - title: "Benchmark metrics"
@@ -24,9 +24,25 @@ Simulation tells you whether it is *correct* — and how well it *performs*. Oda
 runs simulations the way it runs synthesis: for **every configuration** of your
 design, in **parallel**, with the results collected in one place.
 
-Odatix does not embed a simulator. A simulation is described by the commands
-needed to build and run your testbench, so **Verilator, GHDL, ModelSim, cocotb**
-or a Makefile of your own all fit.
+Odatix does not embed a simulator, but it knows how to drive the common ones:
+its **simulation templates** compile, elaborate and run a design and its
+testbench with **GHDL, Verilator, Questa/ModelSim, the Vivado simulator or
+Icarus**. You write the testbench, attach it to the design, and name the
+simulator:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix sim -s verilator -a "MyCounter/*"
+{{< /code >}}
+
+Odatix orders the sources itself, packages first, refuses a language the
+simulator does not compile before anything starts, and reports for each
+configuration whether it passed, its errors and warnings, how long each stage
+took and how many cycles per second were simulated. See [Simulate your own
+RTL](/tutorials/own_designs/simulations/).
+
+For anything else, a simulation is described by the commands needed to build
+and run your testbench, so **cocotb**, another simulator or a Makefile of your
+own all fit.
 
 <!-- ![Simulation results](/images/screenshots/simulation.png "Placeholder — replace with a screenshot of benchmark results in Explorer") -->
 

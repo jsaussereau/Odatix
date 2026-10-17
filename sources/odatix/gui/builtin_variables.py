@@ -139,6 +139,7 @@ DEPRECATED_VARIABLES = {
 # the highlighter class of each one.
 EXTRA_VARIABLES = {
     "simulation": [
+        ("<variable>", "Value of each variable the configuration under test was built from.", "wf-hl-var"),
         ("<param_domain>", "Configuration value of each parameter domain of the design under test.", "wf-hl-domain"),
     ],
     "workflow": [

@@ -19,8 +19,10 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import glob
 import os
 import re
+import shutil
 import sys
 import yaml
 import argparse
@@ -51,7 +53,7 @@ from odatix.lib.simulation_handler import SimulationHandler
 from odatix.lib.utils import copytree, create_dir, ask_to_continue, get_timestamp_string
 from odatix.lib.run_settings import get_sim_settings
 from odatix.lib.wosit import createTaskGraph
-from odatix.workspace.space import selected_config_file
+from odatix.workspace.space import selected_config_file, config_set_at
 
 script_name = os.path.basename(__file__)
 
@@ -140,9 +142,46 @@ def build_simulation_command_substitutions(sim_instance):
     if not substitutions["reset_signal"]:
         substitutions["reset_signal"] = str(getattr(architecture, "reset_signal", "") or "")
 
+    substitutions.update(configuration_variables(sim_instance))
     substitutions.update(domain_values(architecture))
 
     return substitutions
+
+
+def configuration_variables(sim_instance):
+    """
+    The values of the variables the configuration under test was built from:
+    {"width": "8"} for a configuration "08bits" that a rule builds from the
+    variable "width", whichever domain it belongs to. Computed once per job.
+    """
+    cached = getattr(sim_instance, "_configuration_variables", None)
+    if cached is not None:
+        return cached
+
+    architecture = sim_instance.architecture
+    values = {}
+    arch_path = getattr(architecture, "arch_path", None)
+    if arch_path:
+        selections = [(os.path.join(arch_path, sim_instance.arch_param_dir), sim_instance.arch_config)]
+        for param_domain in getattr(architecture, "param_domains", []) or []:
+            selections.append((
+                os.path.join(arch_path, sim_instance.arch_param_dir, param_domain.domain), param_domain.domain_value,
+            ))
+        for path, name in selections:
+            if not os.path.isdir(path):
+                continue
+            try:
+                resolved = next((config for config in config_set_at(path).resolve() if config.name == str(name)), None)
+            except Exception:
+                resolved = None
+            if resolved is not None:
+                values.update({str(key): str(value) for key, value in resolved.values.items()})
+    # Variables an architecture substitutes into its commands, one job per value
+    for key, value in (getattr(architecture, "virtual_param_domains", None) or {}).items():
+        values[str(key)] = str(value)
+
+    sim_instance._configuration_variables = values
+    return values
 
 
 def domain_values(architecture):
@@ -164,7 +203,7 @@ def write_design_info(sim_instance):
     architecture = sim_instance.architecture
     # The values of the testbench parameters may use the placeholders of the
     # commands: ${width} gives the testbench the width of the configuration.
-    testbench = dict(sim_instance.testbench or {})
+    testbench = select_testbench(sim_instance)
     if isinstance(testbench.get("parameters"), dict):
         values = build_simulation_command_substitutions(sim_instance)
         testbench["parameters"] = {
@@ -195,6 +234,57 @@ def write_design_info(sim_instance):
         info = {}
     sim_instance.design_info = info
     return info
+
+
+# Where the testbench of an architecture is copied, in a job's work directory.
+ARCHITECTURE_TESTBENCH_DIR = "testbench"
+
+
+def select_testbench(sim_instance):
+    """
+    The testbench a job runs, by priority:
+
+      1. the files the simulation names ("testbench: files" in its settings);
+      2. the testbench of the architecture, copied into "testbench/" in the
+         work directory;
+      3. the HDL files of the simulation's "tb" directory.
+
+    Returns:
+        dict: the "testbench" setting the information file is built from.
+    """
+    own = dict(sim_instance.testbench or {})
+    if own.get("files"):
+        return own
+    arch_testbench = getattr(sim_instance.architecture, "testbench", None) or {}
+    if not arch_testbench.get("files"):
+        return own
+
+    patterns = arch_testbench["files"]
+    patterns = [patterns] if isinstance(patterns, str) else patterns
+    sources = []
+    for pattern in patterns:
+        sources.extend(path for path in sorted(glob.glob(str(pattern))) if os.path.isfile(path))
+    sources = list(dict.fromkeys(os.path.abspath(path) for path in sources))
+    if not sources:
+        return own
+
+    # Keep the layout of the files (a header next to the file including it),
+    # from the deepest directory holding them all.
+    common = os.path.commonpath([os.path.dirname(path) for path in sources])
+    files = []
+    for path in sources:
+        relpath = os.path.relpath(path, common)
+        destination = os.path.join(sim_instance.tmp_dir, ARCHITECTURE_TESTBENCH_DIR, relpath)
+        if not os.path.isdir(os.path.dirname(destination)):
+            os.makedirs(os.path.dirname(destination))
+        shutil.copy2(path, destination)
+        if design_info.language_of(path) is not None:
+            files.append((ARCHITECTURE_TESTBENCH_DIR + "/" + relpath).replace(os.sep, "/"))
+    return {
+        "top": arch_testbench.get("top") or "",
+        "files": files,
+        "parameters": dict(arch_testbench.get("parameters") or {}),
+    }
 
 
 def generate_command(sim_instance):

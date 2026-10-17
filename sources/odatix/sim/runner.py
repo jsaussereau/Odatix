@@ -155,7 +155,12 @@ class SimRunner(object):
 
   @property
   def include_dirs(self):
-    return list(self.info.get("sources", {}).get("include_dirs", []))
+    """Include directories of the design, then of the testbench."""
+    directories = list(self.info.get("sources", {}).get("include_dirs", []))
+    for directory in self.info.get("testbench", {}).get("include_dirs", []):
+      if directory not in directories:
+        directories.append(directory)
+    return directories
 
   def files(self, *languages, **kwargs):
     """

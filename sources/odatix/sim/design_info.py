@@ -397,6 +397,21 @@ def _is_instantiated(unit, text):
   return False
 
 
+def match_files(patterns, root="."):
+  """
+  The HDL files matching glob patterns, relative to `root`, in the order of
+  the patterns, each one's matches sorted.
+  """
+  if isinstance(patterns, str):
+    patterns = [patterns]
+  files = []
+  for pattern in patterns or []:
+    for match in sorted(glob.glob(os.path.join(root, str(pattern)))):
+      if os.path.isfile(match) and language_of(match) is not None:
+        files.append(_relative(match, root))
+  return _unique(files)
+
+
 def collect_testbench(work_dir, declared=None, dut_top=""):
   """
   The testbench a simulation runs, relative to the work directory.
@@ -418,14 +433,7 @@ def collect_testbench(work_dir, declared=None, dut_top=""):
     patterns = [patterns]
 
   if patterns:
-    files = []
-    for pattern in patterns:
-      matches = sorted(glob.glob(os.path.join(work_dir, str(pattern))))
-      files.extend(
-        _relative(match, work_dir) for match in matches
-        if os.path.isfile(match) and language_of(match) is not None
-      )
-    files = _unique(files)
+    files = match_files(patterns, work_dir)
   else:
     files, _include_dirs = scan_directory(os.path.join(work_dir, DEFAULT_TESTBENCH_DIR), work_dir)
 
@@ -441,7 +449,52 @@ def collect_testbench(work_dir, declared=None, dut_top=""):
     "files": files,
     "languages": languages_of(split_by_language(files)),
     "parameters": {str(name): str(value) for name, value in parameters.items()} if isinstance(parameters, dict) else {},
+    "include_dirs": _testbench_include_dirs(files, work_dir),
   }
+
+
+def _testbench_include_dirs(files, root):
+  """
+  The directories of the Verilog testbench files and those holding headers
+  below them: a testbench includes its headers relative to itself.
+  """
+  directories = _unique(
+    os.path.dirname(path) or "." for path in files if language_of(path) in ("verilog", "sv")
+  )
+  include_dirs = []
+  for directory in directories:
+    include_dirs.append(directory)
+    include_dirs.extend(scan_directory(os.path.join(root, directory), root)[1])
+  return _unique(include_dirs)
+
+
+# What a "testbench" setting holds: its top, its files, and the parameters
+# (generics) its top is given, whose values may use the placeholders of the
+# simulation commands, ${width} for instance.
+TESTBENCH_KEYS = ("top", "files", "parameters")
+
+
+def check_testbench(testbench):
+  """
+  What is wrong with a "testbench" setting ({"top": name, "files": file or
+  list of files, "parameters": {name: value}}), or None when it is valid.
+  """
+  if not isinstance(testbench, dict):
+    return "must be a mapping with the keys \"top\" and \"files\""
+  unknown = sorted(str(key) for key in testbench if key not in TESTBENCH_KEYS)
+  if unknown:
+    return "has unknown keys: \"" + "\", \"".join(unknown) + "\" (expected \"" + "\", \"".join(TESTBENCH_KEYS) + "\")"
+  if testbench.get("top") is not None and not isinstance(testbench.get("top"), str):
+    return "\"top\" must be the name of a module or an entity"
+  files = testbench.get("files")
+  if files is not None and not isinstance(files, str) and not (
+    isinstance(files, list) and all(isinstance(path, str) for path in files)
+  ):
+    return "\"files\" must be a file or a list of files"
+  parameters = testbench.get("parameters")
+  if parameters is not None and not isinstance(parameters, dict):
+    return "\"parameters\" must be a mapping of parameter names to values"
+  return None
 
 
 ######################################

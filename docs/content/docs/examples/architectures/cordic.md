@@ -12,7 +12,7 @@ The CORDIC example is one of the most complete design shipped with Odatix. The s
 - **[Parameter domains](/docs/configurations/param_domains/)** — two independent parameters swept and combined automatically, with no hand-written configuration matrix.
 - **Delimiter-based parameter substitution with no markers in the RTL** — the existing parameter/generic declarations serve as delimiters, so the source stays plain, synthesizable, and readable outside Odatix.
 - **The same design in two languages** — VHDL and SystemVerilog, with configurations that differ only by their delimiters, making cross-language comparison possible.
-- **[Simulations](/docs/features/simulation/) with four tools** — Verilator, GHDL, QuestaSim/ModelSim and Vivado, each with its own flow (Makefile, shell script, or `.do` script), all reporting progress the same way.
+- **[Simulations](/docs/features/simulation/) with five simulators and no script** — GHDL, Verilator, Questa/ModelSim, the Vivado simulator and Icarus run the same testbench through the [simulation templates](/docs/reference/simulation/#templates) Odatix provides. The testbench belongs to the architecture, one per language.
 - **[Metrics](/docs/results/) extraction from simulation results** — the testbench decides what is worth measuring and writes it.
 - **A genuine two-dimensional trade-off to explore** — accuracy against area and latency, which makes it a good playground for the [Explorer](/docs/features/explorer/).
 {{< /details >}}
@@ -71,8 +71,11 @@ The `atan` table has 24 entries. Beyond that, the rotation step falls below the 
 examples/
 ├── cordic_sv/
 │   └── cordic.sv                       # SystemVerilog version
-└── cordic_vhdl/
-    └── cordic.vhdl                     # VHDL version
+├── cordic_vhdl/
+│   └── cordic.vhdl                     # VHDL version
+└── cordic_tb/
+    ├── tb_cordic.sv                    # SystemVerilog testbench
+    └── tb_cordic.vhdl                  # VHDL testbench
 
 odatix_userconfig/
 ├── architectures/
@@ -85,11 +88,11 @@ odatix_userconfig/
 │   │       ├── _settings.yml
 │   │       └── 12.txt, 16.txt, 24.txt
 │   └── Example_Cordic_vhdl/            # same structure, VHDL delimiters
-└── simulations/
-    ├── TB_Example_Cordic_Verilator/    # C++ testbench   (SystemVerilog only)
-    ├── TB_Example_Cordic_GHDL/         # VHDL testbench  (VHDL only)
-    ├── TB_Example_Cordic_QuestaSim/    # SV testbench    (both languages)
-    └── TB_Example_Cordic_Vivado/       # SV testbench    (both languages)
+└── simulations/                        # a template and the testbench metrics, no script
+    ├── TB_Example_Cordic_Verilator/    # "verilator" template (SystemVerilog only)
+    ├── TB_Example_Cordic_GHDL/         # "ghdl" template      (VHDL only)
+    ├── TB_Example_Cordic_QuestaSim/    # "questa" template    (both languages)
+    └── TB_Example_Cordic_Vivado/       # "xsim" template      (both languages)
 {{< /code >}}
 
 ## Architecture settings
@@ -187,37 +190,55 @@ Here again, `ITERATIONS` is the last generic of the clause and is followed by no
 
 ## Simulation settings
 
-Each testbench declares how it is run, where its progress is reported, and which architectures it is meant for:
+### The testbench belongs to the design
 
-{{< code lang=yaml filename="simulations/TB_Example_Cordic_Verilator/_settings.yml" >}}
-tasks:
-- name: main
-  commands:
-  - make sim --no-print-directory
+Each architecture names its testbench, in its own language, and the parameters
+its top is given:
 
-progress:
-  file: "log/progress.log"
-  regex: "(.*): ([0-9]+)%(.*)"
-
-architectures:
-- Example_Cordic_sv
+{{< code lang=yaml filename="architectures/Example_Cordic_vhdl/_settings.yml" >}}
+testbench:
+  top: tb_cordic
+  files: [examples/cordic_tb/tb_cordic.vhdl]
+  parameters:
+    WIDTH: ${width}
+    ITERATIONS: ${iterations}
 {{< /code >}}
 
-The `architectures` list is only an indication: running the testbench on another architecture works, and only prints a warning.
+The testbench needs the width and the number of iterations of the configuration
+under test to build its reference model. `${width}` and `${iterations}` are the
+values of the two [parameter domains](/docs/configurations/param_domains/):
+each simulator receives them as the generics of the testbench top (`-g` for
+GHDL and Questa, `-generic_top` for xsim, `-G` for Verilator, `-P` for Icarus).
 
-| Testbench | Tool | Testbench language | Runs on |
-|---|---|---|---|
-| `TB_Example_Cordic_Verilator` | Verilator | C++ | SystemVerilog |
-| `TB_Example_Cordic_GHDL` | GHDL | VHDL | VHDL |
-| `TB_Example_Cordic_QuestaSim` | QuestaSim/ModelSim | SystemVerilog | either |
-| `TB_Example_Cordic_Vivado` | Vivado (xsim) | SystemVerilog | either |
-<!-- | `TB_Example_Cordic_VCS` | VCS | SystemVerilog | either | -->
+### The simulations hold no script
 
-The three mixed-language testbenches drive the design through its **ports only**, so the same SystemVerilog testbench elaborates on top of the VHDL entity or the SystemVerilog module without any change.
+Each simulation only says which [template](/docs/reference/simulation/#templates)
+runs the testbench, and which metrics the testbench writes:
 
-### Passing the configuration to the testbench
+{{< code lang=yaml filename="simulations/TB_Example_Cordic_GHDL/_settings.yml" >}}
+template: ghdl
 
-GHDL does the same and passes `-gWIDTH=... -gITERATIONS=...` to the run; the Vivado scripts accept **both** the VHDL generic form and the Verilog parameter form, which is what allows a single script to serve the two versions of the design.
+architectures:
+- Example_Cordic_vhdl
+{{< /code >}}
+
+The `architectures` list is only an indication: running the testbench on another architecture works, and only prints a warning. Running it on a design written in a language the simulator does not compile (VHDL on Verilator) is refused when the run is checked.
+
+| Simulation | Template | Runs on |
+|---|---|---|
+| `TB_Example_Cordic_Verilator` | `verilator` | SystemVerilog |
+| `TB_Example_Cordic_GHDL` | `ghdl` | VHDL |
+| `TB_Example_Cordic_QuestaSim` | `questa` | either |
+| `TB_Example_Cordic_Vivado` | `xsim` | either |
+
+The templates can also be named directly in the run settings, with no
+simulation directory: `- icarus: [Example_Cordic_sv + iterations/* + width/*]`
+runs the SystemVerilog testbench with Icarus, and reports only the metrics of
+the template (status, errors, times, cycles per second).
+
+Both testbenches drive the design through its **ports only**: Questa and xsim,
+which compile both languages, can run the SystemVerilog testbench on top of the
+VHDL entity as well.
 
 ### Running the sweep
 
@@ -243,7 +264,7 @@ With 3 widths (4, 8, 12) and 3 iteration counts (12, 16, 24), each line expands 
 
 ### Metrics
 
-The testbenches do not print numbers for Odatix to scrape out of a log: they **write a `results.yml` file themselves**, and `_metrics.yml` simply maps its keys to metrics of type `yaml`.
+The testbenches do not print numbers for Odatix to scrape out of a log: they **write a `results.yml` file themselves**, and `_metrics.yml` simply maps its keys to metrics of type `yaml`. These come on top of the metrics every template reports.
 
 {{< code lang=yaml filename="simulations/TB_Example_Cordic_Verilator/_metrics.yml" >}}
 metrics:
@@ -278,5 +299,6 @@ Each run sweeps 512 test vectors spread evenly over a full turn, compares them a
 - [Counter](/docs/examples/architectures/counter/) — the same substitution mechanism, on the shortest possible design.
 - [Sine ROM](/docs/examples/architectures/rom/) — the same two-dimensional trade-off, stored instead of computed.
 - [Parameter domains](/docs/configurations/param_domains/) — how `WIDTH` and `ITERATIONS` combine.
-- [Simulation](/docs/features/simulation/) — the feature behind the four simulator flows.
+- [Simulation](/docs/features/simulation/) — the feature behind the simulator flows.
+- [Simulation templates](/docs/reference/simulation/#templates) — what each template runs and reports.
 - [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.

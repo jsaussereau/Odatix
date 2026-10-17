@@ -111,6 +111,9 @@ class Architecture:
         )
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
+        # The testbench of the design ({"top", "files", "parameters"}), which the
+        # simulation templates run it with (see odatix.sim.templates).
+        self.testbench = {}
 
     # Keys of a ParamDomain serialized in the job's settings.yml. Writing them all
     # is what lets read_yaml rebuild the domains instead of only their values.
@@ -1222,6 +1225,7 @@ class ArchitectureHandler:
             continue_on_error=self.continue_on_error,
             force_single_thread=self.force_single_thread,
         )
+        arch_instance.testbench = settings.testbench.to_dict()
 
         return arch_instance
 
