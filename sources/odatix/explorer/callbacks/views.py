@@ -123,6 +123,7 @@ def register_callbacks():
   @dash.callback(
     Output("xp-view-status", "children", allow_duplicate=True),
     Output("xp-view-select", "options", allow_duplicate=True),
+    Output("xp-view-replace", "data", allow_duplicate=True),
     Input("xp-view-save", "n_clicks"),
     State("xp-view-name", "value"),
     State("xp-view-name", "placeholder"),
@@ -152,16 +153,22 @@ def register_callbacks():
     State({"type": "xp-filter", "dim": ALL}, "id"),
     State("xp-rule-state", "data"),
     State("xp-graph", "figure"),
+    State("xp-view-replace", "data"),
     prevent_initial_call=True,
   )
   def save_current_view(n_clicks, name, suggested, description, kind, sources, x, y, z, color_by, symbol_by,
                         legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, palette, plot_theme, toggles,
                         overview_chart_type, overview_layout, dl_format, dl_background,
-                        filter_state, filter_values, filter_ids, rule_state, figure):
+                        filter_state, filter_values, filter_ids, rule_state, figure, replace):
     if not n_clicks:
       raise dash.exceptions.PreventUpdate
 
     name = (name or "").strip() or (suggested or "")
+    slug = views.slugify(name)
+    if views.is_read_only():
+      return [html.Div("⚠ Could not save the view: " + views.READ_ONLY_MESSAGE, className="xp-view-warning")], dash.no_update, None
+    # A second click on the same name is the confirmation (see xp-view-replace)
+    overwrite = bool(slug) and replace == slug
     try:
       # Hidden filter values must be listed against the unfiltered selection
       base_df = query.select_dataframe(STORE, sources=sources)
@@ -196,12 +203,25 @@ def register_callbacks():
         "thumb": (views.make_figure_thumbnail(figure, thumb_kind)
                   or views.make_thumbnail(df, thumb_kind, x, y, color_by, dimensions)),
       }
-      slug = views.save_view(STORE.result_path, name, view)
+      slug = views.save_view(STORE.result_path, name, view, overwrite=overwrite)
+    except views.ViewExistsError as e:
+      status = [html.Div('⚠ A view named "' + e.slug + '" already exists. Click "Save current view" again to replace it, '
+                         'or choose another name.', className="xp-view-warning")]
+      return status, dash.no_update, e.slug
     except (OSError, ValueError) as e:
-      return [html.Div("⚠ Could not save the view: " + str(e), className="xp-view-warning")], dash.no_update
+      return [html.Div("⚠ Could not save the view: " + str(e), className="xp-view-warning")], dash.no_update, None
 
-    status = [html.Div('Saved as "' + slug + '.json" — copy this file to share the view', className="xp-view-ok")]
-    return status, view_options()
+    status = [html.Div(('Replaced' if overwrite else 'Saved as') + ' "' + slug + '.json" — copy this file to share the view', className="xp-view-ok")]
+    return status, view_options(), None
+
+  @dash.callback(
+    Output("xp-view-replace", "data", allow_duplicate=True),
+    Input("xp-view-name", "value"),
+    prevent_initial_call=True,
+  )
+  def forget_replace_confirmation(_name):
+    """A new name asks again before replacing whatever view it names."""
+    return None
 
   @dash.callback(
     Output("xp-control-state", "data", allow_duplicate=True),

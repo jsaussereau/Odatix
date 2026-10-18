@@ -40,7 +40,7 @@ CURSOR_MODES = ("mouse+", "mouse", "raw")
 
 # Height of the help popup: title, column headers, one row per key of
 # update_help_popup and the closing hint. Smaller terminals cut the list.
-HELP_POPUP_HEIGHT = 24
+HELP_POPUP_HEIGHT = 25
 
 # How long the status message replacing the help bar stays up after a copy.
 STATUS_MESSAGE_DELAY = 2.0
@@ -280,6 +280,9 @@ def update_header(handler, header_win, active_jobs_count, retired_jobs_count, to
     left_text = "v{}   parallel jobs: {}   auto-pause: {}".format(
         handler.version, nb_jobs, _resource_guard_label(handler)
     )
+    session_label = getattr(handler, "session_label", None)
+    if session_label:
+        left_text = "session {}   {}".format(session_label, left_text)
     try:
         header_win.hline(0, 0, " ", width, curses.color_pair(NORMAL) | curses.A_REVERSE)
         header_win.addstr(0, 1, left_text, curses.color_pair(NORMAL) | curses.A_REVERSE)
@@ -736,10 +739,11 @@ def update_help_popup(popup_win, popup_width, popup_height):
     help_text = [
         ("q"          , "Quit"),
         ("d"          , "Detach monitor"),
-        ("PageUp    n", "Select next job"),
-        ("PageDown  p", "Select previous job"),
+        ("PageDown  n", "Select next job"),
+        ("PageUp    p", "Select previous job"),
         ("Up         ", "Scroll log up"),
         ("Down       ", "Scroll log down"),
+        ("Left/Right", "Scroll log sideways"),
         ("Home/End"   , "Scroll to top/bottom"),
         ("+/-"        , "Change progress window size"),
         (">/<      ./,", "More / fewer parallel jobs"),
@@ -1242,6 +1246,10 @@ def curses_main(handler, stdscr):
 
             active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
             finished = finished or finished_now
+
+            # The session was stopped from elsewhere: nothing left to watch.
+            if getattr(handler, "session_gone", False):
+                return False
 
             # Completion is announced below, once the final progress/logs have been drawn.
             if finished and total_jobs_count > 0 and not finished_popup_shown and not handler.auto_exit:

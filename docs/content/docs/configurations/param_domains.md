@@ -70,6 +70,22 @@ start_delimiter: "  // <baseline>"
 stop_delimiter: "  // </baseline>"
 {{< /code >}}
 
+and each of its configurations the lines of its block, **starting with an empty
+line**:
+
+{{< code lang=verilog filename="Baseline/E.txt" >}}
+
+  parameter p_ext_rve        = 1,
+{{< /code >}}
+
+> [!WARNING]
+> The text of a configuration is written right after the start delimiter, and
+> `// <baseline>` is a line comment: without that first empty line, the
+> parameter would land at the end of the comment line and be commented out. The
+> other way is to end the delimiter with the line break —
+> `start_delimiter: "  // <baseline>\n"` — and write the files without it.
+> Odatix warns when a configuration ends up in a comment.
+
 > [!IMPORTANT]
 > If a domain replaces parameters in a file other than the top level, point to it with `param_target_file`. With generated RTL (Chisel, HLS), `param_target_file` is mandatory.
 
@@ -119,11 +135,17 @@ architectures:
   - AsteRISC/* + DMEM/* + IMEM/* + Baseline/* + Mul/*
 {{< /code >}}
 
+A domain is swept only when the selection names it: `AsteRISC/*` alone runs the
+configurations of the main domain, every other block keeping what the source
+file holds. The [Python API](/docs/python_api/workspace/)'s
+`architecture.combinations()` and `count_combinations()` describe the full
+sweep, every domain named.
+
 > [!TIP]
-> Parameter domains work for **any** job type — Fmax synthesis, custom-frequency synthesis, simulation and [workflows](/docs/features/workflows/).
+> Parameter domains work for **any** job type — fmax synthesis, fixed-frequency synthesis, simulation and [workflows](/docs/features/workflows/).
 
 ## See also
 
 - [Configuration generation](/docs/configurations/config_generation/)
 - [Virtual parameter domains](/docs/configurations/virtual_param_domains/) (for workflows)
-- [Configuration reference](/docs/reference/)
+- [Architecture settings](/docs/reference/architecture/)

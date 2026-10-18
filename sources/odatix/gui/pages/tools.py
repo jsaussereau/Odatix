@@ -138,12 +138,26 @@ def build_builtin_cards(tools):
 def workspace_tool_card(tool):
     name = tool.name
     unique_key = str(uuid.uuid4())
-    visual = tool_icon_image(tool.document)
+    document = tool.document
+    visual = tool_icon_image(document)
     flows = flows_line(name)
+    # The tool's own label (tool.yml), the directory name when it has none.
+    label = str(document.get("label") or "").strip() or name
+    description = str(document.get("description") or "").strip()
     return html.Div(
         [
             *([visual] if visual is not None else []),
-            html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
+            html.Div(label, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
+            # Two tools may share a label (a copy keeps its original's): the
+            # name tells them apart.
+            *([html.Div(
+                name, style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "fontFamily": "monospace"},
+            )] if label != name else []),
+            *([html.Div(
+                description, title=description,
+                style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px",
+                       "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"},
+            )] if description else []),
             *([flows] if flows is not None else []),
             html.Div(
                 [

@@ -69,7 +69,7 @@ import re
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-from odatix.workspace.tools import OVERRIDABLE_KEYS, ToolSettings
+from odatix.workspace.tools import DEFAULT_METRICS_FILE, OVERRIDABLE_KEYS, ToolSettings
 import odatix.lib.eda_tools as eda_tools
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, get_workspace
@@ -164,6 +164,15 @@ LOG_LEVELS = [
     ("info", "Info"),
     ("trace", "Trace"),
 ]
+
+# What each level's markers typically look like in a tool's output.
+LOG_PLACEHOLDERS = {
+    "error": "<error>, ERROR:",
+    "crit_warning": "CRITICAL WARNING:",
+    "warning": "<warning>, WARNING:",
+    "info": "<info>, INFO:",
+    "trace": "Command:",
+}
 
 # Inline format tags recognized in the tool output. This is the fixed set of
 # ANSI style/color names from JobOutputFormatter.ansi_codes: a tool only defines
@@ -2166,7 +2175,7 @@ def log_formatting_tiles(settings, overlay=False):
                 tool_form_field(
                     label, f"tool-log-{level}",
                     value=", ".join(logs.get(level, [])),
-                    placeholder="<error>, ERROR:",
+                    placeholder=LOG_PLACEHOLDERS.get(level, ""),
                 )
                 for level, label in LOG_LEVELS
             ],
@@ -2369,11 +2378,9 @@ def update_replace_cards(new_click, duplicate_clicks, delete_clicks, cards, patt
 # Page-level callbacks
 ######################################
 
-@dash.callback(
-    Output({"page": page_path, "type": "tool-title-div"}, "children"),
-    Input(f"url_{page_path}", "search"),
-    State("odatix-settings", "data"),
-)
+# Rendered by init_form, with the form: the callbacks reading the title and the
+# form fields together (save_and_status) must never see the one without the
+# other, or Dash reports a "nonexistent object" in the console.
 def update_tool_title(search, odatix_settings):
     tool_name = get_key_from_url(search, "tool") or ""
     tools = get_workspace(odatix_settings).tools
@@ -2385,6 +2392,17 @@ def _is_overlay(tools, tool_name):
     workspace says about the rest is an overlay.
     """
     return bool(tool_name) and tools.entry(tool_name).is_builtin
+
+def new_tool_settings():
+    """
+    What the editor starts a tool that does not exist yet from: nothing, but the
+    metrics file every tool of the workspace keeps next to its tool.yml, so that
+    its results can be exported as soon as it has metrics (see
+    ToolCollection.create, which gives the same default).
+    """
+    settings = normalize_tool_settings({})
+    settings["default_metrics_file"] = DEFAULT_METRICS_FILE
+    return settings
 
 def load_editor_settings(tools, tool_name):
     """
@@ -2401,12 +2419,12 @@ def load_editor_settings(tools, tool_name):
     """
     empty = normalize_tool_settings({})
     if not tool_name:
-        return empty, empty, False, {}
+        return new_tool_settings(), empty, False, {}
 
     tool = tools.entry(tool_name)
     overlay = _is_overlay(tools, tool_name)
     if not overlay:
-        settings = normalize_tool_settings(tool.document)
+        settings = normalize_tool_settings(tool.document) if tool.exists else new_tool_settings()
         base_flows, base_parameters = base_tool_context(tools, settings.get("extends"), tool_name)
         if base_flows:
             settings["flows"] = derived_flows(settings["flows"], base_flows)
@@ -2437,13 +2455,14 @@ def load_editor_settings(tools, tool_name):
     Output("tool-overlay-notice", "children"),
     Output("tool-edit-overlay", "data"),
     Output("tool-builtin-settings", "data"),
+    Output({"page": page_path, "type": "tool-title-div"}, "children"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
 def init_form(search, page, odatix_settings):
     if page != page_path:
-        return (dash.no_update,) * 9
+        return (dash.no_update,) * 10
 
     tool_name = get_key_from_url(search, "tool")
     tools = get_workspace(odatix_settings).tools
@@ -2462,6 +2481,7 @@ def init_form(search, page, odatix_settings):
         builtin_notice(tool_name) if overlay else None,
         overlay,
         builtin,
+        tool_title(tool_name or "", overlay=overlay),
     )
 
 # The section a reset button puts back to the built-in state, and the settings
@@ -2652,7 +2672,8 @@ def save_and_status(*args):
     # the markers inputs' ids, not from an editable field.
     tag_names = [tid.get("name") if isinstance(tid, dict) else None for tid in (tag_ids or [])]
     triggered_id = ctx.triggered_id
-    saving = triggered_id == {"page": page_path, "action": "save-all"}
+    # The button is re-rendered with the page: only a click saves.
+    saving = triggered_id == {"page": page_path, "action": "save-all"} and bool(n_clicks)
     if triggered_id == f"url_{page_path}" and page != page_path:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -2689,7 +2710,7 @@ def save_and_status(*args):
     if errors:
         return error_class, errors, dash.no_update, saved_settings, (ui.error(f"Not saved: {errors}") if saving else dash.no_update)
 
-    if triggered_id == {"page": page_path, "action": "save-all"}:
+    if saving:
         new_search = dash.no_update
 
         # A built-in tool keeps its name and its flows: the workspace file holds

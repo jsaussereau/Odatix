@@ -345,6 +345,9 @@ def layout(campaign=None, **_kwargs):
             "display": "flex",
             "flexDirection": "column",
             "min-height": "calc(100vh - {0})".format(navigation.top_bar_height),
+            # Hidden tooltips at the right edge would scroll the page sideways
+            # (see the same style in pages/dse.py).
+            "overflowX": "clip",
         },
     )
     return scoped(PAGE_SCOPE, body)

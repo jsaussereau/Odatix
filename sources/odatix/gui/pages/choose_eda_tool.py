@@ -81,9 +81,14 @@ def is_builtin_tool(tool):
     )
 
 
+#: How the job settings page names a job type, where it differs from the tools
+#: (an RTL analysis is "analysis" to a tool.yml, "analyze" to /run_jobs).
+RUN_JOBS_TYPES = {"analysis": "analyze"}
+
+
 def run_link(job_type, tool, flow=None, until=None):
     """Link to the job settings page for a complete selection."""
-    link = f"/run_jobs?type={quote(job_type)}&tool={quote(tool)}"
+    link = f"/run_jobs?type={quote(RUN_JOBS_TYPES.get(job_type, job_type))}&tool={quote(tool)}"
     if flow:
         link += f"&flow={quote(flow)}"
     if until:
@@ -154,7 +159,13 @@ def custom_flow_names(job_type, tool):
     """
     if not is_builtin_tool(tool):
         return frozenset()
-    builtin = eda_tools.list_flows(tool, job_type=job_type, settings=Tool(None, "", tool).builtin_document)
+    # What Odatix ships, the tool it extends included (Design Compiler NXT runs
+    # the flows of Design Compiler): those are not the workspace's either.
+    shipped = {}
+    for name in eda_tools.tool_lineage(tool):
+        if is_builtin_tool(name):
+            shipped = eda_tools._deep_merge(shipped, Tool(None, "", name).builtin_document)
+    builtin = eda_tools.list_flows(tool, job_type=job_type, settings=shipped)
     return frozenset(
         name for name in eda_tools.list_flows(tool, job_type=job_type) if name not in builtin
     )

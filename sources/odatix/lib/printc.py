@@ -20,6 +20,9 @@
 #
 
 import contextlib
+import os
+import re
+import sys
 
 class colors:
   GREY = "\033[90m"
@@ -34,6 +37,62 @@ class colors:
   BOLD_END = "\033[22m"
   BLINK = "\033[5m"
   UNDERLINE = "\033[4m"
+
+_ANSI_ESCAPE = re.compile(r"\033\[[0-9;?]*[A-Za-z]")
+
+
+class _PlainStream(object):
+  """A text stream that drops the terminal color codes written to it."""
+
+  def __init__(self, stream):
+    self._stream = stream
+
+  def write(self, text):
+    return self._stream.write(_ANSI_ESCAPE.sub("", text) if isinstance(text, str) else text)
+
+  def writelines(self, lines):
+    for line in lines:
+      self.write(line)
+
+  def isatty(self):
+    return False
+
+  def __getattr__(self, name):
+    return getattr(self._stream, name)
+
+
+def wants_color(stream=None):
+  """
+  Whether `stream` (stdout by default) should receive color codes: only a
+  terminal does, and not when the NO_COLOR environment variable is set
+  (https://no-color.org).
+  """
+  stream = sys.stdout if stream is None else stream
+  if os.environ.get("NO_COLOR", "") != "":
+    return False
+  isatty = getattr(stream, "isatty", None)
+  try:
+    return bool(isatty()) if callable(isatty) else False
+  except Exception:
+    return False
+
+
+def plain_unless_terminal():
+  """
+  Drop the color codes from what goes to stdout and stderr when they are not a
+  terminal (a pipe, a file) or when NO_COLOR is set.
+
+  Meant for a command line process, called once before it prints anything:
+  the colors are written in many places, and filtering the stream is the one
+  place that catches them all. Nothing else (the GUI, the daemon) calls it.
+  """
+  for name in ("stdout", "stderr"):
+    stream = getattr(sys, name, None)
+    if stream is None or isinstance(stream, _PlainStream):
+      continue
+    if not wants_color(stream):
+      setattr(sys, name, _PlainStream(stream))
+
 
 # Sinks registered by collect(). They receive every diagnostic emitted here, so
 # a caller (the GUI) can display errors and warnings as structured data instead

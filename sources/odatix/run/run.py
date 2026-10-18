@@ -23,8 +23,11 @@
 One run of a workspace, from what it would do to what it did.
 """
 
+import difflib
+import os
+
 import odatix.lib.printc as printc
-from odatix.run.errors import RunCancelled, RunError
+from odatix.run.errors import NOTHING_TO_RUN, NothingToRun, RunCancelled, RunError
 from odatix.run.flows import flow_for
 from odatix.run.options import RunOptions
 from odatix.run.reporter import Reporter
@@ -47,6 +50,13 @@ class Run(object):
 
     Each step needs the one before it, and does it when it has not been done.
 
+    Once started, the jobs run in a session of their own, which outlives the
+    script: :attr:`session`, :meth:`status` and :meth:`wait` follow them::
+
+        run.start()
+        jobs = run.wait()       # every job of the run over, however it ended
+        failed = [job["name"] for job in jobs if job["status"] != "success"]
+
     Args:
         workspace (Workspace): the workspace the run belongs to.
         mode (str): what to run, one of :data:`odatix.workspace.JOB_MODES`.
@@ -56,6 +66,11 @@ class Run(object):
         cancel_event (threading.Event): asking the run to stop. Checking and
             preparing look at it between jobs, and raise :class:`RunCancelled`.
         **overrides: any :class:`RunOptions` setting, e.g. ``overwrite=True``.
+
+    Raises:
+        TypeError: an option is not a :class:`RunOptions` setting. A misspelled
+            option would otherwise be ignored, and the run would do what its
+            settings file says instead.
     """
 
     def __init__(self, workspace, mode, options=None, reporter=None, cancel_event=None, **overrides):
@@ -64,6 +79,9 @@ class Run(object):
         self.workspace = workspace
         self.mode = resolve_mode(mode)
         self.flow = flow_for(self.mode)
+        if not isinstance(options, RunOptions):
+            Run._check_option_names(options or {})
+        Run._check_option_names(overrides)
         self.options = options if isinstance(options, RunOptions) else RunOptions(**(options or {}))
         self.options.update(overrides)
         self.reporter = reporter if reporter is not None else Reporter()
@@ -77,6 +95,23 @@ class Run(object):
         self._checked = None
         self._parallel_jobs = None
         self._started = False
+        self._session = None
+        self._job_dirs = []
+
+    @staticmethod
+    def _check_option_names(values):
+        """Refuse what is not a run option, naming the closest ones."""
+        known = [spec.key for spec in RunOptions.specs()]
+        for name in values:
+            if RunOptions.spec(name) is not None or name in known:
+                continue
+            close = difflib.get_close_matches(str(name), known, n=3)
+            hint = " (did you mean {0}?)".format(" or ".join(repr(c) for c in close)) if close else ""
+            raise TypeError(
+                "Unknown run option {0!r}{1}. The options are those of odatix.run.RunOptions: {2}".format(
+                    name, hint, ", ".join(known)
+                )
+            )
 
     ######################################
     # Where it works
@@ -201,13 +236,32 @@ class Run(object):
             ParallelJobHandler: the jobs, ready to be run.
         """
         checked = self.checked()
-        self._parallel_jobs = self._step("prepare", lambda: self.flow.prepare(self, checked))
+        self._parallel_jobs = self._step(
+            "prepare", lambda: self._with_workspace_guard(self.flow.prepare(self, checked))
+        )
         return self._parallel_jobs
+
+    def _with_workspace_guard(self, parallel_jobs):
+        """
+        Give the jobs the resource guard of the workspace ("resource_guard",
+        "cpu_limit" and "mem_limit" in odatix.yml), read now: a value changed
+        since the last run applies to this one.
+        """
+        from odatix.lib.settings import OdatixSettings
+
+        settings = self.workspace.settings
+        settings_file = getattr(self.workspace, "settings_file", OdatixSettings.DEFAULT_SETTINGS_FILE)
+        enabled, cpu_limit, mem_limit = OdatixSettings.read_resource_guard(settings, settings_file)
+        configure = getattr(parallel_jobs, "configure_runtime", None)
+        if callable(configure):
+            configure(resource_guard=enabled, cpu_limit=cpu_limit, mem_limit=mem_limit)
+        return parallel_jobs
 
     def start(self, detach=None, session=None):
         """
-        Hand the prepared jobs over to the daemon, preparing them first when
-        that has not been done.
+        Hand the prepared jobs over to a session, preparing them first when
+        that has not been done. :attr:`session` is then the session that took
+        them.
 
         Args:
             detach (bool): return as soon as the jobs are enqueued, instead of
@@ -221,9 +275,92 @@ class Run(object):
             self.options.session = session
 
         parallel_jobs = self._parallel_jobs if self._parallel_jobs is not None else self.prepare()
+        # Where the jobs are, as the session will report them: what tells this
+        # run's jobs apart from the others of a shared session.
+        self._job_dirs = [
+            os.path.realpath(str(job.tmp_dir)) for job in getattr(parallel_jobs, "job_list", []) or []
+            if getattr(job, "tmp_dir", None)
+        ]
         self._step("start", lambda: self.flow.start(self, parallel_jobs))
         self._started = True
+        state = getattr(parallel_jobs, "session_state", None)
+        if isinstance(state, dict):
+            from odatix.run.session import Session
+
+            self._session = Session(state)
         return parallel_jobs
+
+    ######################################
+    # Following it
+    ######################################
+
+    @property
+    def session(self):
+        """
+        The :class:`~odatix.run.session.Session` running the jobs, once
+        :meth:`start` handed them over. None before.
+        """
+        return self._session
+
+    @property
+    def followed(self):
+        """
+        Whether :meth:`start` followed the jobs until they were over: in the
+        job monitor until it closed, or, when the terminal could not show it,
+        by waiting for them ("exit_when_done"). False when the run was
+        detached, or could not show the monitor and was not told to wait: the
+        jobs may then still be running.
+        """
+        return bool(getattr(self._parallel_jobs, "followed_in_monitor", False))
+
+    def _started_session(self):
+        if self._session is None:
+            raise RunError("The {0} run has not been started: it has no session to follow.".format(self.mode))
+        return self._session
+
+    def _own_jobs(self, jobs):
+        """The jobs of this run among those of its session: the last one per work directory."""
+        wanted = set(self._job_dirs)
+        latest = {}
+        for job in jobs:
+            if job["tmp_dir"] in wanted:
+                latest[job["tmp_dir"]] = job
+        return [latest[path] for path in self._job_dirs if path in latest]
+
+    def status(self):
+        """
+        Where the jobs of this run are, as its session reports them.
+
+        Returns:
+            list: one dict per job, as :meth:`Session.jobs` gives them
+            (``name``, ``status``, ``progress``...).
+
+        Raises:
+            RunError: the run has not been started.
+            SessionError: its session did not answer.
+        """
+        return self._own_jobs(self._started_session().jobs())
+
+    def wait(self, timeout=None, poll_interval=2.0):
+        """
+        Wait until every job of this run is over, however it ends.
+
+        Args:
+            timeout (float): give up after that many seconds. Forever when None.
+            poll_interval (float): how often to ask the session, in seconds.
+
+        Returns:
+            list: the jobs of the run, as :meth:`status` gives them.
+
+        Raises:
+            RunError: the run has not been started.
+            SessionError: its session did not answer.
+            TimeoutError: the jobs were not over in time.
+        """
+        session = self._started_session()
+        wanted = set(self._job_dirs)
+        session._wait_for(lambda job: job["tmp_dir"] in wanted, timeout, poll_interval)
+        return self.status()
 
     def execute(self):
         """Check, prepare and start, in one call."""
@@ -247,7 +384,7 @@ class Run(object):
         cancelled = self.flow.cancelled_exceptions()
         before = len(self.reporter)
         try:
-            with self.reporter.listening():
+            with self.reporter.listening(), _working_directory(self.workspace.root), _plain_unless_terminal():
                 return action()
         except cancelled:
             raise RunCancelled("The {0} run was cancelled while it was {1}ing.".format(self.mode, name))
@@ -255,6 +392,12 @@ class Run(object):
             raise
         except SystemExit as stop:
             code = stop.code if isinstance(stop.code, int) else -1
+            if code == NOTHING_TO_RUN:
+                raise NothingToRun(
+                    "Nothing to run: every job of the {0} run is already done, or already "
+                    "running in a session (see odatix.run.sessions).".format(self.mode),
+                    messages=self.reporter.messages[before:],
+                )
             raise RunError(
                 self._failure_message(name, before),
                 messages=self.reporter.messages[before:],
@@ -296,3 +439,61 @@ def run_job(mode, workspace=None, **overrides):
     run = Run(workspace if workspace is not None else Workspace.open(), mode, **overrides)
     run.execute()
     return run
+
+
+class _working_directory(object):
+    """
+    Run a step from the root of its workspace. The run flows read the paths of
+    the settings files (rtl_path, work_path...) relative to the current
+    directory, as the command line, started from the workspace, does: a script
+    opening a workspace from elsewhere would find none of them.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.previous = None
+
+    def __enter__(self):
+        if self.path and os.path.isdir(self.path):
+            current = os.getcwd()
+            if os.path.realpath(current) != os.path.realpath(self.path):
+                self.previous = current
+                os.chdir(self.path)
+        return self
+
+    def __exit__(self, *exc_info):
+        if self.previous is not None:
+            os.chdir(self.previous)
+        return False
+
+
+class _plain_unless_terminal(object):
+    """
+    Drop the color codes a step prints when the script's output is not a
+    terminal, as the command line does (printc.plain_unless_terminal), and give
+    the script its own stream back afterwards.
+    """
+
+    def __init__(self):
+        self.replaced = []
+
+    def __enter__(self):
+        import sys
+
+        for name in ("stdout", "stderr"):
+            stream = getattr(sys, name, None)
+            if stream is None or isinstance(stream, printc._PlainStream) or printc.wants_color(stream):
+                continue
+            plain = printc._PlainStream(stream)
+            setattr(sys, name, plain)
+            self.replaced.append((name, stream, plain))
+        return self
+
+    def __exit__(self, *exc_info):
+        import sys
+
+        for name, stream, plain in self.replaced:
+            # Another thread may have put its own stream there since.
+            if getattr(sys, name, None) is plain:
+                setattr(sys, name, stream)
+        return False

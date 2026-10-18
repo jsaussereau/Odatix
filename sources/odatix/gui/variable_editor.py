@@ -75,7 +75,10 @@ FIELD_VISIBILITY = {
     "bool":              {"format", "group"},
     "list":              {"list", "format", "group"},
     "range":             {"from", "to", "step", "format", "group"},
-    "power_of_two":      {"from_2_pow", "to_2_pow", "format", "group"},
+    # Bounds written as values ("from: 8, to: 32" gives 8, 16, 32), the form
+    # the documentation and the settings files use. A file written with
+    # exponents ("from_2^"/"to_2^") opens with the values they stand for.
+    "power_of_two":      {"from", "to", "format", "group"},
     "multiples":         {"base", "from", "to", "format", "group"},
     "function":          {"op", "format"},
     "conversion":        {"from_type", "to_type", "source", "format"},
@@ -142,8 +145,10 @@ def build_variables_dict(
             settings["to"] = int(to_vals[idx]) if to_vals[idx] else 0
             settings["step"] = int(step_vals[idx]) if step_vals[idx] else 1
         elif variable_type == "power_of_two":
-            settings["from_2^"] = int(from_2_pow_vals[idx]) if from_2_pow_vals[idx] else 0
-            settings["to_2^"] = int(to_2_pow_vals[idx]) if to_2_pow_vals[idx] else 0
+            # The card edits the bounds as values, rounded up to powers of two
+            # by the generator (see FIELD_VISIBILITY).
+            settings["from"] = int(from_vals[idx]) if from_vals[idx] else 0
+            settings["to"] = int(to_vals[idx]) if to_vals[idx] else 0
         elif variable_type == "list":
             settings["list"] = [number(x.strip()) for x in list_vals[idx].split(",") if x.strip()] if list_vals[idx] else []
         elif variable_type == "multiples":
@@ -169,6 +174,30 @@ def build_variables_dict(
         variable = variable_definition(title, variable_type, settings, format=var_format, group=group)
         variables.update(variable)
     return variables
+
+
+#: The keys of a variable its card edits. Any other one ("unit", ...) is not on
+#: the card, and is kept as the file has it (see :func:`keep_unmanaged_keys`).
+MANAGED_KEYS = ("type", "settings", "format", "group")
+
+
+def keep_unmanaged_keys(variables, stored_variables):
+    """
+    The variables the cards describe, with the keys the cards do not edit kept
+    from the stored variable of the same name. Saving a page then never drops
+    what it does not show.
+    """
+    stored_variables = stored_variables if isinstance(stored_variables, dict) else {}
+    kept = {}
+    for name, definition in (variables or {}).items():
+        stored = stored_variables.get(name)
+        if isinstance(definition, dict) and isinstance(stored, dict):
+            extra = {key: value for key, value in stored.items() if key not in MANAGED_KEYS}
+            if extra:
+                definition = dict(definition)
+                definition.update(extra)
+        kept[name] = definition
+    return kept
 
 
 def field_value_changed(current, reference):
@@ -441,6 +470,21 @@ def card_field_values(var_keys):
         to_value = field(var_settings, "to")
         from_type_value = "dec"
         to_type_value = "hex"
+    if variable_type == "power_of_two":
+        # Bounds written as exponents are shown as the values they stand for:
+        # the card edits values only, and 2^3..2^5 is 8..32.
+        for key, exponent in (("from", "from_2^"), ("to", "to_2^")):
+            raw = var_settings.get(exponent) if isinstance(var_settings, dict) else None
+            if raw is None or (key == "from" and from_value) or (key == "to" and to_value):
+                continue
+            try:
+                value = str(2 ** int(raw))
+            except (TypeError, ValueError):
+                continue
+            if key == "from":
+                from_value = value
+            else:
+                to_value = value
 
     return {
         "type_value": variable_type,

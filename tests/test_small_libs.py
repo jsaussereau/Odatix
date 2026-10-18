@@ -1,5 +1,6 @@
 """Tests for small lib modules: re_helper, variables, wosit."""
 
+import os
 import re
 import subprocess
 import sys
@@ -141,3 +142,40 @@ class TestOnFailureCommands:
             {"n": "4"},
         )
         assert tasks[0]["on_failure_commands"] == ["retry 4"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="select() on stdin is POSIX-only")
+def test_quit_key_wait_returns_on_stdin_at_end_of_file(monkeypatch):
+    # A server started in the background has stdin on /dev/null: waiting for
+    # 'q' there must hand over to the server thread, not spin a core polling EOF.
+    import threading
+    from odatix.lib import term_mode
+
+    read_end, write_end = os.pipe()
+    os.close(write_end)
+    stdin = os.fdopen(read_end, "r")
+    monkeypatch.setattr(sys, "stdin", stdin)
+    server = threading.Thread(target=lambda: None)
+    server.start()
+    quits = []
+
+    term_mode.wait_for_quit_key(lambda: quits.append(True), server)
+
+    stdin.close()
+    assert quits == []
+    assert not server.is_alive()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="terminal modes are POSIX-only")
+def test_raw_mode_leaves_a_stdin_that_is_not_a_terminal_alone(monkeypatch):
+    # odatix-gui started in the background, without -N, stopped on
+    # "termios.error: Inappropriate ioctl for device".
+    from odatix.lib import term_mode
+
+    with open(os.devnull) as devnull:
+        monkeypatch.setattr(sys, "stdin", devnull)
+        assert not term_mode.has_terminal()
+        assert term_mode.set_raw_mode() is None
+        # And it does not tell to press a key nobody can press.
+        assert "press" not in term_mode.quit_hint(False)
+        assert "end the process" in term_mode.quit_hint(True)

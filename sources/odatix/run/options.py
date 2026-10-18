@@ -72,6 +72,12 @@ class RunOptions(Settings):
         factory=list, type="str_list",
         doc="Simulations to run, by name. Every simulation of the run settings file when empty.",
     )
+    # The workflows to run, written as the entries of "workflows" in the run
+    # settings file, which they replace for this run only.
+    workflows = Setting(
+        factory=list, type="str_list",
+        doc="Workflows to run, as entries of the run settings file's \"workflows\". Its own list when empty.",
+    )
     until = Setting(None, type="any", doc="Last step of the flow to run, inclusive.")
     rerun_from = Setting(None, type="any", doc="Step to run again, with the ones after it.")
 
@@ -121,7 +127,7 @@ class RunOptions(Settings):
     upper_bound = Setting(None, type="optional_int", doc="Highest frequency of an fmax search, in MHz.")
     frequencies = Setting(
         factory=list, type="int_list",
-        doc="Frequencies a custom frequency synthesis runs at, in MHz. The settings file's own when empty.",
+        doc="Frequencies a fixed-frequency synthesis runs at, in MHz. The settings file's own when empty.",
     )
 
     ######################################

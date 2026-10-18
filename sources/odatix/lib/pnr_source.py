@@ -43,8 +43,8 @@ Selector grammar, one source per entry, "*" accepted at every level::
 
     <source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]
 
-    fmax_synthesis/design_compiler/gf22/Counter/8bits
-    custom_freq_synthesis/genus@fast/gf22/Counter/*@100MHz
+    fmax_synthesis/design_compiler/AMS_c35_1V8/Counter/8bits
+    custom_freq_synthesis/genus@timing/AMS_c35_1V8/Counter/*@100MHz
     custom_freq_synthesis/*/*/*/*
 """
 
@@ -77,7 +77,7 @@ class PnrSource:
       tool (str): the eda tool that ran the synthesis.
       flow (str | None): the flow of that tool, None for its default flow.
       work_dirname (str): how tool and flow are spelled in the work tree
-          ("design_compiler", "genus@fast").
+          ("design_compiler", "genus@timing").
       target (str), architecture (str), configuration (str): what was synthesized.
       frequency (int | None): the frequency it was synthesized at, None for an
           fmax search (there the frequency is a result, not an input).
@@ -330,6 +330,20 @@ def source_matches(source, parsed_selector):
   )
 
 
+def describe_sources(sources, limit=20):
+  """
+  One line naming the sources a run could select, as selectors, for the note
+  following a selection that matched none of them.
+  """
+  if not sources:
+    return "There is no completed synthesis to place & route"
+  selectors = [source.selector for source in sources]
+  text = "Available sources (" + str(len(selectors)) + "): " + ", ".join(selectors[:limit])
+  if len(selectors) > limit:
+    text += ", and " + str(len(selectors) - limit) + " more"
+  return text
+
+
 def match_sources(sources, selectors, report_unmatched=True):
   """
   The sources a run asks for, in discovery order and without duplicates.
@@ -368,6 +382,12 @@ def match_sources(sources, selectors, report_unmatched=True):
       matched.append(source)
 
     if not found and report_unmatched:
-      printc.warning('No completed synthesis matches "' + str(selector) + '"', script_name)
+      # A wildcard matching nothing is a kind of synthesis that did not run
+      # (the settings file Odatix ships takes both kinds); an exact selector
+      # matching nothing is almost always a typo.
+      if WILDCARD in str(selector):
+        printc.note('No completed synthesis matches "' + str(selector) + '"', script_name)
+      else:
+        printc.warning('No completed synthesis matches "' + str(selector) + '"', script_name)
 
   return matched

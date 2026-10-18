@@ -47,7 +47,7 @@ unexpected error prints a one-line message and writes the full trace to
 
 ## Common runtime options
 
-`fmax`, `synth`, `pnr`, `sim` and `workflow` share most runtime flags:
+`fmax`, `synth`, `pnr`, `analyze`, `sim`, `workflow` and `dse` share most runtime flags (`odatix dse` takes neither `-k` nor `-D`, `odatix pnr` takes no `-k`):
 
 | Option | Meaning |
 |--------|---------|
@@ -56,12 +56,15 @@ unexpected error prints a one-line message and writes the full trace to
 | `-t`, `--tool` | The eda tool (`fmax`, `synth`, `pnr`, `analyze`). Default: `default_tool` of `odatix.yml`, else the only tool the workspace has a target file for. |
 | `-a`, `--architecture` | Run these architectures instead of the `architectures` list of the settings file, written the same way (`"MyCPU/*"`, `"MyCPU/16bits"`, `"MyCPU + width/16bits"`). Several values, repeatable; `--arch` for short. (`fmax`, `synth`, `analyze`, `sim`, `dse`). |
 | `--target` | Run on this target only, out of those the target file of the tool enables. Repeatable. No short form: `-T` is `--trust`. (`fmax`, `synth`, `pnr`). |
-| `-d`, `--detach` | Enqueue jobs and return immediately (no monitor). |
-| `-S`, `--session` | Session name/selector for enqueue/attach/stop. |
+| `-i`, `--input` | The run settings file to read, instead of the one `odatix.yml` names. |
+| `--archpath` | Architecture directory, instead of `arch_path` of `odatix.yml` (`fmax`, `synth`, `analyze`, `sim`). |
+| `-w`, `--work` | Work directory, instead of `work_path` of `odatix.yml` (not `dse`). |
+| `-d`, `--detach` | Enqueue jobs and return immediately (no monitor). The command says which session took them. |
+| `-S`, `--session` | Session to enqueue into: an existing session of the workspace gets the jobs added, otherwise a new session of that name is started. |
 | `-j`, `--jobs` | Maximum parallel jobs (`auto` = available CPUs − 1). |
-| `-E`, `--exit` | Exit the monitor when all jobs complete. |
+| `-E`, `--exit` | Exit the monitor when all jobs complete, close the session and print how many jobs succeeded and failed. |
 | `--logsize` | Per-job log history size in the monitor. |
-| `-k`, `--keep` | Keep timestamped run directories (`fmax`, `synth`, `sim` and `workflow`). |
+| `-k`, `--keep` | Keep timestamped run directories (`fmax`, `synth`, `analyze`, `sim` and `workflow`). |
 | `-D`, `--debug` | Verbose debug diagnostics. |
 | `-c`, `--config` | Alternate workspace settings file (default `odatix.yml`). |
 | `-Q`, `--nobanner` | Disable the Odatix banner. |
@@ -72,11 +75,11 @@ unexpected error prints a one-line message and writes the full trace to
 |---------|--------------------|
 | `odatix fmax` | `-t/--tool`, `-a/--architecture`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--continue-on-error`, `-T/--trust`, `-e/--noexport` |
 | `odatix synth` | `-t/--tool`, `-a/--architecture`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--step`, `--at` (repeatable), `-T/--trust`, `-e/--noexport` |
-| `odatix analyze` | `-t/--tool` (repeatable), `-a/--architecture`, `-f/--flow` (repeatable), `-T/--trust`, `-e/--noexport`, `-d/--detach`, `-S/--session` |
-| `odatix pnr` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from-type`, `--from-tool`, `--from-flow`, `-i/--input`, `-w/--work`, `-T/--trust`, `-e/--noexport` |
+| `odatix analyze` | `-t/--tool` (several values), `-a/--architecture`, `-f/--flow` (several values), `-T/--trust`, `-e/--noexport` |
+| `odatix pnr` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from-type`, `--from-tool`, `--from-flow`, `-T/--trust`, `-e/--noexport`. Its `-w/--work` is the work directory the synthesis jobs are read from, the place & route jobs going to its `pnr/` sub-directory. |
 | `odatix sim` | `-s/--sim`, `-a/--architecture`, `--archpath`, `--simpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
-| `odatix workflow` | `-p/--workflowpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
-| `odatix dse` | `-p/--campaign`, `-t/--tool`, `-f/--flow`, `--target`, `-a/--architecture`, `-r/--run`, `-s/--strategy`, `-m/--mode`, `-b/--budget`, `-B/--batch`, `--seed`, `-i/--input`, `-C/--check` |
+| `odatix workflow` | `-W/--workflow`, `-p/--workflowpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
+| `odatix dse` | `-p/--campaign`, `-t/--tool`, `-f/--flow`, `--target`, `-a/--architecture`, `-r/--run`, `-s/--strategy`, `-m/--mode`, `-b/--budget`, `-B/--batch`, `--seed`, `--no-reuse`, `-i/--input`, `-C/--check`, plus the common `-o`, `-y`, `-j`, `-E`, `--logsize`, `-d`, `-S`. See [Design space exploration](/docs/reference/dse/#running-one). |
 
 ### Former spellings
 
@@ -116,9 +119,15 @@ status otherwise, so that it can be chained in a script (`odatix fmax -y -d &&
 could not be confirmed stopped, and `odatix replace` when its delimiters match
 nothing (the output is then a plain copy of the input).
 
-The status of a run command (`fmax`, `synth`, `pnr`, `sim`, `workflow`) says
-whether its jobs could be checked, prepared and handed over to the daemon, not
-whether each of them then succeeded: the monitor and the results say that.
+The status of a run command (`fmax`, `synth`, `pnr`, `analyze`, `sim`,
+`workflow`) says whether its jobs could be checked, prepared and handed over to
+a session, not whether each of them then succeeded: the monitor and the results
+say that. A run with **nothing to run** — every job it selects is already done,
+or already running in a session — says so (`note: Nothing to run: ...`) and
+exits with `0` as well: what it was asked for is there, or on its way.
+
+`odatix monitor` exits with `1` when its session is stopped from elsewhere
+while it watches it, and says so.
 
 ## Selecting a flow
 
@@ -149,11 +158,12 @@ its own work directory (`work/custom_freq_synthesis/vivado@power_opt/...`), whil
 all of them are exported into that tool's single results file.
 
 `odatix analyze` runs several tools at once, so its `--flow` accepts several
-values: a bare flow name applies to every selected tool, while `tool:flow` only
-applies to that tool.
+values: a bare flow name applies to every selected tool that has a flow of that
+name, the others keeping their default flow, while `tool:flow` only applies to
+that tool.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix analyze --tool vivado verilator --flow vivado:implementation
+$ odatix analyze --tool vivado verilator --flow vivado:runtime
 {{< /code >}}
 
 The flow a job ran with is recorded in the results file (`flow` meta key), so
@@ -161,16 +171,19 @@ Odatix Explorer can compare the same design run through different flows.
 
 What a tool runs can also be split into ordered **steps** (synthesis, place &
 route, bitstream...). Being stepped belongs to the tool, not to one dedicated
-flow: every flow of Vivado can be stopped wherever, for a custom frequency
+flow: every flow of Vivado can be stopped wherever, for a fixed-frequency
 synthesis as well as for an fmax search. `-u/--until` stops a run at a given
 step, and a later run resumes at the first step left to do rather than redoing
 everything — see
-[Splitting a job into steps](../reference/tools/#steps).
+[Splitting a job into steps](../reference/tools/#steps). Without `--until`, a
+run goes as far as the default step of the tool: `pnr` for Vivado, so a
+bitstream is only written when asked for.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix synth -t vivado --until pnr                    # implement, no bitstream
-$ odatix synth -t vivado                                # only runs the bitstream step
-$ odatix synth -t vivado -f power_opt --until pnr       # same, on the power flow
+$ odatix synth -t vivado --until synthesis              # synthesize, no place & route
+$ odatix synth -t vivado                                # resumes: place & route (pnr, the default step)
+$ odatix synth -t vivado --until bitstream              # resumes: only runs the bitstream step
+$ odatix synth -t vivado -f power_opt --until pnr       # implement, on the power flow
 $ odatix synth -t vivado --rerun-from pnr               # redo place & route onwards
 $ odatix fmax -t vivado --until synthesis              # fmax from synthesis timing only
 {{< /code >}}
@@ -204,13 +217,31 @@ by hand, use the [graphical interface](/docs/gui/app/), or the
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix generate                        # optional: a run resolves them on its own
+$ odatix generate --architecture MyAdder # this architecture only (glob patterns accepted)
 $ odatix generate -o                     # take configurations edited by hand back to their rule
 $ odatix generate -C                     # delete what the rules no longer describe
 $ odatix generate --archpath odatix_userconfig/architectures
 $ odatix generate -p odatix_userconfig/workflows
 
-$ odatix replace -s "// <start>" -S "// </end>" -i input.v -r params.txt -o output.v
+$ odatix replace -s "// <start>\n" -S "// </end>" -i input.v -r params.txt -o output.v
+$ odatix replace -a -s "// <start>\n" -S "// </end>" -i input.v -r params.txt -o output.v   # every occurrence
 {{< /code >}}
+
+Without `--architecture`, `odatix generate` writes the configurations of every
+architecture and every workflow of the workspace. It lists what it would write
+before writing anything, and asks; `-y` skips the question.
+
+`odatix replace` replaces what lies between the two delimiters with the content
+of the replacement file; the delimiters themselves stay. Only the first match is
+replaced, unless `-a` is given. Include the line break in the start delimiter
+(`\n`, `\r` and `\t` are understood): with `-s "// <start>"` alone, the first
+replaced line lands at the end of the comment line, and is commented out with
+it — the command warns when that happens, and so do the run check and the
+Preview Pane of the GUI. A replacement shorter than the block it replaces is
+padded with empty lines, so that the lines after the block keep their number: a
+line an EDA tool reports in the work copy is the same line in your source. It
+exits with `1` when the delimiters match nothing (the output is then a plain
+copy of the input).
 
 ### Synthesis and simulation
 
@@ -234,6 +265,10 @@ $ odatix sim -s questa -a "Example_Cordic_vhdl + iterations/* + width/*"   # a s
 architectures it gives them; `-a/--architecture` replaces those architectures,
 for every simulation run. Together, they run a simulation the file does not list.
 
+A simulation that succeeded is skipped, unless `-o` runs it again. One that
+failed, or was stopped, runs again from a new work directory, or with
+`-r/--resume`, in its existing one.
+
 ### Place & route
 
 Place & route a netlist another tool synthesized — see [Place & route](/docs/features/pnr/).
@@ -252,7 +287,8 @@ Elaborate every configuration with one or several tools and report its status �
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix analyze
 $ odatix analyze --tool vivado verilator genus
-$ odatix analyze --tool vivado verilator --flow vivado:implementation
+$ odatix analyze --tool vivado verilator --flow vivado:runtime
+$ odatix analyze -o                     # run again the analyses already done
 $ odatix analyze -d -S nightly          # hand the jobs over to the daemon, report later
 $ odatix results analysis                   # the report of the analyses of the work directory
 $ odatix results analysis -t verilator -e   # one tool, without writing the results files
@@ -267,37 +303,61 @@ exports their results again.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix workflow
+$ odatix workflow -W "basic/*" "cli_profile/default"   # instead of the file's list
 $ odatix workflow -d -S experiments
+$ odatix workflow -o   # run again the jobs that already ran to their end
 $ odatix workflow -r   # resume existing workflow directories
 {{< /code >}}
+
+`-W/--workflow` takes the selectors of the `workflows` list of
+`workflow_settings.yml` (`"basic/*"`, `"tensorflow + epochs/*"`) and
+replaces that list for one run, the file staying as it is. `-w` is `--work`.
 
 ### Daemon commands
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls
+$ odatix ls                             # the sessions of this workspace
 $ odatix ls -S night
+$ odatix ls --json                      # as JSON, session tokens included
+$ odatix ls -z                          # also the zombie sessions
 
-$ odatix monitor
+$ odatix monitor                        # the only session of this workspace
 $ odatix monitor -S nightly
 
 $ odatix stop
 $ odatix stop -S nightly
-$ odatix stop --all
+$ odatix stop -a                        # --all: every session of this workspace
+$ odatix stop -z                        # kill the zombie sessions of this workspace
+
+$ odatix ls --any-workspace             # every session of the machine
+$ odatix stop --any-workspace -S nightly
 
 $ odatix ls -R user@server              # sessions of another machine, over ssh
 $ odatix monitor -R user@server -S nightly
 $ odatix stop -R user@server -S nightly
 {{< /code >}}
 
+The three commands work on the sessions of the **current workspace**: `-S`
+finds a session of this workspace only, and `--all` stops those only. Add
+`--any-workspace` to reach the sessions of every workspace; outside of any
+workspace, every session is in reach. See
+[sessions of other workspaces](/docs/sessions/#sessions-of-other-workspaces).
+
+A **zombie** session is a daemon that no longer answers, or a state file left
+behind by one that is gone: `-z/--zombies` lists them (`ls`) or kills them and
+removes their files (`stop`). `ls --json` is what a remote `odatix` reads over
+SSH: it holds the session tokens, so do not pipe it anywhere public. All three
+commands accept `-Q/--nobanner` like the others (they print no banner anyway).
+
 Sessions are private to the user who owns them and every request to one is authenticated; see [Sessions & Job Monitor](/docs/sessions/#security).
 
 ### Results export
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix results                          # everything: synth, sim and workflow, then derived
+$ odatix results                          # everything: synth, pnr, analysis, sim and workflow, then derived
 $ odatix results -t vivado -r results     # the same, synthesis results of one tool only
 
-$ odatix results synth                    # synthesis and place & route
+$ odatix results synth                    # synthesis, place & route and RTL analysis
 $ odatix results sim
 $ odatix results workflow
 $ odatix results analysis
@@ -314,9 +374,15 @@ metrics, which read what the others wrote. The options of a type come after it:
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix clean
 $ odatix clean -y                # also remove the paths that look dangerous
-$ odatix clean -V                # say what is removed
+$ odatix clean -V                # also say which patterns matched nothing
+$ odatix clean -q                # say nothing, except errors
 $ odatix clean -i odatix_userconfig/clean_settings.yml
 {{< /code >}}
+
+`odatix clean` never asks: a pattern that looks dangerous (`/`, `~`, `*`...) is
+left alone with a warning, unless `-y/--yes` is given. A clean profile named
+with `-i` that does not exist is an error; without `-i`, a workspace with no
+`clean_settings_file` uses the default profile of Odatix.
 
 ### Migration
 

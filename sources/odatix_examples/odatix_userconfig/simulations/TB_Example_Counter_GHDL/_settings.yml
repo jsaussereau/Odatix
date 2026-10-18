@@ -2,12 +2,6 @@
 # Settings for this simulation
 ##############################################
 
-# delimiters for parameter files
-use_parameters: Yes
-param_target_file: "tb/tb_counter.vhdl"
-start_delimiter: "generic ("
-stop_delimiter: "  );"
-
 # What to do for this simulation. The "main" task is the entry point
 tasks:
 - name: main
@@ -21,5 +15,10 @@ progress:
 
 # Architectures this testbench is meant to run on. Only an indication: running
 # it on another one works, and only prints a warning.
+# The configuration ("__main__", the width of the counter) is written into the
+# generic of the testbench, which passes it on to the counter.
 architectures:
-- Example_Counter_vhdl
+- Example_Counter_vhdl:
+    param_domains:
+      __main__:
+        param_target_file: "tb/tb_counter.vhdl"

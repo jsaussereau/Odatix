@@ -104,9 +104,9 @@ class Objective(object):
 
     Args:
         metric (str): what is read off the results of an evaluation. Any metric
-            an Odatix run exports, plus the dimensions the results carry as
-            numbers -- "frequency" being the one that matters, since that is
-            where an fmax synthesis puts its answer.
+            an Odatix run exports ("Fmax" being where an fmax synthesis puts
+            its answer), plus the dimensions the results carry as numbers --
+            "frequency", what a fixed-frequency synthesis ran at.
         goal (str): "min" or "max".
     """
 

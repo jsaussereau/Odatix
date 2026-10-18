@@ -29,11 +29,17 @@ Each path is a default and can be changed in
 
 | Key | Type | Default | Overridden by | Description |
 |-----|------|---------|---------------|-------------|
-| `overwrite` | bool | `No` | `-o`, `--overwrite` | Re-run jobs that already have a result instead of skipping them. |
-| `ask_continue` | bool | `Yes` | `-y`, `--noask` | Prompt `Continue? (Y/n)` after the pre-run checklist. |
+| `overwrite` | bool | **required** | `-o`, `--overwrite` | Re-run jobs that already have a result instead of skipping them. |
+| `ask_continue` | bool | **required** | `-y`, `--noask` | Prompt `Continue? (Y/n)` after the pre-run checklist. |
+| `nb_jobs` | int or `auto` | **required** | `-j`, `--jobs` | Maximum jobs running at once. `auto` means available CPUs − 1. |
 | `exit_when_done` | bool | `No` | `-E`, `--exit` | Close the Job Monitor when the last job finishes. |
 | `log_size_limit` | int | `300` | `--logsize` | Lines of log history kept per job in the monitor. |
-| `nb_jobs` | int or `auto` | `8` | `-j`, `--jobs` | Maximum jobs running at once. `auto` means available CPUs − 1. |
+
+The first three keys must be in the file, even when a command-line option
+overrides them: they say what happens to results that already exist and how much
+of the machine a run takes, so Odatix does not guess them. The files that
+`odatix init` writes already set them (to `No`, `Yes` and `8`); when you write a
+settings file yourself, keep these three lines and change only the selection.
 
 > [!TIP]
 > About 75 % of your logical cores is usually a good value for `nb_jobs`. EDA
@@ -192,7 +198,17 @@ workflows:
   - cli_profile/default              # one configuration of it
   - cli_profile/aggressive
   - tensorflow + epochs/*            # one run per value of the "epochs" domain
-  - param_domains_cli + max_speed/* + num_vehicles/* + road_length/*
+  - param_domains_cli + max_speed/* + num_vehicles/* + road_length/* + signal_timing/*
+{{< /code >}}
+
+A domain the commands of a workflow use must be in the selection: one left out
+reaches the command as an empty value, which the run warns about.
+
+On the command line, `odatix workflow -W/--workflow` takes the same selectors
+and replaces this list for one run, the file staying as it is:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "cli_profile/*" "tensorflow + epochs/10"
 {{< /code >}}
 
 ## `sources` — place & route inputs
@@ -210,16 +226,21 @@ already run and succeeded**. `pnr_settings.yml` selects those jobs.
 | `<source_tool>` | The eda tool that ran the synthesis, optionally `@<flow>` |
 | `<target>` | The device or technology it was synthesized for |
 | `<design>` / `<configuration>` | As in an architecture selector |
-| `@<frequency>MHz` | Custom-frequency sources only: which frequency point |
+| `@<frequency>MHz` | Fixed-frequency sources (`custom_freq_synthesis`) only: which frequency point |
 
 `*` is accepted at every level.
 
 {{< code lang=yaml filename="odatix_userconfig/pnr_settings.yml" >}}
 sources:
-  - custom_freq_synthesis/design_compiler/gf22/Example_ALU_sv/08bits@100MHz
-  - fmax_synthesis/genus/gf22/Example_Counter_sv/*
+  - custom_freq_synthesis/design_compiler/AMS_c35_1V8/Example_ALU_sv/08bits@100MHz
+  - fmax_synthesis/genus/AMS_c35_1V8/Example_Counter_sv/*
   - custom_freq_synthesis/*/*/*/*      # everything that can be implemented
 {{< /code >}}
+
+The file `odatix init` writes takes every completed synthesis
+(`custom_freq_synthesis/*/*/*/*` and `fmax_synthesis/*/*/*/*`). A selection
+that matches no completed synthesis stops the run with the list of the sources
+there are.
 
 > [!IMPORTANT]
 > A synthesis job can only be a source if its flow wrote the handoff files
@@ -227,7 +248,9 @@ sources:
 > never writes them cannot be a source, whatever its status says.
 
 The command line narrows the same selection without editing the file, with
-`--from-type`, `--from-tool` and `--from-flow`. See
+`--from-type`, `--from-tool` and `--from-flow` (settings `from_type`,
+`from_tool` and `from_flow` of a run started from Python; a source flow needs
+its source tool). See
 [Place & route](/docs/features/pnr/).
 
 ## `clean_settings.yml`

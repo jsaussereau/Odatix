@@ -66,6 +66,7 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 
 import odatix.lib.metrics as metrics_lib
+import odatix.lib.eda_tools as eda_tools
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
@@ -104,6 +105,10 @@ dash.register_page(
 METRIC_PREFIX = "metric"
 META_PREFIX = "metadata"
 THIRD_PREFIX = "metric3"
+# Tool mode only: the place & route metrics, shown for a tool that runs place &
+# route (or already has some), but always loaded so that saving keeps them.
+FOURTH_PREFIX = "metric4"
+ALL_PREFIXES = (METRIC_PREFIX, META_PREFIX, FOURTH_PREFIX, THIRD_PREFIX)
 
 # Explanations of what each section is, shown as tooltips and reused in code.
 METRIC_TOOLTIP = (
@@ -120,6 +125,7 @@ META_TOOLTIP = (
 FMAX_TOOLTIP = "Metrics extracted only for maximum-frequency synthesis."
 CUSTOM_FREQ_TOOLTIP = "Metrics extracted only for fixed-frequency synthesis."
 COMMON_TOOLTIP = "Metrics extracted for every flow (e.g. area, resource counts)."
+PNR_TOOLTIP = "Metrics extracted only for place & route jobs."
 
 WORKFLOW_SECTIONS = [
     (METRIC_PREFIX, "Metrics", METRIC_TOOLTIP, "metrics"),
@@ -128,11 +134,25 @@ WORKFLOW_SECTIONS = [
 TOOL_SECTIONS = [
     (METRIC_PREFIX, "Fmax synthesis metrics", FMAX_TOOLTIP, "fmax_synthesis_metrics"),
     (META_PREFIX, "Fixed-frequency synthesis metrics", CUSTOM_FREQ_TOOLTIP, "custom_freq_synthesis_metrics"),
+    (FOURTH_PREFIX, "Place & route metrics", PNR_TOOLTIP, "pnr_metrics"),
     (THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, "metrics"),
 ]
 
 def _sections_for_mode(is_tool):
     return TOOL_SECTIONS if is_tool else WORKFLOW_SECTIONS
+
+def add_text_for(prefix, mode):
+    """The text of a section's add card: only a workflow has metadata."""
+    if prefix == META_PREFIX and mode != "tool":
+        return "Add new metadata"
+    return "Add new metric"
+
+def _tool_runs_pnr(tool):
+    """Whether a tool has a flow running place & route."""
+    try:
+        return bool(eda_tools.list_flows(tool, job_type="pnr"))
+    except Exception:
+        return False
 
 # Metric extraction types and the fields each of them uses.
 METRIC_TYPE_OPTIONS = [
@@ -798,14 +818,16 @@ def register_section_callbacks(prefix, name_stem, add_text):
         State({"type": f"{prefix}-field-multiple", "name": dash.ALL}, "value"),
         State({"type": f"{prefix}-origin", "name": dash.ALL}, "value"),
         State("metric-builtin", "data"),
+        State("metric-initial", "data"),
         prevent_initial_call=True,
     )
     def update_cards(
         new_click, duplicate_clicks, delete_clicks, reset_clicks, cards,
         types, file_vals, pattern_vals, group_id_vals, key_vals, op_vals,
-        unit_vals, format_vals, error_vals, multiple_vals, origins, builtin_data,
+        unit_vals, format_vals, error_vals, multiple_vals, origins, builtin_data, initial,
     ):
         trigger_id = ctx.triggered_id
+        mode = initial.get("mode") if isinstance(initial, dict) else None
 
         if cards is None:
             cards = []
@@ -901,7 +923,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
                     **card_values(idx),
                 ))
 
-        cards.append(add_card(prefix, add_text))
+        cards.append(add_card(prefix, add_text_for(prefix, mode) if mode else add_text))
         return cards
 
     @dash.callback(
@@ -978,6 +1000,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
 register_section_callbacks(METRIC_PREFIX, "metric", "Add new metric")
 register_section_callbacks(META_PREFIX, "meta", "Add new metadata")
 register_section_callbacks(THIRD_PREFIX, "metric", "Add new metric")
+register_section_callbacks(FOURTH_PREFIX, "metric", "Add new metric")
 
 
 ######################################
@@ -986,7 +1009,7 @@ register_section_callbacks(THIRD_PREFIX, "metric", "Add new metric")
 
 def _section_title_children(sections):
     """Title tiles for the (up to three) sections, keyed by their card-row prefix."""
-    children = {METRIC_PREFIX: None, META_PREFIX: None, THIRD_PREFIX: None}
+    children = dict((prefix, None) for prefix in ALL_PREFIXES)
     for prefix, label, tooltip, _key in sections:
         children[prefix] = ui.title_tile(text=label, id=f"{prefix}-section-title", tooltip=tooltip)
     return children
@@ -1002,13 +1025,17 @@ def _section_title_children(sections):
     Output(f"{THIRD_PREFIX}-cards-row", "children"),
     Output("metric-initial", "data"),
     Output("metric-builtin", "data"),
+    # Last, so the outputs above keep their positions.
+    Output(f"{FOURTH_PREFIX}-section-title-div", "children"),
+    Output(f"{FOURTH_PREFIX}-section-wrapper", "style"),
+    Output(f"{FOURTH_PREFIX}-cards-row", "children"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
 def init_page(search, page, odatix_settings):
     if page != page_path:
-        return (dash.no_update,) * 10
+        return (dash.no_update,) * 13
 
     tool_name = get_key_from_url(search, "tool")
     workflow_name = get_key_from_url(search, "workflow")
@@ -1026,7 +1053,7 @@ def init_page(search, page, odatix_settings):
     # In tool mode the cards show both layers: what Odatix defines (read-only)
     # and what the workspace metrics.yml adds, overrides or removes. Only the
     # workspace layer is edited and saved.
-    builtin_defs = {prefix: {} for prefix in (METRIC_PREFIX, META_PREFIX, THIRD_PREFIX)}
+    builtin_defs = {prefix: {} for prefix in ALL_PREFIXES}
     entries = {}
     if is_tool and name:
         tools_path = get_workspace(odatix_settings).paths.tools_path
@@ -1049,11 +1076,18 @@ def init_page(search, page, odatix_settings):
 
     rows = {}
     for prefix, _l, _t, _key in sections:
-        rows[prefix] = cards_from_section(prefix, entries.get(prefix, {}), "Add new metric")
+        rows[prefix] = cards_from_section(prefix, entries.get(prefix, {}), add_text_for(prefix, mode))
     # Prefixes not used by this mode still need a valid (empty) card row.
-    for prefix in (METRIC_PREFIX, META_PREFIX, THIRD_PREFIX):
+    for prefix in ALL_PREFIXES:
         if prefix not in rows:
-            rows[prefix] = [add_card(prefix, "Add new metric")]
+            rows[prefix] = [add_card(prefix, add_text_for(prefix, mode))]
+
+    # Place & route metrics: for a tool that runs place & route, or that has
+    # some already. Hidden otherwise, but still loaded, so saving keeps them.
+    show_pnr = is_tool and bool(name) and (
+        _tool_runs_pnr(name) or bool(entries.get(FOURTH_PREFIX))
+    )
+    fourth_style = {"display": "block"} if show_pnr else {"display": "none"}
 
     initial = {
         "mode": mode,
@@ -1071,6 +1105,9 @@ def init_page(search, page, odatix_settings):
         rows[THIRD_PREFIX],
         initial,
         builtin_defs,
+        titles[FOURTH_PREFIX],
+        fourth_style,
+        rows[FOURTH_PREFIX],
     )
 
 @page_callback(PAGE_SCOPE,
@@ -1118,6 +1155,19 @@ def init_page(search, page, odatix_settings):
     Input({"type": f"{THIRD_PREFIX}-field-error_if_missing", "name": dash.ALL}, "value"),
     Input({"type": f"{THIRD_PREFIX}-field-multiple", "name": dash.ALL}, "value"),
     Input({"type": f"{THIRD_PREFIX}-origin", "name": dash.ALL}, "value"),
+    # Fourth section (tool place & route metrics; unused/empty in workflow mode)
+    Input({"type": f"{FOURTH_PREFIX}-title", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-type", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-file", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-pattern", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-group_id", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-key", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-op", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-unit", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-format", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-error_if_missing", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-field-multiple", "name": dash.ALL}, "value"),
+    Input({"type": f"{FOURTH_PREFIX}-origin", "name": dash.ALL}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("metric-initial", "data"),
@@ -1131,10 +1181,13 @@ def save_and_status(
     m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple, m_origin,
     d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple, d_origin,
     t_names, t_types, t_file, t_pattern, t_group_id, t_key, t_op, t_unit, t_format, t_error, t_multiple, t_origin,
+    p_names, p_types, p_file, p_pattern, p_group_id, p_key, p_op, p_unit, p_format, p_error, p_multiple, p_origin,
     search, page, initial, saved, builtin_data, odatix_settings,
 ):
     triggered_id = ctx.triggered_id
-    saving = triggered_id == {"page": page_path, "action": "save-all"}
+    # The button is part of the title, which a callback renders: a new button
+    # triggers this too, without anyone clicking it. Only a click saves.
+    saving = triggered_id == {"page": page_path, "action": "save-all"} and bool(n_clicks)
     if triggered_id == f"url_{page_path}" and page != page_path:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -1154,6 +1207,7 @@ def save_and_status(
         METRIC_PREFIX: (m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple, m_origin),
         META_PREFIX: (d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple, d_origin),
         THIRD_PREFIX: (t_names, t_types, t_file, t_pattern, t_group_id, t_key, t_op, t_unit, t_format, t_error, t_multiple, t_origin),
+        FOURTH_PREFIX: (p_names, p_types, p_file, p_pattern, p_group_id, p_key, p_op, p_unit, p_format, p_error, p_multiple, p_origin),
     }
 
     builtin_sections = builtin_data if isinstance(builtin_data, dict) else {}
@@ -1188,7 +1242,7 @@ def save_and_status(
     if not isinstance(reference, dict) or "sections" not in reference:
         reference = {"mode": current["mode"], "sections": {p: {} for p, _l, _t, _k in sections}}
 
-    if triggered_id == {"page": page_path, "action": "save-all"}:
+    if saving:
         if is_tool:
             if not tool_name:
                 return error, "No tool selected", dash.no_update, (ui.error("Not saved: No tool selected") if saving else dash.no_update)
@@ -1222,7 +1276,8 @@ def save_and_status(
                 return error, "Failed to save...", dash.no_update, ui.error(f"Not saved: {e}")
 
     if current.get("sections") != reference.get("sections"):
-        return warning[0], warning[1], dash.no_update, dash.no_update
+        # A "Saved." left from before would contradict the button.
+        return warning[0], warning[1], dash.no_update, None
 
     return disabled[0], disabled[1], dash.no_update, dash.no_update
 
@@ -1259,6 +1314,7 @@ layout = html.Div(
         ui.feedback("metric-save-feedback"),
         _section_block(METRIC_PREFIX, "Metrics", METRIC_TOOLTIP),
         _section_block(META_PREFIX, "Metadata Dimensions", META_TOOLTIP),
+        _section_block(FOURTH_PREFIX, "Place & route metrics", PNR_TOOLTIP, wrapper_style={"display": "none"}),
         _section_block(THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, wrapper_style={"display": "none"}),
         dcc.Store(id="metric-initial", data={"mode": "workflow", "sections": {}}),
         dcc.Store(id="metric-saved", data=None),

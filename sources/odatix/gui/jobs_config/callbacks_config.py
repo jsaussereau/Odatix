@@ -50,6 +50,7 @@ from odatix.gui.jobs_config.common import (
     _simulation_badge_text,
     _to_int,
     page_path,
+    rerun_step_names,
 )
 from odatix.gui.jobs_config.context import _run_context
 from odatix.gui.jobs_config.pnr import _pnr_job_sections, _pnr_sync_preview_values
@@ -133,7 +134,9 @@ def init_form(search, page, odatix_settings):
     if run_mode == "analyze":
         selected_tools = _analysis_tools_selection(search, settings_path)
 
-    return job_settings_form(settings, run_mode, selected_tools=selected_tools), settings
+    return job_settings_form(
+        settings, run_mode, selected_tools=selected_tools, rerun_steps=rerun_step_names(search),
+    ), settings
 
 @dash.callback(
     Output("nb_jobs", "disabled"),
@@ -445,13 +448,14 @@ def update_arch_count(preview_values, switch_values, preview_ids, switch_ids, co
     Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
     Input("nb_jobs", "value"),
     Input("auto-nb-jobs", "value"),
+    Input("rerun-from", "value"),
     Input(f"url_{page_path}", "search"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
     State({"type": "sim-selection", "sim": dash.ALL}, "id"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
 )
 def update_jobs_summary(
-    switch_values, preview_values, sim_selection_values, nb_jobs, auto_nb_jobs, search,
+    switch_values, preview_values, sim_selection_values, nb_jobs, auto_nb_jobs, rerun_from, search,
     preview_ids, sim_selection_ids, switch_ids,
 ):
     """Live recap of what the Run button is about to launch: job type, eda tool,
@@ -506,6 +510,10 @@ def update_jobs_summary(
         steps = eda_tools.get_flow_step_names(tool, flow=flow, job_type=run_mode)
         if until_step in steps and until_step != steps[-1]:
             children.append(html.Span("up to " + until_step, className="odx-tag neutral"))
+        # Re-running steps already done costs what they cost the first time:
+        # it is not what a run does by default, so it stands out.
+        if rerun_from and rerun_from in rerun_step_names(search):
+            children.append(html.Span("re-run from " + rerun_from, className="odx-tag warning"))
     children.append(html.Div(className="odx-spacer"))
     children.append(ui.stat(len(enabled), instances_label, "" if enabled else "muted"))
     children.append(ui.stat(n_configs, configs_label, "accent" if n_configs else "muted"))

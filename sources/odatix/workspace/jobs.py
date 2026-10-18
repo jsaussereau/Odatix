@@ -69,7 +69,7 @@ class FrequencyRange(Settings):
 
 class FrequenciesSettings(Settings):
     """
-    The frequencies a custom frequency synthesis runs at.
+    The frequencies a fixed-frequency synthesis runs at.
 
     A list and a range can both be kept in the file, each switched on or off:
     the one that is off is written under "disabled_list" / "disabled_range", so
@@ -108,6 +108,10 @@ class FrequenciesSettings(Settings):
         if not data.get("range") and data.get("disabled_range"):
             settings.range = data.get("disabled_range")
             settings.use_custom_freq_range = False
+        # No range in the file at all: the run uses none, so neither does the
+        # form (it used to show, and run, the default 50-100 MHz range).
+        if not data.get("range") and not data.get("disabled_range"):
+            settings.use_custom_freq_range = False
         return settings
 
 
@@ -116,8 +120,8 @@ class FmaxBoundsSettings(Settings):
 
     override = Setting(
         False, type="bool", style="yesno",
-        comment="if false, those values are only used when no architecture-specific bounds are defined",
-        doc="Whether these bounds replace the architecture-specific ones.",
+        comment="if false, these bounds are ignored and the architecture bounds apply",
+        doc="Whether these bounds replace the architecture-specific ones (when false, they are ignored).",
     )
     lower_bound = Setting(
         None, type="optional_int",
@@ -150,7 +154,7 @@ class JobSettings(Settings):
         doc="Whether results that already exist are run again.",
     )
     ask_continue = Setting(
-        False, type="bool", style="yesno", section=" prompt 'Continue? (Y/n)' after settings checks",
+        True, type="bool", style="yesno", section=" prompt 'Continue? (Y/n)' after settings checks",
         comment="overridden by -y / --noask",
         doc="Whether the run stops for a confirmation once it knows what it will do.",
     )
@@ -377,6 +381,9 @@ MODE_ALIASES = {
     "synth": "custom_freq_synthesis",
     "freq": "custom_freq_synthesis",
     "custom_freq": "custom_freq_synthesis",
+    # The glossary calls it "fixed-frequency synthesis".
+    "fixed_freq": "custom_freq_synthesis",
+    "fixed_freq_synthesis": "custom_freq_synthesis",
     "sim": "simulation",
     "simulations": "simulation",
     "workflows": "workflow",
@@ -524,7 +531,14 @@ class JobConfig(object):
         for key in REQUIRED_KEYS:
             if key not in data:
                 raise InvalidSettingsError(
-                    'Cannot find key "{0}" in "{1}".'.format(key, self.path), path=self.path, key=key
+                    'Cannot find key "{0}" in "{1}".'.format(key, self.path),
+                    path=self.path,
+                    key=key,
+                    hints=[
+                        "Every run settings file sets overwrite, ask_continue and nb_jobs,"
+                        ' e.g. "overwrite: No", "ask_continue: Yes", "nb_jobs: 8"'
+                        " (see https://odatix.readthedocs.io/docs/reference/run_settings/)",
+                    ],
                 )
         _require_bool(data, "overwrite", self.path)
         _require_bool(data, "ask_continue", self.path)
@@ -611,6 +625,9 @@ class JobConfigCollection(object):
 
     def __init__(self, workspace):
         self.workspace = workspace
+        # One object per file: "ws.jobs.fmax_synthesis.settings.nb_jobs = 4"
+        # then "ws.jobs.fmax_synthesis.save()" must save what was just set.
+        self._configs = {}
 
     def names(self):
         return list(JOB_MODES.keys())
@@ -618,7 +635,10 @@ class JobConfigCollection(object):
     def __getitem__(self, mode):
         mode = resolve_mode(mode)
         path = getattr(self.workspace.paths, JOB_MODES[mode]["settings_file"])
-        return JobConfig(self.workspace, mode, path)
+        key = (mode, path)
+        if key not in self._configs:
+            self._configs[key] = JobConfig(self.workspace, mode, path)
+        return self._configs[key]
 
     def __getattr__(self, name):
         if name.startswith("_") or name in ("workspace",):

@@ -162,12 +162,20 @@ def _print_check_failure(tool, supported_tools, error_message, debug):
   printc.error('Could not launch eda tool "' + tool + '"', script_name)
   if error_message:
     printc.cyan("error details: ", script_name, end="")
-    printc.red(error_message, end="")
+    # The message of the tool ends the line: what follows starts on its own.
+    printc.red(error_message)
   if not debug:
     printc.note("Use '-D' option for more details", script_name)
-  printc.note("Did you add the tool path to your PATH environment variable?", script_name)
-  printc.note("Example -> PATH=$PATH:/tools/xilinx/Vivado/2024.2/bin", script_name)
-  printc.note("or correctly defined your tool_install_path, for tools needing it to be defined?", script_name)
+  # A tool whose check explains itself (a "note:" of its own, such as Quartus
+  # naming the directory it needs) knows better than the generic hint, which
+  # would then only repeat it, less precisely.
+  if "note:" not in (error_message or ""):
+    printc.note("Did you add the directory of the tool's executables to your PATH environment variable?", script_name)
+    printc.note("Example -> export PATH=$PATH:<installation directory of " + tool + ">/bin", script_name)
+    printc.note(
+      'or, for a tool reading it, set tool_install_path in the target file of "' + tool + '" (odatix_userconfig/targets/target_*.yml)',
+      script_name,
+    )
   if tool not in supported_tools:
     printc.note(
       'The selected eda tool "{}" is not one of the supported tool. '.format(tool)

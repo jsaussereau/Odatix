@@ -51,7 +51,7 @@ derived_metrics:
 
 Metrics are computed **in declaration order**, so an `operation` can use a value an earlier import brought in — as `Runtime` does above.
 
-The GUI has a **Derived Metrics** page that edits this file, if you prefer not to write the YAML by hand.
+The GUI has a **Derived metrics** page (**Workspace → Derived metrics**) that edits this file, if you prefer not to write the YAML by hand. Every key of this page has a field there (`step` under the extra fields of a card); a key it does not know is kept as it is when the page saves, and so are the comments of the metrics left unchanged.
 
 ## The two kinds
 
@@ -65,7 +65,7 @@ The GUI has a **Derived Metrics** page that edits this file, if you prefer not t
 | Key | Default | Description |
 |-----|---------|-------------|
 | `type` | inferred | `import` or `operation`. Inferred from `op` / `from` when omitted. |
-| `from` | — | Which results to read: `simulation`, `workflow`, `fmax_synthesis`, `custom_freq_synthesis`, `synthesis`, `any`, or a list. Import only. |
+| `from` | — | Which results to read: `simulation`, `workflow`, `fmax_synthesis` (or `fmax`), `custom_freq_synthesis` (or `custom_freq`), `synthesis` (both), `pnr`, `analysis`, `any` (or `all`, `*`), or a list. Import only. |
 | `metric` | the metric's own name | Name of the metric to read in the source result. `meta.<key>` reads a [meta field](#reading-meta-fields) instead. |
 | `op` | — | Expression over metric names, e.g. `"Cycles / Fmax"`. `meta.<key>` reads a [meta field](#reading-meta-fields). Operation only. |
 | `apply_to` | `synthesis` | Which kinds of results receive the metric. Same vocabulary as `from`. |
@@ -80,21 +80,21 @@ The GUI has a **Derived Metrics** page that edits this file, if you prefer not t
 
 ## Reading meta fields
 
-Not everything worth computing with is a metric. The frequency a custom frequency synthesis ran at, the target it ran on, or the value of a parameter domain live in the result's **meta**, not in its metrics. `meta.<key>` reaches them, both as the metric an `import` copies and inside an `op` expression.
+Not everything worth computing with is a metric. The frequency a fixed-frequency synthesis ran at, the target it ran on, or the value of a parameter domain live in the result's **meta**, not in its metrics. `meta.<key>` reaches them, both as the metric an `import` copies and inside an `op` expression.
 
 {{< code lang=yaml filename="derived_metrics.yml" >}}
 derived_metrics:
-  Frequency:              # the frequency a custom frequency synthesis ran at
-    from: custom_freq
-    metric: meta.frequency
-    unit: MHz
-  Runtime:
+  Cycles:                 # the cycle count of the matching simulation
+    from: simulation
+    unit: cycles
+  Runtime:                # at the frequency the synthesis ran at
     type: operation
     op: "Cycles / meta.frequency"
+    apply_to: custom_freq
     unit: us
 {{< /code >}}
 
-In an `import`, `meta.<key>` is read on the **source** result; in an `operation`, on the result being computed.
+In an `import`, `meta.<key>` is read on the **source** result; in an `operation`, on the result being computed. A result does not need to import its own meta: `op: "... / meta.frequency"` reads it directly, and a metric named like a dimension (`Frequency`) would show twice in Explorer.
 
 Values that read as numbers are converted to numbers, the others stay text — so `op: "meta.target == 'xc7a100t' "` compares fine. A key the result does not carry makes the operation skip that result, exactly like an unknown metric name does. For a key that is not a valid Python name, write `meta["Data width"]`.
 
@@ -117,6 +117,13 @@ A group may reference another group.
 ## How a source result is matched
 
 Results of every kind share one flat set of dimensions — architecture, configuration, and every [parameter domain](/docs/configurations/param_domains/). By default, a source result matches when both results **agree on every dimension they have in common**.
+
+Those dimensions describe the design point, not how the job ran: `target`,
+`frequency`, `tool` and `flow` are not part of the join unless `match` names
+them. Two results of the **same type** (two steps of one synthesis job) are a
+special case: a result only reads another step of **its own job** — the place &
+route of a job at 50 MHz on one target reads the synthesis of that very job,
+never the one of another frequency or target.
 
 A dimension only one of them carries is not a constraint. That is what makes an *invariant* domain work: a simulation that declares
 
@@ -142,9 +149,9 @@ Cycles:
 
 | `match` key | Effect |
 |-------------|--------|
-| `keys` | Join on exactly these dimensions, and nothing else. |
+| `keys` | Join on exactly these dimensions, and nothing else. `target`, `frequency`, `tool` and `flow` are accepted. With `keys`, a result of the same type may come from another job, though a result of the job itself is still preferred. |
 | `ignore` | Drop these dimensions from the join. |
-| `pin` | Require a fixed value on the source side, and drop that dimension from the join. |
+| `pin` | Require a fixed value on the source side, and drop that dimension from the join. Works on `target` and `frequency` too (`pin: {target: xc7a100t-csg324-1}`). |
 | `map` | Rename a source-side dimension to its target-side name, when the two do not agree. |
 
 > [!NOTE]
@@ -167,6 +174,11 @@ LUT_pnr_delta:
   type: operation
   op: LUT_count - LUT_count_after_synthesis
 {{< /code >}}
+
+Each place & route result reads the synthesis step of its own job, whatever the
+number of frequencies, targets or flows the design was run with. A job that has
+no `synthesis` step result of its own gets no value (and a warning, unless
+`optional: true`).
 
 `step: any` reads every step of the job at once, the values being reduced by `on_multiple`.
 
@@ -212,7 +224,10 @@ Every synthesis result of a CPU now carries `Cycles`, `Runtime` and `Benchmark_e
 
 ## Running them
 
-Derived metrics are **not** computed at export time — the result they need may not exist yet when a job finishes, since a synthesis can complete before the simulation it borrows from has run.
+Derived metrics are not computed as each job is exported — the result they need may not exist yet when a job finishes, since a synthesis can complete before the simulation it borrows from has run. They are applied:
+
+- once **every job of a run is done** (end of the batch), by the run commands (`odatix synth`, `odatix fmax`, `odatix sim`, `odatix workflow`, ...) and by the GUI;
+- by every `odatix results` (all types) and `odatix results derived`.
 
 They are recomputed from scratch over the whole result set every time they run, so applying them twice changes nothing, and a value whose source disappeared is removed rather than left stale.
 

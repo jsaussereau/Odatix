@@ -32,11 +32,6 @@ try:
 except ImportError:  # Python 2 fallback, kept for safety
     from urllib import urlencode
 
-if sys.platform == "win32":
-    import msvcrt
-else:
-    import select
-
 # Add parent dir to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
@@ -55,7 +50,7 @@ sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
 # Settings
 ######################################
 
-script_name = os.path.basename(__file__)
+script_name = "odatix-gui"
 
 start_port = 8052
 
@@ -145,7 +140,7 @@ def add_arguments(parser, suppress_defaults=False, skip_flags=()):
 
     add(['-i', '--input'], type=str, default=default('results'), help='Directory of the result YAML files')
     add(['-n', '--network'], action='store_true', default=default(False), help='Run the server on the network')
-    add(['-p', '--port'], type=int, default=default(start_port), help='Port to run the server on')
+    add(['-p', '--port'], type=int, default=default(None), help='Port to run the server on, which must be free (default: ' + str(start_port) + ', or the next free one)')
     add(['-N', '--normal_term_mode'], action='store_true', default=default(False), help='Do not change terminal mode')
     add(['--safe_mode'], action='store_true', default=default(False), help='Do not exit on internal error')
     add(['-B', '--nobrowser'], action='store_true', default=default(False), help='Do not open browser')
@@ -224,9 +219,12 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
         ip_address = get_local_ip()
 
     if preferred_port is not None:
-        port = find_free_port(host_address, preferred_port)
+        # Asked for explicitly: that port or nothing, never another one in silence
+        port = find_free_port(host_address, preferred_port, strict=True, script_name=script_name)
     else:
-        port = find_free_port(host_address, start_port)
+        port = find_free_port(host_address, start_port, script_name=script_name)
+        if port != start_port:
+            printc.note("port " + str(start_port) + " is in use, using port " + str(port), script_name=script_name)
 
     printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + landing_page + printc.colors.ENDC, end="", script_name=script_name)
     if network:
@@ -234,10 +232,10 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
     else:
         print(" (localhost only)")
 
-    if normal_term_mode:
-        printc.say("press 'q', then enter to quit", script_name=script_name)
-    else:
-        printc.say("press 'q' to quit", script_name=script_name)
+    printc.say(term_mode.quit_hint(normal_term_mode), script_name=script_name)
+    # Under nohup or a service manager stdout is a file, fully buffered: the
+    # address (and the port actually taken) must reach it now, not at exit.
+    sys.stdout.flush()
 
     if normal_term_mode:
         old_settings = None
@@ -267,18 +265,7 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
         Thread(target=open_browser, args=(host_address,), daemon=True).start()
     
     try:
-        while True:
-            # Check if a key is pressed
-            if sys.platform == "win32":
-                if msvcrt.kbhit():
-                    key = msvcrt.getch().decode("utf-8").lower()
-                    if key == 'q':
-                        close_server(old_settings)
-            else:
-                if sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]:
-                    key = sys.stdin.read(1).lower()
-                    if key == 'q':
-                        close_server(old_settings)
+        term_mode.wait_for_quit_key(lambda: close_server(old_settings), serve_thread)
     finally:
         if old_settings is not None:
             term_mode.restore_mode(old_settings)

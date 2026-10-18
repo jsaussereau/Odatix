@@ -78,6 +78,7 @@ OPTIONS = {
   "token": (("--token",), dict(default=None, help="session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)")),
   "remote": (("-R", "--remote"), dict(default=None, help="reach a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace")),
   "zombies": (("-z", "--zombies"), dict(action="store_true", help="also handle zombie sessions (unresponsive daemons and leftover state files)")),
+  "any_workspace": (("--any-workspace",), dict(action="store_true", help="also reach the sessions of other workspaces (default: those of the current workspace only)")),
 
   ######################################
   # What a run does
@@ -95,6 +96,12 @@ OPTIONS = {
     action=ExtendAction, nargs="+", dest="simulations", default=None, metavar="SIMULATION",
     help='simulations to run, out of "simulations" in the run settings file, on the architectures it gives them '
          '(several values, repeatable; default: all of them)',
+  )),
+  # -w is --work.
+  "workflows": (("-W", "--workflow"), dict(
+    action=ExtendAction, nargs="+", dest="workflows", default=None, metavar="SELECTOR",
+    help='workflows to run, written as entries of "workflows" in the run settings file, '
+         'e.g. "basic/*" or "cli_profile/default" (several values, repeatable; replaces that list)',
   )),
   "flow": (("-f", "--flow"), dict(default=None, help="flow of the tool to run (default: the tool's default flow)")),
   "until": (("-u", "--until"), dict(default=None, help="last step of the flow to run, inclusive (default: the flow's default step, or all its steps)")),

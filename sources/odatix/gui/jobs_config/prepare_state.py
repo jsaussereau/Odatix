@@ -30,6 +30,7 @@ enqueues into) and is *always* accessed through this module, e.g.
 copy that never sees the updates written by the threads.
 """
 
+import atexit
 import io
 import os
 import threading
@@ -80,17 +81,32 @@ _prepare_tool_check_reported = False
 # uses it without saving; removed at the start of the next run.
 _prepare_temp_settings_file = None
 
-def _reset_prepare_state():
-    global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
-    global _prepare_run, _prepare_messages, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
-    global _prepare_tool_checks, _prepare_tool_check_reported, _prepare_temp_settings_file
-    # Remove the previous run's temporary settings file, if any.
+def _remove_temp_settings_file():
+    """
+    Remove the temporary settings file of the current run, if any. A run reads
+    it while it is checked and prepared only: once its jobs are handed over to a
+    session, or the next run starts, or the interface stops, it has no use.
+    """
+    global _prepare_temp_settings_file
     if _prepare_temp_settings_file:
         try:
             os.remove(_prepare_temp_settings_file)
         except OSError:
             pass
         _prepare_temp_settings_file = None
+
+
+# A run checked but never started leaves its file behind: the interface takes
+# it away when it stops.
+atexit.register(_remove_temp_settings_file)
+
+
+def _reset_prepare_state():
+    global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
+    global _prepare_run, _prepare_messages, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
+    global _prepare_tool_checks, _prepare_tool_check_reported
+    # Remove the previous run's temporary settings file, if any.
+    _remove_temp_settings_file()
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
     _prepare_status = {"status": "checking", "error": None}

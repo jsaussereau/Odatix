@@ -117,6 +117,14 @@ ORIGIN_BLACKLISTED = "blacklisted"
 ORIGINS = (ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_MANUAL, ORIGIN_BLACKLISTED)
 
 
+
+def _differs(on_disk, generated):
+    """
+    Whether a configuration file was edited by hand. Line endings at the end do
+    not count: a file written again with "echo" holds the same configuration.
+    """
+    return on_disk.rstrip("\r\n") != generated.rstrip("\r\n")
+
 class DuplicateNameError(WorkspaceError):
     """
     Several points of a space are named the same.
@@ -703,7 +711,7 @@ class ConfigSet(object):
         resolved = {}
 
         for name, point in generated.items():
-            if name in files and files[name] != point.content:
+            if name in files and _differs(files[name], point.content):
                 resolved[name] = ResolvedConfig(
                     name, files[name], point.values, ORIGIN_EDITED, generated_content=point.content,
                 )
@@ -739,7 +747,7 @@ class ConfigSet(object):
             # A hand-written file remains a configuration of its own. A file
             # equal to the generated content stays excluded and can still be
             # restored from the editor, even when no manifest exists.
-            if point.name in files and files[point.name] != point.content:
+            if point.name in files and _differs(files[point.name], point.content):
                 continue
             resolved[point.name] = ResolvedConfig(
                 point.name, point.content, point.values, ORIGIN_BLACKLISTED,
@@ -759,7 +767,7 @@ class ConfigSet(object):
         if point is None:
             return None
         files = self.files()
-        if point.name in files and files[point.name] != point.content:
+        if point.name in files and _differs(files[point.name], point.content):
             return ResolvedConfig(
                 point.name, files[point.name], point.values, ORIGIN_EDITED, generated_content=point.content,
             )
@@ -906,7 +914,7 @@ class ConfigSet(object):
         path = os.path.join(cache, name + CONFIG_EXTENSION)
         if os.path.isfile(path):
             with open(path, "r") as f:
-                if f.read() == point.content:
+                if not _differs(f.read(), point.content):
                     return path
 
         write_text(path, point.content)

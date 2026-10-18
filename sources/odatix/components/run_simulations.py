@@ -44,12 +44,13 @@ import odatix.lib.printc as printc
 import odatix.run.cli as run_cli
 from odatix.components.cli_options import add_options
 from odatix.run.options import RunOptions
+from odatix.run.planner import leave_jobs_to_sessions
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.virtual_param_domain as virtual_param_domain
 import odatix.sim.design_info as design_info
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
-from odatix.lib.simulation_handler import SimulationHandler
+from odatix.lib.simulation_handler import SimulationHandler, sim_done_file
 from odatix.lib.utils import copytree, create_dir, ask_to_continue, get_timestamp_string
 from odatix.lib.run_settings import get_sim_settings
 from odatix.lib.wosit import createTaskGraph
@@ -446,6 +447,7 @@ def check_settings(
     keep=False,
     selected_simulations=None,
     selected_architectures=None,
+    resume=False,
 ):
     _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
     # Simulations and architectures named by the run ("--sim", "--architecture")
@@ -480,6 +482,7 @@ def check_settings(
         work_log_path = hard_settings.work_log_path,
         log_path = hard_settings.work_log_path,
         overwrite = overwrite,
+        resume = resume,
         param_settings_filename = hard_settings.param_settings_filename,
         sim_settings_filename = hard_settings.sim_settings_filename,
         sim_makefile_filename = sim_makefile_filename
@@ -513,10 +516,21 @@ def check_settings(
         first_progress_regex = hard_settings.sim_status_pattern.pattern
     ParallelJob.set_patterns(re.compile(first_progress_regex))
 
+    # A simulation a session is already running is left to it: two sessions
+    # running one work directory write into each other's files.
+    selected_count = len(simulation_instances)
+    simulation_instances = leave_jobs_to_sessions(
+        simulation_instances, sim_handler.plan,
+        tmp_dir=lambda sim_instance: sim_instance.tmp_dir,
+        name=lambda sim_instance: sim_instance.sim_display_name,
+        overwrite=overwrite, script_name=script_name,
+    )
+    valid_count = sim_handler.get_valid_sim_count() - (selected_count - len(simulation_instances))
+
     # print checklist summary
     sim_handler.print_summary()
 
-    confirm_valid_jobs(sim_handler.get_valid_sim_count(), ask_continue, ask_to_continue, script_name=script_name, plan=sim_handler.plan)
+    confirm_valid_jobs(valid_count, ask_continue, ask_to_continue, script_name=script_name, plan=sim_handler.plan)
 
     print()
 
@@ -527,6 +541,14 @@ def check_settings(
         # create directory
         if not (resume and os.path.isdir(sim_instance.tmp_dir)):
             create_dir(sim_instance.tmp_dir)
+        elif os.path.isfile(sim_done_file(sim_instance.tmp_dir)):
+            # Running again in place: done only once it succeeds again.
+            os.remove(sim_done_file(sim_instance.tmp_dir))
+
+        # The directory ${log_path} names, which the commands write their logs in
+        log_dir = os.path.join(sim_instance.tmp_dir, hard_settings.work_log_path)
+        if not os.path.isdir(log_dir):
+            os.makedirs(log_dir)
 
         # write run metadata to make post-processing/export robust
         write_simulation_meta(sim_instance)
@@ -543,7 +565,7 @@ def check_settings(
             try:
                 copytree(
                     src=sim_instance.architecture.design_path,
-                    dst=sim_instance.architecture.tmp_dir,
+                    dst=sim_instance.tmp_dir,
                     whitelist=sim_instance.architecture.design_path_whitelist,
                     blacklist=sim_instance.architecture.design_path_blacklist,
                     dirs_exist_ok=True
@@ -675,14 +697,37 @@ def write_simulation_meta(sim_instance):
         )
 
 
+def _done_command(tmp_dir):
+    """What a job runs last: the same line for sh and cmd.exe."""
+    return "echo done> \"" + os.path.realpath(sim_done_file(tmp_dir)) + "\""
+
+
+def with_done_mark(command, tmp_dir):
+    """
+    The command of a job, followed by what marks the simulation as done (see
+    simulation_handler.job_category), which only runs when everything before it
+    succeeded: a single command line is chained to it, and a task graph gets a
+    last stage, the stages running one after the other until one fails.
+    """
+    done = _done_command(tmp_dir)
+    if isinstance(command, str):
+        # The line break ends a comment the command may finish with.
+        return "(" + command + ("" if os.name == "nt" else "\n") + ") && " + done
+    stages = dict(command)
+    levels = [int(level) for level in stages if str(level).lstrip("-").isdigit()]
+    stages[(max(levels) + 1) if levels else len(stages)] = [{"name": "done", "command": done}]
+    return stages
+
+
 def build_simulation_command(sim_instance):
     """
     Build what the job actually runs: the execution stages of the simulation's
-    task graph, or the legacy single "make sim" command when it defines no task.
+    task graph, or the legacy single "make sim" command when it defines no task,
+    then what marks the simulation as done.
 
     Returns:
-        The command (a string or a list of execution stages), or None when the
-        task graph could not be built (the job is then skipped).
+        The command (a string or execution stages), or None when the task graph
+        could not be built (the job is then skipped).
     """
     tasks = sim_instance.tasks if sim_instance.tasks else default_simulation_task(sim_instance)
 
@@ -708,7 +753,7 @@ def build_simulation_command(sim_instance):
     ):
         commands = resolved_tasks[0].get("commands", [])
         if len(commands) == 1:
-            return commands[0]
+            return with_done_mark(commands[0], sim_instance.tmp_dir)
 
     try:
         maker = createTaskGraph(resolved_tasks)
@@ -735,7 +780,7 @@ def build_simulation_command(sim_instance):
         )
         return None
 
-    return execution_stages
+    return with_done_mark(execution_stages, sim_instance.tmp_dir)
 
 
 def prepare_simulations(

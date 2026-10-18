@@ -207,12 +207,10 @@ def build_data_table(df, selected, dimensions, metrics, units):
 
 def _graph_config(sources, kind, metric, dl_format):
   filename = "Odatix-" + "-".join((sources or ["results"])[:3] + [str(kind), str(metric)])
-  return {
-    "toImageButtonOptions": {"format": dl_format or "svg", "filename": filename, "scale": 3},
-    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-    "displaylogo": False,
-    "scrollZoom": kind not in ("scatter3d",),
-  }
+  return components.graph_config(
+    toImageButtonOptions={"format": dl_format or "svg", "filename": filename, "scale": 3},
+    scrollZoom=kind not in ("scatter3d",),
+  )
 
 
 def register_callbacks():
@@ -225,7 +223,7 @@ def register_callbacks():
   def update_figure(version, sources, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics,
                     palette, plot_theme, toggles, filter_values, filter_ids, rule_state, app_theme,
                     dl_format, dl_background, kind):
-    if kind in (None, "overview"):
+    if kind in (None, "overview", "table"):
       raise dash.exceptions.PreventUpdate
     try:
       df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)

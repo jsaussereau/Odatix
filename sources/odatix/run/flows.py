@@ -397,6 +397,7 @@ class SimulationFlow(Flow):
             nb_jobs=options.nb_jobs,
             debug=options.debug,
             keep=options.keep,
+            resume=options.resume,
         ))
 
     def prepare(self, run, checked):
@@ -444,6 +445,8 @@ class WorkflowFlow(Flow):
             nb_jobs=options.nb_jobs,
             debug=options.debug,
             keep=options.keep,
+            resume=options.resume,
+            selected_workflows=options.workflows,
         ))
 
     def prepare(self, run, checked):

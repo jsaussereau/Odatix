@@ -118,35 +118,114 @@ __all__ = [
 ]
 
 
-def explore(workspace=None, **overrides):
+def explore(workspace=None, session=None, **overrides):
     """
-    Run the exploration a workspace describes, from beginning to end.
+    Run the exploration a workspace describes, from beginning to end, and
+    return what it found.
+
+    The search runs in the calling process: what it says is printed there, and
+    the call returns once every campaign is over. The batches it decides on
+    run in a daemon session like every other run -- the one named, or a new
+    one started for the exploration and stopped once it is over. Follow them
+    with ``odatix monitor -S <session>`` while it runs.
+
+    Nothing is asked: a script does not answer questions on its standard input
+    (pass ``ask_continue=True`` to be asked all the same).
 
     Args:
         workspace (Workspace): the workspace to explore. The one of the current
             directory when not given.
-        **overrides: any setting of the run (``nb_jobs=4``, ``campaigns=[...]``)
-            or of the campaigns it runs (``tool="vivado"``), which is applied to
-            every campaign selected.
+        session (str): the daemon session the batches run in. When it is not
+            running, it is started, and stopped once the exploration is over.
+            A new session is started when not given.
+        **overrides: settings, each applied where it belongs:
+
+            - a setting of the run (``dse_settings.yml``): ``campaigns``,
+              ``nb_jobs``, ``overwrite``, ``log_size_limit``, ``ask_continue``;
+            - a setting of the search, applied to every campaign selected
+              (``search:`` of a campaign file): ``strategy``, ``mode``,
+              ``budget``, ``batch``, ``seed``, ``patience``, ...;
+            - any other setting of a campaign file, applied to every campaign
+              selected: ``tool``, ``flow``, ``target``, ``architectures``,
+              ``objectives``, ``reuse_results``, ...
 
     Returns:
         list: what each campaign found, one :class:`Archive` per architecture.
+
+    Raises:
+        TypeError: an override that is none of the settings above.
+        CampaignError: the exploration cannot run (an unknown campaign, an
+            objective naming a metric nothing measures, ...).
     """
+    import odatix.lib.printc as printc
+    from odatix.dse.driver import close_session, open_session
     from odatix.workspace import Workspace
 
     workspace = workspace if workspace is not None else Workspace.open()
     settings = Exploration.load(workspace)
-    # A setting the run does not hold is one of the campaigns: the caller says
-    # "explore(tool='vivado')" and means the campaigns it is about to run, not
-    # a key of a file that does not have it.
-    run_overrides = dict(
-        (key, value) for key, value in overrides.items() if DseSettings.spec(key) is not None
-    )
+    settings.ask_continue = False
+
+    run_overrides, search_overrides, campaign_overrides = _split_overrides(overrides)
     settings.update(run_overrides)
-    campaigns = resolve_campaigns(workspace, settings)
-    for key, value in overrides.items():
-        if key in run_overrides:
-            continue
-        for campaign in campaigns:
+    try:
+        campaigns = resolve_campaigns(workspace, settings)
+    except CampaignNotFoundError as error:
+        raise CampaignError(str(error))
+    for campaign in campaigns:
+        for key, value in campaign_overrides.items():
             campaign[key] = value
-    return Exploration(workspace, settings, campaigns=campaigns).run()
+        for key, value in search_overrides.items():
+            campaign.search[key] = value
+
+    previous_command = printc._command
+    printc.set_command("odatix dse")
+    try:
+        # Checked before a session is started for it: an exploration that
+        # cannot run should not leave a daemon behind.
+        Exploration(workspace, settings, campaigns=campaigns).check()
+        session, started = open_session(workspace, settings, session)
+        try:
+            printc.note(
+                "The batches run in session \"{0}\": follow them with "
+                "\"odatix monitor -S {0}\".".format(session),
+                "odatix dse",
+            )
+            exploration = Exploration(workspace, settings, session=session, campaigns=campaigns)
+            return exploration.run(confirm=bool(settings.ask_continue))
+        finally:
+            close_session(workspace, session, started)
+    finally:
+        printc.set_command(previous_command)
+
+
+def _split_overrides(overrides):
+    """
+    The overrides :func:`explore` was given, sorted by where they belong: the
+    run, the search of each campaign, or the rest of each campaign.
+
+    Raises:
+        TypeError: one of them belongs nowhere.
+    """
+    run, search, campaign = {}, {}, {}
+    unknown = []
+    for key, value in overrides.items():
+        if DseSettings.spec(key) is not None:
+            run[key] = value
+        elif SearchSettings.spec(key) is not None:
+            search[key] = value
+        elif CampaignSettings.spec(key) is not None and key != "search":
+            campaign[key] = value
+        else:
+            unknown.append(key)
+    if unknown:
+        accepted = sorted(
+            set(spec.key for spec in DseSettings.specs())
+            | set(spec.key for spec in SearchSettings.specs())
+            | set(spec.key for spec in CampaignSettings.specs() if spec.key != "search")
+        )
+        raise TypeError(
+            "explore() got setting(s) it does not know: {0}. It accepts: {1}.".format(
+                ", ".join(sorted(unknown)), ", ".join(accepted)
+            )
+        )
+    return run, search, campaign

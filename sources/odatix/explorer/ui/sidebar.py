@@ -43,6 +43,7 @@ from odatix.explorer.charts.spec import (
   X_ORDER_LABELS,
 )
 import odatix.explorer.ui.components as components
+import odatix.explorer.core.views as views
 
 _PERSIST = dict(persistence=True, persistence_type="session")
 
@@ -349,7 +350,12 @@ def build_sidebar(kind):
           className="xp-text-input xp-textarea",
         ), tooltip="Optional description shown on the home-page view card"),
         html.Button("Save current view", id="xp-view-save", n_clicks=0, className="xp-button",
-                    title="Save the whole display state (sources, axes, style, filters, ...) as a shareable file"),
+                    disabled=views.is_read_only(),
+                    title=(views.READ_ONLY_MESSAGE.capitalize() if views.is_read_only() else
+                           "Save the whole display state (sources, axes, style, filters, ...) as a shareable file")),
+        # The name of a view that exists already and that the next click on
+        # "Save current view" replaces (the first click only warns).
+        dcc.Store(id="xp-view-replace", data=None),
         components.control_row("Restore a view", _dropdown(
           "xp-view-select",
           persist=False,

@@ -184,6 +184,20 @@ def _arch_domains_configs(instances, arch_name) -> dict:
     return instance.parameter_domains() if instance is not None else {}
 
 
+def _bare_entry_lacks_values(instance):
+    """
+    Whether the entry without any configuration ("<name>" alone) runs commands
+    missing the values of what is swept: a workflow whose commands take their
+    values from its domains and variables ("${domain}") rather than from files.
+    """
+    if instance is None or not getattr(instance, "substitutes_in_commands", False):
+        return False
+    try:
+        return not instance.settings.use_parameters
+    except Exception:
+        return False
+
+
 def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mode, id_extra=None):
     """
     Build the body an architecture gets on this page: one panel per parameter
@@ -354,6 +368,10 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
         if not arch_enabled:
             filtered_selected = [" + ".join(comb) for comb in all_combinations]
             unmatched = []
+            if non_default_combos and _bare_entry_lacks_values(instances.get(arch_name)):
+                # Its commands take their values from what is swept: run bare,
+                # they would get none. Offered, not checked.
+                filtered_selected = [value for value in filtered_selected if value != arch_name]
         default_selected = arch_name in filtered_selected
         n_selected = len([v for v in filtered_selected if v != arch_name])
     else:

@@ -74,11 +74,12 @@ reuse_results:    Yes             # no: search from nothing but what this campai
 # a bigger one that runs faster, it is another trade-off -- so what comes back
 # is every design that nothing beats on all of them at once.
 #
-# "frequency" is where an fmax synthesis puts its answer; everything else is a
-# metric of the results file (LUT_count, Total_Power, ...), derived metrics
-# included.
+# "Fmax" is where an fmax synthesis puts its answer, and "frequency" what a
+# fixed-frequency synthesis ran at; everything else is a metric the tool's
+# "metrics.yml" declares (LUT_count, Total_Power, Worst_Slack, ...), derived
+# metrics included. "odatix dse -C" checks the names before anything runs.
 objectives:
-  - metric: frequency
+  - metric: Fmax
     goal: max
   - metric: LUT_count
     goal: min
@@ -91,22 +92,23 @@ objectives:
 # search that could have run it faster, and one that misses the timing is not a
 # trade-off -- it does not work.
 #
-# Each one is a metric with a "min", a "max", or both. A design that breaks one
+# Each one is a metric with a "min", a "max", or both, named like an objective. A design that breaks one
 # is beaten by every design that does not, whatever its objectives say; between
 # two that both break one, the closer to meeting it wins. Nothing is thrown
 # away: at the start of a search there are often only infeasible designs, and
 # they are what points it towards the part of the space that works.
 constraints: []
-  # - metric: Slack
+  # - metric: Worst_Slack
   #   min: 0
   # - metric: LUT_count
   #   max: 20000
 
 # how the search looks for it
 search:
-  strategy:       genetic  # genetic, random or exhaustive - overridden by --strategy
+  strategy:       genetic  # genetic, random, exhaustive or bayesian - overridden by --strategy
+  mode:           batch    # batch, or async: start a design as soon as a slot frees - overridden by --mode
   budget:         50       # designs evaluated at most, per architecture - overridden by --budget
-  batch:          8        # designs evaluated together, between two decisions
+  batch:          8        # designs evaluated together, between two decisions (async: kept running at once)
   patience:       0        # stop after this many batches that do not improve (0: never)
   improvement:    0        # how much the front has to grow for a batch to count (0.02: 2%)
   seed:                    # empty: a different search every time

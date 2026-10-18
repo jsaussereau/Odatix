@@ -212,3 +212,67 @@ class TestSmallHelpers:
         df = safe_df_append(df, {"a": 1})
         assert len(df) == 1
         assert df.iloc[0]["a"] == 1
+
+
+class TestServerPort:
+    """GUI / Explorer port choice (odatix-gui -p, odatix-explorer -p)."""
+
+    def _listen(self):
+        import socket
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        return server
+
+    def test_a_listening_port_is_skipped_without_p(self):
+        server = self._listen()
+        try:
+            port = server.getsockname()[1]
+            assert find_free_port("127.0.0.1", port) != port
+        finally:
+            server.close()
+
+    def test_an_explicit_port_in_use_is_an_error_not_another_port(self):
+        server = self._listen()
+        try:
+            with pytest.raises(SystemExit) as error:
+                find_free_port("127.0.0.1", server.getsockname()[1], strict=True)
+            assert error.value.code == 1
+        finally:
+            server.close()
+
+    def test_an_explicit_free_port_is_kept(self):
+        from odatix.lib.utils import port_is_free
+        server = self._listen()
+        port = server.getsockname()[1]
+        server.close()
+        assert port_is_free("127.0.0.1", port)
+        assert find_free_port("127.0.0.1", port, strict=True) == port
+
+    def test_time_wait_does_not_move_a_restarted_server(self):
+        # A server stopped after serving a connection leaves it in TIME_WAIT on
+        # its side (the side that closes first): the port must stay usable.
+        import socket
+        import time
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # as waitress does
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        port = server.getsockname()[1]
+        client = socket.create_connection(("127.0.0.1", port))
+        connection, _ = server.accept()
+        connection.close()  # server side closes first: TIME_WAIT is on the server port
+        client.recv(1)
+        client.close()
+        server.close()
+        time.sleep(0.2)
+        assert find_free_port("127.0.0.1", port, strict=True) == port
+
+
+def test_a_closed_stdin_answers_no_instead_of_crashing(monkeypatch, capsys):
+    import io
+    from odatix.lib.utils import ask_yes_no
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    assert ask_yes_no() is False
+    assert "-y/--noask" in capsys.readouterr().out

@@ -321,7 +321,13 @@ def ask_to_continue(exit_code=-1):
         
 def ask_yes_no():
     while True:
-        answer = input("(Y/n) ")
+        try:
+            answer = input("(Y/n) ")
+        except EOFError:
+            # No terminal to answer from (stdin closed or redirected).
+            print()
+            print("No answer could be read: run again with -y/--noask to skip this question.")
+            return False
         if answer.lower() in ['yes', 'ye', 'y', '1', '']:
             return True
         elif answer.lower() in ['no', 'n', '0']:
@@ -440,22 +446,46 @@ def get_local_ip():
         s.close()
     return ip
 
-def find_free_port(host, start_port, max_find_port_attempts=100):
-    """Find a free port by incrementing from the start_port."""
+def port_is_free(host, port):
+    """
+    Whether a server can listen on `host`:`port` right now.
+
+    The probe sets SO_REUSEADDR, as the servers Odatix starts do (waitress,
+    uvicorn): a port only held by connections in TIME_WAIT, which a server
+    stopped a few seconds ago leaves behind, counts as free. Without it a
+    restarted GUI would move to the next port for a minute or so.
+    """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    port = start_port
-    attempts = 0
-    while True:
-        if attempts >= max_find_port_attempts:
-            printc.error(f"Could not find any available port in range [{start_port}:{port}]", script_name)
-            sys.exit(-1)
-        try:
-            sock.bind((host, port))
-            sock.close()
+    try:
+        if os.name != "nt":
+            # On Windows SO_REUSEADDR lets two sockets share a port: never set it there
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((host, port))
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
+def find_free_port(host, start_port, max_find_port_attempts=100, strict=False, script_name=""):
+    """
+    Find a free port by incrementing from the start_port.
+
+    With `strict`, `start_port` was asked for explicitly: if it is taken, say so
+    and exit instead of moving to another port (a tunnel or a bookmark to that
+    port would otherwise reach whatever listens there, or nothing).
+    """
+    if strict:
+        if port_is_free(host, start_port):
+            return start_port
+        printc.error("port " + str(start_port) + " is already in use on " + str(host)
+                     + ": choose another port with -p, or leave -p out to take the next free one", script_name)
+        sys.exit(1)
+    for port in range(start_port, start_port + max_find_port_attempts):
+        if port_is_free(host, port):
             return port
-        except OSError:
-            port += 1
-            attempts += 1
+    printc.error("Could not find any available port in range [" + str(start_port) + ":" + str(start_port + max_find_port_attempts - 1) + "]", script_name)
+    sys.exit(-1)
 
 
 def open_browser_when_ready(url, host, port, timeout=30.0, poll_interval=0.05, script_name=""):

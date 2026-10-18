@@ -2325,8 +2325,63 @@ input[type="checkbox"] {
     white-space: nowrap;
 }
 .monitor-session-dropdown {
-    width: 220px;
+    /* Room for "<pid>.<name> — <workspace>" (sessions of another workspace). */
+    width: 320px;
     min-width: 140px;
+}
+
+/* A session that cannot be monitored (gone, unreachable, none at all): the
+   toolbar stays, session list included, and a card replaces the jobs. */
+.monitor-dashboard.failed .monitor-header-row,
+.monitor-dashboard.failed .monitor-toolbar-right,
+.monitor-dashboard.failed .monitor-split {
+    display: none;
+}
+.monitor-dashboard.failed .monitor-toolbar {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+.monitor-error-card {
+    align-self: center;
+    width: min(560px, 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    text-align: center;
+    background: var(--theme-element-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-normal-border-radius);
+    box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    padding: var(--space-5) var(--space-4);
+    margin-top: var(--space-4);
+}
+.monitor-error-card.hidden {
+    display: none;
+}
+.monitor-error-message {
+    color: var(--theme-error-color);
+    font-size: 17px;
+    font-weight: 600;
+}
+.monitor-error-hint {
+    opacity: 0.75;
+}
+.monitor-error-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+/* Colors come from .color-button.primary/.secondary. */
+.monitor-error-link {
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 var(--space-4);
+    border-radius: var(--theme-small-border-radius);
+    text-decoration: none;
+    font-weight: 600;
 }
 
 /* Inline stat pills */

@@ -14,7 +14,7 @@ Odatix has a graphical application, `odatix-gui`, covering the whole workflow: c
 
 `odatix-explorer` is **included in** `odatix-gui`: when you run the GUI, the results dashboard is one of its pages, alongside the workspace configuration and the Job Monitor. You do not need to start anything else to explore your results.
 
-`odatix-explorer` also exists as a **standalone application**. It serves the exploration interface *only* — the same charts and exports, without the workspace configuration and job-launching pages. This is what you want when you publish results to an audience, for instance on a website or an internal server: visitors can browse and export the results, but they cannot modify the workspace configuration or launch jobs.
+`odatix-explorer` also exists as a **standalone application**. It serves the exploration interface *only* — the same charts and exports, without the workspace configuration and job-launching pages. This is what you want when you publish results to an audience, for instance on a website or an internal server: visitors can browse and export the results, but they cannot modify the workspace configuration or launch jobs. They can still save [views](/docs/gui/explorer/#saved-views) into the result directory, unless Explorer is started with `--read_only`.
 
 | | `odatix-gui` | `odatix-explorer` |
 |---|---|---|
@@ -34,6 +34,10 @@ The GUI application, with workspace configuration, job monitor and results dashb
 
 {{< doc-card title="Odatix Explorer" link="/docs/gui/explorer/" icon="chart" accent="#0284c7" >}}
 The results dashboard, with charts, exports and interactive filtering.
+{{< /doc-card >}}
+
+{{< doc-card title="Themes" link="/docs/gui/themes/" icon="window" accent="#0284c7" >}}
+Pick a theme for the GUI and the Explorer, or write your own.
 {{< /doc-card >}}
 
 {{< doc-card title="Hosting a server" link="/docs/gui/host_server/" icon="server" accent="#0284c7" >}}

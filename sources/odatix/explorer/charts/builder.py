@@ -80,14 +80,18 @@ def _auto_line_color_dimension(spec, dimensions):
   return dimension
 
 
-def identity_dimensions(spec, dimensions):
-  """Dimensions splitting the selection into traces."""
+def identity_dimensions(spec, dimensions, split=()):
+  """Dimensions splitting the selection into traces.
+
+  ``split`` are the extra dimensions found by split_dimensions(), which keep
+  several records of one trace from landing on the same x.
+  """
   identity = [dim for dim in AUTO_GROUP_DIMENSIONS if dim in dimensions and len(dimensions[dim]) > 1]
   auto_line = _auto_line_color_dimension(spec, dimensions)
   if auto_line and auto_line not in identity:
     identity.append(auto_line)
   extras = list(spec.color_by or ()) + list(spec.symbol_by or ()) + list(spec.dissociate or ()) + list(spec.sort_by or ()) + [spec.legend_group_by]
-  for extra in extras:
+  for extra in extras + list(split or ()):
     if extra and extra != NONE_VALUE and extra in dimensions and extra not in identity:
       identity.append(extra)
   # The x axis and point-label dimensions vary inside a trace
@@ -97,14 +101,107 @@ def identity_dimensions(spec, dimensions):
   return [dim for dim in identity if dim not in excluded]
 
 
-def group_traces(df, spec, dimensions):
+# Chart kinds drawing one value per x and per trace: a second record of the
+# same trace at the same x would hide the first one.
+ONE_POINT_PER_X_KINDS = ("lines", "columns", "radar")
+
+
+def _x_keys(df, spec, dimensions):
+  """The x position of each row, as the trace aligns it (label or number)."""
+  if spec.x in dimensions:
+    return _dimension_series(df, spec.x).map(lambda value: _x_label(value, spec))
+  return pd.to_numeric(df[spec.x], errors="coerce")
+
+
+def _hidden_count(frame):
+  return int(len(frame) - len(frame.drop_duplicates()))
+
+
+def split_dimensions(df, spec, dimensions):
+  """
+  Dimensions to split the traces by so that no record is hidden.
+
+  Lines, columns and radar charts draw one value per x in each trace. When
+  several records of a trace share an x (one record per step of a job, one
+  record per row of a ``multiple`` metric, ...), all but one would silently
+  vanish. The dimensions telling those records apart are added to the trace
+  identity instead, so every record is drawn: the fewest dimensions that do the
+  job, picked greedily (the one leaving the fewest records hidden first, then
+  the one with the fewest values).
+
+  Returns:
+      tuple: (list of dimensions, number of records still hidden). Records are
+      still hidden only when no dimension tells them apart.
+  """
+  if spec.kind not in ONE_POINT_PER_X_KINDS or df.empty:
+    return [], 0
+  if spec.x not in df.columns or spec.y not in df.columns:
+    return [], 0
+  drawn = df[pd.to_numeric(df[spec.y], errors="coerce").notna()]
+  if drawn.empty:
+    return [], 0
+
+  identity = identity_dimensions(spec, dimensions)
+  frame = pd.DataFrame({dim: _dimension_series(drawn, dim) for dim in identity if dim in drawn.columns})
+  frame["__x"] = _x_keys(drawn, spec, dimensions).astype(str)
+  hidden = _hidden_count(frame)
+
+  candidates = [
+    dim for dim in dimensions
+    if dim in drawn.columns and dim not in identity and dim != spec.x and len(dimensions[dim]) > 1
+  ]
+  if schema.COL_STEP in candidates and schema.COL_STEP_SCOPE in candidates:
+    # The step scope only summarizes the step: the step itself says more
+    candidates.remove(schema.COL_STEP_SCOPE)
+  chosen = []
+  while hidden and candidates:
+    best = None
+    for dim in candidates:
+      trial = frame.copy()
+      trial[dim] = _dimension_series(drawn, dim)
+      remaining = _hidden_count(trial)
+      if remaining >= hidden:
+        continue
+      if best is None or remaining < best[0] or (remaining == best[0] and len(dimensions[dim]) < len(dimensions[best[1]])):
+        best = (remaining, dim)
+    if best is None:
+      break
+    hidden, dim = best
+    chosen.append(dim)
+    candidates.remove(dim)
+    frame[dim] = _dimension_series(drawn, dim)
+  return chosen, hidden
+
+
+def auto_style_dimensions(spec, dimensions, split=()):
+  """
+  (color_by, symbol_by) a chart uses on its own, None where the spec decides.
+
+  A line chart colors by configuration when nothing explicit was picked (see
+  _auto_line_color_dimension). The dimensions of ``split`` (split_dimensions)
+  must be told apart too: they join the automatic colors, or take the symbols
+  when the user already chose the colors.
+  """
+  auto_line = _auto_line_color_dimension(spec, dimensions)
+  split = [dim for dim in (split or ()) if dim != auto_line]
+  if not spec.color_by:
+    color_by = ([auto_line] if auto_line else []) + split
+    return (tuple(color_by) or None), None
+  if split and not spec.symbol_by:
+    return None, tuple(split)
+  return None, None
+
+
+def group_traces(df, spec, dimensions, split=()):
   """
   Split the selection into traces.
+
+  ``split``: extra identity dimensions, see split_dimensions().
 
   Returns:
       list of (info dict {dimension: value}, sub DataFrame), sorted.
   """
-  identity = identity_dimensions(spec, dimensions)
+  identity = identity_dimensions(spec, dimensions, split)
   if not identity:
     return [({}, df)]
 
@@ -122,8 +219,12 @@ def group_traces(df, spec, dimensions):
   return groups
 
 
-def trace_name(info, dimensions, spec, units):
-  """Human-readable trace name from the dimension values identifying it."""
+def trace_name(info, dimensions, spec, units, split=()):
+  """Human-readable trace name from the dimension values identifying it.
+
+  The dimensions of ``split`` were added behind the user's back
+  (split_dimensions), so their name is spelled out next to their value.
+  """
   parts = []
   for dim, value in info.items():
     if dim in dimensions and len(dimensions[dim]) <= 1:
@@ -134,6 +235,8 @@ def trace_name(info, dimensions, spec, units):
       continue  # already shown as the legend group title
     if dim in (spec.dissociate or ()):
       parts.append("[" + str(dim) + ": " + str(value) + "]")
+    elif dim in (split or ()):
+      parts.append(str(dim) + ": " + str(value))
     elif dim == schema.COL_FREQUENCY:
       if value == schema.FMAX_FREQUENCY_VALUE:
         continue  # the result type ("Fmax") already says it
@@ -180,11 +283,11 @@ def _combination_index(info, by_dimensions, reference, dimensions):
   return index
 
 
-def style_indices(info, spec, dimensions, global_dimensions, color_by=None):
+def style_indices(info, spec, dimensions, global_dimensions, color_by=None, symbol_by=None):
   """(color index, symbol index) of a trace, from its dimension values.
 
-  ``color_by`` overrides spec.color_by, for the dimension a line chart colors by
-  on its own when nothing explicit was picked (see _auto_line_color_dimension).
+  ``color_by`` and ``symbol_by`` override spec.color_by and spec.symbol_by, for
+  the dimensions a chart styles by on its own (see auto_style_dimensions).
   """
   reference = global_dimensions if spec.stable_index else dimensions
 
@@ -192,9 +295,13 @@ def style_indices(info, spec, dimensions, global_dimensions, color_by=None):
     color_by = (color_by,) if isinstance(color_by, str) else tuple(color_by)
   else:
     color_by = spec.color_by or ()
+  if symbol_by:
+    symbol_by = (symbol_by,) if isinstance(symbol_by, str) else tuple(symbol_by)
+  else:
+    symbol_by = spec.symbol_by or ()
 
   color_index = _combination_index(info, color_by, reference, dimensions) if color_by else 0
-  symbol_index = max(_combination_index(info, spec.symbol_by or (), reference, dimensions), 0)
+  symbol_index = max(_combination_index(info, symbol_by, reference, dimensions), 0)
 
   return color_index, symbol_index
 
@@ -267,12 +374,13 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
   categories = [] if x_is_metric else _x_categories(df, spec)
   axis_categories = _scatter_axis_categories(df, spec) if spec.kind in ("scatter", "scatter3d") else {}
 
-  auto_color_by = _auto_line_color_dimension(spec, dimensions)
+  split, hidden = split_dimensions(df, spec, dimensions)
+  auto_color_by, auto_symbol_by = auto_style_dimensions(spec, dimensions, split)
 
-  for info, sub_df in group_traces(df, spec, dimensions):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by)
+  for info, sub_df in group_traces(df, spec, dimensions, split):
+    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by, symbol_by=auto_symbol_by)
     color = palettes.get_color(color_index, palette)
-    name = trace_name(info, dimensions, spec, units)
+    name = trace_name(info, dimensions, spec, units, split)
     legend_group = None
     if spec.has("legend_groups") and spec.legend_group_by and spec.legend_group_by != NONE_VALUE:
       group_value = info.get(spec.legend_group_by)
@@ -297,6 +405,15 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
       fig.add_trace(_line_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, x_is_metric))
 
   _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis_categories)
+  if hidden:
+    # Nothing tells these records apart from another one at the same x: say
+    # so rather than drop them silently.
+    fig.add_annotation(
+      text=str(hidden) + (" record shares" if hidden == 1 else " records share") + " an x value with another record of the same trace and "
+           + ("is" if hidden == 1 else "are") + " not drawn (see Table)",
+      xref="paper", yref="paper", x=0, y=0, xanchor="left", yanchor="top",
+      yshift=-25, showarrow=False, font=dict(size=11), opacity=0.7,
+    )
   return fig
 
 
@@ -753,8 +870,9 @@ def legend_entries(df, spec, dimensions, global_dimensions=None, palette=palette
   if global_dimensions is None:
     global_dimensions = dimensions
   entries = []
-  auto_color_by = _auto_line_color_dimension(spec, dimensions)
-  for info, _ in group_traces(df, spec, dimensions):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by)
-    entries.append((trace_name(info, dimensions, spec, {}), palettes.get_color(color_index, palette), palettes.get_marker_symbol(symbol_index)))
+  split, _hidden = split_dimensions(df, spec, dimensions)
+  auto_color_by, auto_symbol_by = auto_style_dimensions(spec, dimensions, split)
+  for info, _ in group_traces(df, spec, dimensions, split):
+    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by, symbol_by=auto_symbol_by)
+    entries.append((trace_name(info, dimensions, spec, {}, split), palettes.get_color(color_index, palette), palettes.get_marker_symbol(symbol_index)))
   return entries

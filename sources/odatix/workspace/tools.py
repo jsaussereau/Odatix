@@ -73,6 +73,10 @@ TOOL_SETTINGS_FILENAME = hard_settings.tool_settings_filename  # "tool.yml"
 #: Name of the metrics file of a tool.
 TOOL_METRICS_FILENAME = "metrics.yml"
 
+#: The metrics file a tool created by the workspace (or the GUI) declares: the
+#: one next to its tool.yml.
+DEFAULT_METRICS_FILE = "$tool_path/" + TOOL_METRICS_FILENAME
+
 #: The platform sections of a tool.yml, in render order.
 PLATFORMS = ("unix", "windows")
 
@@ -98,7 +102,7 @@ DROPPED_KEYS = ("report_path",)
 #: The metric sections of a tool metrics.yml, in render order, with a label.
 METRIC_SECTIONS = [
     ("fmax_synthesis_metrics", "Fmax synthesis metrics"),
-    ("custom_freq_synthesis_metrics", "Custom frequency synthesis metrics"),
+    ("custom_freq_synthesis_metrics", "Fixed-frequency synthesis metrics"),
     ("pnr_metrics", "Place & route metrics"),
     ("metrics", "Common metrics"),
 ]
@@ -280,7 +284,27 @@ class Flow(object):
         return list(execution.steps) if execution.mode == "steps" else []
 
     def set_command(self, job_type, command, platform="unix"):
-        """Make a job type run one command."""
+        """
+        Make a job type run one command.
+
+        Args:
+            job_type (str): one of ``JOB_TYPES``: "tool_test" (the command
+                checking the tool is installed, run before any job),
+                "fmax_synthesis", "custom_freq_synthesis", "pnr" or "analysis".
+            command (str | list): the command, or its words; the words are
+                joined with spaces. It may use the variables of the job
+                ($work_path, $script_path, ...) and the parameters of the flow
+                ($<name>).
+            platform (str): "unix" or "windows".
+
+        Example::
+
+            flow = tool.settings.default_flow
+            flow.set_command("tool_test", "mytool --version")
+            flow.set_command("custom_freq_synthesis", "cd $work_path; python3 $tool_path/run.py")
+        """
+        if job_type not in JOB_TYPES:
+            raise NotFoundError("Unknown job type: '{0}'. Valid ones: {1}.".format(job_type, ", ".join(JOB_TYPES)))
         self.platforms[platform][job_type] = JobExecution("command", command=command)
         return self
 
@@ -1229,6 +1253,32 @@ class Tool(Entry):
 
         builtin = self.builtin_settings
         builtin_flow_names = builtin.flow_names()
+
+        # The built-in flows are read-only (see
+        # odatix.lib.eda_tools.strip_builtin_overrides): a change to one would
+        # be dropped from the overlay without a word, so it is refused instead.
+        baseline = ToolSettings.from_dict(self.effective_document)
+        current_names = self.settings.flow_names()
+        changed = []
+        for flow_name in builtin_flow_names:
+            if flow_name not in current_names:
+                changed.append(flow_name)
+                continue
+            try:
+                before = baseline.flow(flow_name).to_dict()
+            except NotFoundError:
+                continue
+            if self.settings.flow(flow_name).to_dict() != before:
+                changed.append(flow_name)
+        if changed:
+            raise ValueError(
+                "The built-in flows of tool '{0}' are read-only, and these were changed or "
+                "removed: {1}. Add a flow of your own (settings.add_flow), or copy the tool "
+                "into the workspace (tools.import_builtin) to own all of it.".format(
+                    self.name, ", ".join(changed)
+                )
+            )
+
         return self.save_overlay(
             self.settings.overlay_overrides(builtin),
             [
@@ -1361,7 +1411,7 @@ class ToolCollection(Collection):
         tool.settings = ToolSettings(
             label=settings.pop("label", name),
             process_group=settings.pop("process_group", True),
-            default_metrics_file=settings.pop("default_metrics_file", "$tool_path/metrics.yml"),
+            default_metrics_file=settings.pop("default_metrics_file", DEFAULT_METRICS_FILE),
         )
         for key, value in settings.items():
             setattr(tool.settings, key, value)
@@ -1372,16 +1422,115 @@ class ToolCollection(Collection):
         """
         Copy a built-in tool into the workspace under another name, so it can be
         edited as a tool of its own.
+
+        The copy is the whole tool as it runs in this workspace: what Odatix
+        ships (its tool.yml, scripts and metrics), with this workspace's changes
+        to it merged in (flows added in its overlay, metrics completed or
+        overridden, scripts added). Paths into the built-in tool's directory
+        become paths into the copy's (``$tool_path``), so the copy runs its own
+        scripts and reads its own metrics. Its target file is copied too, unless
+        the tool names a target file of another tool ("target_file").
         """
-        import odatix.lib.eda_tools as eda_tools
+        from odatix.lib.metrics import merge_metrics_data
+        from odatix.workspace.yaml_io import dump_document, file_header, read_text, write_text
 
         new_name = check_name(new_name, self.kind)
-        source_dir = eda_tools.get_tool_dir(name)
-        if not source_dir or not os.path.isdir(source_dir):
+        source = self._make(name)
+        source_dir = source.builtin_dir
+        if source_dir is None:
+            if source.exists:
+                # Not a built-in tool: a plain copy of the workspace one.
+                return self.duplicate(name, new_name)
             raise NotFoundError("No such tool: '{0}'.".format(name))
         target = self._make(new_name)
         if os.path.exists(target.path):
             raise AlreadyExistsError("A tool named '{0}' already exists.".format(new_name))
+        if target.is_builtin:
+            raise AlreadyExistsError("'{0}' is the name of a tool shipped with Odatix.".format(new_name))
         os.makedirs(self.path, exist_ok=True)
         copytree(source_dir, target.path)
+
+        settings_path = target.settings_path
+        if source.has_overlay:
+            # The overlay's own files (scripts it adds) go over the built-in
+            # ones; its tool.yml and metrics.yml are merged below instead.
+            overlay_dir = source.path
+            for entry in os.listdir(overlay_dir):
+                if entry in (TOOL_SETTINGS_FILENAME, TOOL_METRICS_FILENAME):
+                    continue
+                src = os.path.join(overlay_dir, entry)
+                dst = os.path.join(target.path, entry)
+                if os.path.isdir(src):
+                    copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    import shutil
+                    shutil.copy2(src, dst)
+            # What runs: the built-in definition with the overlay on top. The
+            # anchors of the built-in file are gone, their values stay.
+            document = CommentedMap()
+            document.yaml_set_start_comment(file_header(
+                "Settings for " + new_name + " (copy of the " + name + " tool)"
+            ))
+            for key, value in source.effective_document.items():
+                document[key] = value
+            text = dump_document(document)
+        else:
+            text = read_text(settings_path)
+        write_text(settings_path, _relocate_tool_paths(text, name))
+
+        # Metrics: the built-in ones, completed by the workspace's for this tool.
+        overlay_metrics = source.metrics
+        if overlay_metrics.exists:
+            builtin_metrics = read_yaml(os.path.join(source_dir, TOOL_METRICS_FILENAME), default={})
+            merged = merge_metrics_data(builtin_metrics if isinstance(builtin_metrics, dict) else {},
+                                        overlay_metrics.to_dict())
+            write_document(target.metrics_path, merged)
+
+        _copy_target_file(self.workspace, name, new_name, target.document)
+        target.reload()
         return target
+
+    def duplicate(self, name, new_name):
+        """
+        Copy a tool of the workspace under another name, its target file
+        included. A built-in tool is copied by :meth:`import_builtin`.
+        """
+        source = self._make(name)
+        if source.is_builtin:
+            return self.import_builtin(name, new_name)
+        copied = super(ToolCollection, self).duplicate(name, new_name)
+        _copy_target_file(self.workspace, name, new_name, copied.document)
+        return copied
+
+
+def _relocate_tool_paths(text, name):
+    """
+    Make the paths of a tool.yml that point into the built-in directory of
+    `name` point into the directory of the tool itself ($tool_path).
+    """
+    for separator in ("/", "\\"):
+        text = text.replace("$eda_tools_path" + separator + name + separator, "$tool_path" + separator)
+        text = text.replace("${eda_tools_path}" + separator + name + separator, "$tool_path" + separator)
+    return text
+
+
+def _copy_target_file(workspace, name, new_name, document):
+    """
+    Give a copied tool the targets of the tool it was copied from: its target
+    file, under the name the copy looks for ("target_<new_name>.yml"). Nothing
+    is done when the copy names a target file of its own ("target_file"), or
+    when the copy already has one.
+    """
+    from odatix.workspace.targets import TargetFile
+    from odatix.workspace.yaml_io import read_text, write_text
+
+    if workspace is None:
+        return
+    if isinstance(document, dict) and str(document.get("target_file") or "").strip():
+        return
+    source = TargetFile(workspace, name)
+    copy_file = TargetFile(workspace, new_name)
+    if not source.exists or copy_file.exists:
+        return
+    text = read_text(source.path)
+    write_text(copy_file.path, text.replace("for " + name + "\n", "for " + new_name + "\n", 1))

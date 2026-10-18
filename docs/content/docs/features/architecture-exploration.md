@@ -15,6 +15,8 @@ features:
     description: "Generate hundreds of configurations from a few YAML rules — ranges, powers of two, lists, functions and set operations."
   - title: "Any HDL flow"
     description: "Works with VHDL, Verilog, SystemVerilog, and even generated RTL from Chisel or HLS."
+  - title: "Design space exploration"
+    description: "Search a space too large to sweep with odatix dse, and get the Pareto front of the best trade-offs."
 ---
 
 ## Why architecture exploration?
@@ -48,7 +50,10 @@ is swept by every other feature for free.
   measured consistently across a parameter range.
 - **Non-HDL sweeps.** The same mechanism drives [workflows](/docs/features/workflows/),
   so a script, a compiler flag or a training hyper-parameter sweeps identically.
-<!-- 
+- **A space too large to sweep.** Five parameters already make thousands of
+  configurations: [search it](#search-instead-of-sweeping) for the best
+  trade-offs instead of running all of them.
+
 ## How it works
 
 ### 1. Mark the parameter section of your design
@@ -122,7 +127,58 @@ hand, or **generate your RTL** from **Chisel** or **HLS**. For generated flows,
 the replacement targets the *source* file (via `param_target_file`) before the
 RTL is produced, so exploration works end to end. Parameters passed on a
 generation command line instead of edited into a file are covered by
-[virtual parameter domains](/docs/configurations/virtual_param_domains/). -->
+[virtual parameter domains](/docs/configurations/virtual_param_domains/).
+
+## Search instead of sweeping
+
+Running every configuration is the right thing to do with forty of them, and
+the wrong thing with forty thousand. `odatix dse` searches the same space
+instead: it runs a batch of configurations, reads what came out, and chooses
+the next batch from there, until a budget is spent. What it returns is the
+**Pareto front**: every configuration that no other one beats on all the
+objectives at once — the trade-off curve you would have drawn from a full
+sweep, for a fraction of the runs.
+
+Nothing about the architecture changes: an exploration reads the parameter
+domains and the generation rules described above, and runs the same jobs. What
+it adds is a *campaign*, a file of `odatix_userconfig/dse_campaigns/` saying
+what to search, for which objectives, and how long:
+
+{{< code lang=yaml filename="odatix_userconfig/dse_campaigns/core_area_speed.yml" >}}
+run:              fmax_synthesis
+tool:             vivado
+
+objectives:
+  - metric: Fmax                 # what an fmax synthesis measures
+    goal: max
+  - metric: LUT_count
+    goal: min
+
+search:
+  strategy:       genetic        # genetic, random, exhaustive or bayesian
+  budget:         40             # configurations evaluated at most
+  batch:          8              # evaluated together, between two decisions
+
+architectures:
+  - My_Core                      # an architecture, its parameter domains searched
+{{< /code >}}
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix dse -p core_area_speed -C     # what it would do, running nothing
+$ odatix dse -p core_area_speed
+{{< /code >}}
+
+The search runs as a job of the monitor, its batches underneath it. What it
+evaluated and which configurations are the answer are written to
+`results/dse/<campaign>.yml` after every batch, so an interrupted exploration
+picks up where it stopped, and the **Exploration** page of Odatix Explorer
+draws the front as it grows. The `image_codec_rate_quality` campaign of the
+examples searches a workflow and needs no eda tool: it is the quickest one to
+try.
+
+The GUI has the same exploration under **Run jobs → Design space
+exploration**. Every key of a campaign, the strategies and what comes out are
+on the [design space exploration reference](/docs/reference/dse/).
 
 ## Working with the rest of Odatix
 
@@ -130,11 +186,12 @@ generation command line instead of edited into a file are covered by
 |-----------------|-----|
 | [RTL analysis](/docs/features/analysis/) | Elaborate every generated configuration in seconds, before spending hours synthesizing a space with a typo in it. |
 | [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | Each configuration reaches *its own* maximum frequency — the only fair way to compare variants. |
-| [Custom-frequency synthesis](/docs/features/rtl_synthesis/) | Compare the same configurations at a common clock, for area and power studies. |
+| [Fixed-frequency synthesis](/docs/features/rtl_synthesis/) | Compare the same configurations at a common clock, for area and power studies. |
 | [Simulation](/docs/features/simulation/) | Confirm every configuration still passes its testbench, not just the one you developed on. |
 | [Workflows](/docs/features/workflows/) | Reuse the same domains and generation rules on anything that runs from a shell. |
 | [Explorer](/docs/features/explorer/) | Every parameter domain becomes an axis you can plot metrics against. |
-<!-- 
+| [Design space exploration](/docs/reference/dse/) | Search a space too large to sweep for its best trade-offs, with the same parameters. |
+
 ## Using it
 
 ### From the configuration files and the CLI
@@ -191,11 +248,11 @@ whole set of configurations from a rule, previewing the values as they are
 edited.
 
 From there, **Run jobs** picks the configurations to launch. Everything the GUI
-writes is the same YAML described above — the two interfaces edit one workspace. -->
+writes is the same YAML described above — the two interfaces edit one workspace.
 
 ## Where to go next
 
 - **Tutorial** — [Implement your own RTL](/tutorials/own_designs/architecture/): a design, its configurations and a first run, end to end.
-- **Reference** — [Architecture settings](/docs/reference/architecture/) · [Run settings files](/docs/reference/run_settings/)
+- **Reference** — [Architecture settings](/docs/reference/architecture/) · [Run settings files](/docs/reference/run_settings/) · [Design space exploration](/docs/reference/dse/)
 - **Guides** — [Parameter domains](/docs/configurations/param_domains/) · [Configuration generation](/docs/configurations/config_generation/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/)
 - **Next feature** — [RTL analysis](/docs/features/analysis/), the cheap check to run before implementing a whole space.

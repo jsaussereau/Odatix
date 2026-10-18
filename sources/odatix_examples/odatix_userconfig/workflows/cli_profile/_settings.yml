@@ -16,4 +16,4 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 run_profile.py --profile "${workflow_cli_profile}" --tag "config-placeholder-demo"
+      - python3 run_profile.py --profile "${cli_profile}" --tag "config-placeholder-demo"

@@ -146,6 +146,21 @@ def _record_meta(record):
     return record.get("meta") if isinstance(record, dict) else record
 
 
+def is_final_record(meta):
+    """
+    Whether a record is what its job ended with.
+
+    A job whose flow has steps writes one record per step it completed, and
+    marks the last one (see :data:`~odatix.lib.results_schema.META_LAST_STEP`).
+    A record without the flag comes from a job without steps, and is final.
+    """
+    from odatix.lib.results_schema import META_LAST_STEP
+
+    if not isinstance(meta, dict):
+        return True
+    return meta.get(META_LAST_STEP, True) is not False
+
+
 def _finished_jobs(directories, known, listed, since):
     """
     The work directories of ``directories`` the daemon is done with.
@@ -1023,6 +1038,13 @@ class Evaluator(object):
 
         Every tool the exploration may run with is read, since a search that
         chooses the tool has its designs spread over one results file per tool.
+
+        A job run as a flow of several steps (elaboration, synthesis, place and
+        route) writes one record per step, and only the last one says what the
+        design turned out to be: the others are the same job seen earlier on,
+        not other ways of running the design. They are left out (see
+        :func:`is_final_record`), so that a design is never worth what an
+        intermediate step measured.
         """
         records = {}
         for tool in self.tools:
@@ -1037,6 +1059,8 @@ class Evaluator(object):
 
             for record in results.records:
                 meta = record.get("meta", {}) if isinstance(record, dict) else {}
+                if not is_final_record(meta):
+                    continue
                 records.setdefault(self.identity(meta), []).append(record)
         return records
 
@@ -1220,8 +1244,9 @@ class Evaluator(object):
 
         A campaign asks for a metric; where the number comes from is the
         results file's business. The dimensions a record carries as numbers
-        count as metrics too, which is how "frequency" -- where an fmax
-        synthesis puts its answer -- is an objective like any other.
+        count as metrics too, which is how "frequency" -- what a fixed-frequency
+        synthesis ran at -- is an objective like any other. An fmax synthesis
+        puts its answer in its "Fmax" metric.
 
         What the run produced is told apart from what was there before by the
         meta of the records, timestamp included, not by how many there are: a
@@ -1239,17 +1264,65 @@ class Evaluator(object):
                 return Evaluation(design, note="the run produced no result for this design")
             new = current
 
-        metrics, source = self.best_of(new)
+        return self.evaluation_of(design, new)
+
+    def evaluation_of(self, design, records):
+        """
+        What a design is worth, given the records that measured it.
+
+        A design none of whose records measures everything the campaign asks
+        for is unmeasured, and the note says which metrics none of them had --
+        not what one record happened to lack, which would name metrics that
+        another record of the same design did measure.
+        """
+        metrics, source = self.best_of(records)
         costs = self.objectives.costs(metrics)
         if costs is None:
+            measured = [self.metrics_of(record) for record in records]
             missing = [
-                metric for metric in self.objectives.measured_metrics if metrics.get(metric) is None
+                metric for metric in self.objectives.measured_metrics
+                if all(values.get(metric) is None for values in measured)
             ]
+            if not missing:
+                # Each metric was measured by some record, never all of them
+                # by the same one.
+                missing = [
+                    metric for metric in self.objectives.measured_metrics
+                    if metrics.get(metric) is None
+                ]
             return Evaluation(
                 design, metrics=metrics, source=source,
                 note="nothing was measured for: {0}".format(", ".join(missing)),
             )
         return Evaluation(design, metrics=metrics, costs=costs, source=source)
+
+    def remeasure(self, evaluation, records=None):
+        """
+        An evaluation already archived, measured again against the objectives
+        the campaign has now.
+
+        What a design measured is in the results files, whatever the archive
+        made of it at the time: a campaign whose objectives or constraints were
+        changed since -- a metric name fixed, a constraint added -- reads its
+        designs again instead of keeping a verdict about another question.
+        A design whose records are gone keeps what the archive said of it.
+
+        Args:
+            evaluation (Evaluation): what the archive holds.
+            records (dict): the records by design, as :meth:`_records` returns
+                them. Read from the results files when not given.
+
+        Returns:
+            Evaluation: the same design, measured again, from the same batch.
+        """
+        records = self._records() if records is None else records
+        found = records.get(self.design_identity(evaluation.design), [])
+        if not found:
+            return evaluation
+        measured = self.evaluation_of(evaluation.design, found)
+        measured.batch = evaluation.batch
+        measured.reused = evaluation.reused
+        return measured
 
     def best_of(self, records):
         """

@@ -27,7 +27,7 @@ nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minu
 # Genus + ICC2 chain is:
 #
 #   odatix synth -t design_compiler
-#   odatix pnr  -t innovus
+#   odatix pnr  -t innovus --from-tool design_compiler
 #
 # A source is written
 #   <source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]
@@ -36,12 +36,16 @@ nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minu
 #
 # A synthesis can only be used here if its flow wrote the handoff files
 # (result/netlist.v, result/design.sdc, result/design.sdf).
+#
+# The two entries below take every completed synthesis of the work directory;
+# --from-type, --from-tool and --from-flow narrow them for one run.
 sources:
 
 #--------------------------------------------#
 # Pick the synthesis results to implement!
 #--------------------------------------------#
 
+  - custom_freq_synthesis/*/*/*/*
+  - fmax_synthesis/*/*/*/*
   #- custom_freq_synthesis/design_compiler/your_techno/Your_Design/Your_Configuration@100MHz
   #- fmax_synthesis/genus/your_techno/Your_Design/*
-  #- custom_freq_synthesis/*/*/*/*

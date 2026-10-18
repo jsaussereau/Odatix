@@ -1,5 +1,5 @@
 ---
-title: "Parallel Fmax Synthesis"
+title: "Parallel Fmax synthesis"
 date: 2026-05-15
 author: "Jonathan Saussereau"
 weight: 4
@@ -21,7 +21,7 @@ For this tutorial, you need **at least one** of the following tools installed an
 - [Synopsys Design Compiler](https://www.synopsys.com/implementation-and-signoff/rtl-synthesis.html) (for ASICs)
 - [Cadence Genus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/synthesis/genus-synthesis-solution.html) (for ASICs)
 
-[](/install/eda_tools/)
+See [Install supported EDA tools](/install/eda_tools/).
 
 Make sure you have [Odatix installed](/install/) and available in your `PATH`. For example, if you installed Odatix in a virtual environment, activate it first:
 
@@ -50,17 +50,17 @@ $ odatix init --examples
 ╚██████╔╝ ██████╔╝ ██║  ██║   ██║    ██║ ██╔╝ ██╗
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
-<font color="#555753">[settings.py]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
-<font color="#555753">[settings.py]</font> Run <b>odatix -h</b> to get a list of useful commands
+<font color="#555753">[odatix init]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
+<font color="#555753">[odatix init]</font> Run <b>odatix -h</b> to get a list of useful commands
 {{< /code >}}
 
 ### Step 2 — Choose your target
 
-Open the device or technology in the target file for your tool (`target_vivado.yml`, `target_quartus.yml`, `target_design_compiler.yml`, or `target_openlane.yml`).
+Open the device or technology in the target file for your tool (`target_vivado.yml`, `target_quartus.yml`, `target_design_compiler.yml`, or `target_genus.yml`).
 
 For instance for Vivado, open `odatix_userconfig/targets/target_vivado.yml` and select the target device:
 
-{{< code lang=yaml filename="odatix_userconfig/targets/target_vivado.yml" linenos="true" linenostart="15" >}}
+{{< code lang=yaml filename="odatix_userconfig/targets/target_vivado.yml" linenos="true" linenostart="37" >}}
 # FPGA target
 targets:
   # - xc7s6-cpga196-1
@@ -82,10 +82,10 @@ To disable a target, comment it out with `#` or simply remove the line.
 
 ### Step 3 — Choose design configurations
 
-Open `odatix_userconfig/fmax_settings.yml` and select the architectures to run, exactly as for Fmax synthesis.
+Open `odatix_userconfig/fmax_settings.yml` and select the architectures to run: the seven configurations of `Example_Counter_verilog` are selected, and the other examples are commented out.
 
-{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" linenos="true" linenostart="44" >}}
-  - Example_Counter_verilog/04bits
+{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" linenos="true" linenostart="43" >}}
+  - Example_Counter_verilog/04bits # this configuration fails with openlane
   - Example_Counter_verilog/08bits
   - Example_Counter_verilog/16bits
   - Example_Counter_verilog/24bits
@@ -99,7 +99,14 @@ Open `odatix_userconfig/fmax_settings.yml` and select the architectures to run, 
 
 ### Step 4 — Run
 
-The frequency bounds for the binary search can be set in the command line with `--from` and `--to`. For example, to find the maximum frequency between 50 and 500 MHz for all configurations of the example counter design, run:
+The frequency bounds for the binary search can be set in the command line with `--from` and `--to`. For example, to find the maximum frequency between 50 and 500 MHz for all configurations of the example counter design, run the command below. Odatix lists the jobs it is about to run — one per configuration and target — and asks `Continue? (Y/n)` (`-y` skips the question).
+
+> [!IMPORTANT]
+> Each search runs up to about ten syntheses **and** place and routes, since `pnr` is the step Vivado runs up to by default: the 7 jobs below take a while. For a first try, search a single configuration on post-synthesis timing only:
+>
+> `odatix fmax --tool vivado -a Example_Counter_verilog/08bits --until synthesis`
+>
+> A later run without `--until` resumes the search at place and route rather than starting over.
 
 {{< code lang=bash filename="Terminal" prompt="true" fold="true" ansi="true" >}}
 $ odatix fmax --tool vivado --from 50 --to 500
@@ -112,7 +119,7 @@ $ odatix fmax --tool vivado --from 50 --to 500
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
 
-<b>New architectures:</b>
+<b>New jobs:</b>
   - Example_Counter_verilog/04bits <font color="#555753">(50 - 500 MHz)</font>
   - Example_Counter_verilog/08bits <font color="#555753">(50 - 500 MHz)</font>
   - Example_Counter_verilog/16bits <font color="#555753">(50 - 500 MHz)</font>
@@ -126,7 +133,7 @@ Continue? (Y/n)
 {{< /code >}}
 
 > [!TIP]
-> The bounds can also be set for each design in its `_settings.yml`, per target.
+> The bounds can also be set for each design in its `_settings.yml` (its `fmax_synthesis` block), per target and per configuration.
 
 > [!INFO]
 > Odatix enqueues one job per configuration/target in the daemon and attaches the Job Monitor.
@@ -138,9 +145,11 @@ The job monitor shows the status of each job, and the log of the currently selec
 > [!TIP]
 > Use <kbd>PageUp</kbd> and <kbd>PageDown</kbd> keys to change jobs and the <kbd>Up</kbd> and <kbd>Down</kbd> keys to scroll logs. The mouse can also be used to scroll and select jobs.  
 > Use <kbd>d</kbd> to detach and let the job run in the background, and run `odatix monitor` to re-attach.  
-> Use <kbd>q</kbd> to quit when all jobs are complete.
+> Use <kbd>q</kbd> to quit when all jobs are complete. With `-E`, the monitor closes by itself once the last job ends.
 
 ### Step 6 — Explore the results
+
+When the jobs of the run are done, Odatix exports their results to `results/`. Open them in Odatix Explorer:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix-explorer
@@ -150,18 +159,18 @@ $ odatix-explorer
 > With this example, we can easily compare the maximum frequency of each configuration at a specific target.
 > The chart below can be obtained by selecting the <kbd>Fmax</kbd> metric for the Y-axis.
 
-{{< img src="/images/screenshots/explorer-fmax.png" shadow="false" >}}
+{{< img src="/images/screenshots/explorer-fmax.png" alt="Odatix Explorer: Fmax of each configuration" shadow="false" >}}
 
 > [!TIP]
-> With this example, another interesting study is to compare the dynamic power consumption of each configuration at fmax, and compare it with [results from custom frequency synthesis](/tutorials/run_examples/synthesis/).
+> With this example, another interesting study is to compare the dynamic power consumption of each configuration at fmax, and compare it with [results from fixed-frequency synthesis](/tutorials/run_examples/synthesis/).
 > The chart below can be obtained by selecting the <kbd>Dynamic Power</kbd> metric for the Y-axis, and  <kbd>Style</kbd> > <kbd>Color by</kbd> > <kbd>Frequency</kbd>.
 
 {{< img src="/images/screenshots/explorer-fmax-lines.png" shadow="false" >}}
 
 ## Related resources
 
-- **Reference** — [Architecture settings](/docs/reference/architecture/#frequency-settings) (Architecture-, configuration- and targets-pecific frequencies)
+- **Reference** — [Architecture settings](/docs/reference/architecture/#frequency-settings) (architecture-, configuration- and target-specific frequencies)
 - **Reference** — [Run settings files](/docs/reference/run_settings/)
 - **Reference** — [Target files](/docs/reference/targets/)
 - **Reference** — [Commands](/docs/commands/)
-- **Feature** — [Automated RTL synthesis](/docs/features/rtl_synthesis/).
+- **Feature** — [Maximum frequency search](/docs/features/rtl_fmax_synthesis/).

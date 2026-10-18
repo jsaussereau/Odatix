@@ -7,7 +7,8 @@
 # Nothing changes but "run": what evaluates one design is "odatix workflow"
 # instead of "odatix fmax", so the names under "architectures" are workflows
 # and the metrics under "objectives" are the ones the workflow's "_metrics.yml"
-# reads. Everything else -- the search, the front, the archive -- is the same.
+# reads ("odatix dse -C" checks the names before anything runs). Everything
+# else -- the search, the front, the archive -- is the same.
 
 # what evaluating one design runs
 #
@@ -45,9 +46,10 @@ constraints:
 
 # how the search looks for it
 search:
-  strategy:       genetic  # genetic, random or exhaustive - overridden by --strategy
+  strategy:       genetic  # genetic, random, exhaustive or bayesian - overridden by --strategy
+  mode:           batch    # batch, or async: start a design as soon as a slot frees - overridden by --mode
   budget:         60       # designs evaluated at most, per architecture - overridden by --budget
-  batch:          10       # designs evaluated together, between two decisions
+  batch:          10       # designs evaluated together, between two decisions (async: kept running at once)
   patience:       0        # stop after this many batches that do not improve (0: never)
   improvement:    0        # how much the front has to grow for a batch to count (0.02: 2%)
   seed:                    # empty: a different search every time

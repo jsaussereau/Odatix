@@ -92,6 +92,21 @@ error = None
 # limit before the resource guard resumes a job it paused.
 RESOURCE_GUARD_HYSTERESIS = 5.0
 
+# How many samples in a row (one every resource_check_interval) the load has to
+# stay over its limit before the guard pauses a job, and under its resume limit
+# before it resumes one. A single sample is noise: a job paused at once makes the
+# very next sample look calm, and acting on it is what made the guard pause and
+# resume the same job every few seconds.
+RESOURCE_GUARD_PAUSE_SAMPLES = 2
+RESOURCE_GUARD_RESUME_SAMPLES = 3
+
+# The least time (s) a job stays paused by the guard. Resuming it sooner hands
+# the machine back the very load that got it paused.
+RESOURCE_GUARD_MIN_PAUSE = 30.0
+
+#: Who the job log says paused or resumed a job the guard acted on.
+RESOURCE_GUARD_ACTOR = "resource guard"
+
 _resource_guard_unavailable = []  # [reason], computed once per process
 
 
@@ -176,6 +191,8 @@ class ParallelJobHandler:
         self._resource_guard_last_cpu = None
         self._resource_guard_last_mem = None
         self._auto_paused_jobs = []
+        self._resource_guard_over_samples = 0
+        self._resource_guard_under_samples = 0
 
         self.version = read_version()
 
@@ -200,6 +217,10 @@ class ParallelJobHandler:
         # odatix.components.export_derived_metrics.
         self.post_batch_action = None
         self._post_batch_done = False
+        # The same, for the batches a daemon session receives: each enqueue
+        # brings the action of the run that built it (see add_post_batch_action),
+        # and several runs can share a session.
+        self._post_batch_actions = []
         self.selected_job_index = 0
         self.previous_log_size = 0
         if len(self.job_list) > 0:
@@ -599,10 +620,7 @@ class ParallelJobHandler:
     def _resume_auto_paused_jobs_unlocked(self):
         for job in getattr(self, "_auto_paused_jobs", []):
             if job.status == "paused":
-                job.resume()
-                job.log_history.append(
-                    printc.colors.GREEN + "Job auto-resumed: resource guard disabled" + printc.colors.ENDC
-                )
+                job.resume(by=RESOURCE_GUARD_ACTOR, detail="auto-pause turned off")
         self._auto_paused_jobs = []
 
     def set_resource_guard(self, enabled):
@@ -728,32 +746,46 @@ class ParallelJobHandler:
 
         overloaded_cpu = cpu >= self.cpu_limit
         overloaded_mem = mem >= self.mem_limit
+        calm = cpu < self.cpu_resume_limit and mem < self.mem_resume_limit
+
+        # Between the two thresholds (the hysteresis band) both counts start
+        # over: the load is neither high enough to pause nor low enough to resume.
+        self._resource_guard_over_samples = self._resource_guard_over_samples + 1 if (overloaded_cpu or overloaded_mem) else 0
+        self._resource_guard_under_samples = self._resource_guard_under_samples + 1 if calm else 0
 
         if overloaded_cpu or overloaded_mem:
+            if self._resource_guard_over_samples < RESOURCE_GUARD_PAUSE_SAMPLES:
+                return
             candidates = [job for job in self.running_job_list if job.status == "running" and job.takes_a_slot]
             if candidates:
                 # Pause the most recently started job first: it has the least
                 # work invested in it, and pausing it disrupts the batch least.
                 job = candidates[-1]
-                job.pause()
+                reason = "CPU" if overloaded_cpu else "memory"
+                job.pause(
+                    by=RESOURCE_GUARD_ACTOR,
+                    detail="system {0} usage too high ({1:.0f}% CPU, {2:.0f}% mem)".format(reason, cpu, mem),
+                )
                 if job.status == "paused":
+                    job._auto_paused_at = now
                     self._auto_paused_jobs.append(job)
-                    reason = "CPU" if overloaded_cpu else "memory"
-                    job.log_history.append(
-                        printc.colors.YELLOW
-                        + f"Job auto-paused: system {reason} usage too high "
-                        + f"({cpu:.0f}% CPU, {mem:.0f}% mem)"
-                        + printc.colors.ENDC
-                    )
+                    # One job per confirmed overload: the next one waits for
+                    # the samples that tell whether this one was enough.
+                    self._resource_guard_over_samples = 0
             return
 
-        if cpu < self.cpu_resume_limit and mem < self.mem_resume_limit and self._auto_paused_jobs:
-            job = self._auto_paused_jobs.pop(0)
-            if job.status == "paused":
-                job.resume()
-                job.log_history.append(
-                    printc.colors.GREEN + "Job auto-resumed: system load back to normal" + printc.colors.ENDC
-                )
+        if not calm or not self._auto_paused_jobs:
+            return
+        if self._resource_guard_under_samples < RESOURCE_GUARD_RESUME_SAMPLES:
+            return
+        job = self._auto_paused_jobs[0]
+        if now - float(getattr(job, "_auto_paused_at", 0.0) or 0.0) < RESOURCE_GUARD_MIN_PAUSE:
+            return
+        self._auto_paused_jobs.pop(0)
+        if job.status == "paused":
+            job.resume(by=RESOURCE_GUARD_ACTOR, detail="system load back to normal")
+            # Resume one at a time, each after a calm stretch of its own.
+            self._resource_guard_under_samples = 0
 
     def _fill_running_slots_from_queue_unlocked(self):
         while self.used_slots < self.nb_jobs and not self.job_queue.empty():
@@ -828,6 +860,10 @@ class ParallelJobHandler:
                         )
                 else:
                     job.log_history.append(printc.colors.RED + "Job killed by user (it had already exited)" + printc.colors.ENDC)
+                if job.status == "paused" and job.start_time is not None and job.stop_time is not None:
+                    # Its run time stopped with the pause: retiring it below
+                    # stamps a stop time of now, which must not count the pause.
+                    job.start_time += time.time() - job.stop_time
                 job.status = "killed"
                 self._clear_task_pipeline(job)
                 self.retire_job(job, getattr(job, "progress", 0))
@@ -1268,14 +1304,35 @@ class ParallelJobHandler:
         self._flush_job_log_buffer(job)
         return False
 
-    def _run_post_batch_action(self):
+    def add_post_batch_action(self, action):
+        """
+        Run `action` once every job of the session is done (see
+        :attr:`post_batch_action`).
+
+        This is how a daemon session learns what the run that enqueued a batch
+        wants done after it: the handler that built the batch stays in the
+        process of that run, the session only receives its jobs. An action
+        already waiting is not added twice.
+        """
+        if not isinstance(action, dict) or str(action.get("kind", "")).strip() == "":
+            return
+        with self._lock:
+            if action not in self._post_batch_actions:
+                self._post_batch_actions.append(dict(action))
+            # A batch can be over before its action arrives (jobs failing at
+            # once): nothing would retire after it to run the action then.
+            if getattr(self, "_headless_initialized", False):
+                self._run_post_batch_action_if_drained()
+
+    def _run_post_batch_action(self, action=None):
         """
         Run the batch-wide action once the last job of the batch has retired.
 
         Failures are reported but never fail a job: the jobs themselves are
         done, and their own results are already exported.
         """
-        action = self.post_batch_action
+        if action is None:
+            action = self.post_batch_action
         if not isinstance(action, dict):
             return
 
@@ -1303,7 +1360,8 @@ class ParallelJobHandler:
         the session from ever looking drained, and the results of every batch it
         already ran would wait for the whole exploration to be over.
         """
-        if self._post_batch_done or not isinstance(self.post_batch_action, dict):
+        own_action = not self._post_batch_done and isinstance(self.post_batch_action, dict)
+        if not own_action and not self._post_batch_actions:
             return
         if len(self.working_job_list) > 0 or not self.job_queue.empty():
             return
@@ -1311,8 +1369,15 @@ class ParallelJobHandler:
         # metric reads the records of the jobs it derives from.
         if self._exports_pending > 0:
             return
-        self._post_batch_done = True
-        self._run_post_batch_action()
+        if own_action:
+            self._post_batch_done = True
+            self._run_post_batch_action()
+        # The actions a session received run once per batch that brought them:
+        # the next run enqueued here sends its own again.
+        received, self._post_batch_actions = self._post_batch_actions, []
+        for action in received:
+            if action != self.post_batch_action or not own_action:
+                self._run_post_batch_action(action)
 
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         self._reap_stopping_jobs()

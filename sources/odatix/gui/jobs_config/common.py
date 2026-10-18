@@ -53,6 +53,36 @@ RUN_MODE_LABELS = {
     "simulation": "Simulation",
 }
 
+#: The job types whose jobs keep track of the steps they have done, hence can
+#: be told to do some of them again ("--rerun-from").
+RERUN_MODES = ("fmax_synthesis", "custom_freq_synthesis", "pnr")
+
+
+def rerun_step_names(search):
+    """
+    The steps a run opened with this url can be told to re-run from: the steps
+    of its flow, up to the one it stops at (the "until" of the url, or else the
+    step the flow stops at by default). Empty when the flow has no steps or the
+    job type does not track them.
+
+    A step past the one the run stops at is not offered: it is not run at all,
+    and "odatix fmax --until a --rerun-from b" refuses it the same way.
+    """
+    run_mode = get_key_from_url(search, "type")
+    tool = get_key_from_url(search, "tool")
+    if run_mode not in RERUN_MODES or not tool:
+        return []
+    flow = get_key_from_url(search, "flow") or None
+    try:
+        steps = eda_tools.get_flow_step_names(tool, flow=flow, job_type=run_mode)
+        last = get_key_from_url(search, "until") or eda_tools.get_default_step(tool, flow=flow, job_type=run_mode)
+    except Exception:
+        return []
+    if last in steps:
+        steps = steps[: steps.index(last) + 1]
+    return steps
+
+
 def _analysis_tools():
     """Discovered eda tools that support the RTL analysis job type."""
     return eda_tools.tools_supporting("analysis")
@@ -108,7 +138,7 @@ def _to_int(value, default):
 # never falsely reports "unsaved changes".
 _JOB_SETTINGS_DEFAULTS = {
     "overwrite": False,
-    "force_single_thread": True,
+    "force_single_thread": False,
     "nb_jobs": 8,
     "log_size_limit": 300,
     "ask_continue": True,

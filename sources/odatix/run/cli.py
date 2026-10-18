@@ -31,7 +31,7 @@ that both go through the same run.
 import os
 
 import odatix.lib.printc as printc
-from odatix.run.errors import RunCancelled, RunError
+from odatix.run.errors import NOTHING_TO_RUN, RunCancelled, RunError
 from odatix.run.options import RunOptions
 from odatix.run.run import Run
 
@@ -87,7 +87,9 @@ def execute(run):
     Run it, and stop the command the way it has always stopped when it cannot.
 
     What went wrong has already been reported as it happened, so there is
-    nothing to print here: only the exit code is left to give.
+    nothing to print here: only the exit code is left to give. A run with
+    nothing left to do (its jobs are done, or a session is doing them) did what
+    it was asked: it exits with 0, like a run that started its jobs.
     """
     suggest_migration(run.workspace)
     try:
@@ -95,7 +97,7 @@ def execute(run):
     except RunCancelled:
         raise SystemExit(0)
     except RunError as error:
-        raise SystemExit(error.code)
+        raise SystemExit(0 if error.code == NOTHING_TO_RUN else error.code)
     return run
 
 

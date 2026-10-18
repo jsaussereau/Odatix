@@ -26,6 +26,11 @@ odatix_userconfig/themes/gui/
   my_theme.css     ->  .theme.my_theme { ... }
 ```
 
+Custom themes are read from the workspace the application is started in (the
+current directory, and its `gui_theme_path` setting): an `odatix-explorer`
+started elsewhere, pointed at the results with `-i`, only offers the built-in
+themes. Start it from the workspace to get yours.
+
 The file name is the theme name, and must match the class the file defines. It may only contain letters, digits, `-` and `_`. A theme whose name matches a built-in one (e.g. `odatix_dark`) replaces it, which is how you retouch a shipped theme.
 
 Only the variables you set are overridden: everything else falls back to the defaults. The full list of variables is in `00_base.css`, in Odatix's `odatix/gui/assets/themes/` directory, next to every built-in theme — any of them makes a good starting point.

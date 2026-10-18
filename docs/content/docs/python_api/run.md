@@ -38,16 +38,26 @@ from odatix.run import Run
 run = Run(Workspace.open(), "fmax_synthesis", tool="vivado")
 
 plan = run.check()          # what would be run, and what is already done
-print(plan.names())
+print(plan.counts())        # {"new": 4, "cached": 2, ...}
+print(plan.names("new", colored=False))
 
 run.prepare()               # every work directory written, nothing started
-run.start()                 # handed over to the daemon
+run.start()                 # handed over to a session
+
+for job in run.wait():      # back once every job of the run is over
+    print(job["name"], job["status"])
 ```
 
+The jobs run in a session, a background process that outlives the script:
+`sessions()` lists those of the workspace, as `odatix ls` does, and a
+`Session` is followed or stopped the way `odatix monitor` and
+`odatix stop` do it.
+
 Nothing here exits the interpreter: what a run cannot do raises
-`RunError`, and what a user should be told about comes
-back as messages. The command line turns both into what it prints and into its
-exit code.
+`RunError` (`NothingToRun`
+when every job is already done or already running in a session), and what a
+user should be told about comes back as messages. The command line turns both
+into what it prints and into its exit code.
 
 ## `Run`
 
@@ -68,6 +78,15 @@ run.start()             # handed over to the daemon
 
 Each step needs the one before it, and does it when it has not been done.
 
+Once started, the jobs run in a session of their own, which outlives the
+script: `session`, `status()` and `wait()` follow them:
+
+```python
+run.start()
+jobs = run.wait()       # every job of the run over, however it ended
+failed = [job["name"] for job in jobs if job["status"] != "success"]
+```
+
 **Args:**
 
 - `workspace` *(Workspace)* — the workspace the run belongs to.
@@ -76,6 +95,10 @@ Each step needs the one before it, and does it when it has not been done.
 - `reporter` *(Reporter)* — where what the run says is collected.
 - `cancel_event` *(threading.Event)* — asking the run to stop. Checking and preparing look at it between jobs, and raise `RunCancelled`.
 - `**overrides` — any `RunOptions` setting, e.g. `overwrite=True`.
+
+**Raises:**
+
+- `TypeError` — an option is not a `RunOptions` setting. A misspelled option would otherwise be ignored, and the run would do what its settings file says instead.
 
 | Attribute | What it is |
 |---|---|
@@ -87,6 +110,8 @@ Each step needs the one before it, and does it when it has not been done.
 | `was_checked` *(property)* | Whether checking has already been done, and its plan is in hand. |
 | `plan` *(property)* | What the run would do (see `check()`). |
 | `jobs` *(property)* | The jobs this run would run, as the objects its flow builds. |
+| `session` *(property)* | The `Session` running the jobs, once `start()` handed them over. None before. |
+| `followed` *(property)* | Whether `start()` showed the jobs in the job monitor until it closed. False when the run was detached, or when the terminal could not show the monitor: the jobs may then still be running. |
 | `tool_check_sink` | Eda tool checks handed over instead of being waited for. Left None so that the flows wait for them, which is what a run without a screen showing their progress wants. |
 
 | Method | What it does |
@@ -96,7 +121,9 @@ Each step needs the one before it, and does it when it has not been done.
 | `resolve_tool()` | Settle which eda tool the run uses: the one it was told, else the default tool of the workspace (see `Workspace.default_tool`), and refuse a tool Odatix does not know, saying which ones it does. |
 | `checked()` | What checking produced, checking first when it has not been done. |
 | `prepare()` | Write the work directory of every job: its sources, its parameters and the script that runs it. Nothing is started. *Returns:* `ParallelJobHandler` — the jobs, ready to be run. |
-| `start(detach=None, session=None)` | Hand the prepared jobs over to the daemon, preparing them first when that has not been done. *Args:* `detach` *(bool)* — return as soon as the jobs are enqueued, instead of attaching the monitor to them. A run started from a script does, unless it is told otherwise.; `session` *(str)* — the daemon session to enqueue into. |
+| `start(detach=None, session=None)` | Hand the prepared jobs over to a session, preparing them first when that has not been done. `session` is then the session that took them. *Args:* `detach` *(bool)* — return as soon as the jobs are enqueued, instead of attaching the monitor to them. A run started from a script does, unless it is told otherwise.; `session` *(str)* — the daemon session to enqueue into. |
+| `status()` | Where the jobs of this run are, as its session reports them. *Returns:* `list` — one dict per job, as `Session.jobs()` gives them (`name`, `status`, `progress`...). *Raises:* `RunError` — the run has not been started.; `SessionError` — its session did not answer. |
+| `wait(timeout=None, poll_interval=2.0)` | Wait until every job of this run is over, however it ends. *Args:* `timeout` *(float)* — give up after that many seconds. Forever when None.; `poll_interval` *(float)* — how often to ask the session, in seconds. *Returns:* `list` — the jobs of the run, as `status()` gives them. *Raises:* `RunError` — the run has not been started.; `SessionError` — its session did not answer.; `TimeoutError` — the jobs were not over in time. |
 | `execute()` | Check, prepare and start, in one call. |
 
 ## `run_job(mode, workspace=None, **overrides)`
@@ -147,6 +174,7 @@ Declared settings:
 | `targets` | `str_list` |  | Synthesis targets to run on, out of those the tool's target file enables. All of them when empty. |
 | `architectures` | `str_list` |  | Architectures to run, as entries of the run settings file's "architectures". Its own list when empty. |
 | `simulations` | `str_list` |  | Simulations to run, by name. Every simulation of the run settings file when empty. |
+| `workflows` | `str_list` |  | Workflows to run, as entries of the run settings file's "workflows". Its own list when empty. |
 | `until` | `any` |  | Last step of the flow to run, inclusive. |
 | `rerun_from` | `any` |  | Step to run again, with the ones after it. |
 | `overwrite` | `bool` | `False` | Run again what is already done. |
@@ -165,7 +193,7 @@ Declared settings:
 | `continue_on_error` | `bool` | `False` | Keep going when a job fails. |
 | `lower_bound` | `optional_int` |  | Lowest frequency of an fmax search, in MHz. |
 | `upper_bound` | `optional_int` |  | Highest frequency of an fmax search, in MHz. |
-| `frequencies` | `int_list` |  | Frequencies a custom frequency synthesis runs at, in MHz. The settings file's own when empty. |
+| `frequencies` | `int_list` |  | Frequencies a fixed-frequency synthesis runs at, in MHz. The settings file's own when empty. |
 | `source_result_types` | `any` |  | Result types a place & route starts from. |
 | `from_type` | `any` |  | Result type the sources of a place & route come from. |
 | `from_tool` | `any` |  | EDA tool they come from. |
@@ -181,6 +209,28 @@ Declared settings:
 | `custom_metrics_file` | `any` |  | Extra metrics to read from the reports. |
 | `output_filename` | `any` |  | Name of the result file, when the run writes one. |
 
+## `JobPlan`
+
+`JobPlan()`
+
+The jobs a check phase found, each with its category and optional details.
+
+Entries keep insertion order; `name` is the display name already used by the
+CLI checklist, so both front-ends show the exact same wording.
+
+Supports `len(x)`, iteration, `if x:`.
+
+| Method | What it does |
+|---|---|
+| `add(name, category, **details)` | Record one job. `details` holds extra facts to display (tasks, target, ...). |
+| `merge(other, suffix='')` | Append the entries of another plan, optionally suffixing their names. Used when a single run covers several eda tools: one plan per tool, one checklist for the user. |
+| `names(category=None, colored=None)` | Names of the jobs of one category, in insertion order: every job when `category` is None. `colored=False` strips the terminal color codes, for anything but a terminal; by default, they are kept only when the standard output is one. |
+| `counts()` |  |
+| `run_count()` | How many jobs are actually going to be launched. |
+| `sorted_entries()` | Entries by category severity, then by name. |
+| `to_list()` | JSON-serializable form (dcc.Store, daemon api, ...). |
+| `print_summary(noun='architectures')` | The CLI checklist: one section per non-empty category. |
+
 ## `RunError`
 
 `RunError(message, messages=None, code=-1)`
@@ -195,11 +245,84 @@ there is nothing left to run...
 - `messages` *(list)* — what the run reported before stopping, as `(level, text)` pairs, the last error being this exception's own message.
 - `code` *(int)* — the exit code the command line uses for this.
 
+## `NothingToRun`
+
+`NothingToRun(message, messages=None)`
+
+Derives from `RunError`.
+
+Every job the run selected is already done, or already running in a
+session: there is nothing left to start. Not a failure; `code` is
+`NOTHING_TO_RUN`.
+
 ## `RunCancelled`
 
 Derives from `Exception`.
 
 The run was asked to stop while it was checking or preparing its jobs.
+
+## `Session`
+
+`Session(state)`
+
+One session: the background process running the jobs a run handed over.
+
+Get one from `sessions()`, from `Session.find()`, or from
+`odatix.run.Run.session` once a run is started:
+
+```python
+from odatix.run import sessions
+
+for session in sessions():
+    print(session.id, session.counts())
+```
+
+**Args:**
+
+- `state` *(dict)* — how to reach the session, as the session listing gives it. Not meant to be built by hand.
+
+| Attribute | What it is |
+|---|---|
+| `id` *(property)* | The session id, its pid and its name (`"12345.nightly"`), as `odatix ls` shows it. |
+| `name` *(property)* | The session name, what `-S` is given. |
+| `pid` *(property)* | The process id of the session. |
+| `workspace_root` *(property)* | The workspace the session belongs to. |
+| `address` *(property)* | Where the session listens (a unix socket or host:port). |
+
+| Method | What it does |
+|---|---|
+| `find(selector=None, workspace=None, any_workspace=False)` *(classmethod)* | The session `selector` names, as `odatix monitor -S` finds it. *Args:* `selector` *(str)* — its name, its id (`"12345.nightly"`), its pid, or the start of one of them. Without one, the only session of the workspace.; `workspace` *(Workspace or str)* — the workspace to look in. The one of the current directory when not given.; `any_workspace` *(bool)* — look in every workspace, not only this one. *Raises:* `SessionError` — no session, or several, match. |
+| `is_alive()` | Whether the session answers. |
+| `status(timeout=10.0)` | What the session says of itself: how many jobs it runs at once, its resource guard, and its jobs. *Returns:* `dict` — `nb_jobs`, `resource_guard` (`enabled`, `cpu_limit`, `mem_limit`...), `counts` (see `counts()`) and `jobs` (see `jobs()`). *Raises:* `SessionError` — the session did not answer. |
+| `jobs(timeout=10.0)` | The jobs of the session, in the order it received them. *Returns:* `list` — one dict per job: `id` (what `pause()`, `resume()` and `kill()` take), `name`, `status` ("queued", "running", "paused", "success", "failed", "killed", "canceled"...), `progress` (percent), `elapsed` ("HH:MM:SS") and `tmp_dir` (the job's work directory, absolute). |
+| `counts(timeout=10.0)` | How many jobs are in each state. *Returns:* `dict` — `total`, `running`, `queued` (paused jobs included), `done` and `failed` (killed and canceled jobs included). |
+| `is_finished(timeout=10.0)` | Whether every job of the session is over, however it ended. |
+| `wait(timeout=None, poll_interval=2.0, job_ids=None)` | Wait until the jobs are over, however they end. *Args:* `timeout` *(float)* — give up after that many seconds. Forever when None.; `poll_interval` *(float)* — how often to ask the session, in seconds.; `job_ids` *(list)* — only wait for these jobs (ids from `jobs()`). *Returns:* `list` — the jobs waited for, as `jobs()` gives them. *Raises:* `SessionError` — the session is gone before the jobs are over.; `TimeoutError` — they were not over in time. |
+| `pause(job_id)` | Pause a running job (an id from `jobs()`). |
+| `resume(job_id)` | Resume a paused job, or start a queued or canceled one. |
+| `kill(job_id)` | Kill a running or paused job, or cancel a queued one. |
+| `set_jobs(nb_jobs)` | Change how many jobs run at once. |
+| `set_resource_guard(enabled)` | Turn the resource guard (auto-pause on overload) on or off. |
+| `stop()` | Stop the session, and the jobs still running in it, as `odatix stop` does. *Returns:* `bool` — whether the session is confirmed gone. |
+
+## `sessions(workspace=None, any_workspace=False)`
+
+The sessions running jobs, as `odatix ls` lists them.
+
+**Args:**
+
+- `workspace` *(Workspace or str)* — the workspace whose sessions to list. The one of the current directory when not given.
+- `any_workspace` *(bool)* — list the sessions of every workspace.
+
+**Returns:**
+
+- `list` — `Session` objects.
+
+## `SessionError`
+
+Derives from `RuntimeError`.
+
+A session cannot be found, reached or told something.
 
 ## `JobPlanner`
 

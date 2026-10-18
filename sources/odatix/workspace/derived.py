@@ -34,6 +34,21 @@ from odatix.workspace.yaml_io import read_document, read_yaml, write_document
 __all__ = ["DerivedMetricsFile"]
 
 
+def _merge_into(current, wanted):
+    """
+    Make the mapping ``current`` (read from the file, comments attached) equal
+    to ``wanted`` in place: a value left unchanged keeps its comment and its
+    formatting, which replacing the whole section would throw away.
+    """
+    for key in [key for key in current if key not in wanted]:
+        del current[key]
+    for key, value in wanted.items():
+        if key in current and isinstance(current[key], dict) and isinstance(value, dict):
+            _merge_into(current[key], value)
+        elif key not in current or current[key] != value or type(current[key]) is bool and type(value) is not bool:
+            current[key] = value
+
+
 class DerivedMetricsFile(object):
     """
     The derived metrics file of a workspace.
@@ -126,8 +141,12 @@ class DerivedMetricsFile(object):
         """
         self._load()
         document = read_document(self.path)
-        document["groups"] = self._groups if self._groups else {}
-        document["derived_metrics"] = self._metrics if self._metrics else {}
+        for key, value in (("groups", self._groups), ("derived_metrics", self._metrics)):
+            value = value if value else {}
+            if isinstance(document.get(key), dict):
+                _merge_into(document[key], value)
+            else:
+                document[key] = value
         write_document(self.path, document)
         return self
 

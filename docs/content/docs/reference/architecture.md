@@ -163,8 +163,9 @@ compile, are reported when the run is checked.
 ## Frequency settings
 
 Two blocks, one per synthesis job type. Both are optional at the root of the
-file, but an [fmax search](/docs/features/rtl_fmax_synthesis/) needs bounds from
-somewhere.
+file. Without bounds here, in the run settings file or on the command line
+(`--from`, `--to`), an [fmax search](/docs/features/rtl_fmax_synthesis/) runs
+between 1 and 1000 MHz: give it closer bounds to save iterations.
 
 {{< code lang=yaml filename="_settings.yml" >}}
 fmax_synthesis:

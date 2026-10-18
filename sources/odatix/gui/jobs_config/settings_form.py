@@ -32,7 +32,44 @@ from odatix.gui.jobs_config.common import (
     _analysis_tools,
 )
 
-def job_settings_form(settings, run_mode="default", selected_tools=None):
+#: Value of the "Re-run from" dropdown that re-runs nothing.
+RESUME = ""
+
+
+def rerun_panel(steps):
+    """
+    Where a run can be told to do again some of the steps its jobs have already
+    done ("--rerun-from"). Without it, a job picks up at the first step it has
+    not done, which is what a run is for most of the time: this is for when
+    something changed that the steps already done depend on.
+
+    It is not a setting of the run settings file: it says what one run does,
+    so it is not saved, and it is back to "resume" whenever the page is opened.
+    The panel is there even without steps, hidden, because the run callback
+    reads its value.
+    """
+    options = [{"label": "Nothing: resume where each job stopped", "value": RESUME}]
+    options += [
+        {"label": "{0}. {1}".format(index + 1, step), "value": step}
+        for index, step in enumerate(steps or [])
+    ]
+    return html.Div([
+        html.Div("Steps", className="odx-panel-caption"),
+        ui.form_dropdown(
+            label="Re-run from",
+            id="rerun-from",
+            options=options,
+            value=RESUME,
+            clearable=False,
+            tooltip="A job skips the steps it has already done. Pick a step to run it again, "
+                    "with the ones after it, even where it is done: what changed since the "
+                    "last run is what that step reads. The steps before it are still reused. "
+                    "(--rerun-from on the command line; not saved)",
+        ),
+    ], className="odx-panel padded", style={"display": "block" if steps else "none"})
+
+
+def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_steps=None):
     frequencies = settings.get("frequencies", {})
     range = frequencies.get("range", {})
     fmax_bounds = settings.get("fmax_synthesis", {})
@@ -57,11 +94,18 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             checked=settings.get("overwrite", False),
                             tooltip="If enabled, previous results will be overwritten. (overridden by -o / --overwrite).",
                         ),
-                        ui.switch_row(
-                            "Force single threading",
-                            id="force_single_thread",
-                            checked=settings.get("force_single_thread", True),
-                            tooltip="If enabled, each job will run using a single thread.",
+                        # Whether a tool runs on a single thread is a setting
+                        # of its target file ("force_single_thread"), which the
+                        # targets page edits: no run reads it from here. The
+                        # switch is kept, hidden, for the callbacks that read it.
+                        html.Div(
+                            ui.switch_row(
+                                "Force single threading",
+                                id="force_single_thread",
+                                checked=settings.get("force_single_thread", _JOB_SETTINGS_DEFAULTS["force_single_thread"]),
+                                tooltip="If enabled, each job will run using a single thread.",
+                            ),
+                            style={"display": "none"},
                         ),
                     ],
                     className="odx-switch-stack",
@@ -87,6 +131,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                     className="odx-field-row",
                 ),
             ], className="odx-panel padded"),
+            rerun_panel(rerun_steps),
             html.Div([
                 html.Div("Monitor", className="odx-panel-caption"),
                 ui.form_field(

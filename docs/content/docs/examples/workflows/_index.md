@@ -12,7 +12,7 @@ The nine shipped examples use throwaway Python — a string manipulator, a traff
 
 {{< details title="What these examples demonstrate" >}}
 - **Task graphs** — `dependencies` between named tasks, and a `main` entry point.
-- **Platform-specific tasks** — the same task name implemented once for Linux/macOS and once for PowerShell.
+- **Platform-specific tasks** — the same task name implemented once for Linux/macOS and once for Windows.
 - **Command placeholders** — `${name}` in a command, filled from a configuration, a parameter domain, or a variable.
 - **[Virtual parameter domains](/docs/configurations/virtual_param_domains/)** — sweeps declared as variables, with no directory behind them.
 - **Paired variables** — values zipped together instead of cross-combined, so two parameters move as one.
@@ -31,7 +31,7 @@ Task dependencies, progress reported from several steps, substitution into a sou
 {{< /doc-card >}}
 
 {{< doc-card title="Crossplatform" link="/docs/examples/workflows/crossplatform/" icon="server" accent="#0ea5e9" cta="Read the example" >}}
-One task name, two implementations — Linux/macOS and PowerShell — with exactly one selected at run time.
+One task name, two implementations — Linux/macOS and Windows — with exactly one selected at run time.
 {{< /doc-card >}}
 
 {{< doc-card title="CLI Profile" link="/docs/examples/workflows/cli_profile/" icon="terminal" accent="#7c3aed" cta="Read the example" >}}
@@ -75,7 +75,7 @@ A generated sweep over epochs, a dependency task that bootstraps a virtualenv on
 | [`param_domains_paired_variables`](/docs/examples/workflows/param_domains_paired_variables/) | paired (grouped) variables | `workflow_param_domains_cli` |
 | [`param_domains_json`](/docs/examples/workflows/param_domains_json/) | substitution into a config file instead of a command | `workflow_param_domains_json` |
 | [`metric_sweep`](/docs/examples/workflows/metric_sweep/) | multi-row metrics, `operation` metrics, metadata | `workflow_metric_sweep` |
-| [`tensorflow`](/docs/examples/workflows/tensorflow/) | environment bootstrapping, `on_failure_commands` | `workflow_tensorflow` |
+| [`tensorflow`](/docs/examples/workflows/tensorflow/) | environment built once (`phony: No`), `on_failure_commands` | `workflow_tensorflow` |
 
 ## Running them
 

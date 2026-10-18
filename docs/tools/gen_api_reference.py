@@ -492,7 +492,10 @@ def render_settings_table(cls):
     for spec in specs:
         if getattr(spec, "section", None) and spec.section != section:
             section = spec.section
-            lines.append("| **{0}** | | | |".format(section))
+            # A section is also the comment written above its settings in the
+            # file (" overwrite existing results"): "** text**" is not bold.
+            title = section.strip()
+            lines.append("| **{0}** | | | |".format(title[:1].upper() + title[1:]))
         default = spec.make_default() if hasattr(spec, "make_default") else spec.default
         default_cell = "" if default in (None, "", [], {}) else "`{0!r}`".format(default)
         type_name = spec.type.__name__ if inspect.isclass(spec.type) else str(spec.type)

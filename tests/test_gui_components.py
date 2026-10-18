@@ -2046,8 +2046,10 @@ class TestSimulationEditor:
         simulations = SimulationCollection(None, "odatix_userconfig/simulations")
         simulation = simulations["TB_Example_Counter_GHDL"]
         settings = sim_editor_module.normalize_simulation_settings(simulation.settings.to_dict())
-        assert settings["use_parameters"] is True
-        assert settings["param_target_file"] == "tb/tb_counter.vhdl"
+        # The example writes the configuration into its testbench the current
+        # way, under "architectures", not with the deprecated keys.
+        assert not sim_editor_module.uses_legacy_parameters(sim_editor_module.settings_as_written(simulation.settings))
+        assert "tb/tb_counter.vhdl" in str(settings["architectures"])
 
         settings["tasks"] = [{"name": "main", "commands": ["echo hello"]}]
         # The page writes the architectures back the way the file holds them.
@@ -2488,9 +2490,11 @@ class TestConfigurationRules:
             self.fake_ctx(pages, variables, triggered_id={"type": "cfg-save-rules", "domain_uuid": "main-uuid"}),
         )
         fields = self.field_values(variables, {("main-uuid", "width"): {"type": "list", "list": "8, 16"}})
-        saved = pages.rules.rules_settings(
-            "", "", {"width": {"type": "list", "settings": {"list": [8, 16]}}},
-        )
+        # The panel was opened on no variable: the one added in the form is
+        # what the main domain describes its configurations with. (Variables
+        # the file already declared without "enabled" are virtual parameter
+        # domains, and stay so -- see tests/test_config_rules_virtual.py.)
+        saved = pages.rules.rules_settings("", "", {})
 
         stores, bumps = pages.rules.save_rules(
             [1], None, None, [""], [""], [""], [""], *fields,
@@ -3489,9 +3493,12 @@ class TestTaskEditor:
             tasks = yaml.safe_load(f)["tasks"]
         assert any("on_failure_commands" in task for task in tasks)
 
+        # What the cards do not edit ("phony") is kept by the page saving them
+        # (see workflow_editor.keep_unmanaged_task_keys), not by the cards.
+        on_cards = [{key: value for key, value in task.items() if key in te.TASK_FIELDS} for task in tasks]
         for prefix in ("wf", "sim"):
             cards = te.cards_from_tasks(prefix, tasks)
-            assert te.build_tasks_list(*self._fields(cards)) == tasks
+            assert te.build_tasks_list(*self._fields(cards)) == on_cards
 
     def test_a_fallback_is_shown_without_unfolding(self):
         import odatix.gui.task_editor as te

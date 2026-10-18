@@ -31,6 +31,8 @@ odatix_userconfig/
 ├── sim_settings.yml                # what "odatix sim" runs
 ├── workflow_settings.yml                   # what "odatix workflow" runs
 ├── pnr_settings.yml                        # what "odatix pnr" runs
+├── dse_settings.yml                        # how "odatix dse" runs, and which campaigns
+├── dse_campaigns/<campaign>.yml            # one design space exploration
 ├── derived_metrics.yml                     # metrics computed from other metrics
 ├── clean_settings.yml                               # what "odatix clean" removes
 ├── architectures/<design>/_settings.yml    # a parametrizable design
@@ -58,6 +60,7 @@ odatix_userconfig/
 | [Tool definitions](/docs/reference/tools/) | `tools/<tool>/tool.yml`, flows and steps |
 | [Metrics files](/docs/reference/metrics/) | `metrics.yml`, `_metrics.yml`, `derived_metrics.yml` |
 | [Analysis definitions](/docs/reference/analysis/) | `tools/<tool>/analysis.yml`: how the reports of a tool become findings |
+| [Design space exploration](/docs/reference/dse/) | `dse_settings.yml`, `dse_campaigns/<campaign>.yml`, and what an exploration writes in `results/dse/` |
 | [Configuration API](/docs/python_api/) | Reading and writing all of them from Python |
 
 ## How settings are resolved

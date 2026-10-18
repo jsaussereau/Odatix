@@ -815,6 +815,62 @@ def replacement_span(domain_uuid, text, hidden=False):
     )
 
 
+def commented_out_notice(message):
+    """What the preview says above the file when the configuration lands in a comment."""
+    if not message:
+        return ""
+    return html.Div(
+        message, className="error warning",
+        style={"whiteSpace": "normal", "fontFamily": "var(--font-family, sans-serif)", "marginBottom": "8px"},
+    )
+
+
+def preview_warning(domain_uuid, message):
+    """
+    The place of that notice in the pane, kept up to date with the configuration
+    by `update_preview_replacement`.
+    """
+    return html.Span(
+        commented_out_notice(message),
+        id={"type": "preview-warning", "domain_uuid": domain_uuid},
+        style={"display": "block"},
+    )
+
+
+def replacement_context(domain_uuid, base_text, start_delimiter, stop_delimiter, file_name):
+    """
+    What the replaced section needs to know about the file it is written into,
+    to be updated without reading that file again: how many lines the block
+    spans (a shorter configuration is padded to them, as a run does) and the
+    line comment its start delimiter ends in, if any (see
+    `replace_params.comment_after_start`).
+    """
+    start = replace_params.unescape_delimiter(start_delimiter)
+    stop = replace_params.unescape_delimiter(stop_delimiter)
+    match = re.search(re.escape(start) + ".*?" + re.escape(stop), base_text, flags=re.DOTALL)
+    block = match.group(0)[len(start):len(match.group(0)) - len(stop)] if match else ""
+    return dcc.Store(
+        id={"type": "preview-context", "domain_uuid": domain_uuid},
+        data={
+            "lines": block.count("\n"),
+            "comment": replace_params.comment_after_start(base_text, start_delimiter, stop_delimiter, file_name),
+            "start_delimiter": start_delimiter,
+            "file": os.path.basename(file_name),
+        },
+    )
+
+
+def replacement_notice(context, replacement_text):
+    """The commented-out warning of one domain, from its `replacement_context`."""
+    context = context or {}
+    if not context.get("comment"):
+        return None
+    line = replace_params.first_line_of(replacement_text)
+    if not line:
+        return None
+    return replace_params.commented_out_message(line, context.get("start_delimiter", ""), context.get("file", ""))
+
+
 def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str, base_path=None):
     """
     What the target file looks like once the selected configuration is written
@@ -904,7 +960,15 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             section_stop = match.end()
             content_start = section_start + len(start_delimiter)
             content_stop = section_stop - len(stop_delimiter)
+            context = replacement_context(
+                domain_uuid, base_text, domain_settings.get("start_delimiter", ""),
+                domain_settings.get("stop_delimiter", ""), param_target_file,
+            )
             preview_components = [
+                # D-02: a start delimiter ending inside a line comment comments
+                # the first line of the configuration out -- the preview says so
+                # rather than colouring that line as code.
+                preview_warning(domain_uuid, replacement_notice(context.data, replacement_text)),
                 new_content[:section_start],
                 html.Span(show_newlines(start_delimiter), className="text-highlight primary"),
                 replacement_span(domain_uuid, new_content[content_start:content_stop]),
@@ -924,6 +988,9 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
                 "box-sizing": "border-box",
             }
         )
+        if match_found:
+            # The pane stays the first child of its container, which it fills.
+            pane_content = [pane_content, context]
     else:
         if not base_path or param_target_file == "":
             label = instance_label(mode).lower()
@@ -1356,7 +1423,7 @@ def unsaved_rule_configurations(names, templates, stores, field_values, domain_m
         if current == saved:
             continue
 
-        space = config_rules.rules_space(current)
+        space = config_rules.rules_space(current, implicit=config_rules.implicit_for(names_by_uuid.get(domain_uuid)))
         if not space.generates:
             continue
         try:
@@ -1421,6 +1488,76 @@ def preview_domains_to_refresh(debounce):
             # Something that is not tied to one domain: rebuild every pane.
             return None
     return stale
+
+
+def _domains_of_entries(entries):
+    """The domain of each entry of a Dash `outputs_list`/`inputs_list` group."""
+    return [
+        (((entry or {}).get("id") or {}) if isinstance(entry, dict) else {}).get("domain_uuid", "")
+        for entry in entries
+    ]
+
+
+def _callback_group(attribute, group):
+    """One group of `ctx.outputs_list`/`ctx.inputs_list`, or None outside a callback."""
+    try:
+        groups = getattr(ctx, attribute, None)
+    except MissingCallbackContextException:
+        return None
+    if groups is None:
+        return None
+    if group is not None:
+        if not isinstance(groups, list) or group >= len(groups):
+            return None
+        groups = groups[group]
+    return groups if isinstance(groups, list) else None
+
+
+def per_domain(values, domain_uuids, group=None, default=dash.no_update):
+    """
+    `values`, one per domain of `domain_uuids`, laid out the way Dash matched
+    the pattern Output of the running callback (`group` is its position among
+    the outputs, None for a callback with a single one).
+
+    The list a pattern Output expects is the components Dash found, in the order
+    it found them -- not the domains of the page: a preview built by a later
+    callback, the cards of a row still on their way or a pane rebuilt on its own
+    are missing from it, or come back in another order. Sizing the answer on the
+    domains then made Dash reject it, which stopped the whole GUI. A domain with
+    no component gets nothing, a component with no domain gets `default`.
+    """
+    values = list(values)
+    targets = _callback_group("outputs_list", group)
+    if targets is None:
+        # Called outside a callback: the caller's order is the only one there is.
+        return values
+    by_domain = dict(zip(domain_uuids, values))
+    return [by_domain.get(domain_uuid, default) for domain_uuid in _domains_of_entries(targets)]
+
+
+def input_per_domain(values, type_name, fallback_uuids=None):
+    """
+    The values of the pattern Input or State of `type_name`, keyed by their
+    domain. Outside a callback, they are taken to be in the order of
+    `fallback_uuids`.
+    """
+    uuids = None
+    for attribute in ("inputs_list", "states_list"):
+        for group in (_callback_group(attribute, None) or []):
+            if isinstance(group, list) and group and isinstance(group[0], dict) \
+                    and ((group[0].get("id") or {}).get("type") == type_name):
+                uuids = _domains_of_entries(group)
+                break
+        if uuids is not None:
+            break
+    if uuids is None:
+        uuids = list(fallback_uuids or [])
+    return dict(zip(uuids, values or []))
+
+
+def domain_uuids(domain_metadata):
+    """The domain of each section of the page, in the order Dash matched them."""
+    return [(data or {}).get("domain_uuid", "") for data in (domain_metadata or [])]
 
 
 ######################################
@@ -1671,11 +1808,12 @@ def update_param_domains(
             while new_domain in domains:
                 suffix += 1
                 new_domain = f"{base_name}{suffix}"
-            # A new domain starts with one variable, named after itself: that is
-            # the shortest thing it can be, and it needs no template to say what
-            # its configurations are called or contain.
-            new_settings = {"variables": config_rules.default_variables()}
-            instance.domains.create(new_domain, **new_settings)
+            # A new domain starts empty. A domain declaring one variable describes
+            # its configurations on its own, so an example variable would have
+            # given it configurations -- and multiplied every sweep of the
+            # architecture -- before the user wrote anything.
+            new_settings = {}
+            instance.domains.create(new_domain)
 
             # Insert new domain section before the add domain button
             domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
@@ -1687,8 +1825,7 @@ def update_param_domains(
                 )
             )
             domain_sections.append(add_domain_div)
-            # Its one variable already describes configurations, so the new
-            # domain holds some the moment it exists: its cards are read.
+            # Its row of cards is filled like the one of a duplicated domain.
             return domain_sections, dash.no_update, domain_uuid
 
         # Duplicate domain
@@ -1781,7 +1918,11 @@ def update_config_cards(
 ):
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
-        return [html.Div(no_instance_message(mode), className="error")], dash.no_update
+        # One message per row the page holds -- there may be none at all.
+        message = html.Div(no_instance_message(mode), className="error")
+        return per_domain(
+            [message] * len(domain_metadata), domain_uuids(domain_metadata), group=0, default=message,
+        ), dash.no_update
 
     # How the action the user asked for went. Loading the page says nothing.
     feedback = dash.no_update
@@ -1801,6 +1942,12 @@ def update_config_cards(
     )
     if rules_saved_trigger is not None:
         triggered_id = rules_saved_trigger
+    # The sections were just built: every store of them is announced as changed
+    # along with the signal that they are, the "saved" counters of the rules
+    # included. Taking one of those for a save loaded the cards of that one
+    # domain only, and left every other one showing none.
+    if "param-domains-section-initialized" in (ctx.triggered_prop_ids or {}).values():
+        triggered_id = "param-domains-section-initialized"
 
     # Which rows this call rewrites. Every other one is answered with no_update:
     # a row is the whole card tree of a domain, and sending back the rows an
@@ -2012,7 +2159,7 @@ def update_config_cards(
             config_cards_row.append(build_config_cards(
                 instance_domain(instances, instance_name, domain_name), domain_uuid, config_layout,
             ))
-        return config_cards_row, feedback
+        return per_domain(config_cards_row, list(domains.keys()), group=0), feedback
     
     # If a domain was duplicated, load the new domain configs
     elif triggered_id == "param-domains-section-update":
@@ -2175,10 +2322,19 @@ def toggle_generated_configuration_blacklist(
     odatix_settings,
 ):
     """Blacklist a generated configuration, or restore it from the same card button."""
+    uuids = domain_uuids(domain_metadata)
     nothing = [dash.no_update] * len(domain_metadata)
+
+    def answer(stores, counters, rows):
+        return (
+            per_domain(stores, uuids, group=0),
+            per_domain(counters, uuids, group=1),
+            per_domain(rows, uuids, group=2),
+        )
+
     trigger = ctx.triggered_id
     if not isinstance(trigger, dict):
-        return nothing, nothing, nothing
+        return answer(nothing, nothing, nothing)
 
     # Rebuilding the row hands Dash brand new buttons, and it announces them here as
     # if they had been pressed. Only a button carrying a click count is a real press,
@@ -2191,7 +2347,7 @@ def toggle_generated_configuration_blacklist(
         None,
     )
     if not clicked:
-        return nothing, nothing, nothing
+        return answer(nothing, nothing, nothing)
 
     domain_uuid = trigger.get("domain_uuid", "")
     config_uuid = trigger.get("config_uuid", "")
@@ -2205,29 +2361,29 @@ def toggle_generated_configuration_blacklist(
     )
     origin = (metadata or {}).get("origin")
     if origin not in (ORIGIN_GENERATED, ORIGIN_BLACKLISTED):
-        return nothing, nothing, nothing
+        return answer(nothing, nothing, nothing)
 
     index = next(
         (i for i, data in enumerate(domain_metadata) if (data or {}).get("domain_uuid") == domain_uuid),
         -1,
     )
     if index < 0:
-        return nothing, nothing, nothing
+        return answer(nothing, nothing, nothing)
 
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name or instance_name not in instances:
-        return nothing, nothing, nothing
+        return answer(nothing, nothing, nothing)
 
     domain_name = domain_metadata[index].get("domain_name", "")
     domain = instance_domain(instances, instance_name, domain_name)
     if domain is None:
-        return nothing, nothing, nothing
+        return answer(nothing, nothing, nothing)
     saved = rules_stores[index] if index < len(rules_stores) and rules_stores[index] else domain.settings.to_dict()
     filename = (metadata or {}).get("config_name", "")
     config_name = filename[:-4] if filename.endswith(".txt") else filename
     updated = rules_with_configuration_blacklist(saved, config_name, origin == ORIGIN_GENERATED)
     if updated == saved:
-        return nothing, nothing, nothing
+        return answer(nothing, nothing, nothing)
 
     persisted_configurations = dict(updated[config_rules.CONFIGURATIONS_KEY])
     if not config_rules.configuration_blacklist(updated):
@@ -2246,7 +2402,7 @@ def toggle_generated_configuration_blacklist(
     rows[index] = build_config_cards(
         domain, domain_uuid, config_layout, shown=cards_shown(config_metadata, domain_uuid),
     )
-    return stores, counters, rows
+    return answer(stores, counters, rows)
 
 dash.clientside_callback(
     dash.ClientsideFunction(namespace="odatix_config_editor", function_name="sync_preview_select"),
@@ -2372,12 +2528,13 @@ def update_preview_all(
         base_path += arch_paths
     if not instance_name or instance_name not in instances:
         label = instance_label(mode)
-        return [
-            html.Div([
-                html.Div(f"{label} is not created yet."),
-                html.Div("Edit settings, then save or add a new config to create it."),
-            ], className="error warning")
-        ] * len(domain_metadata)
+        message = html.Div([
+            html.Div(f"{label} is not created yet."),
+            html.Div("Edit settings, then save or add a new config to create it."),
+        ], className="error warning")
+        return per_domain(
+            [message] * len(domain_metadata), domain_uuids(domain_metadata), default=message,
+        )
 
     _, _, _, stale_domains, replacement_texts = preview_replacements(
         search, odatix_settings, domain_metadata, config_metadata, config_contents_list,
@@ -2401,11 +2558,13 @@ def update_preview_all(
         domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
         replacement_text = replacement_texts[i] if i < len(replacement_texts) else ""
         results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text, base_path=base_path))
-    return results
+    return per_domain(results, domain_uuids(domain_metadata))
 
 
 @dash.callback(
     Output({"type": "preview-replaced", "domain_uuid": dash.ALL}, "children"),
+    # Whether that section now lands in a comment of the file (D-02).
+    Output({"type": "preview-warning", "domain_uuid": dash.ALL}, "children"),
     State("url", "search"),
     # The contents themselves are a State: what says they changed is the
     # debounced signal, so a keystroke costs nothing until the typing stops.
@@ -2425,6 +2584,9 @@ def update_preview_all(
     # The default a domain falls back to, previewed when it has no
     # configuration of its own to select.
     Input({"type": "simarch-param-file", "domain_uuid": dash.ALL}, "value"),
+    # What the pane read from the file when it was built: the lines the block
+    # spans and the comment its start delimiter ends in.
+    State({"type": "preview-context", "domain_uuid": dash.ALL}, "data"),
     prevent_initial_call=True
 )
 def update_preview_replacement(
@@ -2436,27 +2598,43 @@ def update_preview_replacement(
 
     The pane around it is left alone: the file it shows is unchanged, and it is
     the expensive half of the preview. Editing a configuration, picking another
-    one or changing a rule sends the replaced section and nothing else.
+    one or changing a rule sends the replaced section, and what the pane says
+    about it, and nothing else.
     """
     rule_field_values = rest[:len(config_rules.FIELD_PATTERNS)]
     config_metadata = rest[len(config_rules.FIELD_PATTERNS)] if len(rest) > len(config_rules.FIELD_PATTERNS) else []
     domain_metadata = rest[len(config_rules.FIELD_PATTERNS) + 1] if len(rest) > len(config_rules.FIELD_PATTERNS) + 1 else []
     odatix_settings = rest[len(config_rules.FIELD_PATTERNS) + 2] if len(rest) > len(config_rules.FIELD_PATTERNS) + 2 else {}
     entry_param_files = rest[len(config_rules.FIELD_PATTERNS) + 3] if len(rest) > len(config_rules.FIELD_PATTERNS) + 3 else []
+    contexts = rest[len(config_rules.FIELD_PATTERNS) + 4] if len(rest) > len(config_rules.FIELD_PATTERNS) + 4 else []
 
     _, instance_name, instances, stale_domains, replacement_texts = preview_replacements(
         search, odatix_settings, domain_metadata, config_metadata, config_contents_list,
         selected_configs, rule_names, rule_templates, rule_constraints, rule_stores,
         rule_field_values, entry_param_files, content_debounce,
     )
+    uuids = domain_uuids(domain_metadata)
     if not instance_name or instance_name not in instances:
-        return [dash.no_update for _ in domain_metadata]
-    return [
-        dash.no_update
-        if (stale_domains is not None and domain.get("domain_uuid", "") not in stale_domains)
-        else (replacement_texts[i] if i < len(replacement_texts) else "")
-        for i, domain in enumerate(domain_metadata)
-    ]
+        nothing = [dash.no_update for _ in uuids]
+        return per_domain(nothing, uuids, group=0), per_domain(nothing, uuids, group=1)
+    # Only the panes where the delimiters matched carry a context.
+    contexts_by_domain = input_per_domain(contexts, "preview-context")
+    sections = []
+    notices = []
+    for i, domain_uuid in enumerate(uuids):
+        if stale_domains is not None and domain_uuid not in stale_domains:
+            sections.append(dash.no_update)
+            notices.append(dash.no_update)
+            continue
+        text = replacement_texts[i] if i < len(replacement_texts) else ""
+        context = contexts_by_domain.get(domain_uuid) or {}
+        # Padded to the lines of the block, the way a run writes it.
+        sections.append(replace_params.keep_line_count("\n" * int(context.get("lines", 0) or 0), text))
+        notices.append(commented_out_notice(replacement_notice(context, text)))
+    # A domain added a moment ago has no section to write into yet: its pane is
+    # built by `update_preview_all`, which answers the same change. The answer
+    # goes to the sections that are there, whatever the domains say.
+    return per_domain(sections, uuids, group=0), per_domain(notices, uuids, group=1)
 
 dash.clientside_callback(
     dash.ClientsideFunction(namespace="odatix_config_editor", function_name="save_status"),
@@ -2504,12 +2682,16 @@ def update_config_counters(config_metadata, hidden_counts, filter_states, domain
     Every stat naming an origin is also the filter of that origin, struck
     through while its cards are out of the list.
     """
+    uuids = domain_uuids(domain_metadata)
+    # The count of what has no card lives in the row of cards, which reaches the
+    # page after the section and is rebuilt on its own: it is matched to its
+    # domain by id, not by position.
+    hidden_by_domain = input_per_domain(hidden_counts, "config-hidden", uuids)
+    filtered_by_domain = input_per_domain(filter_states, "config-filter-state", uuids)
     counters = []
-    for index, domain in enumerate(domain_metadata):
-        domain_uuid = domain.get("domain_uuid", "")
-        hidden = hidden_counts[index] if index < len(hidden_counts) else 0
-        hidden = hidden or 0
-        filtered = filter_states[index] if index < len(filter_states) else []
+    for domain_uuid in uuids:
+        hidden = hidden_by_domain.get(domain_uuid, 0) or 0
+        filtered = filtered_by_domain.get(domain_uuid, []) or []
         origins = [
             (data or {}).get("origin", ORIGIN_MANUAL)
             for data in config_metadata
@@ -2535,7 +2717,7 @@ def update_config_counters(config_metadata, hidden_counts, filter_states, domain
                 domain_uuid, ORIGIN_BLACKLISTED, blacklisted, "blacklisted", filtered, className="caution",
             ))
         counters.append(stats)
-    return counters
+    return per_domain(counters, uuids)
 
 
 page_clientside_callback(
@@ -2676,7 +2858,7 @@ def save_all(
     nb_configs = len(config_metadata)
     nb_domains = len(domain_metadata)
     no_config_update = [dash.no_update] * nb_configs
-    no_domain_update = [dash.no_update] * nb_domains
+    no_domain_update = per_domain([dash.no_update] * nb_domains, domain_uuids(domain_metadata), group=3)
     no_entry_update = [dash.no_update] * len(entry_names)
     nothing = (no_config_update, no_config_update, no_config_update, no_domain_update,
                no_entry_update, dash.no_update, dash.no_update)
@@ -2742,7 +2924,7 @@ def save_all(
         }
 
     # Configuration parameters
-    new_params = list(no_domain_update)
+    new_params = [dash.no_update] * nb_domains
     # What each section says about the substitution, for the ones a simulation
     # writes in its own settings file rather than in a directory.
     substitutions = {}
@@ -2790,7 +2972,8 @@ def save_all(
     else:
         feedback = ui.success()
     return (
-        new_titles, new_contents, new_metadata, new_params, new_entry_stores,
+        new_titles, new_contents, new_metadata, per_domain(new_params, domain_uuids(domain_metadata), group=3),
+        new_entry_stores,
         (reload_count or 0) + 1 if reload_needed else dash.no_update,
         feedback,
     )
@@ -2846,7 +3029,8 @@ def save_config_parameters(
     search, odatix_settings
 ):
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
-    nothing = ([dash.no_update] * len(domain_metadata), [dash.no_update] * len(entry_names), dash.no_update)
+    uuids = domain_uuids(domain_metadata)
+    nothing = (per_domain([dash.no_update] * len(uuids), uuids, group=0), [dash.no_update] * len(entry_names), dash.no_update)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):        
@@ -2897,7 +3081,7 @@ def save_config_parameters(
             if trig_domain_name:
                 instance_domain(instances, instance_name, trig_domain_name).update(settings)
             return (
-                [settings if i == idx else dash.no_update for i in range(len(domain_metadata))],
+                per_domain([settings if i == idx else dash.no_update for i in range(len(uuids))], uuids, group=0),
                 new_entry_stores,
                 (reload_count or 0) + 1 if reload_needed else dash.no_update,
             )
@@ -2943,10 +3127,6 @@ def update_instance_title(search):
     State("odatix-settings", "data"),
 )
 def update_params_title_save_button(_, title_input, domain_metadata, search, odatix_settings):
-    save_classes = []
-    tooltips = []
-    new_metadata = []
-
     disabled_class = "color-button invisible icon-button tooltip delay bottom small"
     enabled_class = "color-button warning icon-button tooltip bottom small"
     error_class = "color-button disabled icon-button error-status tooltip bottom small"
@@ -2962,18 +3142,24 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
     # The directories of a simulation are named in the simulation settings, not
     # here, so their titles are read-only and there is no main domain to skip.
     if mode == "simulation":
-        nothing = [dash.no_update] * len(domain_metadata)
         return (
-            ["color-button invisible icon-button tooltip delay bottom small"] * len(domain_metadata),
-            ["Parameter directories are named in the simulation settings"] * len(domain_metadata),
-            nothing,
+            per_domain([], [], group=0, default="color-button invisible icon-button tooltip delay bottom small"),
+            per_domain([], [], group=1, default="Parameter directories are named in the simulation settings"),
+            per_domain([], [], group=2),
         )
 
-    domain_metadata = domain_metadata[1:] # Remove main domain entry
-    new_metadata.append(dash.no_update)  # Placeholder for main domain
-    for new_domain_name, metadata in zip(title_input, domain_metadata):
+    # The main domain has no title field: every other section is matched to its
+    # field by domain, not by position.
+    titles = input_per_domain(title_input, "domain-title-input", [
+        uuid for uuid in domain_uuids(domain_metadata) if uuid != hard_settings.main_parameter_domain
+    ])
+    by_domain = {}
+    for metadata in domain_metadata:
         domain_name = metadata.get("domain_name", "")
         domain_uuid = metadata.get("domain_uuid", "")
+        if domain_uuid not in titles:
+            continue
+        new_domain_name = titles[domain_uuid]
 
         # Save button clicked for this domain
         if triggered_type == "save-domain-title" and domain_uuid == triggered_domain_uuid:
@@ -2981,43 +3167,38 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                 instances.entry(instance_name).domains.rename(domain_name, new_domain_name)
 
                 domain_name = new_domain_name
-                save_classes.append(disabled_class)
-                tooltips.append("Nothing to save")
                 metadata["domain_name"] = new_domain_name
-                new_metadata.append(metadata)
+                by_domain[domain_uuid] = (disabled_class, "Nothing to save", metadata)
             else:
-                new_metadata.append(dash.no_update)
-                save_classes.append(dash.no_update)
-                tooltips.append(dash.no_update)
+                by_domain[domain_uuid] = (dash.no_update, dash.no_update, dash.no_update)
 
         # No save button clicked, just check for changes
-        else:
-            new_metadata.append(dash.no_update)
-            if new_domain_name != domain_name:
-                invalid_char_found = False
-                for c in hard_settings.invalid_filename_characters:
-                    if c in new_domain_name:
-                        c = "' ' (space)" if c == " " else f"'{c}'"
-                        invalid_char_found = True
-                        save_classes.append(error_class)
-                        tooltips.append(f"Unauthorized character in parameter domain name: {c}")
-                        break
-                if invalid_char_found:  
-                    continue
-                if new_domain_name == "" or " " in new_domain_name:
-                    save_classes.append(error_class)
-                    tooltips.append("Parameter domain name cannot be empty")
-                elif new_domain_name in instances.entry(instance_name).domains:
-                    save_classes.append(error_class)
-                    label = instance_label(mode).lower()
-                    tooltips.append(f"Parameter domain '{new_domain_name}' already exists for this {label}")
-                else:
-                    save_classes.append(enabled_class)
-                    tooltips.append("Save new parameter domain name")
+        elif new_domain_name != domain_name:
+            invalid = next((c for c in hard_settings.invalid_filename_characters if c in (new_domain_name or "")), None)
+            if invalid is not None:
+                invalid = "' ' (space)" if invalid == " " else f"'{invalid}'"
+                by_domain[domain_uuid] = (
+                    error_class, f"Unauthorized character in parameter domain name: {invalid}", dash.no_update,
+                )
+            elif not new_domain_name or " " in new_domain_name:
+                by_domain[domain_uuid] = (error_class, "Parameter domain name cannot be empty", dash.no_update)
+            elif new_domain_name in instances.entry(instance_name).domains:
+                label = instance_label(mode).lower()
+                by_domain[domain_uuid] = (
+                    error_class, f"Parameter domain '{new_domain_name}' already exists for this {label}",
+                    dash.no_update,
+                )
             else:
-                save_classes.append(disabled_class)
-                tooltips.append("Nothing to save")
-    return save_classes, tooltips, new_metadata
+                by_domain[domain_uuid] = (enabled_class, "Save new parameter domain name", dash.no_update)
+        else:
+            by_domain[domain_uuid] = (disabled_class, "Nothing to save", dash.no_update)
+
+    uuids = list(by_domain)
+    return (
+        per_domain([by_domain[uuid][0] for uuid in uuids], uuids, group=0),
+        per_domain([by_domain[uuid][1] for uuid in uuids], uuids, group=1),
+        per_domain([by_domain[uuid][2] for uuid in uuids], uuids, group=2),
+    )
 
 
 ######################################

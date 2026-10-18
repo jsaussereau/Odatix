@@ -109,8 +109,24 @@ def unescape_delimiter(delimiter):
         delimiter,
     )
 
-def replace_content(base_text, replacement_text, start_delim, stop_delim, replace_all_occurrences):
-    """Replaces text between specified delimiters in the base text with the replacement text."""
+def keep_line_count(replaced, replacement_text):
+    """
+    `replacement_text`, followed by as many line breaks as it lacks to span the
+    lines of the text it `replaced`. The lines after the block then keep their
+    number, so a line an EDA tool or the analysis reports in the work copy is
+    the same line in the source. A replacement longer than the block still
+    shifts what follows it: nothing can be taken out of it.
+    """
+    missing = replaced.count("\n") - replacement_text.count("\n")
+    return replacement_text + "\n" * missing if missing > 0 else replacement_text
+
+
+def replace_content(base_text, replacement_text, start_delim, stop_delim, replace_all_occurrences, keep_lines=True):
+    """
+    Replaces text between specified delimiters in the base text with the
+    replacement text. With `keep_lines`, a replacement shorter than the block
+    is padded with line breaks (see :func:`keep_line_count`).
+    """
     if start_delim == "" or stop_delim == "":
         return base_text, False
 
@@ -122,13 +138,93 @@ def replace_content(base_text, replacement_text, start_delim, stop_delim, replac
     match_found = re.search(pattern, base_text, flags=re.DOTALL) is not None
 
     # Use a function as replacement so backslashes in the replacement text are kept literal
-    replacement = lambda _: start_delim + replacement_text + stop_delim
+    def replacement(match):
+        text = replacement_text
+        if keep_lines:
+            text = keep_line_count(match.group(0)[len(start_delim):len(match.group(0)) - len(stop_delim)], text)
+        return start_delim + text + stop_delim
 
     if replace_all_occurrences:
         new_text = re.sub(pattern, replacement, base_text, flags=re.DOTALL)
     else:
         new_text = re.sub(pattern, replacement, base_text, count=1, flags=re.DOTALL)
     return new_text, match_found
+
+#: The line comment of each kind of file, by extension. A file Odatix does not
+#: know is read as C-like: "#" would mistake a Verilog "#(" for a comment.
+LINE_COMMENTS = {
+    ".v": "//", ".vh": "//", ".sv": "//", ".svh": "//", ".c": "//", ".h": "//", ".cpp": "//",
+    ".hpp": "//", ".cc": "//", ".scala": "//", ".sc": "//", ".java": "//", ".js": "//",
+    ".vhd": "--", ".vhdl": "--",
+    ".py": "#", ".tcl": "#", ".sh": "#", ".yml": "#", ".yaml": "#", ".mk": "#", ".cmake": "#",
+    ".xdc": "#", ".sdc": "#",
+}
+
+
+def line_comment_of(file_name):
+    """The line comment marker of a file, from its extension (C-like when unknown)."""
+    base = os.path.basename(str(file_name or ""))
+    if base in ("Makefile", "makefile", "CMakeLists.txt"):
+        return "#"
+    return LINE_COMMENTS.get(os.path.splitext(base)[1].lower(), "//")
+
+
+def comment_after_start(base_text, start_delim, stop_delim, file_name=""):
+    """
+    The line comment the start delimiter ends inside of, or None.
+
+    The text of a configuration is written right after the start delimiter. When
+    that delimiter is part of a line comment ("  // <regs>") and does not end
+    with a line break, the first line of the configuration lands in the comment:
+    a parameter written there is silently commented out.
+
+    Returns:
+        str: the comment marker ("//", "--", "#"), or None when what follows the
+        delimiter is code -- or when the delimiters match nothing.
+    """
+    if not start_delim or not stop_delim:
+        return None
+    start = unescape_delimiter(start_delim)
+    stop = unescape_delimiter(stop_delim)
+    if start.endswith("\n") or start.endswith("\r"):
+        return None
+    match = re.search(re.escape(start) + '.*?' + re.escape(stop), base_text or "", flags=re.DOTALL)
+    if match is None:
+        return None
+    line_start = base_text.rfind("\n", 0, match.start()) + 1
+    # The line the delimiter ends on, from its very beginning.
+    line = (base_text[line_start:match.start()] + start).split("\n")[-1]
+    marker = line_comment_of(file_name)
+    return marker if marker in line else None
+
+
+def first_line_of(replacement_text):
+    """The first line of a configuration, stripped -- empty when it starts with a line break."""
+    return re.split(r"\r?\n", replacement_text or "", maxsplit=1)[0].strip()
+
+
+def commented_out_message(line, start_delim, file_name=""):
+    """What to say about a configuration whose first line lands in a comment."""
+    where = ' of "' + str(file_name) + '"' if file_name else ""
+    return (
+        'The start delimiter "' + str(start_delim) + '" ends inside a line comment' + where
+        + ', and the configuration does not start with a line break: "' + line + '" ends up commented out. '
+        + 'Start the configuration with an empty line, or end the start delimiter with "\\n".'
+    )
+
+
+def commented_out_warning(base_text, replacement_text, start_delim, stop_delim, file_name=""):
+    """
+    The warning to give when writing `replacement_text` between the delimiters
+    would comment its first line out (see :func:`comment_after_start`), or None.
+    """
+    if comment_after_start(base_text, start_delim, stop_delim, file_name) is None:
+        return None
+    line = first_line_of(replacement_text)
+    if not line:
+        return None
+    return commented_out_message(line, start_delim, file_name)
+
 
 def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False):
     """
@@ -154,11 +250,17 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
     write_file(output_file, new_text)
 
     if not match_found:
-        printc.warning("Could not find pattern ", script_name=script_name, end="")
+        printc.warning("Could not find pattern \"", script_name=script_name, end="")
         printc.red(start_delimiter, end="")
         printc.grey("[…]", end="")
         printc.red(stop_delimiter, end="")
         printc.yellow("\" in \"" + base_text_file + "\"")
+    else:
+        commented = commented_out_warning(
+            base_text, replacement_text, start_delimiter, stop_delimiter, base_text_file,
+        )
+        if commented:
+            printc.warning(commented, script_name)
 
     if not silent and match_found:
         if new_text != base_text:

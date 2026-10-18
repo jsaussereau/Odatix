@@ -12,7 +12,7 @@ features:
   - title: "Two tools, one flow"
     description: "Synthesize with one tool, implement with another — Design Compiler + Innovus, Genus + ICC2, or your own pair."
   - title: "Post-route numbers"
-    description: "Real interconnect instead of estimates, next to the synthesis figures in the same results files."
+    description: "Real interconnect instead of estimates, next to the synthesis figures in Explorer."
   - title: "Selectable sources"
     description: "Pick which synthesis jobs get implemented with a wildcard selector, from the settings file or the command line."
   - title: "Resumable steps"
@@ -31,7 +31,7 @@ That is exactly what a Design Compiler + Innovus or a Genus + ICC2 flow is — t
 commands instead of one:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix synth -t design_compiler                      # synthesize
+$ odatix synth -t design_compiler --until netlist      # synthesize, netlist included
 $ odatix pnr  -t innovus --from-tool design_compiler   # implement
 {{< /code >}}
 
@@ -44,8 +44,10 @@ only place & route says what the design really achieves, with real interconnect.
 
 - **Signing off an ASIC design point.** Synthesis estimates are enough to compare
   configurations; they are not enough to commit to one.
-- **Quantifying the estimation gap.** Both runs export into the same results
-  files, so Explorer can put the estimate and the implemented result side by
+- **Quantifying the estimation gap.** Each tool exports into its own results
+  file (`results_design_compiler.yml`, `results_innovus.yml`), a place & route
+  record naming the synthesis it started from (`source_type`, `source_tool`):
+  Explorer reads both and puts the estimate and the implemented result side by
   side, per configuration.
 - **Implementing only what deserves it.** Screen a whole design space with
   synthesis, then place & route the handful of configurations that survived.
@@ -53,14 +55,14 @@ only place & route says what the design really achieves, with real interconnect.
   SDF can be wrapped as a place & route tool.
 
 > [!NOTE]
-> `pnr` is also the name of a *step* inside the FPGA flows of Vivado. There,
+> `pnr` is also the name of a *step* inside the FPGA flows of Vivado and Quartus. There,
 > place & route happens within the same tool and the same job, so no `odatix pnr`
 > run is involved. The `pnr` **command** is for the case where the netlist
 > crosses from one tool to another. See [Steps](/docs/reference/tools/#steps).
 
 ## How it works
 
-A place & route job takes a completed **fmax** or **custom frequency** synthesis
+A place & route job takes a completed **fmax** or **fixed-frequency** synthesis
 job as its input, and reads three handoff files that synthesis wrote in its
 result directory:
 
@@ -73,7 +75,9 @@ result directory:
 > [!IMPORTANT]
 > A synthesis job can only feed a place & route run if its flow actually wrote
 > those three files. A flow that never writes them cannot be a source, whatever
-> its status says.
+> its status says. A Design Compiler fixed-frequency synthesis writes them in
+> its last step, `netlist`, which a default run stops short of: run it
+> `--until netlist`.
 
 The place & route tool reaches them through the `$source_netlist`, `$source_sdc`
 and `$source_sdf` variables, plus `$source_work_path` pointing at the synthesis
@@ -90,18 +94,27 @@ Odatix ships two place & route tool definitions, **Innovus** and **IC Compiler
 II**. Both declare `pnr` as their only job type, so they never appear as a target
 for `odatix fmax` or `odatix synth`.
 
+Innovus comes with several **strategies**, picked with `-f/--flow` like the
+synthesis ones: `standard`, `express`, `extreme` (the three flow efforts of
+Innovus), `timing`, `area` and `power`. They run the same steps and only change
+the parameters the scripts read — floorplan utilization, flow and power effort,
+the options of the placement, optimization and routing modes, hold fixing (see
+[Flow parameters](/docs/reference/tools/#flow-parameters)). Each strategy gets its own job
+directory (`innovus@timing`), so they can be compared on the same netlists.
+
 > [!WARNING]
 > These two definitions are a **starting point, not a validated flow**. The steps
 > run the usual sequence, but the technology setup — LEF, QRC, MMMC, NDM
 > libraries, power intent — is design and foundry specific and lives in the
 > technology script your target file brings in. Adjust them to your PDK before
-> trusting the numbers.
+> trusting the numbers. The Innovus flow has been run end to end, Design
+> Compiler netlist to signoff, with the AMS C35 technology script Odatix ships.
 
 ## Working with the rest of Odatix
 
 | Combine it with | Why |
 |-----------------|-----|
-| [Custom-frequency synthesis](/docs/features/rtl_synthesis/) · [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | Where the source jobs come from — a place & route run has nothing to do without one. |
+| [Fixed-frequency synthesis](/docs/features/rtl_synthesis/) · [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | Where the source jobs come from — a place & route run has nothing to do without one. |
 | [Architecture exploration](/docs/features/architecture-exploration/) | The source selector accepts wildcards, so a whole set of configurations is implemented in one command. |
 | [Explorer](/docs/features/explorer/) | Compare post-route reality against the synthesis estimate that predicted it. |
 | [Tools](/docs/tools/add_tools/) | Adding a place & route tool is declaring `pnr_steps` in a `tool.yml`. |
@@ -124,10 +137,15 @@ Which synthesis jobs to implement is declared in
 nb_jobs: 8
 
 sources:
-  - custom_freq_synthesis/design_compiler/gf22/Example_ALU_sv/08bits@100MHz
-  - fmax_synthesis/genus/gf22/Example_Counter_sv/*
+  - custom_freq_synthesis/design_compiler/AMS_c35_1V8/Example_ALU_sv/08bits@100MHz
+  - fmax_synthesis/genus/AMS_c35_1V8/Example_Counter_sv/*
   - custom_freq_synthesis/*/*/*/*        # everything that can be implemented
 {{< /code >}}
+
+The file Odatix ships takes every completed synthesis
+(`custom_freq_synthesis/*/*/*/*` and `fmax_synthesis/*/*/*/*`). A selection
+that matches no completed synthesis stops the run with the list of the sources
+there are.
 
 The command line narrows the same selection without editing the file, and steps
 control how far a run goes:
@@ -135,7 +153,7 @@ control how far a run goes:
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix pnr -t innovus --from-tool design_compiler
 $ odatix pnr -t innovus --from-type fmax_synthesis
-$ odatix pnr -t icc2    --from-tool genus --from-flow fast
+$ odatix pnr -t icc2    --from-tool genus --from-flow timing
 $ odatix pnr -t innovus --until route          # stop after routing
 $ odatix pnr -t innovus --rerun-from place     # redo placement onwards
 {{< /code >}}
@@ -144,7 +162,7 @@ $ odatix pnr -t innovus --rerun-from place     # redo placement onwards
 |--------|---------|
 | `--from-type` | Only the synthesis jobs of this type (`fmax_synthesis` or `custom_freq_synthesis`). |
 | `--from-tool` | Only the jobs run with this eda tool. |
-| `--from-flow` | Only the jobs run with this flow of `--from-tool`. |
+| `--from-flow` | Only the jobs run with this flow of `--from-tool` (a flow the tool does not have is an error). |
 
 Every key is on the
 [run settings reference](/docs/reference/run_settings/#sources--place--route-inputs);
@@ -153,7 +171,7 @@ every option, including the shared runtime ones, on the
 
 ### From the GUI
 
-`odatix-gui` → **Run** → **Place & Route** lists the tools that declare a `pnr`
+`odatix-gui` → **Run jobs** → **Run place & route** lists the tools that declare a `pnr`
 job type, then the sources actually available in your work directory — so you
 pick from what exists rather than guessing a selector. Choosing a step on the
 tool's card runs up to that step. The page writes `pnr_settings.yml` and

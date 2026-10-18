@@ -203,6 +203,11 @@ $ odatix synth -t vivado                    # only runs the bitstream step
 $ odatix synth -t vivado --rerun-from pnr   # redo place & route onwards
 {{< /code >}}
 
+The steps above are an example. The built-in Vivado tool runs a fixed-frequency
+synthesis in four steps, `elaboration` (operator and register counts, in
+seconds), `synthesis`, `pnr` (where a plain run stops) and `bitstream`; its fmax
+search has no `elaboration` step.
+
 ### Merging steps by name
 
 A flow redefining `<job_type>_steps` does **not** replace the list: steps are
@@ -310,8 +315,12 @@ Commands are expanded before being run:
 | `$tool_path` | The tool's own directory (the workspace one when it exists). |
 | `$eda_tools_path` | The built-in tools directory. |
 | `$odatix_path` | The Odatix installation directory. |
-| `$tool_install_path` | The `tool_install_path` of the target file. |
+| `$tool_install_path` | The `tool_install_path` of the target file; empty when the tool is on your `PATH`. |
+| `$rtl_path`, `$report_path`, `$result_path` | `<work_path>/rtl`, `<work_path>/report`, `<work_path>/result`. |
 | `$clock_signal`, `$top_level_module`, `$lib_name` | Of the design being run. |
+| `$architecture` | The design and its configuration, `Counter/08bits`. |
+| `$target`, `$tool` | The target the job runs on, and the tool. |
+| `$<parameter>` | The value of a [parameter](#parameters-a-strategy-in-a-few-lines) of the flow; a list is joined with spaces. |
 | `$source_work_path`, `$source_tool` | Place & route jobs only: the synthesis job this one continues. |
 | `$first_step`, `$last_step`, `$steps` | Stepped job types only: the steps the process about to run covers. |
 
@@ -331,7 +340,9 @@ flows:
       synth_options: [-flatten_hierarchy, full, -retiming]
 {{< /code >}}
 
-A flow running scripts of your own declares its steps instead:
+A flow running scripts of your own declares its steps instead. The Vivado
+fixed-frequency synthesis has four steps (`elaboration`, `synthesis`, `pnr`,
+`bitstream`): this one replaces `synthesis` and inherits the others.
 
 {{< code lang=yaml filename="odatix_userconfig/tools/vivado/tool.yml" >}}
 flows:
@@ -485,7 +496,7 @@ re-emits a flat, anchor-free `tool.yml` on save.
 
 ## From the GUI
 
-**EDA Tools → Settings** opens the Tool Editor, whose **Flows** section mirrors
+**Configure → Tools → Settings** opens the Tool Editor, whose **Flows** section mirrors
 everything above: one card per flow, foldable, with its label, description, and,
 per platform and per job type, a three-way choice:
 

@@ -46,11 +46,12 @@ They are declared in a single workspace file (``derived_metrics.yml``)::
         for: "@cpus"
         unit: us
 
-Derived metrics are *not* computed at export time: the record they need may not
-exist yet when a job finishes (a synthesis can complete before the simulation it
-borrows from has run). They are recomputed from scratch over the whole result
-set, every time odatix.components.export_derived_metrics runs, which is why
-applying them twice is a no-op rather than a duplication.
+Derived metrics are not computed as each job is exported: the record they need
+may not exist yet when a job finishes (a synthesis can complete before the
+simulation it borrows from has run). They are recomputed from scratch over the
+whole result set once every job of a run is done, and by "odatix results" and
+"odatix results derived" (odatix.components.export_derived_metrics), which is
+why applying them twice is a no-op rather than a duplication.
 
 How a source record is matched
 ------------------------------
@@ -63,9 +64,17 @@ is what makes an invariant domain (see the "invariant_domains" setting of a
 simulation) broadcast over every value of that domain without anything to
 declare here.
 
+How the job ran (target, frequency, tool, flow...) is not part of that join,
+with one exception: between two records of the same type (two steps of a
+synthesis job), a record only reads the steps of its own job. Without it, the
+place & route of a job at 50 MHz would read the synthesis of every frequency
+and target the design ran at. A record of the job itself is preferred even
+under an explicit ``keys``.
+
 That default is refined per metric by ``match``:
 
-  * ``keys``:   join on exactly these dimensions, and nothing else;
+  * ``keys``:   join on exactly these dimensions, and nothing else (target,
+                frequency, tool and flow included, when named);
   * ``ignore``: drop these dimensions from the join;
   * ``pin``:    require a fixed value on the source side, and drop the
                 dimension from the join;
@@ -77,16 +86,14 @@ Reading the meta of a record
 Not everything worth computing with is a metric: the frequency a custom
 frequency synthesis ran at, the target it ran on, or the value of a parameter
 domain live in the record's meta. ``meta.<key>`` reaches them, both as the
-metric an import copies and inside an operation::
+metric an import copies (the meta of the *source* record) and inside an
+operation (the meta of the record being computed)::
 
     derived_metrics:
-      Frequency:
-        from: custom_freq
-        metric: meta.frequency     # the meta of the *source* record
-        unit: MHz
       Runtime:
         type: operation
-        op: "Cycles / meta.frequency"   # the meta of the record being computed
+        op: "Cycles / meta.frequency"
+        apply_to: custom_freq
 
 Values that read as numbers are converted, the others are left as text. A key
 the record does not carry makes the operation skip that record, exactly like an
@@ -329,10 +336,14 @@ def base_configuration(meta):
   return configuration.split("+")[0]
 
 
-def join_dimensions(meta):
+def join_dimensions(meta, reserved=()):
   """
   The dimensions of a record a join may run on: which design point it is, and
   nothing about how the job that produced it ran.
+
+  Args:
+      reserved: reserved keys to keep anyway (target, frequency, tool...),
+          because a ``match`` names them.
 
   Returns:
       dict: dimension name -> value (as a string).
@@ -343,7 +354,7 @@ def join_dimensions(meta):
 
   for key, value in meta.items():
     key = str(key)
-    if key.startswith("_") or key in NON_JOIN_RESERVED_KEYS:
+    if key.startswith("_") or (key in NON_JOIN_RESERVED_KEYS and key not in reserved):
       continue
     if key in (results_schema.META_CONFIGURATION, results_schema.MAIN_DOMAIN_META_KEY):
       continue
@@ -476,6 +487,15 @@ class DerivedMetric:
     if isinstance(match.get("map"), dict):
       # Written source-side name -> target-side name.
       self.match_map = {str(key): str(value) for key, value in match["map"].items()}
+    # Reserved keys (target, frequency, tool, flow...) never take part in a join
+    # on their own, but one that "match" names explicitly does: dropping it in
+    # silence would join records the user asked to keep apart.
+    named = set(self.match_on) | set(self.match_pin) | set(self.match_map) | set(self.match_map.values())
+    self.match_reserved = tuple(sorted(key for key in named if key in NON_JOIN_RESERVED_KEYS))
+    # Between records of the same type (two steps of a synthesis), the join is
+    # on the job itself, unless "match.keys" says exactly what to join on (a
+    # metric read from another tool's synthesis of the same design, say).
+    self.same_job_only = not self.match_on
 
     self.on_multiple = str(definition.get("on_multiple", "error")).strip().lower()
     if self.on_multiple not in ON_MULTIPLE_CHOICES:
@@ -540,11 +560,15 @@ class DerivedMetric:
         return False
     return True
 
+  def target_dimensions(self, meta):
+    """The join dimensions of a record that may receive this metric."""
+    return join_dimensions(meta, self.match_reserved)
+
   def source_dimensions(self, meta):
     """
     The join dimensions of a source record, renamed to the target-side naming.
     """
-    dimensions = join_dimensions(meta)
+    dimensions = join_dimensions(meta, self.match_reserved)
     if not self.match_map:
       return dimensions
     renamed = {}
@@ -825,7 +849,7 @@ def apply_derived_metrics(config, records, units=None):
           value = record.get("metrics", {}).get(metric.source_metric)
         if value is None:
           continue
-        sources.append((dimensions, value))
+        sources.append((dimensions, value, meta.get(results_schema.META_TYPE), results_schema.job_identity(meta)))
     else:
       sources = None
 
@@ -841,12 +865,26 @@ def apply_derived_metrics(config, records, units=None):
         continue
 
       if metric.kind == KIND_IMPORT:
-        target_dimensions = join_dimensions(meta)
+        target_dimensions = metric.target_dimensions(meta)
+        target_type = meta.get(results_schema.META_TYPE)
+        target_job = results_schema.job_identity(meta)
         matched = []
-        for source_dimensions, value in sources:
+        for source_dimensions, value, source_type, source_job in sources:
+          same_job = source_job == target_job
+          if metric.same_job_only and source_type == target_type and not same_job:
+            # A record of the same kind of job is another step of the same
+            # job, or nothing: the place & route of a job at 50 MHz on one
+            # target reads the synthesis of that very job, not the one of every
+            # frequency and target the design was run at.
+            continue
           keys = metric.join_keys(target_dimensions, source_dimensions)
           if all(target_dimensions.get(key) == source_dimensions.get(key) for key in keys):
-            matched.append(value)
+            matched.append((value, same_job))
+        # Whatever the join, the job itself is the most specific source there is
+        if any(same_job for _, same_job in matched):
+          matched = [value for value, same_job in matched if same_job]
+        else:
+          matched = [value for value, _ in matched]
 
         if len(matched) == 0:
           missing.append(_record_label(meta).rstrip(" =>"))

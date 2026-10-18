@@ -33,6 +33,7 @@ import os
 import re
 import csv
 import json
+import time
 import yaml
 import xml.etree.ElementTree as ET
 
@@ -52,12 +53,33 @@ script_name = os.path.basename(__file__)
 # "$" match at every line boundary, not only at the ends of the file.
 REGEX_FLAGS = re.MULTILINE
 
+# A missing report is said once, not once per metric read from it: a failed job
+# whose results.yml never got written would otherwise print one error per
+# metric. The same file missing again a while later (a later export of a re-run
+# job, in a long-lived daemon) is said again.
+MISSING_FILE_REPEAT_S = 60.0
+_missing_reported = {}
+
+
+def report_missing_file(file, error_prefix=""):
+    """Say that a file a metric reads does not exist, once per file."""
+    now = time.time()
+    key = os.path.abspath(str(file))
+    last = _missing_reported.get(key)
+    _missing_reported[key] = now
+    if last is not None and now - last < MISSING_FILE_REPEAT_S:
+        return
+    if len(_missing_reported) > 4096:
+        _missing_reported.clear()
+        _missing_reported[key] = now
+    printc.error(error_prefix + 'File "' + file + '" does not exist: no metric can be read from it', script_name)
+
 
 def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix=""):
     """Return the first regex match group in a file, or None."""
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     with open(file, "r") as f:
@@ -79,7 +101,7 @@ def parse_regex_all(file, pattern, group_id, error_if_missing=True, error_prefix
     """Like parse_regex, but return the list of every match (one per record row)."""
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     with open(file, "r") as f:
@@ -99,7 +121,7 @@ def parse_csv(file, key, error_if_missing=True, error_prefix=""):
     """Return the first row's value for `key` in a CSV file, or None."""
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     with open(file, mode="r") as csv_file:
@@ -121,7 +143,7 @@ def parse_csv_all(file, key, error_if_missing=True, error_prefix=""):
     """Like parse_csv, but return the list of every row's value for `key`."""
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     values = []
@@ -144,7 +166,7 @@ def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
     """Return a YAML file's content, or the value for `key` (None if missing)."""
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     with open(file, "r") as yaml_file:
@@ -168,7 +190,7 @@ def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
     """Return a JSON file's content, or the value for `key` (None if missing)."""
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     with open(file, "r") as json_file:
@@ -224,7 +246,7 @@ def parse_xml(file, key=None, error_if_missing=True, error_prefix=""):
     """
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     try:
@@ -250,7 +272,7 @@ def parse_xml_all(file, key, error_if_missing=True, error_prefix=""):
     """Like parse_xml, but return the list of every matching element's value."""
     if not os.path.isfile(file):
         if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+            report_missing_file(file, error_prefix)
         return None
 
     try:
@@ -283,6 +305,24 @@ def convert_to_numeric(data):
         return int(data)
     except Exception:
         return data
+
+
+def exact_value(value):
+    """
+    An extracted value as a number when it reads as one, never rounded: what
+    an "operation" metric computes on, rather than the value its "format"
+    writes (a ratio of two rounded values can be far off, or a division by a
+    value rounded to zero).
+    """
+    if value is None:
+        return None
+    value = convert_to_numeric(value)
+    if isinstance(value, str):
+        try:
+            return float(value)  # "1e-05"
+        except ValueError:
+            pass
+    return value
 
 
 def calculate_operation(op_str, results, error_if_missing=True, error_prefix=""):

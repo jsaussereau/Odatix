@@ -102,8 +102,8 @@ configure hangs off it, and nothing else needs to be given a path.
 | `tools` *(property)* | The EDA tools usable by this workspace, built-in ones included. |
 | `targets` *(property)* | The synthesis targets, one file per EDA tool. |
 | `jobs` *(property)* | What each run command of this workspace runs, and how. |
-| `derived_metrics` *(property)* | The metrics this workspace computes from the ones its runs produce. |
-| `clean_settings` *(property)* | What "odatix clean" removes from this workspace. |
+| `derived_metrics` *(property)* | The metrics this workspace computes from the ones its runs produce. Always the same object for a given workspace (until `reload()`), so `ws.derived_metrics.set(...)` then `ws.derived_metrics.save()` saves the change. |
+| `clean_settings` *(property)* | What "odatix clean" removes from this workspace. Always the same object for a given workspace (until `reload()`). |
 
 | Method | What it does |
 |---|---|
@@ -342,6 +342,10 @@ Instances behave both as objects (`settings.rtl_path`) and as mappings
 (`settings["rtl_path"]`, `dict(settings.items())`), so they can be
 handed to code that expects either.
 
+Setting an attribute the class does not declare raises AttributeError,
+so that a misspelled setting is not silently left out of the file. A key it
+does not declare is set as a mapping key, and kept in `extra`.
+
 Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 
 | Attribute | What it is |
@@ -459,8 +463,10 @@ and `arch.configs` are the configurations of that main domain.
 | `update(values=None, **kwargs)` | Change some settings and write them back, in one call. |
 | `exclusions(applied=None)` | The combinations of its parameter domains this architecture does not have (see `odatix.workspace.exclusions`). *Args:* `applied` *(list)* — which kinds to apply -- `illegal` and `duplicate` when nothing says otherwise, a campaign being the one entitled to ask for `dominated` too. *Returns:* `ExclusionSet` — the rules, empty when the architecture declares none. |
 | `parameter_domains()` | The configurations of every domain that actually uses parameters, as a `{domain: [configuration, ...]}` mapping. Domains that substitute nothing, and domains without configurations, are left out: they add no axis to the sweep. |
-| `combinations()` | Every configuration combination of this architecture, written the way a job selection names it. |
-| `count_combinations()` | How many configuration combinations this architecture amounts to. |
+| `variable_combinations()` | The combinations of the variables this architecture substitutes into its commands (the variables of a file without a configuration template), each a list of `"variable/value"` selectors. Paired variables are zipped, the others crossed, as a run does. Empty without such variables. |
+| `combinations(exclusions=True)` | Every configuration combination of this architecture, written the way a job selection names it: its parameter domains crossed with its variables (see `variable_combinations()`). This is the full sweep, every domain included -- what the selection `"<arch>/* + <domain>/* + ..."` runs, naming every domain. A selection that leaves a domain out (`"<arch>/*"`) does not sweep it: the sources keep the value written in them. *Args:* `exclusions` *(bool)* — leave out the combinations the architecture excludes (see `exclusions()`), as a run does. |
+| `count_combinations(exclusions=True)` | How many configuration combinations this architecture amounts to: the length of `combinations()`, i.e. how many jobs the full sweep runs per target and frequency. |
+| `preview_configurations()` | The configurations the rules of the main parameter domain describe, as a `{name: content}` mapping, without writing anything (see `ParameterDomain.preview_configurations()`; the other domains have their own, under `domains`). |
 | `frequencies(target='', configuration='', tool='', flow='', mode='fmax', fallback=None)` | The frequencies this architecture is run at, for one of its configurations on one target (see `resolve_frequencies()`). |
 | `generate_configurations(overwrite=False, clear=False, domains=None)` | Generate the configurations of the domains that are set to generate them, and return what was written, as a `{domain: [name, ...]}` mapping. *Args:* `overwrite` *(bool)* — replace configurations that already exist.; `clear` *(bool)* — delete the existing configurations of a domain first.; `domains` *(list)* — restrict the generation to these domains. |
 
@@ -566,7 +572,7 @@ Declared settings:
 
 Derives from `Settings`.
 
-The frequencies a custom frequency synthesis runs at, in MHz.
+The frequencies a fixed-frequency synthesis runs at, in MHz.
 
 They come as a list, as a range, or as both: a range is expanded and
 appended to the list. A range whose step is missing, zero or "No" is off,
@@ -657,7 +663,8 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `delete(name)` | Delete a domain. Deleting one that is already gone does nothing. |
 | `rename(name, new_name)` |  |
 | `duplicate(name, new_name, instance=None)` |  |
-| `configs()` | The configurations of every domain, as a `{domain: [name, ...]}` mapping. |
+| `configs()` | The configuration files of every domain, as a `{domain: [name, ...]}` mapping -- what each `domain.configs` holds on disk. What the rules of a domain describe without having been written is not among them: see `configuration_names()`. |
+| `configuration_names()` | The configurations of every domain, rules and files together, as a `{domain: [name, ...]}` mapping (see `ParameterDomain.configuration_names()`): what a run sweeps. |
 
 ### `DomainSettings`
 
@@ -949,7 +956,7 @@ One simulation of a workspace.
 | `param_dirs` *(property)* | The configuration directories this simulation substitutes parameters from, in the order they are written and without repetition. |
 | `domains` *(property)* | The configuration directories of this simulation, as parameter domains. |
 | `metrics_path` *(property)* |  |
-| `metrics` *(property)* | The metrics this simulation extracts from its runs. |
+| `metrics` *(property)* | The metrics this simulation extracts from its runs. The same object on every access, like `settings`: what is set on it is what `metrics.save()` writes. |
 
 | Method | What it does |
 |---|---|
@@ -966,6 +973,10 @@ The simulations of a workspace.
 | Attribute | What it is |
 |---|---|
 | `entry_class` | `Simulation` |
+
+| Method | What it does |
+|---|---|
+| `templates()` | The simulation templates Odatix provides (ghdl, verilator, questa, ..., see odatix.sim.templates), which a run names like the simulations of the workspace, and which a simulation can start from. One that a simulation of the workspace has the name of is replaced by it, and is left out. |
 
 ### `SimulationDomainCollection`
 
@@ -999,15 +1010,19 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
+| **Template** | | | |
+| `template` | `str` |  | Simulation template the simulation starts from (ghdl, verilator, questa, xsim, icarus, or a simulation of the workspace): its settings are the template's, merged with these. See odatix.sim.templates. |
+| **Testbench** | | | |
+| `testbench` | `Testbench` | `Testbench(top='', files=[], parameters={}, cycles=None, stimulus='', waves=None)` | Testbench the simulation runs: "top", "files" and "parameters". Without files, the architecture's testbench runs, else the files of "tb/", else a generated one. |
 | **Architectures** | | | |
 | `architectures` | `list` |  | Architectures this simulation runs on, and what it changes for each of them: a list of names, a name optionally holding "param_domains" (per-domain parameter substitution: "param_file" for the same parameters whichever configuration runs, "param_dir" for one configuration per value of the domain, and "combine" to say whether the substitution described there is done instead of the architecture's or as well as it) and "metrics_file" (the metrics file to extract with, instead of "_metrics.yml"). Names accept wildcards, "*" standing for every architecture, and entries matching the architecture under test are applied in the order they are written. Listing an architecture is an indication, not a restriction: running the simulation on one it does not list is allowed, and only prints a warning. |
 | **Delimiters for parameter files (deprecated, use param_domains)** | | | |
-| `use_parameters` | `bool` | `True` | Deprecated. Whether the parameters of the architecture are substituted into the testbench. |
+| `use_parameters` | `any` |  | Deprecated. Whether the parameters of the architecture are substituted into the testbench. |
 | `param_target_file` | `str` |  | Deprecated. File the parameters are written into. |
 | `start_delimiter` | `str` |  | Deprecated. Text after which the parameters are written. Escape sequences such as \n are supported. |
 | `stop_delimiter` | `str` |  | Deprecated. Text before which the parameters are written. Escape sequences such as \n are supported. |
 | **Parameter override (deprecated, use param_domains)** | | | |
-| `override_parameters` | `bool` | `False` | Deprecated. Whether this simulation substitutes parameters of its own on top of the architecture's. |
+| `override_parameters` | `any` |  | Deprecated. Whether this simulation substitutes parameters of its own on top of the architecture's. |
 | `override_param_file` | `str` |  | Deprecated. File holding the overriding parameters. |
 | `override_param_target_file` | `str` |  | Deprecated. File they are written into. |
 | `override_start_delimiter` | `str` |  | Deprecated. Text after which they are written. Escape sequences such as \n are supported. |
@@ -1023,6 +1038,8 @@ Declared settings:
 
 ### `Workflow`
 
+`Workflow(workspace, root, name)`
+
 Derives from `Architecture`.
 
 One workflow of a workspace.
@@ -1037,8 +1054,12 @@ is its settings and the metrics file it carries.
 | `settings_class` | `WorkflowSettings` |
 | `substitutes_in_commands` | `True` |
 | `metrics_path` *(property)* |  |
-| `metrics` *(property)* | The metrics this workflow extracts from its runs. |
+| `metrics` *(property)* | The metrics this workflow extracts from its runs. The same object on every access, like `settings`: what is set on it is what `metrics.save()` writes. |
 | `tasks` *(property)* | The task graph of this workflow, as it is stored. |
+
+| Method | What it does |
+|---|---|
+| `reload()` | Forget the settings and metrics held in memory and read them from file again. |
 
 ### `WorkflowCollection`
 
@@ -1150,7 +1171,8 @@ Supports `x["name"]`, iteration.
 | `exists(name)` | True when the workspace defines this tool (built-in tools excluded). |
 | `get(name, default=None)` | The entry, or `default` when there is no such entry. |
 | `create(name, **settings)` | Create a workspace tool with a minimal tool.yml, and return it. |
-| `import_builtin(name, new_name)` | Copy a built-in tool into the workspace under another name, so it can be edited as a tool of its own. |
+| `import_builtin(name, new_name)` | Copy a built-in tool into the workspace under another name, so it can be edited as a tool of its own. The copy is the whole tool as it runs in this workspace: what Odatix ships (its tool.yml, scripts and metrics), with this workspace's changes to it merged in (flows added in its overlay, metrics completed or overridden, scripts added). Paths into the built-in tool's directory become paths into the copy's (`$tool_path`), so the copy runs its own scripts and reads its own metrics. Its target file is copied too, unless the tool names a target file of another tool ("target_file"). |
+| `duplicate(name, new_name)` | Copy a tool of the workspace under another name, its target file included. A built-in tool is copied by `import_builtin()`. |
 
 ### `ToolSettings`
 
@@ -1230,7 +1252,7 @@ One way of running a tool: a set of commands, per platform and job type.
 | `execution(job_type, platform='unix')` | What this flow runs for a job type on a platform. |
 | `command(job_type, platform='unix')` | The command of a job type, or an empty list when it is not a plain command. |
 | `steps(job_type, platform='unix')` | The steps of a job type, or an empty list when it is not run in steps. |
-| `set_command(job_type, command, platform='unix')` | Make a job type run one command. |
+| `set_command(job_type, command, platform='unix')` | Make a job type run one command. Example: `flow = tool.settings.default_flow flow.set_command("tool_test", "mytool --version") flow.set_command("custom_freq_synthesis", "cd $work_path; python3 $tool_path/run.py")` *Args:* `job_type` *(str)* — one of `JOB_TYPES`: "tool_test" (the command checking the tool is installed, run before any job), "fmax_synthesis", "custom_freq_synthesis", "pnr" or "analysis".; `command` *(str \| list)* — the command, or its words; the words are joined with spaces. It may use the variables of the job ($work_path, $script_path, ...) and the parameters of the flow ($<name>).; `platform` *(str)* — "unix" or "windows". |
 | `set_steps(job_type, steps, platform='unix', session=None)` | Make a job type run a sequence of resumable steps. Each step is a `{"name", "command", "default"}` mapping or a `Step`. Steps declaring `args` rather than a `command` are fragments of `session` (a `{"command", "begin", "end"}` mapping or a `Session`): the steps of a run then share one process of the tool. |
 | `session(job_type, platform='unix')` | How a job type opens the tool, as a `Session`. |
 | `inherit(job_type, platform='unix')` | Declare nothing for a job type, so the default flow's commands apply. |
@@ -1313,6 +1335,9 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `path` *(property)* | Path of the target file, as Odatix resolves it: the name comes from the tool ("target_file" in its tool.yml), and an existing file found next to the workspace settings is edited where it is rather than moved. |
 | `exists` *(property)* |  |
 | `targets` *(property)* | The targets of the tool, in file order. |
+| `constraint_file` *(property)* | File of the job directory that holds the clock constraint: Odatix writes it there as SDC before the job runs, then the scripts of a tool that sources `_common/init_script.tcl` rewrite it in the tool's own format. "constraints.sdc" when the file names none. |
+| `tool_install_path` *(property)* | Installation directory of the tool; empty when it is on the PATH. |
+| `force_single_thread` *(property)* | Whether the tool is asked to run on a single thread. |
 
 | Method | What it does |
 |---|---|
@@ -1328,7 +1353,8 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `enable(name, save=True)` |  |
 | `disable(name, save=True)` |  |
 | `save()` | Write the target list back, keeping the comments and every other key of the file. Disabled targets are written as commented-out entries. |
-| `settings()` | Everything the target file holds, as plain values. Useful to read the keys that belong to the tool rather than to the target list (its constraint file, its install path, ...). |
+| `settings()` | Everything the target file holds, as plain values. Useful to read the keys that belong to the tool rather than to the target list (its constraint file, its install path, ...). Changes made by `update()` and not saved yet are included. |
+| `update(save=True, **values)` | Change the settings of the tool held by this file, and, unless told otherwise, write the file back. Example: `ws.targets["mytool"].update(constraint_file="constraints.sdc", tool_install_path="/opt/mytool")` *Args:* `constraint_file` *(str)* — file of the job directory holding the clock constraint.; `tool_install_path` *(str)* — installation directory of the tool; empty when it is on the PATH.; `force_single_thread` *(bool)* — run the tool on a single thread. |
 
 ### `TargetFileCollection`
 
@@ -1536,17 +1562,17 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
-| ** overwrite existing results** | | | |
+| **Overwrite existing results** | | | |
 | `overwrite` | `bool` | `False` | Whether results that already exist are run again. |
-| ** prompt 'Continue? (Y/n)' after settings checks** | | | |
-| `ask_continue` | `bool` | `False` | Whether the run stops for a confirmation once it knows what it will do. |
-| ** exit monitor when all jobs are done** | | | |
+| **Prompt 'Continue? (Y/n)' after settings checks** | | | |
+| `ask_continue` | `bool` | `True` | Whether the run stops for a confirmation once it knows what it will do. |
+| **Exit monitor when all jobs are done** | | | |
 | `exit_when_done` | `bool` | `False` | Whether the monitor closes by itself once every job is done. |
-| ** size of the log history per job in the monitor** | | | |
+| **Size of the log history per job in the monitor** | | | |
 | `log_size_limit` | `int` | `300` | How many log lines the monitor keeps per job. |
-| ** maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
+| **Maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
 | `nb_jobs` | `any` | `8` | How many jobs run in parallel. An integer, or "auto". |
-| ** force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
+| **Force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
 | `force_single_thread` | `bool` | `False` | Whether each job is asked to use a single thread. |
 
 ### `FmaxSynthesisJobSettings`
@@ -1563,21 +1589,21 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
-| ** overwrite existing results** | | | |
+| **Overwrite existing results** | | | |
 | `overwrite` | `bool` | `False` | Whether results that already exist are run again. |
-| ** prompt 'Continue? (Y/n)' after settings checks** | | | |
-| `ask_continue` | `bool` | `False` | Whether the run stops for a confirmation once it knows what it will do. |
-| ** exit monitor when all jobs are done** | | | |
+| **Prompt 'Continue? (Y/n)' after settings checks** | | | |
+| `ask_continue` | `bool` | `True` | Whether the run stops for a confirmation once it knows what it will do. |
+| **Exit monitor when all jobs are done** | | | |
 | `exit_when_done` | `bool` | `False` | Whether the monitor closes by itself once every job is done. |
-| ** size of the log history per job in the monitor** | | | |
+| **Size of the log history per job in the monitor** | | | |
 | `log_size_limit` | `int` | `300` | How many log lines the monitor keeps per job. |
-| ** maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
+| **Maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
 | `nb_jobs` | `any` | `8` | How many jobs run in parallel. An integer, or "auto". |
-| ** force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
+| **Force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
 | `force_single_thread` | `bool` | `False` | Whether each job is asked to use a single thread. |
-| ** fmax binary search bounds (in MHz)** | | | |
+| **Fmax binary search bounds (in MHz)** | | | |
 | `fmax_synthesis` | `FmaxBoundsSettings` | `FmaxBoundsSettings(override=False, lower_bound=None, upper_bound=None)` | Bounds the binary search runs in. |
-| ** targeted architectures** | | | |
+| **Targeted architectures** | | | |
 | `architectures` | `any` |  | Architecture configurations to run, as "<architecture>/<configuration>". |
 
 ### `CustomFreqSynthesisJobSettings`
@@ -1594,21 +1620,21 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
-| ** overwrite existing results** | | | |
+| **Overwrite existing results** | | | |
 | `overwrite` | `bool` | `False` | Whether results that already exist are run again. |
-| ** prompt 'Continue? (Y/n)' after settings checks** | | | |
-| `ask_continue` | `bool` | `False` | Whether the run stops for a confirmation once it knows what it will do. |
-| ** exit monitor when all jobs are done** | | | |
+| **Prompt 'Continue? (Y/n)' after settings checks** | | | |
+| `ask_continue` | `bool` | `True` | Whether the run stops for a confirmation once it knows what it will do. |
+| **Exit monitor when all jobs are done** | | | |
 | `exit_when_done` | `bool` | `False` | Whether the monitor closes by itself once every job is done. |
-| ** size of the log history per job in the monitor** | | | |
+| **Size of the log history per job in the monitor** | | | |
 | `log_size_limit` | `int` | `300` | How many log lines the monitor keeps per job. |
-| ** maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
+| **Maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
 | `nb_jobs` | `any` | `8` | How many jobs run in parallel. An integer, or "auto". |
-| ** force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
+| **Force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
 | `force_single_thread` | `bool` | `False` | Whether each job is asked to use a single thread. |
-| ** synthesis frequencies (in MHz)** | | | |
+| **Synthesis frequencies (in MHz)** | | | |
 | `frequencies` | `FrequenciesSettings` | `FrequenciesSettings(override=False, use_custom_freq_list=True, frequencies=[50, 100], use_custom_freq_range=True, range=FrequencyRange(start=50, stop=100, step=10))` | Frequencies the designs are synthesized at. |
-| ** targeted architectures** | | | |
+| **Targeted architectures** | | | |
 | `architectures` | `any` |  | Architecture configurations to run, as "<architecture>/<configuration>". |
 
 ### `PnrJobSettings`
@@ -1625,19 +1651,19 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
-| ** overwrite existing results** | | | |
+| **Overwrite existing results** | | | |
 | `overwrite` | `bool` | `False` | Whether results that already exist are run again. |
-| ** prompt 'Continue? (Y/n)' after settings checks** | | | |
-| `ask_continue` | `bool` | `False` | Whether the run stops for a confirmation once it knows what it will do. |
-| ** exit monitor when all jobs are done** | | | |
+| **Prompt 'Continue? (Y/n)' after settings checks** | | | |
+| `ask_continue` | `bool` | `True` | Whether the run stops for a confirmation once it knows what it will do. |
+| **Exit monitor when all jobs are done** | | | |
 | `exit_when_done` | `bool` | `False` | Whether the monitor closes by itself once every job is done. |
-| ** size of the log history per job in the monitor** | | | |
+| **Size of the log history per job in the monitor** | | | |
 | `log_size_limit` | `int` | `300` | How many log lines the monitor keeps per job. |
-| ** maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
+| **Maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
 | `nb_jobs` | `any` | `8` | How many jobs run in parallel. An integer, or "auto". |
-| ** force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
+| **Force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
 | `force_single_thread` | `bool` | `False` | Whether each job is asked to use a single thread. |
-| ** completed synthesis jobs to place & route, written
+| **Completed synthesis jobs to place & route, written
  <source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]
  with "*" accepted at every level** | | | |
 | `sources` | `str_list` |  | Completed synthesis jobs to start from. |
@@ -1656,19 +1682,19 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
-| ** overwrite existing results** | | | |
+| **Overwrite existing results** | | | |
 | `overwrite` | `bool` | `False` | Whether results that already exist are run again. |
-| ** prompt 'Continue? (Y/n)' after settings checks** | | | |
-| `ask_continue` | `bool` | `False` | Whether the run stops for a confirmation once it knows what it will do. |
-| ** exit monitor when all jobs are done** | | | |
+| **Prompt 'Continue? (Y/n)' after settings checks** | | | |
+| `ask_continue` | `bool` | `True` | Whether the run stops for a confirmation once it knows what it will do. |
+| **Exit monitor when all jobs are done** | | | |
 | `exit_when_done` | `bool` | `False` | Whether the monitor closes by itself once every job is done. |
-| ** size of the log history per job in the monitor** | | | |
+| **Size of the log history per job in the monitor** | | | |
 | `log_size_limit` | `int` | `300` | How many log lines the monitor keeps per job. |
-| ** maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
+| **Maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
 | `nb_jobs` | `any` | `8` | How many jobs run in parallel. An integer, or "auto". |
-| ** force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
+| **Force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
 | `force_single_thread` | `bool` | `False` | Whether each job is asked to use a single thread. |
-| ** targeted simulations** | | | |
+| **Targeted simulations** | | | |
 | `simulations` | `any` |  | Simulations to run, each with the architecture configurations it runs on. |
 
 ### `WorkflowJobSettings`
@@ -1685,19 +1711,19 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
-| ** overwrite existing results** | | | |
+| **Overwrite existing results** | | | |
 | `overwrite` | `bool` | `False` | Whether results that already exist are run again. |
-| ** prompt 'Continue? (Y/n)' after settings checks** | | | |
-| `ask_continue` | `bool` | `False` | Whether the run stops for a confirmation once it knows what it will do. |
-| ** exit monitor when all jobs are done** | | | |
+| **Prompt 'Continue? (Y/n)' after settings checks** | | | |
+| `ask_continue` | `bool` | `True` | Whether the run stops for a confirmation once it knows what it will do. |
+| **Exit monitor when all jobs are done** | | | |
 | `exit_when_done` | `bool` | `False` | Whether the monitor closes by itself once every job is done. |
-| ** size of the log history per job in the monitor** | | | |
+| **Size of the log history per job in the monitor** | | | |
 | `log_size_limit` | `int` | `300` | How many log lines the monitor keeps per job. |
-| ** maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
+| **Maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
 | `nb_jobs` | `any` | `8` | How many jobs run in parallel. An integer, or "auto". |
-| ** force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
+| **Force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
 | `force_single_thread` | `bool` | `False` | Whether each job is asked to use a single thread. |
-| ** targeted workflows** | | | |
+| **Targeted workflows** | | | |
 | `workflows` | `any` |  | Workflow configurations to run, as "<workflow>/<configuration>". |
 
 ### `AnalysisJobSettings`
@@ -1714,23 +1740,23 @@ Declared settings:
 
 | Setting | Type | Default | What it is |
 |---|---|---|---|
-| ** overwrite existing results** | | | |
+| **Overwrite existing results** | | | |
 | `overwrite` | `bool` | `False` | Whether results that already exist are run again. |
-| ** prompt 'Continue? (Y/n)' after settings checks** | | | |
-| `ask_continue` | `bool` | `False` | Whether the run stops for a confirmation once it knows what it will do. |
-| ** exit monitor when all jobs are done** | | | |
+| **Prompt 'Continue? (Y/n)' after settings checks** | | | |
+| `ask_continue` | `bool` | `True` | Whether the run stops for a confirmation once it knows what it will do. |
+| **Exit monitor when all jobs are done** | | | |
 | `exit_when_done` | `bool` | `False` | Whether the monitor closes by itself once every job is done. |
-| ** size of the log history per job in the monitor** | | | |
+| **Size of the log history per job in the monitor** | | | |
 | `log_size_limit` | `int` | `300` | How many log lines the monitor keeps per job. |
-| ** maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
+| **Maximum number of parallel jobs ('auto' = number of CPUs minus one)** | | | |
 | `nb_jobs` | `any` | `8` | How many jobs run in parallel. An integer, or "auto". |
-| ** force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
+| **Force single thread execution (to avoid cpu overload when running many jobs in parallel)** | | | |
 | `force_single_thread` | `bool` | `False` | Whether each job is asked to use a single thread. |
-| ** eda tools to run the analysis with** | | | |
+| **Eda tools to run the analysis with** | | | |
 | `tools` | `str_list` |  | EDA tools the RTL analysis runs with. |
-| ** targeted architectures** | | | |
+| **Targeted architectures** | | | |
 | `architectures` | `any` |  | Architecture configurations to run, as "<architecture>/<configuration>". |
-| ** findings that are normal for these designs** | | | |
+| **Findings that are normal for these designs** | | | |
 | `expected` | `any` |  | Findings that are normal for these designs, as {name: conditions}: they are reported apart and do not count (see odatix.lib.analysis.Expectation). |
 
 ---

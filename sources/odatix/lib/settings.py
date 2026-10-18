@@ -177,7 +177,7 @@ class OdatixSettings:
         else:
             if not silent:
                 printc.warning("This directory does not contain an Odatix settings file \"" + settings_filename + "\".", script_name=script_name)
-                printc.note("Run Odatix with the '--init' flag to generate it alongside other necessary config files", script_name=script_name)
+                printc.note("Run \"odatix init\" to create it, with the other configuration files", script_name=script_name)
             self.valid = False
 
     @staticmethod
@@ -488,6 +488,7 @@ class OdatixSettings:
         printc.say("Run ", end="", script_name=script_name)
         printc.bold(prog + " -h", end="")
         print(" to get a list of useful commands")
+        printc.say("New to Odatix? Follow https://odatix.readthedocs.io/docs/getting-started/", script_name=script_name)
 
     def to_dict(self):
         """

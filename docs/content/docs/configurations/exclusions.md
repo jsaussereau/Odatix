@@ -17,8 +17,14 @@ architecture.
 
 They are written once, in the `_settings.yml` of the architecture, and they
 apply everywhere the design space is walked — an `odatix fmax` sweep, a
-simulation sweep, an `odatix dse` search and the configuration preview of the
-graphical interface all leave out exactly the same points.
+simulation sweep, an `odatix dse` search, the selection of the **Run jobs** page
+of the graphical interface and `architecture.combinations()` /
+`count_combinations()` of the [Python API](/docs/python_api/workspace/) all
+leave out exactly the same points.
+
+They are edited in the **Exclusions** tile of the architecture editor of the
+graphical interface ([below](#in-the-graphical-interface)), in the settings file,
+or through `architecture.settings.exclusions` in the Python API.
 
 {{< toc >}}
 
@@ -60,6 +66,31 @@ exclusions:
 An entry written as a bare expression says what has to be **true**, exactly like
 a domain constraint: `- "$a <= $b"`.
 
+## In the graphical interface
+
+**Configure → RTL Architectures → Architecture Settings** ends with an
+**Exclusions** tile: one card per rule, with its **When**, **Require**,
+**Kind**, **Id** and **Message**, and **Add exclusion** to write one more. **Save
+all** writes them to the `_settings.yml` of the architecture.
+
+An expression that reads a name nothing defines does not fail: it never holds,
+so a rule with a typo in it leaves nothing out, silently. **Check against the
+configurations** tells what each rule actually does, before anything is saved:
+
+- how many combinations of the architecture it leaves out, and one of them as
+  an example;
+- a warning when it leaves out none of them, and an error when it cannot be read;
+- the names a rule can read here, with some of the values they take.
+
+That list is worth reading: the name of a configuration is a **string**, so a
+domain whose configurations are called `4`, `8` and `12` is compared with
+`$width == '8'`, not `$width == 8`.
+
+A space of more than a million combinations is not checked from the page; a
+larger one is checked on a sample spread over the whole space. A block written
+as a mapping keeps its `apply` and `ignore` as they are. The `attributes` blocks
+have no editor yet: write them in the settings file.
+
 ## The three kinds
 
 `illegal`
@@ -71,7 +102,8 @@ a domain constraint: `- "$a <= $b"`.
 : The design works and is the *same hardware* as another one: a parameter that
   the rest of the configuration makes meaningless. What matters is not to drop
   it but to pick one, which is what `require` is for — it names the canonical
-  value. A search **folds** the other points onto it instead of throwing them
+  value. A sweep runs the canonical point only: asking for another one by name
+  is an error, as for `illegal`, and a wildcard does not expand to it. A search **folds** the other points onto it instead of throwing them
   away, so the space keeps its density and the budget is not spent proposing
   points that do not exist.
 

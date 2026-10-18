@@ -1,4 +1,4 @@
-# Design sources (that will be coppied into each work directory)
+# Design sources (that will be copied into each work directory)
 sources:
   path: examples/workflow_simple
 
@@ -28,7 +28,7 @@ tasks:
       - "echo 'Progress: 80' > progress.txt"
       - sleep 1
       - echo 'step 3/3 done'
-      - "echo 'Progress: 100' > progress.txt"
+      - python3 main.py   # writes output.txt, which _metrics.yml reads
 
   - name: "generate_config"
     commands:

@@ -45,6 +45,7 @@ from odatix.components.export_common import (
     parse_xml,
     convert_to_numeric,
     calculate_operation,
+    exact_value,
     load_existing_results_file,
 )
 import odatix.lib.yaml_loader as yaml_loader
@@ -287,6 +288,9 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
   """
   global banned_metrics
   results = {}
+  # The same values before their "format": an "operation" computes on them, so
+  # rounding what is written does not round what is derived from it.
+  exact = {}
   units = {}
   # Whether anything read here belongs to this step in particular, rather than
   # to the job as a whole: see the "measured" return value.
@@ -376,7 +380,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = calculate_operation(op, results, error_if_missing, error_prefix)
+      value = calculate_operation(op, exact, error_if_missing, error_prefix)
     else:
       printc.error(
         # type can be None when the metric declares an empty "type:" key
@@ -385,6 +389,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
       )
       banned_metrics.append(metric)
       continue
+
+    exact[metric] = exact_value(value)
 
     # Apply formatting if specified
     if value is not None and "format" in content:
@@ -413,16 +419,90 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
 ######################################
 
 
-def corrupted_directory(directory):
+def corrupted_directory(directory, status_log=None):
   """
   Log a warning indicating that a synthesis directory is corrupted or incomplete.
 
   Args:
       directory (str): Path to the directory that is flagged as corrupted.
+      status_log (str | None): the status file that should have marked the job
+          finished, named in the warning so that the author of a tool knows what
+          to write.
   """
+  if status_log is None:
+    printc.warning(
+      directory + " => Synthesis has not finished or directory has been corrupted", script_name
+    )
+    return
+  status_name = os.path.join(hard_settings.work_log_path, os.path.basename(status_log))
+  if os.path.isfile(status_log):
+    reason = status_name + ' does not contain "' + status_done + '"'
+  else:
+    reason = status_name + " does not exist"
   printc.warning(
-    directory + " => Synthesis has not finished or directory has been corrupted", script_name
+    directory + ": " + reason + " (the job has not finished, was stopped, or its tool does not write it)",
+    script_name,
   )
+
+
+def status_filenames_for(type):
+  """
+  The status files a job of this type may mark itself finished in, the one a
+  job writes by default first.
+  """
+  if type == "custom_freq_synthesis":
+    return [hard_settings.synth_status_filename]
+  if type == "pnr":
+    # A place & route tool may report progress through either status file.
+    return [hard_settings.synth_status_filename, hard_settings.fmax_status_filename]
+  return [hard_settings.fmax_status_filename]
+
+
+def find_status_log(job_dir, type):
+  """The status file of a job: the first one that exists, else the default one."""
+  filenames = status_filenames_for(type)
+  for filename in filenames:
+    path = os.path.join(job_dir, hard_settings.work_log_path, filename)
+    if os.path.isfile(path):
+      return path
+  return os.path.join(job_dir, hard_settings.work_log_path, filenames[0])
+
+
+def is_marked_done(status_log):
+  """Whether a status file holds the "Done: 100%" completion marker."""
+  try:
+    with open(status_log, "r", errors="ignore") as f:
+      return status_done in f.read()
+  except (IOError, OSError):
+    return False
+
+
+def mark_job_done(job_dir, type):
+  """
+  Record that a job finished, in its status file, when its tool did not.
+
+  Only called for a job whose command exited 0, which is what makes a job
+  successful. The scripts shared by the built-in tools write "Done: 100%" at the
+  end of their flow; a tool of your own may not write any status file at all.
+  The marker is what a later full re-export (odatix results) relies on to tell a
+  finished job from a stopped one, so it is written here rather than its absence
+  costing the job its results.
+
+  Returns:
+      bool: whether the job directory now carries the marker.
+  """
+  status_log = find_status_log(job_dir, type)
+  if is_marked_done(status_log):
+    return True
+  try:
+    if not os.path.isdir(os.path.dirname(status_log)):
+      os.makedirs(os.path.dirname(status_log))
+    with open(status_log, "a") as f:
+      f.write(status_done + "\n")
+  except (IOError, OSError) as e:
+    printc.warning('Could not write "' + status_log + '": ' + str(e), script_name)
+    return False
+  return True
 
 
 ######################################
@@ -514,32 +594,18 @@ def process_configuration(input, target, architecture, configuration, frequency,
         the record meta.
       - Updates the `units` dictionary with units for the extracted metrics.
   """
-  if type == "custom_freq_synthesis":
-    arch = architecture + "[" + configuration + "] @ " + frequency
-    arch_path = os.path.join(target, architecture, configuration, frequency)
-    status_filenames = ["synth_status.log"]
-  elif type == "pnr":
+  if type in ("custom_freq_synthesis", "pnr"):
     # A place & route job directory always has a last segment, "<N>MHz" when it
     # started from a custom frequency synthesis and "fmax" when it started from
     # an fmax search, so both kinds sit side by side at the same depth.
     arch = architecture + "[" + configuration + "] @ " + frequency
     arch_path = os.path.join(target, architecture, configuration, frequency)
-    # A place & route tool may report progress through either status file.
-    status_filenames = ["synth_status.log", "status.log"]
   else:
     arch = architecture + "[" + configuration + "]"
     arch_path = os.path.join(target, architecture, configuration)
-    status_filenames = ["status.log"]
 
   cur_path = os.path.join(input, arch_path)
-  status_log = next(
-    (
-      os.path.join(cur_path, "log", filename)
-      for filename in status_filenames
-      if os.path.isfile(os.path.join(cur_path, "log", filename))
-    ),
-    os.path.join(cur_path, "log", status_filenames[0]),
-  )
+  status_log = find_status_log(cur_path, type)
 
   # A flow split into steps writes one record per step, and can stop early (e.g.
   # implemented but no bitstream): the steps this job actually completed are what
@@ -567,14 +633,11 @@ def process_configuration(input, target, architecture, configuration, frequency,
     source = read_pnr_source_file(cur_path)
 
   # Check if synthesis completed
-  if not os.path.isfile(status_log):
-    corrupted_directory(arch_path)
+  if not is_marked_done(status_log):
+    # Named from the tool's work directory ("yosys@silent/..."), which says
+    # which flow left this job unfinished.
+    corrupted_directory(os.path.join(os.path.basename(os.path.normpath(input)), arch_path), status_log)
     return None
-
-  with open(status_log, "r") as f:
-    if status_done not in f.read():
-      corrupted_directory(arch_path)
-      return None
 
   # Common part of the meta, shared by every record of this job
   base_meta = {
@@ -733,12 +796,15 @@ def export_results(input, output, tools, result_types, custom_metrics_file=None)
     for result_type in result_types:
       result_key = result_types[result_type]["key"]
       work_path = result_types[result_type]["path"]
-      printc.cyan("Export " + tool + " " + result_key + " results", script_name)
-
       # A tool can have run through several flows, each in its own work
       # directory ("vivado", "vivado@power_opt", ...). They all land in the same
       # results file, told apart by the "flow" meta key.
-      for work_dirname, flow in tool_work_dirs(os.path.join(input_path, work_path), tool):
+      work_dirs = tool_work_dirs(os.path.join(input_path, work_path), tool)
+      if not work_dirs:
+        continue  # this tool never ran a job of this type: nothing to announce
+      printc.cyan("Export " + tool + " " + result_key + " results", script_name)
+
+      for work_dirname, flow in work_dirs:
         input = os.path.join(input_path, work_path, work_dirname)
 
         # A place & route job also carries the synthesis it started from, spelled
@@ -958,6 +1024,14 @@ def export_single_job_result(job, export_config=None):
     return False
 
   _reset_banned_lists()
+
+  # This export only runs for a job whose command exited 0: the job succeeded,
+  # whether or not its tool wrote the completion marker itself.
+  if result_type in ("custom_freq_synthesis", "pnr"):
+    job_dir = os.path.join(input_tool_path, target, architecture, configuration, frequency)
+  else:
+    job_dir = os.path.join(input_tool_path, target, architecture, configuration)
+  mark_job_done(job_dir, result_type)
 
   output_dir = os.path.realpath(output_dir)
   output_file = os.path.join(output_dir, "results_" + tool + ".yml")

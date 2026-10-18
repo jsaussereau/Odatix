@@ -20,17 +20,19 @@
 #
 
 import dash
-from dash import html, dcc, Input, Output, State, ctx
-from typing import Optional#, Literal
+from dash import html, dcc, Input, Output, State, ALL, ctx
+from dash.exceptions import PreventUpdate
 
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url, get_workspace
+from odatix.gui.utils import get_workspace
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
-import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.page_scope import page_callback, scoped
+from odatix.workspace import Workspace
 from odatix.workspace import migrate as workspace_migrate
+from odatix.workspace.core import PATH_SETTINGS, WorkspaceSettings
+from odatix.workspace.yaml_io import read_yaml
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -47,172 +49,275 @@ dash.register_page(
 )
 
 ######################################
+# Fields
+######################################
+#
+# The form is generated from WorkspaceSettings, the class that reads and writes
+# "odatix.yml": every key it declares gets a field, in file order, grouped by
+# the sections of the file. The table below only says how a key reads in the
+# page; a key it does not know about still gets a text field, labelled after
+# its name and explained by the documentation of the setting.
+
+#: Type of the pattern-matching ids of the fields: {"type": ..., "key": <setting>}.
+FIELD_TYPE = "workspace-setting"
+
+#: Keys of odatix.yml that are not settings a user edits.
+HIDDEN_KEYS = ("workspace",)
+
+#: How each setting reads in the page. "kind" is "text" when left out.
+FIELDS = {
+    "default_tool": {
+        "label": "Default tool",
+        "kind": "tool",
+        "tooltip": "The tool the run commands use when -t/--tool does not name one. "
+                   "Left empty, a workspace with a single target file uses that tool.",
+    },
+    "arch_path": {
+        "label": "Architecture directory",
+        "tooltip": "Where the architecture definitions are.",
+    },
+    "sim_path": {
+        "label": "Simulation directory",
+        "tooltip": "Where the simulation definitions are.",
+    },
+    "workflow_path": {
+        "label": "Workflow directory",
+        "tooltip": "Where the workflow definitions are.",
+    },
+    "tools_path": {
+        "label": "Tool directory",
+        "tooltip": "Where the tools defined by this workspace are, next to the built-in ones.",
+    },
+    "target_path": {
+        "label": "Target definition directory",
+        "tooltip": "Where the target files of every tool are. "
+                   "Files not found here are also looked up in odatix_userconfig.",
+    },
+    "gui_theme_path": {
+        "label": "GUI theme directory",
+        "tooltip": "Where the themes of this workspace are, next to the built-in ones.",
+    },
+    "clean_settings_file": {
+        "label": "Clean settings",
+        "tooltip": "What \"odatix clean\" removes.",
+    },
+    "sim_settings_file": {
+        "label": "Simulation settings",
+        "tooltip": "The settings file of \"odatix sim\".",
+    },
+    "fmax_settings_file": {
+        "label": "Fmax synthesis settings",
+        "tooltip": "The settings file of \"odatix fmax\".",
+    },
+    "synth_settings_file": {
+        "label": "Fixed-frequency synthesis settings",
+        "tooltip": "The settings file of \"odatix synth\".",
+    },
+    "pnr_settings_file": {
+        "label": "Place and route settings",
+        "tooltip": "The settings file of \"odatix pnr\".",
+    },
+    "analyze_settings_file": {
+        "label": "Analysis settings",
+        "tooltip": "The settings file of \"odatix analyze\".",
+    },
+    "workflow_settings_file": {
+        "label": "Workflow settings",
+        "tooltip": "The settings file of \"odatix workflow\".",
+    },
+    "dse_settings_file": {
+        "label": "Exploration settings",
+        "tooltip": "The settings file of \"odatix dse\".",
+    },
+    "dse_campaign_path": {
+        "label": "Campaign directory",
+        "tooltip": "Where the design space exploration campaigns are kept.",
+    },
+    "derived_metrics_file": {
+        "label": "Derived metrics",
+        "tooltip": "The metrics computed from the ones the runs produce.",
+    },
+    "work_path": {
+        "label": "Main work path",
+        "tooltip": "Where every job runs. The work paths below are relative to it.",
+    },
+    "simulation_work_path": {
+        "label": "Simulation work path",
+        "tooltip": "Where simulations run, relative to the main work path.",
+    },
+    "fmax_synthesis_work_path": {
+        "label": "Fmax synthesis work path",
+        "tooltip": "Where Fmax synthesis runs, relative to the main work path.",
+    },
+    "custom_freq_synthesis_work_path": {
+        "label": "Fixed-frequency synthesis work path",
+        "tooltip": "Where fixed-frequency synthesis runs, relative to the main work path.",
+    },
+    "pnr_work_path": {
+        "label": "Place and route work path",
+        "tooltip": "Where place and route runs, relative to the main work path.",
+    },
+    "analysis_work_path": {
+        "label": "Analysis work path",
+        "tooltip": "Where analyses run, relative to the main work path.",
+    },
+    "workflow_work_path": {
+        "label": "Workflow work path",
+        "tooltip": "Where workflows run, relative to the main work path.",
+    },
+    "result_path": {
+        "label": "Result path",
+        "tooltip": "Where the result files are written.",
+    },
+    "resource_guard": {
+        "label": "Pause jobs on overload",
+        "kind": "yes_no",
+        "tooltip": "Pause running jobs while the CPU or memory usage of the machine is above the limits below, "
+                   "and resume them once it settles back down. Applies to the sessions started afterwards; "
+                   "a running session is switched from the monitor.",
+    },
+    "cpu_limit": {
+        "label": "CPU limit (%)",
+        "kind": "number",
+        "tooltip": "CPU usage of the machine above which a running job is paused.",
+    },
+    "mem_limit": {
+        "label": "Memory limit (%)",
+        "kind": "number",
+        "tooltip": "Memory usage of the machine above which a running job is paused.",
+    },
+}
+
+#: Kinds of field whose empty value is None (a dropdown) rather than "".
+DROPDOWN_KINDS = ("tool", "yes_no")
+
+
+def field_id(key):
+    return {"type": FIELD_TYPE, "key": key}
+
+
+def setting_keys():
+    """The keys of odatix.yml the page has a field for, in file order."""
+    return [spec.key or spec.name for spec in WorkspaceSettings.specs()
+            if spec.stored and (spec.key or spec.name) not in HIDDEN_KEYS]
+
+
+def field_kind(key):
+    return FIELDS.get(key, {}).get("kind", "text")
+
+
+def field_label(key):
+    return FIELDS.get(key, {}).get("label") or key.replace("_", " ").capitalize()
+
+
+def field_tooltip(key):
+    tooltip = FIELDS.get(key, {}).get("tooltip")
+    if tooltip:
+        return tooltip
+    spec = WorkspaceSettings.spec(key)
+    return (spec.doc or "") if spec is not None else ""
+
+
+_PATH_DEFAULTS = dict(PATH_SETTINGS)
+
+
+def field_placeholder(key):
+    """What Odatix uses when the field is left empty."""
+    if key in _PATH_DEFAULTS:
+        return str(getattr(OdatixSettings, _PATH_DEFAULTS[key], ""))
+    if key == "default_tool":
+        return "None"
+    if key == "resource_guard":
+        return "Yes" if OdatixSettings.DEFAULT_RESOURCE_GUARD else "No"
+    if key == "cpu_limit":
+        return "{0:g}".format(OdatixSettings.DEFAULT_CPU_LIMIT)
+    if key == "mem_limit":
+        return "{0:g}".format(OdatixSettings.DEFAULT_MEM_LIMIT)
+    return ""
+
+
+def comparable(value):
+    """A field value as the page compares it: empty (None, "") means "use the default"."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
+def read_settings(path=None):
+    """
+    What odatix.yml says, one value per field (empty when the file leaves the
+    key out). A settings file still naming a key the way a former version did
+    shows it under the current name, where saving writes it.
+    """
+    data = read_yaml(path or Workspace.SETTINGS_FILENAME, default={})
+    settings = WorkspaceSettings.from_dict(data if isinstance(data, dict) else {}).normalize()
+    return dict((key, comparable(settings[key])) for key in setting_keys())
+
+
+def values_to_save(values):
+    """The field values as save_workspace_settings takes them: empty means "use the default"."""
+    return dict((key, None if comparable(value) == "" else comparable(value)) for key, value in values.items())
+
+
+######################################
 # UI Components
 ######################################
 
 def tool_options():
-    """Every eda tool the workspace can run, built-in ones included."""
+    """Every tool the workspace can run, built-in ones included."""
     try:
         return [{"label": name, "value": name} for name in get_workspace().tools.all_names()]
     except Exception:
         return []
 
 
-def workspace_form(settings):
-    defval = lambda k, v=None: settings.get(k, v)
-
-    return ui.grid(
-        children=[
-            ui.panel(body=[
-                ui.caption("Tools"),
-                ui.form_dropdown(
-                    label="Default tool",
-                    id="default_tool",
-                    placeholder="None",
-                    options=tool_options(),
-                    value=defval("default_tool", "") or None,
-                    tooltip="The tool the run commands use when -t/--tool does not name one. "
-                            "Left empty, a workspace with a single target file uses that tool.",
-                ),
-            ]),
-            ui.panel(body=[
-                ui.caption("Main paths"),
-                ui.form_field(
-                    label="Architecture directory",
-                    id="arch_path",
-                    value=defval("arch_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_ARCH_PATH,
-                    tooltip="The path to the architecture directory where all architectures definitions are stored.",
-                ),
-                ui.form_field(
-                    label="Simulation directory",
-                    id="sim_path",
-                    value=defval("sim_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_SIM_PATH,
-                    tooltip="The path to the architecture directory where all simulations definitions are stored.",
-                ),
-                ui.form_field(
-                    label="Target definition directory",
-                    id="target_path",
-                    value=defval("target_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_TARGET_PATH,
-                    tooltip="The path where target definitions for all tools are stored. "
-                            "Files not found here are also looked up in odatix_userconfig.",
-                ),
-            ]),
-            ui.panel(body=[
-                ui.caption("Settings files"),
-                ui.form_field(
-                    label="Clean settings",
-                    id="clean_settings_file",
-                    value=defval("clean_settings_file", ""),
-                    placeholder=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE,
-                    tooltip="The path to the clean rules file used by 'odatix clean' command.",
-                ),
-                ui.form_field(
-                    label="Simulation settings",
-                    id="sim_settings_file",
-                    value=defval("sim_settings_file", ""),
-                    placeholder=OdatixSettings.DEFAULT_SIM_SETTINGS_FILE,
-                    tooltip="The path to the settings file used by 'odatix sim' command.",
-                ),
-                ui.form_field(
-                    label="Fmax synthesis settings",
-                    id="fmax_settings_file",
-                    value=defval("fmax_settings_file", ""),
-                    placeholder=OdatixSettings.DEFAULT_FMAX_SETTINGS_FILE,
-                    tooltip="The path to the settings file used by 'odatix fmax' command.",
-                ),
-                ui.form_field(
-                    label="Fixed-frequency synthesis settings",
-                    id="synth_settings_file",
-                    value=defval("synth_settings_file", ""),
-                    placeholder=OdatixSettings.DEFAULT_SYNTH_SETTINGS_FILE,
-                    tooltip="The path to the settings file used by 'odatix synth' command.",
-                ),
-            ]),
-            ui.panel(body=[
-                ui.caption("Work directory"),
-                ui.form_field(
-                    label="Main work path",
-                    id="work_path",
-                    value=defval("work_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_WORK_PATH,
-                    tooltip="The path where all temporary files will be stored during synthesis and simulation.",
-                ),
-                ui.form_field(
-                    label="Simulation work path",
-                    id="simulation_work_path",
-                    value=defval("simulation_work_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH,
-                    tooltip="The path where temporary files will be stored during simulations, relative to the main work path.",
-                ),
-                ui.form_field(
-                    label="Fmax synthesis work path",
-                    id="fmax_synthesis_work_path",
-                    value=defval("fmax_synthesis_work_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH,
-                    tooltip="The path where temporary files will be stored during Fmax synthesis, relative to the main work path.",
-                ),
-                ui.form_field(
-                    label="Fixed-frequency synthesis work path",
-                    id="custom_freq_synthesis_work_path",
-                    value=defval("custom_freq_synthesis_work_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH,
-                    tooltip="The path where temporary files will be stored during fixed-frequency synthesis, relative to the main work path.",
-                ),
-            ]),
-            ui.panel(body=[
-                ui.caption("Results"),
-                ui.form_field(
-                    label="Result path",
-                    id="result_path",
-                    value=defval("result_path", ""),
-                    placeholder=OdatixSettings.DEFAULT_RESULT_PATH,
-                    tooltip="The path where all results files will be stored after synthesis and simulation.",
-                ),
-            ]),
-            ui.panel(body=[
-                ui.caption("Resource guard"),
-                ui.form_dropdown(
-                    label="Pause jobs on overload",
-                    id="resource_guard",
-                    placeholder=f"{'Yes' if OdatixSettings.DEFAULT_RESOURCE_GUARD else 'No'}",
-                    options=[
-                        {"label": "Yes", "value": True},
-                        {"label": "No", "value": False},
-                    ],
-                    value=defval("resource_guard", ""),
-                    tooltip="Pause running jobs while the CPU or memory usage of the machine is above the limits below, "
-                            "and resume them once it settles back down. Applies to the sessions started afterwards; "
-                            "a running session is switched from the monitor.",
-                ),
-                ui.form_field(
-                    label="CPU limit (%)",
-                    id="cpu_limit",
-                    type="number",
-                    value=defval("cpu_limit", ""),
-                    placeholder=f"{OdatixSettings.DEFAULT_CPU_LIMIT:g}",
-                    tooltip="CPU usage of the machine above which a running job is paused.",
-                ),
-                ui.form_field(
-                    label="Memory limit (%)",
-                    id="mem_limit",
-                    type="number",
-                    value=defval("mem_limit", ""),
-                    placeholder=f"{OdatixSettings.DEFAULT_MEM_LIMIT:g}",
-                    tooltip="Memory usage of the machine above which a running job is paused.",
-                ),
-            ]),
-        ],
+def setting_field(key, value):
+    kind = field_kind(key)
+    common = dict(
+        label=field_label(key),
+        id=field_id(key),
+        tooltip=field_tooltip(key),
+        placeholder=field_placeholder(key),
     )
+    if kind == "tool":
+        return ui.form_dropdown(options=tool_options(), value=value or None, **common)
+    if kind == "yes_no":
+        return ui.form_dropdown(
+            options=[{"label": "Yes", "value": True}, {"label": "No", "value": False}],
+            value=None if value == "" else value,
+            **common
+        )
+    if kind == "number":
+        return ui.form_field(type="number", value=value, **common)
+    return ui.form_field(value=value, **common)
+
+
+def workspace_form(settings):
+    """One panel per section of odatix.yml, one field per key."""
+    settings = settings or {}
+    panels = []
+    for spec in WorkspaceSettings.specs():
+        key = spec.key or spec.name
+        if not spec.stored or key in HIDDEN_KEYS:
+            continue
+        if spec.section or not panels:
+            panels.append([ui.caption(spec.section or "Settings")])
+        panels[-1].append(setting_field(key, comparable(settings.get(key))))
+    return ui.grid(children=[ui.panel(body=body) for body in panels])
 
 
 ######################################
 # Callbacks
 ######################################
 
-@dash.callback(
+SAVED_CLASS = "color-button disabled icon-button tooltip delay bottom small"
+DIRTY_CLASS = "color-button warning icon-button tooltip bottom small tooltip"
+ERROR_CLASS = "color-button error-status icon-button tooltip bottom small"
+
+
+@page_callback(PAGE_SCOPE,
     Output("workspace-form-container", "children"),
     Output("workspace-initial-settings", "data"),
     Input(f"url_{page_path}", "search"),
@@ -222,133 +327,65 @@ def init_form(search, page):
     if page != page_path:
         return dash.no_update, dash.no_update
 
-    settings = OdatixSettings.get_settings_file_dict()
-    if settings is None:
-        settings = {}
+    try:
+        settings = read_settings()
+    except Exception as e:
+        return ui.empty_state("Could not read {0}: {1}".format(Workspace.SETTINGS_FILENAME, e)), None
     return workspace_form(settings), settings
 
-@dash.callback(
+
+# The fields are pattern-matching inputs: the form is built by init_form, and a
+# plain id would not exist yet when the page first renders (Dash then reports a
+# "nonexistent object used in an Input" error on every visit).
+@page_callback(PAGE_SCOPE,
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("odatix-settings", "data", allow_duplicate=True),
     Output("workspace-saved-settings", "data"),
     Output("workspace-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
-    Input("default_tool", "value"),
-    Input("arch_path", "value"),
-    Input("sim_path", "value"),
-    Input("target_path", "value"),
-    Input("clean_settings_file", "value"),
-    Input("sim_settings_file", "value"),
-    Input("fmax_settings_file", "value"),
-    Input("synth_settings_file", "value"),
-    Input("work_path", "value"),
-    Input("simulation_work_path", "value"),
-    Input("fmax_synthesis_work_path", "value"),
-    Input("custom_freq_synthesis_work_path", "value"),
-    Input("result_path", "value"),
-    Input("resource_guard", "value"),
-    Input("cpu_limit", "value"),
-    Input("mem_limit", "value"),
-    State(f"url_{page_path}", "pathname"),
+    Input({"type": FIELD_TYPE, "key": ALL}, "value"),
+    State({"type": FIELD_TYPE, "key": ALL}, "id"),
     State("workspace-initial-settings", "data"),
     State("workspace-saved-settings", "data"),
     prevent_initial_call=True,
 )
-def save_and_status(
-    save_n_clicks, default_tool, arch_path, sim_path, target_path,
-    clean_settings_file, sim_settings_file, fmax_settings_file,
-    synth_settings_file, work_path, simulation_work_path,
-    fmax_synthesis_work_path, custom_freq_synthesis_work_path, result_path,
-    resource_guard, cpu_limit, mem_limit,
-    page, initial_settings, saved_settings
-):
-    triggered_id = ctx.triggered_id
-    if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+def save_and_status(save_n_clicks, values, ids, initial_settings, saved_settings):
+    current = dict((field["key"], value) for field, value in zip(ids or [], values or []))
+    if not current:
+        raise PreventUpdate
+    current_comparable = dict((key, comparable(value)) for key, value in current.items())
 
-    current_settings_subset = {
-        "default_tool": default_tool or "",
-        "arch_path": arch_path,
-        "sim_path": sim_path,
-        "target_path": target_path,
-        "clean_settings_file": clean_settings_file,
-        "sim_settings_file": sim_settings_file,
-        "fmax_settings_file": fmax_settings_file,
-        "synth_settings_file": synth_settings_file,
-        "work_path": work_path,
-        "simulation_work_path": simulation_work_path,
-        "fmax_synthesis_work_path": fmax_synthesis_work_path,
-        "custom_freq_synthesis_work_path": custom_freq_synthesis_work_path,
-        "result_path": result_path,
-        # A cleared field (None) means "use the default", like an empty one.
-        "resource_guard": "" if resource_guard is None else resource_guard,
-        "cpu_limit": "" if cpu_limit is None else cpu_limit,
-        "mem_limit": "" if mem_limit is None else mem_limit,
-    }
-    
-    current_settings = current_settings_subset
-
-    if triggered_id == {"page": page_path, "action": "save-all"}:
-        # Save settings
+    if ctx.triggered_id == {"page": page_path, "action": "save-all"}:
         try:
-            OdatixSettings.save_dict_to_file(current_settings)
-            current_settings = OdatixSettings().to_dict()
-            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", current_settings, current_settings_subset, ui.success()
+            workspace = Workspace.open()
+            workspace.save_settings(values_to_save(current))
+            store = workspace.odatix_settings().to_dict()
         except Exception as e:
-            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update, ui.error(f"Not saved: {e}")
+            return ERROR_CLASS, "Failed to save...", dash.no_update, dash.no_update, ui.error(f"Not saved: {e}")
+        return SAVED_CLASS, "Nothing to save", store, current_comparable, ui.success()
 
-    else:
-        # Compare against what the settings file actually holds (the store
-        # written by init_form, or the last save), not against the settings
-        # template: every blank field means "use the default", which the
-        # template spells out, so the page used to always look dirty.
-        reference = saved_settings if saved_settings is not None else (initial_settings or {})
-        saved_subset = {key: reference.get(key, "") for key in current_settings_subset}
-        if current_settings_subset != saved_subset:
-            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update, dash.no_update, dash.no_update
-
-    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, dash.no_update, dash.no_update
+    # Compare against what the settings file actually holds (read by init_form,
+    # or the last save), not against the defaults: a blank field means "use the
+    # default", which the file does not spell out.
+    reference = saved_settings if saved_settings is not None else (initial_settings or {})
+    saved = dict((key, comparable(reference.get(key))) for key in current_comparable)
+    if current_comparable != saved:
+        return DIRTY_CLASS, "Unsaved changes!", dash.no_update, dash.no_update, dash.no_update
+    return SAVED_CLASS, "Nothing to save", dash.no_update, dash.no_update, dash.no_update
 
 
 @page_callback(PAGE_SCOPE,
-    Output("default_tool", "value"),
-    Output("arch_path", "value"),
-    Output("sim_path", "value"),
-    Output("target_path", "value"),
-    Output("clean_settings_file", "value"),
-    Output("sim_settings_file", "value"),
-    Output("fmax_settings_file", "value"),
-    Output("synth_settings_file", "value"),
-    Output("work_path", "value"),
-    Output("simulation_work_path", "value"),
-    Output("fmax_synthesis_work_path", "value"),
-    Output("custom_freq_synthesis_work_path", "value"),
-    Output("result_path", "value"),
-    Output("resource_guard", "value"),
-    Output("cpu_limit", "value"),
-    Output("mem_limit", "value"),
+    Output({"type": FIELD_TYPE, "key": ALL}, "value"),
     Input({"page": page_path, "action": "reset-defaults"}, "n_clicks"),
-    State(f"url_{page_path}", "search"),
-    State(f"url_{page_path}", "pathname"),
-    State("workspace-initial-settings", "data"),
-    State("workspace-saved-settings", "data"),
-    State("odatix-settings", "data"),
+    State({"type": FIELD_TYPE, "key": ALL}, "id"),
     prevent_initial_call=True,
 )
-def reset_to_defaults(
-     reset_n_clicks,
-    search, page, initial_settings, saved_settings,
-    odatix_settings,
-):
-    triggered_id = ctx.triggered_id
-    if triggered_id == f"url_{page_path}" and page != page_path:
-        return [dash.no_update] * 16
-    
-    if triggered_id == {"page": page_path, "action": "reset-defaults"}:
-        # Reset to defaults
-        return [None] + [""] * 15
-    return [dash.no_update] * 16
+def reset_to_defaults(reset_n_clicks, ids):
+    """Empty every field: each setting falls back on its default once saved."""
+    if not reset_n_clicks:
+        raise PreventUpdate
+    return [None if field_kind(field["key"]) in DROPDOWN_KINDS else "" for field in (ids or [])]
 
 @page_callback(PAGE_SCOPE,
     Output("workspace-migration", "className"),

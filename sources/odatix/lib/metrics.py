@@ -62,6 +62,9 @@ script_name = os.path.basename(__file__)
 # override the metrics of the built-in tool of the same name.
 METRICS_FILENAME = "metrics.yml"
 
+# The metrics file of a tool that names none, when it has one in its directory.
+DEFAULT_METRICS_TEMPLATE = "$tool_path/" + METRICS_FILENAME
+
 # The sections of a metrics file, i.e. the keys holding {metric name: definition}
 # mappings. Anything else in the file is merged as a plain key.
 METRIC_SECTION_KEYS = ("fmax_synthesis_metrics", "custom_freq_synthesis_metrics", "pnr_metrics", "metrics")
@@ -149,6 +152,10 @@ def metrics_file_template(tool, flow=None):
   if not template:
     template = eda_tools.load_tool_settings(tool).get("default_metrics_file")
   if not isinstance(template, str) or template.strip() == "":
+    # A tool declaring no metrics file but keeping one next to its tool.yml
+    # (as the GUI and the API create them) means that one.
+    if any(os.path.isfile(os.path.join(tool_dir, METRICS_FILENAME)) for tool_dir in eda_tools.get_tool_dirs(tool)):
+      return DEFAULT_METRICS_TEMPLATE
     return None
   return template
 
@@ -171,6 +178,10 @@ def metrics_files(tool, flow=None, missing_ok=False, tools_path=None):
     # only an export, which needs some, has anything to say about it.
     if not missing_ok:
       printc.error('Cannot find key "default_metrics_file" for the eda tool "' + str(tool) + '"', script_name)
+      printc.note(
+        'Add "default_metrics_file: $tool_path/metrics.yml" to its tool.yml, and define its metrics in that file',
+        script_name,
+      )
     return []
 
   # The workspace directory of the tool takes part in the resolution even

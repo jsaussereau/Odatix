@@ -43,15 +43,23 @@ Task entries take exactly the same keys as a
 tasks:
   - name: analyze
     commands:
-      - ghdl -a --workdir=obj rtl/* tb/*
+      - ghdl -a ${vhdl_files} ${tb_files}
 
   - name: main
     dependencies:
       - analyze
     commands:
-      - ghdl -e --workdir=obj tb_counter
-      - ghdl -r --workdir=obj tb_counter --stop-time=500ns | tee log/sim.log
+      - ghdl -e tb_counter
+      - ghdl -r tb_counter --stop-time=500ns --vcd=${log_path}/counter.vcd
 {{< /code >}}
+
+The job succeeds when every task does. A task fails as soon as one of its
+commands exits with an error, and the tasks depending on it do not run: a
+command piped into another one (`| tee`) only fails when the last one does.
+
+A simulation that succeeded is not run again: `-o` runs it again. One that
+failed, or was stopped, runs again at the next `odatix sim`, from a new work
+directory, or in its existing one with `-r`.
 
 ### Placeholders available in commands
 
@@ -74,7 +82,7 @@ tasks:
 | `${python}` | The Python interpreter running Odatix. |
 | `${work_path}` | The simulation's work directory. |
 | `${rtl_path}` | Directory holding the copied RTL. |
-| `${log_path}` | Directory logs are expected in. |
+| `${log_path}` | Directory for the logs, relative to the work directory. Odatix creates it before the first task. |
 | `${script_path}` | The simulation's script directory. |
 | `${sim_path}` | This simulation's definition directory. |
 | `${design_path}` | Source directory of the design under test. |
@@ -262,8 +270,9 @@ warning:
 [simulation_handler.py] warning: "Example_Counter_vhdl" is not one of the architectures "TB_Example_Cordic_GHDL" runs on
 {{< /code >}}
 
-An empty list, or no key at all, means the simulation lists nothing: the run
-warns about no architecture, and the GUI offers none until you add one.
+An empty list, or no key at all, means the simulation lists nothing: it runs on
+the architectures the run names without any warning, and the GUI offers none
+until you add one.
 
 An architecture that needs something done differently holds it under its name:
 
@@ -514,13 +523,31 @@ architectures:
           stop_delimiter:    "-- </sim>"
 {{< /code >}}
 
+#### The configuration itself: `__main__`
+
+`__main__` names the replacement of the architecture's configuration (the
+`08bits` of `Example_Counter_vhdl/08bits`). Written under `param_domains`, it
+moves that replacement, or adds a second one: by default, the configuration is
+written into `param_target_file` instead of the design, with the delimiters of
+the architecture unless they are given here.
+
+{{< code lang=yaml filename="_settings.yml" >}}
+architectures:
+  - Example_Counter_vhdl:
+      param_domains:
+        __main__:
+          param_target_file: "tb/tb_counter.vhdl"   # the testbench gets the width
+{{< /code >}}
+
 > [!WARNING]
 > The top-level `use_parameters` / `param_target_file` / `start_delimiter` /
 > `stop_delimiter` keys, and the `override_parameters` / `override_param_file` /
 > `override_param_target_file` / `override_start_delimiter` /
 > `override_stop_delimiter` keys, are **deprecated**. They still work and still
 > run, but they only ever covered a single replacement each. Express both with
-> the syntax above instead
+> the syntax above instead: the first ones are a `__main__` replacement, the
+> `override_*` ones a [simulation-only domain](#simulation-only-domains).
+> `odatix migrate` lists the simulations still using them.
 
 ## Invariant domains
 
@@ -617,7 +644,7 @@ Every template writes `sim_report.yml` in the job's work directory, which its
 
 | Metric | Value |
 |--------|-------|
-| `sim_status` | `passed`, or `failed` when a command failed or printed an error. |
+| `sim_status` | `passed`, or `failed` when a command failed or printed an error. A failed simulation is exported too. |
 | `sim_errors`, `sim_warnings` | Errors and warnings the simulator printed. |
 | `compile_time`, `elaboration_time`, `simulation_time` | Time spent in each stage, in seconds. |
 | `simulated_cycles` | Cycles the testbench simulated, when it prints `odatix_cycles: <n>`. |
@@ -656,9 +683,17 @@ order be wrong, one by one until they all compile: the last resort when the
 
 Optional, and identical in format to a workflow's — see
 [Metrics files](/docs/reference/metrics/). It declares what to extract from each
-run; results land in `results/results_simulation.yml`. A simulation with no
-`_metrics.yml` exports nothing, which is fine for a testbench that only has to
-pass.
+run; results land in `results/results_simulation.yml`, whether the simulation
+passed or failed. A simulation with no `_metrics.yml` exports nothing, which is
+fine for a testbench that only has to pass.
+
+Every record also says how its run ended, as `sim_status`: `passed` when every
+task succeeded, `failed` otherwise, unless the metrics define `sim_status`
+themselves, as those of the [templates](#what-a-template-reports) do.
+
+A metric holding text, such as `sim_status`, is not plotted by
+[Odatix Explorer](/docs/features/explorer/), but it can be shown in a table,
+filtered on and colored by, like a dimension.
 
 An architecture whose runs report something else names its own file with
 [`metrics_file`](#architectures), which then replaces `_metrics.yml` for that

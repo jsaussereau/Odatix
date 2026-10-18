@@ -63,20 +63,25 @@ $ odatix init --examples
 ### Step 2 — Select the targeted tools and configurations
 
 Open `odatix_userconfig/analyze_settings.yml`.
-This is where you define the tools and configurations to check.  
-Select the tool and
-configurations to check.  
+This is where you define the tools and configurations to check.
 To disable a tool, comment it out with `#` or simply remove the line.
 
-{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" linenos="true" linenostart="24" >}}
+{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" linenos="true" linenostart="22" >}}
 tools:
   - vivado
   - verilator
+  # - quartus
   # - design_compiler
+  # - genus
+{{< /code >}}
 
-architectures:
+Further down, the `architectures` list selects the configurations; the
+examples section of the file selects the two counters:
+
+{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" linenos="true" linenostart="67" >}}
   - Example_Counter_sv/*
   - Example_Counter_vhdl/*
+  # - Example_Counter_verilog/*
 {{< /code >}}
 
 > [!NOTE]
@@ -141,7 +146,10 @@ configuration that needs attention. Verilator does not read VHDL: the
 See [RTL Analysis](/docs/features/analysis/#how-it-works) for what each status
 means.
 
-You can also override the tool selection on the command line, for example to check only Vivado:
+An analysis that already ran is not run again: after changing the RTL, run
+`odatix analyze -o` to analyze it anew.
+
+The command line can also override the tool selection, for example to check only Vivado (here on a workspace where nothing was analyzed yet; otherwise, those analyses are already done and skipped):
 {{< code filename="Terminal" prompt="true" fold="true" >}}
 $ odatix analyze -t vivado
 

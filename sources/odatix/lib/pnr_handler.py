@@ -196,7 +196,13 @@ class PnrJobHandler(ArchitectureHandler):
     # this job needs the one of the place & route tool.
     target_scripts = self._read_target_scripts(install_path)
 
-    for source in pnr_source.match_sources(self.available_sources, selectors):
+    matched = pnr_source.match_sources(self.available_sources, selectors)
+    if not matched:
+      printc.error("None of the selected sources matches a completed synthesis", script_name)
+      printc.note(pnr_source.describe_sources(self.available_sources), script_name)
+      return self.architecture_instances
+
+    for source in matched:
       instance = self._build_instance(source, targets, install_path, constraint_filename, pnr_constraints, target_scripts)
       if instance is not None:
         self.architecture_instances.append(instance)
@@ -368,6 +374,8 @@ class PnrJobHandler(ArchitectureHandler):
       self.plan.add(display_name, Category.INCOMPLETE)
     elif state == "resume":
       self.plan.add(display_name, Category.RESUME)
+    elif state == "rerun":
+      self.plan.add(display_name, Category.RERUN)
     else:
       self.plan.add(display_name, Category.NEW)
 

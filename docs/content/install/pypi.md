@@ -45,7 +45,7 @@ $ sudo dnf install -y python3 make
 {{% tab name="ArchLinux" %}}
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ sudo pacman -Syu
-$ sudo pacman -S python3 make --noconfirm
+$ sudo pacman -S python python-pip make --noconfirm
 {{< /code >}}
 {{% /tab %}}
 

@@ -8,6 +8,7 @@ job preparation (architecture/simulation resolution), not synthesis itself.
 import os
 import textwrap
 import shutil
+import subprocess
 
 import pytest
 
@@ -720,8 +721,7 @@ class TestSimulationCommand:
         )
         instance = self._instance(example_workspace, "use_parameters: No\n", "TB_Cmd_Legacy")
 
-        command = run_simulations.build_simulation_command(instance)
-        assert isinstance(command, str)
+        command = _main_command(run_simulations.build_simulation_command(instance))
         assert command.startswith("make sim")
         assert 'TOP_LEVEL_MODULE="counter"' in command
 
@@ -737,7 +737,7 @@ class TestSimulationCommand:
             "      - 'run ${architecture}/${configuration} --top ${top_level_module}'\n",
             "TB_Cmd_Vars",
         )
-        command = run_simulations.build_simulation_command(instance)
+        command = _main_command(run_simulations.build_simulation_command(instance))
         assert command == "run Example_Counter_verilog/04bits --top counter"
 
     def test_a_multi_task_graph_becomes_execution_stages(self, example_workspace):
@@ -761,7 +761,8 @@ class TestSimulationCommand:
         # Several tasks: the job runs the wosit execution stages, not a command.
         command = run_simulations.build_simulation_command(instance)
         assert not isinstance(command, str)
-        assert len(command) >= 2
+        # compile, main, then the stage marking the simulation as done
+        assert len(command) >= 3
 
     def test_a_task_graph_without_main_is_rejected(self, example_workspace):
         import odatix.components.run_simulations as run_simulations
@@ -795,4 +796,56 @@ class TestSimulationCommand:
             "      - 'echo default'\n",
             "TB_Cmd_Platform",
         )
-        assert run_simulations.build_simulation_command(instance) == "echo this_platform"
+        assert _main_command(run_simulations.build_simulation_command(instance)) == "echo this_platform"
+
+    def test_the_simulation_is_marked_done_only_when_it_succeeds(self, example_workspace):
+        import odatix.components.run_simulations as run_simulations
+        import odatix.lib.simulation_handler as simulation_handler
+
+        instance = self._instance(
+            example_workspace,
+            "tasks:\n"
+            "  - name: main\n"
+            "    commands:\n"
+            "      - 'echo run'\n",
+            "TB_Cmd_Done",
+        )
+        command = run_simulations.build_simulation_command(instance)
+        assert command.endswith(simulation_handler.SIM_DONE_FILENAME + '"')
+        # Only written when the simulation succeeds
+        os.makedirs(instance.tmp_dir, exist_ok=True)
+        failing = command.replace("echo run", "false")
+        assert subprocess.call(failing, shell=True, cwd=instance.tmp_dir) != 0
+        assert not os.path.isfile(simulation_handler.sim_done_file(instance.tmp_dir))
+        assert subprocess.call(command, shell=True, cwd=instance.tmp_dir) == 0
+        assert os.path.isfile(simulation_handler.sim_done_file(instance.tmp_dir))
+
+    def test_a_task_graph_ends_with_the_done_stage(self, example_workspace):
+        import odatix.components.run_simulations as run_simulations
+        import odatix.lib.simulation_handler as simulation_handler
+
+        instance = self._instance(
+            example_workspace,
+            "tasks:\n"
+            "  - name: compile\n"
+            "    commands: ['echo compile']\n"
+            "  - name: main\n"
+            "    dependencies: [compile]\n"
+            "    commands: ['echo run']\n",
+            "TB_Cmd_Done_Graph",
+        )
+        os.makedirs(instance.tmp_dir, exist_ok=True)
+        stages = run_simulations.build_simulation_command(instance)
+        last = stages[max(stages)]
+        assert [task["name"] for task in last] == ["done"]
+        assert simulation_handler.SIM_DONE_FILENAME in last[0]["command"]
+
+
+def _main_command(command):
+    """The command of a job running a single command, without what marks it done."""
+    import odatix.lib.simulation_handler as simulation_handler
+
+    assert isinstance(command, str) and command.startswith("(")
+    main, _, done = command.rpartition(") && ")
+    assert simulation_handler.SIM_DONE_FILENAME in done
+    return main[1:].rstrip("\n")

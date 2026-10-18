@@ -45,6 +45,7 @@ import sys
 
 import pandas as pd
 
+import odatix.workspace.yaml_io as yaml_io
 import odatix.explorer.core.query as query
 import odatix.explorer.core.rules as rules
 import odatix.explorer.core.schema as schema
@@ -82,6 +83,29 @@ THUMB_TABLE_MAX_ROWS = 4
 ######################################
 # File access
 ######################################
+
+# Set by "odatix-explorer --read_only": nobody can save a view on the server.
+_READ_ONLY = False
+
+READ_ONLY_MESSAGE = "this Explorer is read-only: views cannot be saved on the server"
+
+
+class ViewExistsError(ValueError):
+  """A view of that name exists already, and replacing it was not asked for."""
+
+  def __init__(self, slug):
+    ValueError.__init__(self, 'a view named "' + slug + '" already exists')
+    self.slug = slug
+
+
+def set_read_only(read_only):
+  """Forbid (or allow again) saving views, for an Explorer open to visitors."""
+  global _READ_ONLY
+  _READ_ONLY = bool(read_only)
+
+
+def is_read_only():
+  return _READ_ONLY
 
 
 def views_dir(result_path):
@@ -123,20 +147,46 @@ def list_views(result_path):
   return views
 
 
-def save_view(result_path, name, view):
-  """Write a view file; returns the slugged view name. Raises on I/O errors."""
+def view_exists(result_path, name):
+  """Whether a view file of that name (once slugged) exists already."""
+  directory = views_dir(result_path)
+  slug = slugify(name)
+  return bool(directory and slug) and os.path.isfile(os.path.join(directory, slug + ".json"))
+
+
+def free_name(result_path, name):
+  """``name``, or ``name_2``, ``name_3``... whichever no view uses yet."""
+  slug = slugify(name)
+  candidate, index = slug, 1
+  while view_exists(result_path, candidate):
+    index += 1
+    candidate = slug + "_" + str(index)
+  return candidate
+
+
+def save_view(result_path, name, view, overwrite=False):
+  """
+  Write a view file; returns the slugged view name.
+
+  An existing view of the same name is only replaced with ``overwrite``:
+  otherwise ViewExistsError is raised, so that the caller can ask first.
+  Raises ValueError when the Explorer is read-only, OSError on I/O errors.
+  """
+  if _READ_ONLY:
+    raise ValueError(READ_ONLY_MESSAGE)
   slug = slugify(name)
   if not slug:
     raise ValueError("invalid view name")
   directory = views_dir(result_path)
   if directory is None:
     raise ValueError("no result directory configured")
-  os.makedirs(directory, exist_ok=True)
+  if not overwrite and view_exists(result_path, slug):
+    raise ViewExistsError(slug)
   view = dict(view)
   view[VIEW_SCHEMA_KEY] = VIEW_SCHEMA_VERSION
   view["created"] = datetime.datetime.now().isoformat(timespec="seconds")
-  with open(os.path.join(directory, slug + ".json"), "w") as f:
-    json.dump(view, f, indent=1)
+  # Atomic: the home page and the restore dropdown poll this directory
+  yaml_io.write_text(os.path.join(directory, slug + ".json"), json.dumps(view, indent=1))
   return slug
 
 

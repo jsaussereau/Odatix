@@ -24,10 +24,10 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 run_profile.py --profile "${workflow_cli_profile}" --tag "config-placeholder-demo"
+      - python3 run_profile.py --profile "${cli_profile}" --tag "config-placeholder-demo"
 {{< /code >}}
 
-`${workflow_cli_profile}` is filled with the content of the selected configuration file — `default.txt` holds `balanced profile`, `aggressive.txt` holds `aggressive profile` — so `cli_profile/default` and `cli_profile/aggressive` run the same script with different arguments.
+`${cli_profile}`, the name of the workflow, is filled with the content of the selected configuration file — `default.txt` holds `balanced profile`, `aggressive.txt` holds `aggressive profile` — so `cli_profile/default` and `cli_profile/aggressive` run the same script with different arguments.
 
 This is the simplest form of parameterization there is: **one value, chosen by configuration, passed on the command line**, with nothing written into any file.
 

@@ -11,8 +11,8 @@ aliases:
 features:
   - title: "Interactive dashboard"
     description: "A local web app to slice, filter and compare results across designs, configurations and targets."
-  - title: "Seven chart types"
-    description: "Line, column, scatter, 3D scatter, radar and overview charts, plus per-frequency comparisons."
+  - title: "Eight chart types"
+    description: "Lines, columns, scatter, 3D scatter, radar, parallel coordinates, overview and table, plus a page for design space explorations."
   - title: "Metric correlation"
     description: "Plot any metric against any other to reveal trade-offs — power vs Fmax, area vs throughput, and more."
   - title: "Publication-ready export"
@@ -51,17 +51,29 @@ the same result files, so a single chart can put them side by side.
 |-------|----------|
 | **Line** | Trends of a metric across an ordered parameter (e.g. Fmax vs data width) |
 | **Column** | Direct side-by-side comparison of configurations |
-| **Column (per frequency)** | How a metric such as power evolves at different operating frequencies |
 | **Scatter** | Correlation between two metrics (e.g. power vs Fmax) |
 | **3D scatter** | Correlation between three metrics (e.g. LUTs, registers, Fmax) |
 | **Radar** | Multi-metric profile of a few configurations at a glance |
+| **Parallel coordinates** | Several metrics of many configurations, one axis per metric |
 | **Overview** | A comparative summary across many metrics at once |
+| **Table** | Every record of the selection, sortable and filterable |
+
+To compare operating frequencies, pick **Color by: Frequency** on a line or
+column chart. When several records of a trace fall on the same x value (one
+record per step of a job, one record per row of a `multiple` metric), Explorer
+splits the trace by the dimension that tells them apart and names it in the
+legend, so no record is hidden. The **Exploration** page follows the Pareto
+front and the progress of `odatix dse` campaigns (designs evaluated, measured,
+and reused from results already on disk), and **RTL Analysis** shows the
+verdicts of `odatix analyze`.
 
 ![The same results as lines, columns, radar and scatter](/images/screenshots/explorer-charts.png)
 
 Every chart can be exported directly: **SVG** for papers and slides, **PNG /
 JPEG / WEBP** for reports and READMEs, with a theme (dark included) to match your
-document.
+document. The data behind a chart downloads as CSV. Nothing leaves your machine:
+the chart toolbar has no "share" button that would upload a figure to a
+third-party service.
 
 ## Working with the rest of Odatix
 

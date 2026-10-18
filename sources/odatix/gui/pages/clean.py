@@ -110,17 +110,39 @@ def display_path(path, root):
 # UI Components
 ######################################
 
+#: Height of the pattern list, in lines: room for the whole list plus one to
+#: type into, within these bounds. Past the maximum, the list scrolls; the
+#: textarea can still be dragged taller.
+PATTERN_ROWS_MIN = 8
+PATTERN_ROWS_MAX = 30
+
+
+def pattern_rows(patterns_text):
+    """How many lines the pattern list shows."""
+    lines = len(str(patterns_text or "").splitlines())
+    return max(PATTERN_ROWS_MIN, min(PATTERN_ROWS_MAX, lines + 1))
+
+
 def clean_form(patterns_text, force=False):
     return ui.grid(
         children=[
             ui.panel(body=[
                 ui.caption("Paths to remove"),
-                ui.form_area(
-                    label="Patterns",
-                    id="clean-remove-list",
-                    value=patterns_text,
-                    placeholder="vivado*.log\n.Xil\n*.jou",
-                    tooltip=PATTERNS_TOOLTIP,
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=[html.Label("Patterns"), ui.tooltip_icon(PATTERNS_TOOLTIP, "secondary")],
+                            className="odx-field-label",
+                        ),
+                        dcc.Textarea(
+                            id="clean-remove-list",
+                            value=patterns_text,
+                            placeholder="vivado*.log\n.Xil\n*.jou",
+                            rows=pattern_rows(patterns_text),
+                            style={"resize": "vertical"},
+                        ),
+                    ],
+                    className="odx-field",
                 ),
             ]),
             ui.panel(body=[

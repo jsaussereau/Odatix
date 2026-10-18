@@ -48,7 +48,7 @@ architectures:
   - Example_Counter_verilog/48bits
   - Example_Counter_verilog/64bits
 
-# Currenly only works with Vivado and Design Compiler
+# Currently only works with Vivado and Design Compiler
 
   # - Example_Counter_vhdl/04bits
   # - Example_Counter_vhdl/08bits
@@ -77,7 +77,7 @@ architectures:
   # The same counter, parameterized on the command line instead of in its
   # sources: "width" is a variable of the architecture, so this single entry
   # runs one synthesis per value. Add "+width/16bits" to run just one of them.
-  # - Example_Counter_Chisel_CLI
+  # - Example_Counter_chisel_cli
 
   # - Example_ALU_sv/04bits
   # - Example_ALU_sv/08bits

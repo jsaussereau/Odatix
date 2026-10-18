@@ -22,24 +22,27 @@ The last example trains a small classifier for a swept number of epochs. It is t
 tasks:
   - name: main
     dependencies:
-      - /tmp/odatix_tensorflow_example_env/bin/python3
+      - /tmp/odatix_tensorflow_example_env/ready
     commands:
       - /tmp/odatix_tensorflow_example_env/bin/python3 train.py
 
-  - name: /tmp/odatix_tensorflow_example_env/bin/python3
+  - name: /tmp/odatix_tensorflow_example_env/ready
+    phony: No
     commands:
-      - python3 -m venv /tmp/odatix_tensorflow_example_env
-      - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install --upgrade pip
-      - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install tensorflow
+      - python3 setup_env.py python3
     on_failure_commands:
-      - python3.10 -m venv --clear /tmp/odatix_tensorflow_example_env
-      - ...
+      - python3 setup_env.py python3.10
 {{< /code >}}
 
 Three things are going on:
 
-- The dependency task is **named after the file it produces**, so the virtualenv is built once and reused by every subsequent job instead of being rebuilt ten times.
-- **`on_failure_commands`** gives a fallback path when the primary one does not work — a different interpreter version, here: if TensorFlow cannot be installed for the default `python3`, the environment is rebuilt with Python 3.10.
+- The dependency task is **named after the file it produces** and says
+  `phony: No`: it is skipped once `/tmp/odatix_tensorflow_example_env/ready`
+  exists, so the virtualenv is built once and reused by every later run. The
+  ten jobs of the first run start together, before the file exists, so
+  `setup_env.py` takes a lock (`fcntl.flock`) and checks the file again: one job
+  builds the environment while the others wait for it, then find it ready.
+- **`on_failure_commands`** gives a fallback path when the primary one does not work — a different interpreter version, here: if TensorFlow cannot be installed for the default `python3`, the environment is rebuilt with `python3.10`.
 - The training script reports progress from inside a Keras callback, so the job monitor tracks epochs:
 
 {{< code lang=python filename="examples/workflow_tensorflow/train.py" >}}

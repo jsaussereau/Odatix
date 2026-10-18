@@ -29,6 +29,7 @@ standalone shell) without touching the host layout.
 from dash import dcc, html
 
 import odatix.explorer.core.rules as rules
+import odatix.explorer.ui.components as components
 import odatix.explorer.ui.sidebar as sidebar
 from odatix.gui.page_scope import anchor
 
@@ -63,16 +64,25 @@ def explorer_state_stores():
 
 
 def explorer_shell(kind):
-  if kind == "overview":
-    graph_area = html.Div(id="xp-overview-area", className="xp-overview-area")
-  elif kind == "table":
-    graph_area = html.Div(id="xp-table-area", className="xp-table-area")
+  if kind in ("overview", "table"):
+    area_id = "xp-overview-area" if kind == "overview" else "xp-table-area"
+    graph_area = html.Div(
+      [
+        html.Div(id=area_id, className=area_id),
+        # Never shown: the single-figure callback (callbacks/figure.py) listens
+        # to the same controls as these pages, and its output must exist on
+        # every page it can fire on (it then does nothing, see update_figure).
+        dcc.Graph(id="xp-graph", figure={}, config=components.graph_config(), style={"display": "none"}),
+      ],
+      className="xp-area-wrapper",
+      style={"display": "contents"},
+    )
   else:
     graph_area = dcc.Graph(
       id="xp-graph",
       className="xp-graph",
       figure={},
-      config={"displaylogo": False},
+      config=components.graph_config(),
       style={"height": "100%"},
     )
 

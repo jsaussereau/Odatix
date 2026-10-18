@@ -30,9 +30,10 @@ The workspace derived metrics file is named by `derived_metrics_file` in
 
 | Section | Applies to |
 |---------|------------|
-| `metrics` | Every synthesis run of the tool (area, resources, power…). |
+| `metrics` | Every job of the tool (area, resources, power…). |
 | `fmax_synthesis_metrics` | `odatix fmax` runs only. |
 | `custom_freq_synthesis_metrics` | `odatix synth` runs only. |
+| `pnr_metrics` | `odatix pnr` runs only. |
 
 Simulation and workflow files use a single `metrics` section, plus an optional
 `metadata` section.

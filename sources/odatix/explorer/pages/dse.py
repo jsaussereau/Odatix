@@ -50,6 +50,7 @@ import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.core.dse_factors as dse_factors
 from odatix.explorer.core.dse import CAMPAIGNS
 from odatix.explorer.core.store import STORE
+import odatix.explorer.ui.components as components
 
 POLL_INTERVAL_MS = 3000
 
@@ -80,6 +81,9 @@ KIND_CHIP_LABEL = {
 #: whose container has no height of its own collapses to whatever plotly
 #: guessed at mount, and an inline height cannot be lost to a later rule.
 GRAPH_HEIGHT = "400px"
+# responsive: the two charts share a grid that reflows with the window, and a
+# figure sized once at mount would keep the width the cell had then.
+_GRAPH_CONFIG = components.graph_config(responsive=True)
 
 HIGHLIGHT_COLOR = palettes.HIGHLIGHT_COLOR
 
@@ -201,7 +205,10 @@ def layout(**kwargs):
                     ],
                     className="xp-dse-options",
                   ),
-                  html.Div(id="xp-dse-front-slot", className="xp-dse-slot"),
+                  # The graphs are in the layout from the start (and only
+                  # their figure changes): the highlight callback listens to
+                  # their hover, which must point at a component that exists.
+                  html.Div(_graph({}, _GRAPH_CONFIG, id="xp-dse-front-graph"), id="xp-dse-front-slot", className="xp-dse-slot"),
                 ],
                 className="xp-dse-card",
               ),
@@ -243,7 +250,7 @@ def layout(**kwargs):
                 value=[],
                 className="xp-dse-filters xp-dse-card-options",
               ),
-              html.Div(id="xp-dse-parcoords-slot", className="xp-dse-slot"),
+              html.Div(_graph({}, _GRAPH_CONFIG, id="xp-dse-parcoords-graph"), id="xp-dse-parcoords-slot", className="xp-dse-slot"),
             ],
             className="xp-dse-card",
           ),
@@ -476,6 +483,12 @@ def _summary(campaign):
           "of {0} in the space".format(_number(counts["space"])) if counts["space"] else None),
     _stat("measured", counts["measured"],
           "{0} failed".format(_number(counts["failed"])) if counts["failed"] else None),
+  ]
+  if counts.get("reused"):
+    # Results already on disk the campaign took instead of running them again:
+    # not part of "evaluated", which is what the budget pays for.
+    stats.append(_stat("reused", counts["reused"], "already measured, not run again"))
+  stats += [
     # An archive written before batches were recorded knows none, which is not
     # the same thing as a campaign that ran none: say so rather than print a
     # zero the numbers above contradict.
@@ -1655,20 +1668,17 @@ def _empty_state(result_path):
   Output("xp-dse-highlight", "data"),
   Input("xp-dse-front-graph", "hoverData"),
   Input("xp-dse-parcoords-graph", "hoverData"),
-  Input("xp-dse-front-table", "active_cell"),
   Input("xp-dse-campaign", "value"),
   Input("xp-dse-axis-x", "value"),
   Input("xp-dse-axis-y", "value"),
   Input("xp-dse-axis-z", "value"),
   Input("xp-dse-filters", "value"),
-  State("xp-dse-front-table", "derived_virtual_data"),
   prevent_initial_call=True,
 )
-def update_highlight(front_hover, parcoords_hover, active_cell, _name, _x, _y, _z, _filters,
-                     table_rows):
+def update_highlight(front_hover, parcoords_hover, _name, _x, _y, _z, _filters):
   """
-  Which design is pointed at, from whichever of the three views the reader
-  used -- a hover on either chart, or a click on a row of the table.
+  Which design is pointed at, from a hover on either chart (a click on a row
+  of the table: see highlight_from_table).
 
   Switching campaign or axes clears it: a key from one campaign's designs, or
   from a trace no longer drawn, would point at nothing, or worse, at whatever
@@ -1684,12 +1694,25 @@ def update_highlight(front_hover, parcoords_hover, active_cell, _name, _x, _y, _
   if trigger == "xp-dse-parcoords-graph":
     points = (parcoords_hover or {}).get("points") or []
     return points[0].get("customdata") if points else dash.no_update
-  if trigger == "xp-dse-front-table":
-    if not active_cell or not table_rows:
-      return dash.no_update
-    row = table_rows[active_cell["row"]]
-    return row.get("_key")
   return dash.no_update
+
+
+@dash.callback(
+  Output("xp-dse-highlight", "data", allow_duplicate=True),
+  Input("xp-dse-front-table", "active_cell"),
+  State("xp-dse-front-table", "derived_virtual_data"),
+  prevent_initial_call=True,
+)
+def highlight_from_table(active_cell, table_rows):
+  """
+  The design of the table row the reader clicked.
+
+  A callback of its own: the table only exists once a campaign has a front,
+  and Dash rejects a callback some of whose inputs exist and some do not.
+  """
+  if not active_cell or not table_rows:
+    return dash.no_update
+  return table_rows[active_cell["row"]].get("_key")
 
 
 @dash.callback(
@@ -1861,8 +1884,7 @@ def update_impact(name, metric, kinds, scope, factor_id, whiskers, _intervals, a
 
   chrome = app_theme_bridge.get_chrome(app_theme)
   palette = palettes.DEFAULT_PALETTE
-  config = {"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-            "responsive": True}
+  config = components.graph_config(responsive=True)
   records = _impact_records(campaign, scope)
   front_keys = set(_key_of(record) for record in campaign.front)
 
@@ -1968,10 +1990,11 @@ def update_axes(name, settings, x_metric, y_metric, z_metric):
 @dash.callback(
   Output("xp-dse-summary", "children"),
   Output("xp-dse-charts", "style"),
-  Output("xp-dse-front-slot", "children"),
+  Output("xp-dse-front-graph", "figure"),
   Output("xp-dse-front-caption", "children"),
   Output("xp-dse-progress-slot", "children"),
-  Output("xp-dse-parcoords-slot", "children"),
+  Output("xp-dse-parcoords-graph", "figure"),
+  Output("xp-dse-parcoords-slot", "style"),
   Output("xp-dse-parcoords-subtitle", "children"),
   Output("xp-dse-front-table-slot", "children"),
   Output("xp-dse-body", "children"),
@@ -1994,7 +2017,7 @@ def update_body(name, x_metric, y_metric, z_metric, filters, color_by, scales, p
   campaign = CAMPAIGNS.get(result_path, name) if name else None
   if campaign is None:
     return (_empty_state(result_path), {"display": "none"},
-            None, None, None, None, None, None, None)
+            {}, None, None, {}, {"display": "none"}, None, None, None)
 
   scales = scales or []
   log_axes = [axis for axis in ("x", "y") if axis in scales]
@@ -2002,19 +2025,13 @@ def update_body(name, x_metric, y_metric, z_metric, filters, color_by, scales, p
 
   chrome = app_theme_bridge.get_chrome(app_theme)
   palette = palettes.DEFAULT_PALETTE
-  # responsive: the two charts share a grid that reflows with the window, and a
-  # figure sized once at mount would keep the width the cell had then.
-  config = {"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-            "responsive": True}
-
   filters = filters or []
 
   front_figure = _front_figure(campaign, chrome, palette, x_metric, y_metric, z_metric,
                                 highlight_key=highlight_key, filters=filters,
                                 color_by=color_by, log_axes=log_axes, zero_axes=zero_axes)
-  front = _graph(front_figure, config, id="xp-dse-front-graph")
   progress = _progress_figure(campaign, chrome, palette)
-  progress = _graph(progress, config) if progress is not None else _placeholder(
+  progress = _graph(progress, _GRAPH_CONFIG) if progress is not None else _placeholder(
     "This archive holds no per-batch history: it was written by a version of Odatix "
     "that did not record one. The next run of the campaign will."
   )
@@ -2024,7 +2041,6 @@ def update_body(name, x_metric, y_metric, z_metric, filters, color_by, scales, p
                                         filters=filters,
                                         from_zero="zero" in (parcoords_scales or []),
                                         natural=natural_axes)
-  parcoords = _graph(parcoords_figure, config, id="xp-dse-parcoords-graph")
   parcoords_subtitle = (
     "every design across every objective at once -- low values at the bottom of every axis"
     if natural_axes else
@@ -2034,6 +2050,6 @@ def update_body(name, x_metric, y_metric, z_metric, filters, color_by, scales, p
   front_table = html.Div([_section("The front", len(campaign.front)),
                           _front_table(campaign, highlight_key, filters=filters)],
                          className="xp-dse-section")
-  return (_summary(campaign), None, front,
-          _front_caption(campaign, x_metric, y_metric, z_metric), progress, parcoords,
+  return (_summary(campaign), None, front_figure,
+          _front_caption(campaign, x_metric, y_metric, z_metric), progress, parcoords_figure, None,
           parcoords_subtitle, front_table, _failures(campaign))

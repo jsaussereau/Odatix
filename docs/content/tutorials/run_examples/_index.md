@@ -11,7 +11,7 @@ but those examples — no design of your own required yet.
 Every one of them starts the same way:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/odatix_example && cd ~/odatix_example
+$ mkdir ~/odatix_examples && cd ~/odatix_examples
 $ odatix init --examples
 {{< /code >}}
 

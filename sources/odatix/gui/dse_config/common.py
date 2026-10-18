@@ -245,17 +245,11 @@ def metric_names(workspace):
     They are suggestions and nothing more -- a metric is a name in a results
     file, and the page never refuses one it does not know.
     """
-    names = set(["frequency", "fmax"])
+    from odatix.dse.metric_names import all_metric_names
+
+    names = set(["frequency", "Fmax"])
     try:
-        for tool in workspace.tools.names():
-            try:
-                names.update(workspace.tools[tool].metrics.metrics.keys())
-            except Exception:
-                pass
-    except Exception:
-        pass
-    try:
-        names.update(workspace.derived_metrics.metrics.keys())
+        names.update(all_metric_names(workspace))
     except Exception:
         pass
     return sorted(names, key=lambda name: name.lower())

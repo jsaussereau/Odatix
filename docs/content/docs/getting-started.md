@@ -34,7 +34,7 @@ $ pip install odatix
 `odatix.yml` file and the settings of what Odatix runs there:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/odatix_first && cd ~/odatix_first
+$ mkdir ~/odatix_examples && cd ~/odatix_examples
 {{< /code >}}
 
 **3. Fill it with the examples.** They add example
@@ -50,17 +50,40 @@ $ odatix init --examples
 listed in `odatix_userconfig/fmax_settings.yml`, on every
 [**target**](/docs/glossary/#target) (FPGA device or ASIC technology) the target
 file of the [**tool**](/docs/glossary/#tool) enables. Each pair is a
-[**job**](/docs/glossary/#job); the jobs run in parallel, in the Job Monitor:
+[**job**](/docs/glossary/#job). Start with a single configuration, and stop each
+search after synthesis (`--until synthesis`, `-u` for short): its ten or so
+syntheses take about a quarter of an hour, where the full run below can take
+hours.
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis
+{{< /code >}}
+
+Odatix first lists the jobs it is about to run and asks `Continue? (Y/n)`
+(`-y` skips the question). The jobs then run in parallel in the
+[Job Monitor](/docs/sessions/terminal_monitor/), a full-screen view of their
+progress and logs: press `q` once they are done to get your shell back, or `d`
+to detach and let them run in the background (`odatix monitor` brings the
+monitor back). With `-E`, the monitor closes by itself when the last job ends.
+
+The full run implements every configuration of the file: 7 configurations on
+Vivado, each one searched with up to about ten syntheses **and** place and
+routes, since `pnr` is the step Vivado runs up to by default. Expect it to take
+a while:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix fmax --tool vivado
 {{< /code >}}
 
+Running it after the short run above does not start over: the configuration
+already searched resumes at the step it stopped at.
+
 With an ASIC tool, first give it a technology of yours: the targets it lists are
 only examples (see [Add targets](/tutorials/own_flows/add_targets/)).
 
-**5. Look at the results.** When the jobs are done, Odatix exports their results
-to `results/`; Odatix Explorer charts them in your browser:
+**5. Look at the results.** When the jobs of a run are done, Odatix exports
+their results to `results/` (not before: a run still going has nothing in the
+Explorer yet); Odatix Explorer charts them in your browser:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix-explorer

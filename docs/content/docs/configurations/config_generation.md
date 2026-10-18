@@ -312,4 +312,4 @@ the domain, each labelled with where it comes from:
 - [Variables](/docs/configurations/variables/) — the exhaustive variable reference
 - [Parameter domains](/docs/configurations/param_domains/)
 - [Virtual parameter domains](/docs/configurations/virtual_param_domains/) — the same variables, used by workflows and generated-RTL architectures
-- [Configuration reference](/docs/reference/)
+- [Architecture settings](/docs/reference/architecture/)

@@ -1,7 +1,7 @@
-
 ##############################################
 # Odatix settings for RTL analysis
 ##############################################
+---
 
 # overwrite existing results
 overwrite:        No   # overridden by -o / --overwrite
@@ -18,15 +18,26 @@ log_size_limit:   300  # overridden by --logsize
 # maximum number of parallel jobs
 nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
-# tested tools
-tools: 
+# eda tools to run the analysis with (overridden by -t / --tool)
+tools:
   - vivado
   - verilator
+  # - quartus
   # - design_compiler
   # - genus
 
-# targeted architectures
-architectures: 
+# findings that are normal for these designs: they are reported apart, as
+# "expected", and do not count. Each one is a set of conditions (category,
+# severity, code, subject, file, message, tools, architectures) and a reason.
+expected:
+  # clock_of_combinational_designs:
+  #   category: unused
+  #   subject: clock
+  #   architectures: [Example_Mult]
+  #   reason: "The multiplier is combinational: its clock is only there for the timing constraints"
+
+# targeted architectures (overridden by -a / --architecture)
+architectures:
 
 #--------------------------------------------#
 # Add your own architectures!
@@ -35,16 +46,16 @@ architectures:
   #- Your_Design/Your_1st_Configuration
   #- Your_Design/Your_2nd_Configuration
   #- Your_Design/Your_3rd_Configuration
-  
-  ### You can also use wildcards to include all configurations of your design: 
-  
+
+  ### You can also use wildcards to include all configurations of your design:
+
   # - Your_Design/*
 
-  ### If your design uses mutliple paramter domains:
+  ### If your design uses multiple parameter domains:
 
-  # - Your_Design/* + Domain1/Configuration1 + Domain2/* 
+  # - Your_Design/* + Domain1/Configuration1 + Domain2/*
 
-  ### Design without any configuration are of course supported:
+  ### Designs without any configuration are of course supported:
 
   # - Your_Design
 
@@ -55,9 +66,9 @@ architectures:
 
   - Example_Counter_sv/*
   - Example_Counter_vhdl/*
-  - Example_Counter_verilog/*
+  # - Example_Counter_verilog/*
   # - Example_Counter_chisel/*
-  # - Example_Counter_Chisel_CLI/*
+  # - Example_Counter_chisel_cli/*
 
   # - Example_ALU_sv/*
   # - Example_ALU_chisel/*
@@ -66,3 +77,5 @@ architectures:
   # - Example_Shift_Register_chisel/*
 
   # - Example_Mult/*
+
+...

@@ -8,7 +8,7 @@ weight: 2
 
 > [!IMPORTANT] Requires Odatix 4.0+
 
-The GUI monitor is the Job Monitor page of [the Odatix GUI](/docs/gui/app/). It shows exactly the same [sessions](/docs/sessions/) and jobs as the terminal monitor — there is a single daemon behind both — with a richer view: live counters, filtering, sorting and adjustable layouts.
+The GUI monitor is the Job Monitor page of [the Odatix GUI](/docs/gui/app/). It shows exactly the same [sessions](/docs/sessions/) and jobs as the terminal monitor — both talk to the same session daemons — with a richer view: live counters, filtering, sorting and adjustable layouts.
 
 {{< toc >}}
 
@@ -35,12 +35,15 @@ $ odatix-gui monitor -S my_session # Start the GUI on the monitor page of the se
 
 The top bar of the page carries everything that applies to the whole session:
 
-- the **session dropdown**, listing every active session; switching sessions reloads the whole view,
+- the **session dropdown**, listing every active session; switching sessions reloads the whole view. The sessions of the workspace the GUI runs in come first, latest first, and the latest of them is the one shown when none is named; a session of another workspace carries the name of its workspace (`1234.nightly — ~/other_project`). Typing in the list searches the session names and the workspace paths,
 - the **Parallel** control (`−` / `+`), which changes how many jobs the daemon runs at the same time — the change takes effect immediately,
+- the **Auto-pause** switch, which turns the [resource guard](/docs/reference/workspace/#resource-guard) of the session on or off. While it is on, jobs are paused when the CPU or memory usage of the machine reaches its limit; its tooltip shows the limits and the current load, and the switch shows how many jobs it has paused. Turning it off resumes them right away. It reads *N/A* when the guard cannot run on the machine of the session (`psutil` not installed, or Windows),
 - the **layout mode** buttons (see [below](#layout-modes)),
-- the **kill-all** button, which kills every task and exits the session.
+- the **kill-all** button (✖), which kills every task and closes the session, once you have confirmed it: the dialog says how many jobs will be killed or canceled, and in which session (and workspace, when it is another one). The page then moves on to another session of the workspace.
 
-Below the toolbar, a row of live counters shows **Total**, **Running**, **Queued**, **Done** and **Failed** jobs, next to an **Overall** progress bar for the session as a whole.
+When the selected session cannot be shown (it was stopped, or never existed), the toolbar and the session list stay, with a message and two ways out: **Run jobs** and **Back to home**. Pick another session in the list to get back to the dashboard.
+
+Below the toolbar, a row of live counters shows **Total**, **Running**, **Queued**, **Done** and **Failed** jobs, next to an **Overall** progress bar for the session as a whole. **Queued** counts the paused jobs too (by you or by auto-pause), and **Failed** the killed and canceled ones; the filters below group them the same way.
 
 ## Layout modes
 
@@ -79,11 +82,12 @@ The log area is focusable, so `Home`, `End` and `PageUp`/`PageDown` scroll the l
 
 ## When everything is done
 
-When the last job of the session finishes, a popup summarizes the run and offers three ways out:
+When the last job of the session finishes, a popup summarizes the run and offers these ways out:
 
 1. **Close session and open Explorer** — shut the session down and jump straight to the results (default).
 2. **Keep session and open Explorer** — go to the results while leaving the session alive.
-3. **Stay in the monitor** — keep browsing the logs.
+3. **Close session only** — shut the session down and go back to the home page of the GUI.
+4. **✖** (top right) — close the popup and stay in the monitor, to keep browsing the logs.
 
 ## Monitoring a remote daemon
 

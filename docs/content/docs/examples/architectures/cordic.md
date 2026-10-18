@@ -301,4 +301,4 @@ Each run sweeps 512 test vectors spread evenly over a full turn, compares them a
 - [Parameter domains](/docs/configurations/param_domains/) — how `WIDTH` and `ITERATIONS` combine.
 - [Simulation](/docs/features/simulation/) — the feature behind the simulator flows.
 - [Simulation templates](/docs/reference/simulation/#templates) — what each template runs and reports.
-- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.
+- [All architecture examples](/docs/examples/architectures/) — the seven designs and what each one adds.

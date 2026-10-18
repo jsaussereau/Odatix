@@ -31,7 +31,7 @@ use_parameters: No
 # "${width}" in the generation command above is filled from this variable, which
 # behaves exactly like a parameter domain: the counter is synthesized once per
 # value, and a single value can be selected with
-# "odatix fmax -a Example_Counter_Chisel_CLI+width/16bits".
+# "odatix fmax -a Example_Counter_chisel_cli+width/16bits".
 # No directory, and no parameter file, needed.
 variables:
   width:

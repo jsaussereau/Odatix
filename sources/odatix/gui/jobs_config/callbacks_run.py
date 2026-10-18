@@ -41,6 +41,7 @@ from odatix.gui.jobs_config.common import (
     _checklist_enabled,
     _normalize_session_selector,
     page_path,
+    rerun_step_names,
 )
 from odatix.gui.jobs_config.context import _run_context
 from odatix.gui.jobs_config.prepare_state import (
@@ -97,6 +98,7 @@ def close_run_popup(n):
     State("exit_when_done", "value"),
     State("log_size_limit", "value"),
     State("analysis-tools", "value"),
+    State("rerun-from", "value"),
     # Live architecture/configuration selection and frequency fields, so the run
     # uses the current (possibly unsaved) page state (written to a temp file).
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
@@ -130,6 +132,7 @@ def run_jobs(
     exit_when_done,
     log_size_limit,
     analysis_tools,
+    rerun_from,
     switch_values,
     switch_ids,
     preview_values,
@@ -175,6 +178,11 @@ def run_jobs(
         tool, flow=flow, job_type=run_mode
     ):
         until_step = None
+    # First step to do again even where it is done ("--rerun-from"), checked the
+    # same way: only a step this run goes through can be re-run.
+    rerun_from = rerun_from or None
+    if rerun_from is not None and rerun_from not in rerun_step_names(search):
+        rerun_from = None
 
     run_context = _run_context(search, odatix_settings)
 
@@ -262,6 +270,7 @@ def run_jobs(
         tool=tool,
         flow=flow,
         until=until_step,
+        rerun_from=rerun_from,
         overwrite=overwrite_enabled,
         noask=noask,
         exit_when_done=exit_when_done_enabled,
@@ -272,14 +281,19 @@ def run_jobs(
 
     # Where a place & route finds its sources is the workspace's business: the
     # run works it out (see odatix.run.flows.PnrFlow), as it does for a command.
-    if run_mode == "fmax_synthesis":
-        run_options["continue_on_error"] = True
-    elif run_mode == "analyze":
+    # An fmax search stops at its first failed synthesis, as "odatix fmax" does
+    # without --continue-on-error: the interface runs what the command runs.
+    if run_mode == "analyze":
         # Tools selected in the "Tools" tile; fall back to the ?tool=... url
         # tool. Equivalent to 'odatix analyze --tool <analysis_tool_list>'.
         run_options["tool"] = [t for t in (analysis_tools or []) if t] or [tool]
-        # The flow picked on /choose_eda_tool applies to every selected tool.
-        run_options["flow"] = [flow] if flow else None
+        # The flow picked on /choose_eda_tool is a flow of the tool it was
+        # picked for ("odatix analyze --flow tool:flow"), the other selected
+        # tools running their default flow.
+        if flow and tool in run_options["tool"]:
+            run_options["flow"] = [tool + ":" + flow]
+        else:
+            run_options["flow"] = [flow] if flow else None
 
     prepare_state._prepare_thread = threading.Thread(
         target=start_check,
@@ -315,6 +329,18 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key):
     current_status = run_status.get("status")
     if current_status == "canceled":
         return run_status, "", "", "", "color-button disabled icon-button", dash.no_update
+
+    # D-07: this click was refused, a check started earlier still running. What
+    # that check reports is about another click: saying it here showed "No job
+    # found" for a selection that holds some.
+    if current_status == "running":
+        new_key = _run_popup_render_key(current_status)
+        if new_key == render_key:
+            raise dash.exceptions.PreventUpdate
+        return (
+            run_status, _run_popup_body(current_status), new_key, "",
+            "color-button disabled icon-button", dash.no_update,
+        )
 
     if prepare_state._prepare_status.get("status") and prepare_state._prepare_status.get("status") != current_status:
         run_status = {**run_status, **prepare_state._prepare_status}
@@ -363,7 +389,14 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key):
                         host = str(state.get("host", hard_settings.daemon_default_host))
                         port = int(state.get("port", hard_settings.daemon_default_port))
                         prepare_state._prepare_monitor_href = f"/monitor?host={quote(host, safe='')}&port={port}"
+                    # Where the monitor sends the results of these jobs once
+                    # they are done: an analysis has its own Explorer page.
+                    if prepare_state._prepare_synth_type == "analyze":
+                        prepare_state._prepare_monitor_href += "&explorer=analysis"
                     run_status = {**run_status, "status": "launched"}
+                    # The jobs are built and in a session: the settings they
+                    # were built from are no longer read.
+                    prepare_state._remove_temp_settings_file()
                 except Exception as exc:
                     with prepare_state._prepare_enqueue_lock:
                         prepare_state._prepare_enqueued = False

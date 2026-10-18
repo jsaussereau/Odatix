@@ -30,6 +30,11 @@ workflows or the designs a simulation runs on::
     counter/*                          every configuration of the architecture
     counter/08bits+corner/tt           with one configuration of another domain
     counter/*+corner/*                 every combination of both
+    counter/0*                         the configurations whose name starts with "0"
+    */08bits                           "08bits" of every architecture that has one
+
+"*", "?" and "[...]" are glob patterns (see :mod:`fnmatch`) at every level: the
+entry, its configuration and the value of each other domain.
 
 :func:`parse` reads one such entry, :func:`expand` turns a whole selection into
 the concrete entries it stands for, looking up on disk what the wildcards match.
@@ -39,6 +44,7 @@ Nothing here prints: what a user should be told about a selection comes back as
 script each report it their own way.
 """
 
+import fnmatch
 import itertools
 import os
 import re
@@ -301,64 +307,15 @@ def expand(requests, root, messages=None):
     filters = {}
     expanded = []
     for text in requests or []:
-        request = parse(text)
-        messages.extend(request.notes)
-
-        matched = _match_configurations(request, root, messages)
-        domain_values = _match_domains(request, root, messages)
-
-        if domain_values is None:
-            continue
-
-        before = len(expanded)
-        # What this architecture says its design space does not hold. A
-        # combination an exclusion rules out is not part of the sweep, whether
-        # it was reached by a wildcard or written out: the difference is only in
-        # how loudly it is said.
-        excluder = filters.get(request.entry)
-        if excluder is None:
-            excluder = ExclusionFilter(root, request.entry)
-            filters[request.entry] = excluder
-        strict = not _has_wildcard(request)
-
-        # A wildcard over several domains stands for the product of everything
-        # it names, and a rule may take tens of thousands of those out at once.
-        # Saying so once per point would bury what the run is about under its
-        # own explanation, so what is left out is counted per rule and said at
-        # the end of the entry -- an explicitly named point still gets its own
-        # message, there being exactly one of it.
-        left_out = _LeftOut(request.entry)
-
-        if domain_values:
-            domains = list(domain_values.keys())
-            for path in matched:
-                for combination in itertools.product(*[domain_values[domain] for domain in domains]):
-                    selectors = "+".join(
-                        "{0}/{1}".format(domain, value) for domain, value in zip(domains, combination)
-                    )
-                    entry = "{0}+{1}".format(path, selectors)
-                    excluded = excluder.check(entry)
-                    if excluded is None:
-                        expanded.append(entry)
-                    else:
-                        left_out.add(entry, excluded)
-        else:
-            for entry in matched:
-                excluded = excluder.check(entry)
-                if excluded is None:
-                    expanded.append(entry)
-                else:
-                    left_out.add(entry, excluded)
-
-        left_out.report(messages, strict=strict)
-
-        for message in excluder.take_errors():
-            messages.append(Message("error", message))
-
-        if _has_wildcard(request) and len(expanded) == before:
+        written = parse(text)
+        messages.extend(written.notes)
+        entries = _expand_entry(written, root)
+        if not entries:
             messages.append(
-                Message("warning", 'Wildcard "{0}" did not match any configuration'.format(request.text))
+                Message("warning", 'Wildcard "{0}" did not match any entry in "{1}"'.format(written.text, root))
             )
+        for request in entries:
+            _expand_request(request, root, messages, filters, expanded)
 
     unique = list(dict.fromkeys(expanded))
     # Natural order is what puts "8bits" before "16bits", and it is worth what
@@ -370,6 +327,65 @@ def expand(requests, root, messages=None):
     if len(unique) > NATURAL_ORDER_LIMIT:
         return unique
     return natsorted(unique)
+
+
+def _expand_request(request, root, messages, filters, expanded):
+    """Append to `expanded` what one entry of a selection (entry name resolved) stands for."""
+    matched = _match_configurations(request, root, messages)
+    domain_values = _match_domains(request, root, messages)
+
+    if domain_values is None:
+        return
+
+    before = len(expanded)
+    # What this architecture says its design space does not hold. A
+    # combination an exclusion rules out is not part of the sweep, whether
+    # it was reached by a wildcard or written out: the difference is only in
+    # how loudly it is said.
+    excluder = filters.get(request.entry)
+    if excluder is None:
+        excluder = ExclusionFilter(root, request.entry)
+        filters[request.entry] = excluder
+    strict = not _has_wildcard(request)
+
+    # A wildcard over several domains stands for the product of everything
+    # it names, and a rule may take tens of thousands of those out at once.
+    # Saying so once per point would bury what the run is about under its
+    # own explanation, so what is left out is counted per rule and said at
+    # the end of the entry -- an explicitly named point still gets its own
+    # message, there being exactly one of it.
+    left_out = _LeftOut(request.entry)
+
+    if domain_values:
+        domains = list(domain_values.keys())
+        for path in matched:
+            for combination in itertools.product(*[domain_values[domain] for domain in domains]):
+                selectors = "+".join(
+                    "{0}/{1}".format(domain, value) for domain, value in zip(domains, combination)
+                )
+                entry = "{0}+{1}".format(path, selectors)
+                excluded = excluder.check(entry)
+                if excluded is None:
+                    expanded.append(entry)
+                else:
+                    left_out.add(entry, excluded)
+    else:
+        for entry in matched:
+            excluded = excluder.check(entry)
+            if excluded is None:
+                expanded.append(entry)
+            else:
+                left_out.add(entry, excluded)
+
+    left_out.report(messages, strict=strict)
+
+    for message in excluder.take_errors():
+        messages.append(Message("error", message))
+
+    if _has_wildcard(request) and len(expanded) == before:
+        messages.append(
+            Message("warning", 'Wildcard "{0}" did not match any configuration'.format(request.text))
+        )
 
 
 ######################################
@@ -574,13 +590,65 @@ def filter_excluded(entries, root, messages=None, applied=None):
     return kept
 
 
+#: Characters that make a name of a selection a glob pattern.
+GLOB_CHARACTERS = "*?["
+
+
+def is_glob(name):
+    """Whether a name of a selection is a glob pattern rather than a name."""
+    return any(character in str(name) for character in GLOB_CHARACTERS)
+
+
+def _domain_value(selector):
+    return re.sub(".*/", "", selector)
+
+
 def _has_wildcard(request):
-    return _selects_every_configuration(request) or any(domain.endswith("/*") for domain in request.domains)
+    return (
+        is_glob(request.entry)
+        or _selects_every_configuration(request)
+        or any(is_glob(_domain_value(domain)) for domain in request.domains)
+    )
 
 
 def _selects_every_configuration(request):
-    """Whether the entry is written "<entry>/*"."""
-    return request.has_configuration and request.configuration == "*"
+    """Whether the configuration of the entry is a pattern ("<entry>/*", "<entry>/0*")."""
+    return request.has_configuration and is_glob(request.configuration)
+
+
+def _entries_of(root):
+    """The entries `root` holds, i.e. its directories."""
+    if not os.path.isdir(root):
+        return []
+    return natsorted([
+        name for name in os.listdir(root)
+        if not name.startswith(".") and os.path.isdir(os.path.join(root, name))
+    ])
+
+
+def _expand_entry(request, root):
+    """
+    The requests an entry written as a pattern stands for, one per entry of
+    `root` it matches. A literal configuration then narrows them to the entries
+    that hold it: "*/08bits" is "08bits" wherever there is one.
+    """
+    if not is_glob(request.entry):
+        return [request]
+    requests = []
+    for name in _entries_of(root):
+        if not fnmatch.fnmatchcase(name, request.entry):
+            continue
+        if request.has_configuration and not is_glob(request.configuration):
+            if request.configuration not in resolved_names(os.path.join(root, name)):
+                continue
+        requests.append(JobRequest(
+            text=request.text,
+            entry=name,
+            configuration=request.configuration,
+            domains=request.domains,
+            has_configuration=request.has_configuration,
+        ))
+    return requests
 
 
 def _match_configurations(request, root, messages):
@@ -593,12 +661,21 @@ def _match_configurations(request, root, messages):
         messages.append(Message("error", 'The architecture directory "{0}" does not exist'.format(entry_path)))
         return []
 
-    names = resolved_names(entry_path)
+    names = [
+        name for name in resolved_names(entry_path)
+        if fnmatch.fnmatchcase(name, request.configuration)
+    ]
     if not names:
+        # An architecture whose configurations all live in other domains has
+        # none of its own: what was meant is most likely a sweep of those.
+        domains = domain_names(root, request.entry) if not resolved_names(entry_path) else []
+        hints = ['Its configurations are in parameter domains: "{0} + {1}"'.format(
+            request.entry, " + ".join(domain + "/*" for domain in domains)
+        )] if domains else None
         messages.append(
             Message("warning", 'Wildcard "{0}" did not match any configuration in "{1}"'.format(
                 request.text, entry_path
-            ))
+            ), hints=hints)
         )
     return [os.path.join(request.entry, name) for name in names]
 
@@ -618,12 +695,12 @@ def _match_domains(request, root, messages):
     entry_path = os.path.join(root, request.entry)
     values = {}
     for selector in request.domains:
-        if not selector.endswith("/*"):
-            domain = re.sub("/.*", "", selector)
-            values[domain] = [re.sub(".*/", "", selector)]
+        domain = re.sub("/.*", "", selector)
+        pattern = _domain_value(selector)
+        if not is_glob(pattern) or "/" not in selector:
+            values[domain] = [pattern]
             continue
 
-        domain = selector[:-2]
         if not os.path.isdir(entry_path):
             messages.append(Message("error", 'The architecture directory "{0}" does not exist'.format(entry_path)))
             continue
@@ -644,7 +721,7 @@ def _match_domains(request, root, messages):
             )
             continue
 
-        names = resolved_names(domain_path)
+        names = [name for name in resolved_names(domain_path) if fnmatch.fnmatchcase(name, pattern)]
         values[domain] = names
         if not names:
             messages.append(

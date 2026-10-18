@@ -60,22 +60,33 @@ class Archive(object):
 
     Args:
         path (str): the file to write.
-        architecture (str): the architecture that was searched.
+        architecture (str): the name of the search: the campaign, and what its
+            entry selected when it names several architectures (see
+            :attr:`odatix.dse.campaign.Campaign.name`). It is what the archive
+            is found back by, and what the exported records say under "dse".
         objectives (Objectives): what it was searched for.
         tolerance (float): how much of the front's hypervolume a batch has to
             add for it to count as progress (see
             :class:`~odatix.dse.objectives.Progress`).
+        design (str): the architecture (or the workflow) that was searched,
+            as the archive writes it under "architecture". The name of the
+            search when not given.
     """
 
     def __init__(self, path, architecture, objectives, strategy="", space_size=0, tolerance=0.0,
-                 results_path=None):
+                 results_path=None, design=None):
         self.path = path
         #: Where the designs the search evaluated are exported as an ordinary
         #: Odatix results file, or None to export none (see
         #: :mod:`odatix.dse.export`).
         self.results_path = results_path
         self.architecture = architecture
+        self.design = design or architecture
         self.objectives = objectives
+        #: What the archive read back said the search was looking for, when it
+        #: was read back (see :meth:`restore` and :meth:`asked_another_question`).
+        self.restored_objectives = None
+        self.restored_constraints = None
         self.strategy = strategy
         self.space_size = space_size
         self.evaluations = []
@@ -207,8 +218,10 @@ class Archive(object):
                 content = yaml_loader.safe_load(f) or {}
         except Exception:
             return []
-        if not isinstance(content, dict) or content.get("architecture") != self.architecture:
+        if not isinstance(content, dict) or self.name_in(content) != self.architecture:
             return []
+        self.restored_objectives = content.get("objectives") or []
+        self.restored_constraints = content.get("constraints") or []
 
         objectives = objectives if objectives is not None else self.objectives
         restored = []
@@ -240,6 +253,57 @@ class Archive(object):
         self.evaluations = restored
         return genomes
 
+    @staticmethod
+    def name_in(content):
+        """
+        The name of the search an archive holds.
+
+        Written under "campaign"; archives written before that key existed
+        have it under "architecture", which now names what was searched.
+        """
+        if "campaign" in content:
+            return content.get("campaign")
+        return content.get("architecture")
+
+    def asked_another_question(self, objectives=None):
+        """
+        Whether the archive read back was looking for something else than the
+        campaign is now: other objectives, or other constraints.
+
+        Only meaningful once :meth:`restore` has read an archive.
+        """
+        if self.restored_objectives is None:
+            return False
+        objectives = objectives if objectives is not None else self.objectives
+        return (
+            list(self.restored_objectives) != objectives.to_list()
+            or list(self.restored_constraints or []) != objectives.constraints.to_list()
+        )
+
+    def peek(self):
+        """
+        How many designs the archive on disk says this search already ran
+        itself -- the reused ones left out, as the budget counts them.
+
+        Read without rebuilding the designs: it is what is shown before an
+        exploration starts, and what the run then restores may be a little
+        less (designs gone from the space since).
+        """
+        if not os.path.isfile(self.path):
+            return 0
+        try:
+            with open(self.path, "r") as f:
+                content = yaml_loader.safe_load(f) or {}
+        except Exception:
+            return 0
+        if not isinstance(content, dict) or self.name_in(content) != self.architecture:
+            return 0
+        return len([
+            record for record in content.get("evaluations") or []
+            if isinstance(record, dict) and isinstance(record.get("genome"), list)
+            and not record.get("reused")
+        ])
+
     ######################################
     # Writing it down
     ######################################
@@ -262,7 +326,8 @@ class Archive(object):
         front = self.front()
         costs = [evaluation.costs for evaluation in front]
         written = {
-            "architecture": self.architecture,
+            "campaign": self.architecture,
+            "architecture": self.design,
             "strategy": self.strategy,
             "objectives": self.objectives.to_list(),
         }
@@ -276,7 +341,10 @@ class Archive(object):
             )
         written.update({
             "designs_in_space": self.space_size,
-            "evaluated": len(self.evaluations),
+            # What the search ran itself, which is what its budget counts; the
+            # designs it was given for free are counted apart.
+            "evaluated": len([e for e in self.evaluations if not getattr(e, "reused", False)]),
+            "reused": len([e for e in self.evaluations if getattr(e, "reused", False)]),
             "measured": len(self.measured),
             # How far the front reaches, which is what a campaign is trying to
             # grow: two runs of the same exploration are compared by it.

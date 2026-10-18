@@ -39,7 +39,7 @@ script_name = os.path.basename(__file__)
 
 def add_arguments(parser):
   add_options(parser, "settings_file")
-  parser.add_argument("-y", "--yes", dest="force", action="store_true", help="do not ask before removing a dangerous path")
+  parser.add_argument("-y", "--yes", dest="force", action="store_true", help="also remove what the patterns that look dangerous match (/, ~, *, ...): they are left alone otherwise")
   deprecated_option(parser, "-f", "-y/--yes", action="store_true", dest="force")
   deprecated_option(parser, "--force", "-y/--yes", action="store_true", dest="force")
   parser.add_argument("-V", "--verbose", action="store_true", help="print extra details")
@@ -74,9 +74,10 @@ def remove_path(path, force=False, verbose=False, quiet=False):
     if not quiet:
       printc.warning("Deleting \"" + removal.path + "\" seems dangerous: it is left alone. Use -y/--yes to delete it anyway (at your own risk)", script_name=script_name)
 
-  if verbose:
+  if verbose and not quiet:
+    # Not a problem: a clean profile lists what a run may leave behind.
     for pattern in result.unmatched:
-      printc.warning("Path \"" + pattern + "\" does not exist or is not accessible.", script_name=script_name)
+      printc.note("Nothing matches \"" + pattern + "\"", script_name=script_name)
 
   for removal in result.errors:
     printc.error("Failed to remove \"" + removal.path + "\".", script_name=script_name)
@@ -134,6 +135,11 @@ def main(args, settings=None):
   settings_file = args.settings_file
   if settings_file is None:
     settings_file = settings.clean_settings_file
+  elif not os.path.isfile(settings_file):
+    # Named on purpose: falling back to another profile would remove what the
+    # user did not ask for.
+    printc.error("Settings file \"" + settings_file + "\" does not exist", script_name)
+    return False
 
   return clean(
     settings_filename=settings_file,

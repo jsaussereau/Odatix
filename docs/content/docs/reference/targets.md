@@ -31,8 +31,8 @@ odatix_userconfig/targets/
 | Key | Type | Required | Description |
 |-----|------|----------|-------------|
 | `targets` | list of strings | Yes | The devices or technologies to implement for. Their names are the ones the tool's scripts expect. |
-| `constraint_file` | filename | Yes | Constraint file copied into every job's context (`constraints.xdc`, `constraints.sdc`…). |
-| `tool_install_path` | path | No | Root of the tool installation, exposed to the scripts as `$tool_install_path`. Leave empty when the tool is on your `PATH`. |
+| `constraint_file` | filename | No (default `constraints.sdc`) | File of the job directory holding the clock constraint at the target frequency (`constraints.xdc`, `constraints.sdc`…). Odatix writes it as SDC before a fixed-frequency synthesis runs; the scripts of the built-in tools rewrite it in their own format. |
+| `tool_install_path` | path | No | Root of the tool installation, exposed to the scripts as `$tool_install_path`. Leave empty, or leave out, when the tool is on your `PATH`: `$tool_install_path` is then empty. |
 | `force_single_thread` | bool | No (default `No`) | Run the jobs of this file one at a time. Can help when many parallel jobs saturate memory or licences. |
 | `script_copy_enable` | bool | No | Copy an extra script into each job's script directory. |
 | `script_copy_source` | path | If enabled | The script to copy. Ignored with a note if the file does not exist. |
@@ -109,7 +109,7 @@ of a [tool definition](/docs/reference/tools/):
 | `$rtl_path` | The job's RTL directory, holding the copied sources. |
 | `$report_path` | The job's report directory. |
 | `$result_path` | The job's result directory. |
-| `$architecture` | Design being run, configuration included. |
+| `$architecture` | Design being run, configuration included: `Counter/08bits`. |
 | `$target` | Target this job runs on. |
 | `$tool` | Name of this tool. |
 | `$clock_signal` | Clock signal of the design being run. |
@@ -123,10 +123,38 @@ of a [tool definition](/docs/reference/tools/):
 `target_path` defaulted to `odatix_userconfig/targets` working unchanged. See
 [Workspace settings](/docs/reference/workspace/).
 
+## A new target file
+
+A target file written by Odatix — by the GUI or by the
+[Python API](/docs/python_api/) for a tool that has none yet — spells its
+settings out, with their defaults, so that it runs as it is:
+
+{{< code lang=yaml filename="odatix_userconfig/targets/target_mytool.yml" >}}
+constraint_file: constraints.sdc
+
+tool_install_path: "" # empty: the tool is on your PATH
+
+force_single_thread: No
+
+script_copy_enable: No
+script_copy_source: "/dev/null"
+
+targets:
+  - generic
+{{< /code >}}
+
+From the API, `ws.targets["mytool"]` is the target file of a tool: `add()`,
+`enable()`, `disable()`, `rename()` and `remove()` change its targets, and
+`update(constraint_file=..., tool_install_path=..., force_single_thread=...)`
+its settings.
+
 ## In the GUI
 
-**Run jobs** → **Targets** lists the targets of the selected tool with a
-checkbox each, and writes the selection back to this file. See
+On the run page of a synthesis or a place & route (**Run**, then a job type and
+a tool), **Choose targets** opens the targets of the selected tool: one card per
+target, with an **Enable** switch, and **Add new target** to add one. The
+**Tool settings** panel above them edits `constraint_file`, `tool_install_path`
+and `force_single_thread`. **Save all** writes the file. See
 [The Odatix GUI](/docs/gui/app/).
 
 ## See also

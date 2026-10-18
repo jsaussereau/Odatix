@@ -27,18 +27,20 @@ tasks:
       - "echo 'Progress: 80' > progress.txt"
       - sleep 1
       - echo 'step 3/3 done'
-      - "echo 'Progress: 100' > progress.txt"
+      - python3 platform_info.py   # writes platform_info.txt
+      - python3 main.py            # writes output.txt
 
   - name: main
-    platforms: win32 # powershell
+    platforms: win32 # cmd.exe, the shell jobs run their commands with on Windows
     commands:
-      - commands:Write-Host "Windows Task..."
-      - Start-Sleep -Seconds 1
-      - Write-Host "step 1/3 done"
-      - '"Progress: 60" | Set-Content progress.txt'
-      - Start-Sleep -Seconds 1
-      - Write-Host "step 2/3 done"
-      - '"Progress: 80" | Set-Content progress.txt'
-      - Start-Sleep -Seconds 1
-      - Write-Host "step 3/3 done"
-      - '"Progress: 100" | Set-Content progress.txt'
+      - echo Windows Task...
+      - timeout /t 1 /nobreak > NUL
+      - echo step 1/3 done
+      - "echo Progress: 60> progress.txt"
+      - timeout /t 1 /nobreak > NUL
+      - echo step 2/3 done
+      - "echo Progress: 80> progress.txt"
+      - timeout /t 1 /nobreak > NUL
+      - echo step 3/3 done
+      - python platform_info.py
+      - python main.py

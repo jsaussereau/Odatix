@@ -77,6 +77,10 @@ def _describe(campaign):
         "campaign": campaign.campaign_name,
         "architecture": campaign.architecture.name,
         "budget": campaign.budget,
+        # What this run will spend: the budget, less what an earlier run of
+        # the campaign already evaluated.
+        "remaining": campaign.remaining,
+        "done": campaign.already_evaluated,
         "space": campaign.space_size,
         "batch": int(campaign.search.batch),
         "strategy": campaign.strategy.name,
@@ -153,12 +157,15 @@ def _start(workspace, settings, campaigns, session=None):
     global status, monitor_href
     from urllib.parse import quote
 
-    from odatix.dse.driver import build_driver, default_session
+    from odatix.dse.driver import build_driver, new_session
     from odatix.lib.parallel_job_handler import daemon_control
 
     try:
         with printc.collect(messages.add):
-            session = default_session(session)
+            # "New session..." is a new session every time: the app is one
+            # process, and naming the session after it would put every
+            # exploration it starts in the same one (see new_session).
+            session = str(session or "").strip() or new_session(workspace)
             handler = build_driver(
                 workspace, settings, session,
                 architectures=[campaign.name for campaign in campaigns],

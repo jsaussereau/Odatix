@@ -59,7 +59,9 @@ def _plan_noun():
         return "simulations"
     if prepare_state._prepare_synth_type == "pnr":
         return "place & route jobs"
-    return "architectures"
+    # A synthesis plan lists jobs: one configuration on one target (at one
+    # frequency for a fixed-frequency synthesis), not architectures.
+    return "jobs"
 
 
 def _summary_row(glyph, style, title, count, subtitle, items=None, content=None, body_class="", opened=False):
@@ -411,11 +413,25 @@ def _section(title, rows):
     )
 
 
+#: The statuses of a run that say the check is over (D-07): only then may the
+#: popup say that a selection holds no job.
+RUN_POPUP_DONE = ("checked", "prepared", "launched", "error", "canceled")
+
+
 def _run_popup_body(status):
     """
     Content of the run popup, entirely built from the structured report the run
     scripts produce: a headline, the diagnostics, and the jobs, each foldable.
     """
+    if status == "running":
+        # This click was refused: a check started earlier has not ended (a
+        # tool that does not answer, a loaded machine). What it reports is
+        # about that earlier click, so none of it is shown here.
+        return html.Div(html.Div(
+            "A check started earlier is still running. Close this window and run again once it has ended.",
+            className="jobs-plan-placeholder",
+        ), className="jobs-plan")
+
     plan = _prepare_plan()
     children = []
 
@@ -431,7 +447,9 @@ def _run_popup_body(status):
     children.append(_section("Diagnostics", _message_rows(prepare_state._prepare_messages)))
     if plan:
         children.append(_section(_plan_noun().capitalize(), _job_rows(plan)))
-    elif status in ("checking", "preparing"):
+    elif status not in RUN_POPUP_DONE:
+        # Anything that has not ended yet is still being checked: "no job"
+        # is an answer only once there is one.
         children.append(html.Div("Checking settings…", className="jobs-plan-placeholder"))
     elif not prepare_state._prepare_messages:
         children.append(html.Div("No job found for this selection.", className="jobs-plan-placeholder"))

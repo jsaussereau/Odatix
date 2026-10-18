@@ -8,15 +8,17 @@ weight: 8
 
 > [!IMPORTANT] Requires Odatix 4.0+
 
-Odatix runs `fmax`, `synth`, `sim` and `workflow` through a background **daemon**. Jobs are enqueued into a **session**, then monitored either immediately (default) or later (detached mode). A [**Job Monitor**](/docs/sessions/#two-equivalent-monitors) shows every job's progress and logs live, and lets you start, pause, resume or kill jobs at any time.
+Odatix runs `fmax`, `synth`, `pnr`, `sim` and `workflow` jobs in the background. Jobs are enqueued into a **session**, then monitored either immediately (default) or later (detached mode). A [**Job Monitor**](/docs/sessions/#two-equivalent-monitors) shows every job's progress and logs live, and lets you start, pause, resume or kill jobs at any time.
 
 {{< toc >}}
 
 ## Sessions
 
-A session is a set of jobs handed over to the daemon by a single run command. The daemon owns the session: it schedules the jobs, runs a limited number of them in parallel, and keeps them alive whether or not a monitor is attached. Closing a monitor does not stop the jobs — only [stopping the session](#stop-sessions) does.
+A session is a background process, a **daemon**, that runs the jobs handed over to it. Each session is its own daemon process: it schedules its jobs, runs a limited number of them in parallel, and keeps them alive whether or not a monitor is attached. Closing a monitor does not stop the jobs — only [stopping the session](#stop-sessions) does.
 
-Each session has an ID of the form `<pid>.<name>` (e.g. `12345.nightly`), and can be attached, detached and re-attached freely, from the terminal or from the browser.
+Each session has an ID of the form `<pid>.<name>` (e.g. `12345.nightly`), where `<pid>` is the process of its daemon, and can be attached, detached and re-attached freely, from the terminal or from the browser.
+
+A session belongs to the workspace it was started in. The session commands (`odatix ls`, `odatix monitor`, `odatix stop`) work on the sessions of the current workspace: see [sessions of other workspaces](#sessions-of-other-workspaces).
 
 ### Default behavior
 
@@ -28,11 +30,30 @@ $ odatix fmax --tool vivado
 
 ### Detached sessions
 
-Use detached mode with `-d`/`--detach` to start jobs and return to the shell immediately.
+Use detached mode with `-d`/`--detach` to start jobs and return to the shell immediately. The command says which session took the jobs:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix fmax --tool vivado -d
+...
+[odatix fmax] note: 4 job(s) handed to session 438856.pts-3.myhost: follow them with "odatix monitor -S pts-3.myhost", stop it with "odatix stop -S pts-3.myhost"
 {{< /code >}}
+
+### When the jobs are done
+
+A session stays alive once its jobs are done, so that you can still look at their logs. Close it from the end-of-run dialog of the monitor, or with [`odatix stop`](#stop-sessions).
+
+With `-E`/`--exit`, the monitor closes by itself once every job is over, and so does the session. The command then prints what became of the jobs:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -y -E
+...
+[odatix workflow] warning: 3/4 job(s) succeeded, 1 failed
+[odatix workflow] note: Session 517634.pts-12.myhost closed
+{{< /code >}}
+
+If jobs of another run are still running in that session (several runs can share one with `-S`), the session is kept open and the command says how to follow it.
+
+When the terminal cannot show the monitor (a script, a CI job, `nohup`), `-E` still means that the run is over when the command returns: the command waits for the jobs, printing a line each time their count changes, then closes the session the same way. <kbd>Ctrl</kbd>+<kbd>C</kbd> stops the waiting, not the jobs. Without `-E`, the command returns at once and the jobs keep running in their session.
 
 ### Session naming
 
@@ -42,26 +63,46 @@ When using a run command, you can give the session a meaningful name with `-S`:
 $ odatix fmax --tool vivado -d -S nightly
 {{< /code >}}
 
-The same pattern applies to `odatix synth`, `odatix sim` and `odatix workflow` commands.
+The same pattern applies to `odatix synth`, `odatix pnr`, `odatix sim` and `odatix workflow` commands.
+
+Without `-S`, every run starts a new session, named after the terminal and the machine it was started from: `<tty>.<host>` (e.g. `pts-3.myhost`), then `pts-3.myhost.2`, `pts-3.myhost.3`... when that name is taken. A run started without a terminal (a script, the GUI) gets `no_tty.<host>`.
+
+Running a command with `-S` naming a session that is already running **adds its jobs to that session**, instead of starting a new one. They run with the session's settings and environment: the environment variables are those of the command that started the session, not those of the command that adds the jobs.
 
 ### Inspect and attach
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls                 # list active sessions
+$ odatix ls                 # list the active sessions of this workspace
 $ odatix ls -S nightly      # filter with a selector
 $ odatix monitor -S nightly # re-attach the monitor to a session
 {{< /code >}}
 
+Without `-S`, `odatix monitor` attaches to the only session of the workspace; when there are several, it lists them and asks for `-S`.
+
 ### Session selectors
 
-The `-S`/`--session` selector can match a full session ID (e.g. `12345.nightly`), a session name, a name prefix, or a PID. If several sessions match, Odatix asks you to refine the selector.
+The `-S`/`--session` selector can match a full session ID (e.g. `12345.nightly`), a session name, a name prefix, or a PID. It is looked up among the sessions of the current workspace. If several sessions match, Odatix lists them and asks you to refine the selector.
 
 ### Stop sessions
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix stop -S nightly    # stop one session
-$ odatix stop --all         # stop every session
+$ odatix stop --all         # stop every session of this workspace
 {{< /code >}}
+
+### Sessions of other workspaces
+
+Every session of a user runs on the same machine, whatever project it belongs to, and a name like `nightly` can name a session in several of them. The session commands therefore keep to the **current workspace**: `odatix ls` lists its sessions (and says how many others there are), and `-S` only finds a session of this workspace. `odatix stop --all` stops the sessions of this workspace only.
+
+Add `--any-workspace` to reach the sessions of every workspace:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix ls --any-workspace                   # every session of the machine
+$ odatix monitor --any-workspace -S nightly   # a session of another workspace
+$ odatix stop --any-workspace --all           # every session of every workspace
+{{< /code >}}
+
+Outside of any workspace (a directory with no `odatix.yml` above it), every session is in reach, as with `--any-workspace`.
 
 ## Security
 
@@ -136,7 +177,7 @@ Odatix ships **two Job Monitors**, and they are interchangeable: both talk to th
 | Mouse and keyboard driven | ✅ | mouse driven |
 
 > [!NOTE]
-> Because there is a single daemon behind both interfaces, a run launched from the terminal is visible in the GUI and vice versa, and you can switch from one to the other in the middle of a run.
+> Both interfaces talk to the same session daemons, so a run launched from the terminal is visible in the GUI and vice versa, and you can switch from one to the other in the middle of a run.
 
 Pick whichever fits the moment:
 
@@ -145,12 +186,16 @@ Pick whichever fits the moment:
 
 ## Duplicate scheduling policy
 
-When preparing jobs, Odatix checks active daemon jobs that target the same work directory:
+When preparing jobs, Odatix checks the jobs of the active sessions (of every workspace) that use the same work directory:
 
 - If a matching job is in `failed`, `killed`, `canceled` or `cancelled`, it is re-enqueued.
-- Otherwise the new job is **skipped** — it is already managed by a session.
+- Otherwise the new job is **skipped** — it is already managed by a session. A run whose jobs are all skipped, or already done, has nothing to run: it says so and exits with `0`.
 
-This prevents accidental duplicate runs while still allowing a fast restart of failed jobs. It is visible in the preparation logs.
+This prevents two sessions from running the same job directory at the same time, while still allowing a fast restart of failed jobs. It applies to every run command (`fmax`, `synth`, `pnr`, `analyze`, `sim`, `workflow`), and is visible in the preparation logs and in the "Already managed in a session" section of the plan.
+
+## From a Python script
+
+The [Python API](/docs/python_api/#following-and-stopping-a-run) lists the sessions of a workspace, follows the jobs of a run it started, and stops a session, as `odatix ls`, `odatix monitor` and `odatix stop` do.
 
 ## See also
 

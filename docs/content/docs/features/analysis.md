@@ -90,6 +90,11 @@ expected:
     reason: "The legacy ROM uses a latch on purpose"
 {{< /code >}}
 
+The results files keep the verdict read when each job ended: after editing this
+section, `odatix results analysis` reads the analyses of the work directory
+again and rewrites their records, so that Explorer says what the terminal
+report says.
+
 ### The report
 
 At the end of the run, `odatix analyze` prints:
@@ -115,7 +120,9 @@ At the end of the run, `odatix analyze` prints:
 {{< /code >}}
 
 Every result is also a record of `results/results_analysis_<tool>.yml`, written
-as soon as its job ends — whether the tool succeeded or not. Five metrics come
+as soon as its job ends — whether the tool succeeded or not. A finished analysis
+is not run again unless `-o/--overwrite` is given: after fixing the RTL, run
+`odatix analyze -o`. Five metrics come
 with each record — `error_count`, `critical_warning_count`, `warning_count`,
 `info_count` and `expected_count` — so they can be charted like any other metric.
 
@@ -137,7 +144,7 @@ elaborate the design into generic cells, so no PDK and no
 | Combine it with | Why |
 |-----------------|-----|
 | [Architecture exploration](/docs/features/architecture-exploration/) | Validates the generated sources of a whole design space in one command. |
-| [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) · [Custom-frequency synthesis](/docs/features/rtl_synthesis/) | The natural step before them: analysis is the cheap subset of what they do. |
+| [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) · [Fixed-frequency synthesis](/docs/features/rtl_synthesis/) | The natural step before them: analysis is the cheap subset of what they do. |
 | [Simulation](/docs/features/simulation/) | Complementary verdicts — analysis says the RTL is *valid*, simulation says it is *correct*. |
 | [Explorer](/docs/features/explorer/) | A dedicated dashboard groups configurations by status, with the actual errors and warnings behind each. |
 | [Tools](/docs/tools/add_tools/) | Declare `analysis_command` and your own tool joins the same comparison. |
@@ -166,10 +173,11 @@ architectures:
 $ odatix analyze                                  # tools from the settings file
 $ odatix analyze --tool vivado                    # one tool
 $ odatix analyze --tool vivado verilator genus    # several, same run
-$ odatix analyze --tool vivado verilator --flow vivado:implementation
+$ odatix analyze --tool vivado verilator --flow vivado:runtime
 {{< /code >}}
 
-`--flow` follows `--tool`: a bare flow name applies to every selected tool, while
+`--flow` follows `--tool`: a bare flow name applies to every selected tool that
+has a flow of that name, the others keeping their default flow, while
 `tool:flow` targets one of them. Work directories go to `work/analysis/`, and
 jobs run through the same daemon as every other job type, so the
 [Job Monitor](/docs/sessions/gui_monitor/) shows their progress and logs live, and
@@ -187,10 +195,12 @@ Every key is on the
 
 ### From the GUI
 
-`odatix-gui` → **Run jobs** → **RTL Analysis** lists the tools that declare an
-analysis command, lets you tick several, then shows the same job settings as the
-settings file — designs, configurations, parallel jobs — and launches. Results
-land in the **RTL Analysis** dashboard of Explorer: the status of every design
+`odatix-gui` → **Run jobs** → **RTL analysis** lists the tools that declare an
+analysis command, each with its flows: clicking a flow opens the job settings,
+where more tools can be ticked (they run their default flow), with the same
+settings as the settings file — designs, configurations, parallel jobs,
+overwrite — and launches. Results land in the **RTL Analysis** dashboard of
+Explorer: the status of every design
 with every tool, the kinds of findings (click one to keep the designs it was
 reported for), and for each design what needs attention first — category,
 message, location, message id and the source excerpt — with its expected

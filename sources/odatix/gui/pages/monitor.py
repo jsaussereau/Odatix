@@ -132,8 +132,12 @@ def _is_dummy_state(daemon_state) -> bool:
     return isinstance(daemon_state, dict) and bool(daemon_state.get("dummy"))
 
 
-def _pick_session_value(daemons, selector: Optional[str]) -> Optional[str]:
+def _pick_session_value(daemons, selector: Optional[str], workspace_root: Optional[str] = None) -> Optional[str]:
     """The dropdown value of the session `selector` names, or None.
+
+    When it names several sessions, but a single one of `workspace_root` (the
+    GUI's workspace), that one is meant: default session names repeat from one
+    workspace to the next ("pts-3.host").
 
     Matching goes through `daemon_control._selector_tokens`, the same rule the
     CLI resolves `--session` with: a session id is "<pid>.<name>", so a URL
@@ -162,16 +166,21 @@ def _pick_session_value(daemons, selector: Optional[str]) -> Optional[str]:
 
         tokens = [str(token).lower() for token in daemon_control._selector_tokens(daemon)]
         if selector_lower in tokens:
-            exact.append(value)
+            exact.append((value, daemon))
         elif any(token.startswith(selector_lower) for token in tokens):
-            prefix.append(value)
+            prefix.append((value, daemon))
 
     # An ambiguous selector selects nothing: picking one of several sessions
-    # for the user would silently monitor the wrong run.
-    if len(exact) == 1:
-        return exact[0]
-    if len(prefix) == 1:
-        return prefix[0]
+    # for the user would silently monitor the wrong run. Only the workspace of
+    # the GUI can tell them apart.
+    for matches in (exact, prefix):
+        if len(matches) == 1:
+            return matches[0][0]
+        if len(matches) > 1:
+            if workspace_root is None:
+                return None
+            local = [value for value, daemon in matches if _in_workspace(daemon, workspace_root)]
+            return local[0] if len(local) == 1 else None
     return None
 
 
@@ -210,7 +219,7 @@ def _endpoint(daemon_state) -> Endpoint:
         or None
     )
     if selector is not None:
-        state = daemon_control._resolve_state_for_attach_or_stop(session=selector)
+        state = daemon_control._resolve_state_for_attach_or_stop(session=selector, any_workspace=True)
     else:
         state = daemon_control._resolve_state_for_attach_or_stop(
             host=daemon_state.get("host"),
@@ -252,22 +261,43 @@ def _resolve_daemon_target(
             if known:
                 return current_daemon_state
 
+    # The session list mixes every workspace, and its values are session ids,
+    # which no two sessions share: one picked there is reached wherever it
+    # runs. A selector from the URL is looked up in the GUI's workspace first,
+    # as the command line does, and only then in the other ones.
+    no_selector = query.get("session") is None and query.get("host") is None and query.get("port") is None
     try:
         state = daemon_control._resolve_state_for_attach_or_stop(
             host=query.get("host"),
             port=query.get("port"),
             session=query.get("session"),
+            any_workspace=session_override is not None,
         )
     except daemon_control.MultipleDaemonsError:
         # Default monitor behavior in GUI: when several sessions exist and no
-        # explicit selector is provided, attach to the first discovered one.
-        if query.get("session") is None and query.get("host") is None and query.get("port") is None:
-            daemons = daemon_control.list_daemons()
+        # explicit selector is provided, attach to the latest one of the GUI's
+        # workspace, or else to the latest one at all (as the session list does).
+        if no_selector:
+            daemons = _sort_sessions(daemon_control.list_daemons(), _gui_workspace_root())
             if len(daemons) == 0:
                 raise
             state = daemons[0]
         else:
             raise
+    except daemon_control.DaemonControlError:
+        # Nothing in this workspace: the sessions of the other ones are still
+        # in reach, the way the session list shows them.
+        if session_override is not None or query.get("host") is not None or query.get("port") is not None:
+            raise
+        if no_selector:
+            daemons = _sort_sessions(daemon_control.list_daemons(), _gui_workspace_root())
+            if len(daemons) == 0:
+                raise
+            state = daemons[0]
+        else:
+            state = daemon_control._resolve_state_for_attach_or_stop(
+                session=query.get("session"), any_workspace=True,
+            )
 
     host = state.get("host", query.get("host"))
     port = state.get("port", query.get("port"))
@@ -291,6 +321,7 @@ def _resolve_daemon_target(
         "session_name": str(state.get("session_name", "")),
         "session_id": str(state.get("session_id", "")),
         "address": daemon_control._state_address(state),
+        "workspace_root": _session_workspace(state) or "",
     }
 
 
@@ -358,24 +389,93 @@ def _format_monitor_error(error, daemon_state: Optional[dict] = None):
     return str(error)
 
 
-def _session_option(daemon):
+def _gui_workspace_root() -> Optional[str]:
+    """The workspace this GUI works on, resolved the way a session records its own.
+
+    The GUI works on the workspace it was started from (see gui.utils.get_workspace),
+    and every session descriptor carries the realpath of its workspace root.
+    """
+    try:
+        return os.path.realpath(daemon_control.detect_workspace_root())
+    except Exception:
+        return None
+
+
+def _session_workspace(daemon) -> Optional[str]:
+    root = _normalize_optional_str(daemon.get("workspace_root")) if isinstance(daemon, dict) else None
+    return os.path.realpath(root) if root is not None else None
+
+
+def _in_workspace(daemon, workspace_root: Optional[str]) -> bool:
+    """Whether `daemon` is a session of the workspace `workspace_root`.
+
+    A session that does not say which workspace it belongs to (an explicit
+    host/port endpoint) counts as one of this workspace: nothing tells otherwise.
+    """
+    if workspace_root is None:
+        return True
+    root = _session_workspace(daemon)
+    return root is None or root == workspace_root
+
+
+def _sort_sessions(daemons, workspace_root: Optional[str]):
+    """The sessions of this workspace first, then the others; the latest first in each group."""
+    def started(daemon):
+        try:
+            return float(daemon.get("started_at") or 0)
+        except Exception:
+            return 0.0
+    return sorted(
+        [daemon for daemon in (daemons or []) if isinstance(daemon, dict)],
+        key=lambda daemon: (0 if _in_workspace(daemon, workspace_root) else 1, -started(daemon)),
+    )
+
+
+def _short_workspace(path: str, max_length: int = 32) -> str:
+    """A workspace path short enough for the session list: "~/..." or ".../<name>"."""
+    home = os.path.expanduser("~")
+    if home and home != "/" and (path == home or path.startswith(home + os.sep)):
+        path = "~" + path[len(home):]
+    if len(path) > max_length:
+        path = "…/" + os.path.basename(path.rstrip(os.sep))
+    return path
+
+
+def _session_option(daemon, workspace_root: Optional[str] = None):
+    """One entry of the session list.
+
+    A session of another workspace than the GUI's says which one in its label,
+    so that the list, mixing every session of the machine, tells them apart.
+    The search text holds the session name and the workspace path, so that
+    typing either one finds the session.
+    """
     address = daemon_control._state_address(daemon)
     session_id = str(daemon.get("session_id", "")).strip()
     session_name = str(daemon.get("session_name", "")).strip()
+    session_root = _session_workspace(daemon)
 
     value = session_id or session_name or address
-    hover_text = address
     label = session_id or address
+    hover_text = address
+    if session_root is not None:
+        hover_text = "\n".join(part for part in (address, "Workspace: " + session_root) if part)
+        if not _in_workspace(daemon, workspace_root):
+            label = "{0} — {1}".format(label, _short_workspace(session_root))
+    search = " ".join(part for part in (label, session_name, session_root or "") if part)
     return {
         "label": label,
         "value": value,
         "title": hover_text,
+        "search": search,
     }
 
 def _options_signature(options):
     """Comparable form of a dropdown options list, order and keys independent."""
     return sorted(
-        (str(option.get("value", "")), str(option.get("label", "")), str(option.get("title", "")))
+        (
+            str(option.get("value", "")), str(option.get("label", "")),
+            str(option.get("title", "")), str(option.get("search", "")),
+        )
         for option in (options or [])
         if isinstance(option, dict)
     )
@@ -399,7 +499,9 @@ def _stop_resolved_session(resolved_daemon):
         or None
     )
     if selector is not None:
-        return daemon_control.stop_daemon(session=selector)
+        # A session id names one session, whatever its workspace: the page may
+        # monitor a session of another workspace than the GUI's.
+        return daemon_control.stop_daemon(session=selector, any_workspace=True)
     return daemon_control.stop_daemon(
         host=resolved_daemon.get("host"),
         port=resolved_daemon.get("port"),
@@ -614,6 +716,7 @@ def _mode_button(id, label, tooltip):
 @dash.callback(
     Output("session-dropdown", "options"),
     Output("session-dropdown", "value"),
+    Output("monitor-stopped-search", "data"),
     Input("monitor-session-refresh", "n_intervals"),
     Input("session-dropdown-open", "data"),
     Input("monitor-last-action", "data"),
@@ -622,8 +725,11 @@ def _mode_button(id, label, tooltip):
     State("monitor-daemon", "data"),
     State("session-dropdown-open", "data"),
     State("session-dropdown", "options"),
+    State("monitor-error", "data"),
+    State("monitor-stopped-search", "data"),
 )
-def _update_session_dropdown(_n, _open, last_action, search, current_value, daemon_state, dropdown_open, current_options):
+def _update_session_dropdown(_n, _open, last_action, search, current_value, daemon_state, dropdown_open, current_options,
+                             monitor_error=None, stopped_search=None):
     if _is_dummy(search):
         # A simulated session is the only one a dummy monitor can attach to:
         # listing real daemons here would let the dropdown steal the page away
@@ -635,13 +741,15 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
         }]
         if current_value == dummy_session.DUMMY_SESSION_ID and _options_signature(options) == _options_signature(current_options):
             raise PreventUpdate
-        return options, dummy_session.DUMMY_SESSION_ID
+        return options, dummy_session.DUMMY_SESSION_ID, no_update
 
     # A session that was just shut down must disappear from the list, whether or
     # not the dropdown is open. One-shot: the store keeps its value afterwards,
     # so gate on the trigger, not on the value.
+    # The refresh tick often fires along with it: look at every trigger, not
+    # only the first one (ctx.triggered_id), or the shutdown goes unnoticed.
     session_stopped = (
-        ctx.triggered_id == "monitor-last-action"
+        "monitor-last-action.data" in (ctx.triggered_prop_ids or {})
         and isinstance(last_action, dict)
         and last_action.get("action") == "shutdown"
         and last_action.get("ok")
@@ -649,9 +757,10 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
 
     # Rescanning daemons is expensive (scans /proc and HTTP-pings each candidate).
     # Only do it while the user has the dropdown open, except keep trying at startup
-    # until an initial session is selected so default monitoring still works.
+    # until an initial session is selected so default monitoring still works, and
+    # while the selected session cannot be monitored (it may be gone).
     has_selection = _normalize_optional_str(current_value) is not None
-    if not dropdown_open and has_selection and not session_stopped:
+    if not dropdown_open and has_selection and not session_stopped and not monitor_error:
         raise PreventUpdate
 
     try:
@@ -659,7 +768,24 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
     except Exception:
         daemons = []
 
-    options = [_session_option(daemon) for daemon in daemons]
+    # The session just stopped can still be listed for a moment (its process
+    # is on its way out): keeping it would keep it selected, on a dead session.
+    if session_stopped:
+        stopped = _normalize_optional_str(last_action.get("session"))
+        daemons = [
+            daemon for daemon in daemons
+            if stopped is None or stopped not in (
+                _normalize_optional_str(daemon.get("session_id")),
+                _normalize_optional_str(daemon.get("session_name")),
+            )
+        ]
+
+    # The list holds every session of the machine: the ones of the GUI's own
+    # workspace come first, so that the default selection below lands on one of
+    # them, and the others say which workspace they belong to.
+    workspace_root = _gui_workspace_root()
+    daemons = _sort_sessions(daemons, workspace_root)
+    options = [_session_option(daemon, workspace_root) for daemon in daemons]
     values = {option.get("value") for option in options}
 
     selected = _normalize_optional_str(current_value)
@@ -670,10 +796,11 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
     # After a shutdown, the URL still points at the (now dead) session. Do not
     # keep preferring it: fall back to any other available session below, so the
     # monitor lands on a live session instead of "No session matches".
-    if session_stopped:
+    # Nor afterwards: the URL keeps naming it until the user goes elsewhere.
+    if session_stopped or (stopped_search is not None and stopped_search == search):
         query_session = None
     if selected is None:
-        selected = _pick_session_value(daemons, query_session)
+        selected = _pick_session_value(daemons, query_session, workspace_root)
 
         if selected is None and query_session is not None:
             # The URL asks for a specific session that is not listed yet: a
@@ -683,7 +810,7 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
             # the next tick looks again.
             if _options_signature(options) == _options_signature(current_options):
                 raise PreventUpdate
-            return options, None
+            return options, None, no_update
 
     if selected is None and isinstance(daemon_state, dict):
         state_session = _normalize_optional_str(daemon_state.get("session_id"))
@@ -692,6 +819,7 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
         if state_session in values:
             selected = state_session
 
+    # The latest session of this workspace, or else the latest one at all.
     if selected is None and len(options) > 0:
         selected = options[0].get("value")
 
@@ -699,9 +827,9 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
     # rewriting the props while the user has the menu open would close it under
     # the pointer. Compare on a normalized signature, since the options coming
     # back from the browser are not necessarily identical dicts.
-    if selected == current_value and _options_signature(options) == _options_signature(current_options):
+    if not session_stopped and selected == current_value and _options_signature(options) == _options_signature(current_options):
         raise PreventUpdate
-    return options, selected
+    return options, selected, (search if session_stopped else no_update)
 
 @dash.callback(
     Output("monitor-snapshot", "data"),
@@ -1085,9 +1213,75 @@ def _log_chunk(job_id, lines, format_yaml, mode="append", leading_newline=False)
     Input("monitor-error", "data"),
 )
 def _render_error(error_message):
+    # The toolbar stays on screen, session list included: it is how one goes
+    # from a session that is gone to another one (see .monitor-dashboard.failed).
     if error_message:
-        return str(error_message), "monitor-dashboard hidden", "visible"
-    return "", "monitor-dashboard visible", "hidden"
+        return str(error_message), "monitor-dashboard visible failed", "monitor-error-card"
+    return "", "monitor-dashboard visible", "monitor-error-card hidden"
+
+
+def _job_count(value) -> Optional[int]:
+    """A job count as a KPI shows it, None when it shows none ("–")."""
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return None
+
+
+def _jobs(count: int, state: str) -> str:
+    return "{0} {1} job{2}".format(count, state, "" if count == 1 else "s")
+
+
+def _stop_all_message(running, queued, session: str, session_root: Optional[str] = None,
+                      workspace_root: Optional[str] = None) -> str:
+    """What the kill-all button asks before it kills anything.
+
+    Says how many jobs it kills, which session it closes, and, for a session of
+    another workspace than the GUI's, which one: the session list mixes them.
+    """
+    running = _job_count(running)
+    queued = _job_count(queued)
+    if running is None and queued is None:
+        message = "Kill every job and close session {0}?".format(session)
+    else:
+        actions = []
+        if running:
+            actions.append("kill " + _jobs(running, "running"))
+        if queued:
+            actions.append("cancel " + _jobs(queued, "queued"))
+        if actions:
+            message = "{0} and close session {1}?".format(", ".join(actions), session)
+            message = message[0].upper() + message[1:]
+        else:
+            message = "Close session {0}? No job is running or queued.".format(session)
+    session_root = _normalize_optional_str(session_root)
+    if session_root is not None and workspace_root is not None and os.path.realpath(session_root) != workspace_root:
+        message += "\n\nThis session belongs to another workspace: {0}".format(session_root)
+    return message
+
+
+@dash.callback(
+    Output("monitor-stop-all-confirm", "displayed"),
+    Output("monitor-stop-all-confirm", "message"),
+    Input("monitor-stop-all", "n_clicks"),
+    State("kpi-running", "children"),
+    State("kpi-queued", "children"),
+    State("session-dropdown", "value"),
+    State("monitor-daemon", "data"),
+    prevent_initial_call=True,
+)
+def _confirm_stop_all(n_clicks, running, queued, selected_session, daemon_state):
+    """Killing every job cannot be undone: ask first, as the terminal monitor does."""
+    if not n_clicks:
+        raise PreventUpdate
+    state = daemon_state if isinstance(daemon_state, dict) else {}
+    session = (
+        _normalize_optional_str(selected_session)
+        or _normalize_optional_str(state.get("session_id"))
+        or _normalize_optional_str(state.get("session"))
+        or "the current session"
+    )
+    return True, _stop_all_message(running, queued, session, state.get("workspace_root"), _gui_workspace_root())
 
 
 # Per-row actions arrive through a single store written by the delegated click
@@ -1103,7 +1297,8 @@ _ROW_ACTION_ENDPOINTS = {
 @dash.callback(
     Output("monitor-last-action", "data"),
     Input("monitor-task-command", "data"),
-    Input("monitor-stop-all", "n_clicks"),
+    # Reached once the confirmation (_confirm_stop_all) is accepted.
+    Input("monitor-stop-all-confirm", "submit_n_clicks"),
     Input("monitor-open-path", "n_clicks"),
     State("monitor-selected-job", "data"),
     State("monitor-daemon", "data"),
@@ -1150,12 +1345,12 @@ def _task_action(task_command, stop_all_clicks, open_clicks,
     if not ctx.triggered[0].get("value"):
         raise PreventUpdate
 
-    if triggered == "monitor-stop-all":
+    if triggered == "monitor-stop-all-confirm":
         try:
             # stop_daemon waits for the process to be gone and removes its state
             # files, so the session list can be refreshed right after.
             _stop_resolved_session(resolved_daemon)
-            return {"ok": True, "action": "shutdown", "session": resolved_daemon.get("session", "")}
+            return {"ok": True, "action": "shutdown", "session": resolved_daemon.get("session_id") or resolved_daemon.get("session", "")}
         except Exception as e:
             return {"ok": False, "action": "shutdown", "error": _format_monitor_error(e, daemon_state)}
 
@@ -1330,7 +1525,9 @@ def _quit_to_explorer(_keep_clicks, _close_clicks, _close_only_clicks, daemon_st
     if triggered == "monitor-finished-close-only":
         return {"href": "/", "id": page_path}, "overlay-odatix", ""
 
-    return {"href": "/explorer", "id": page_path}, "overlay-odatix", ""
+    # An analysis run opens the analysis dashboard rather than the charts.
+    explorer_page = "/explorer/analysis" if get_key_from_url(search, "explorer") == "analysis" else "/explorer"
+    return {"href": explorer_page, "id": page_path}, "overlay-odatix", ""
 
 
 ######################################
@@ -1576,22 +1773,6 @@ layout = html.Div(
         # Target of the shared `update_url` navigation callback (see navigation.py).
         dcc.Location(id="url", refresh="callback-nav"),
         html.Div(
-            children=[
-                html.Div(
-                    children=[
-                        html.Div(
-                            children=[],
-                            id="monitor-status",
-                            className="tile title error-message ",
-                        ),
-                    ],
-                    className="tiles-container config",
-                ),
-            ],
-            id="monitor-error-container",
-            className="hidden",
-        ),
-        html.Div(
             id="monitor-main-container",
             className="monitor-dashboard hidden",
             children=[
@@ -1599,9 +1780,30 @@ layout = html.Div(
                 html.Div(style={"display": "none"}),
                 html.Div(style={"display": "none"}),
                 monitor_header,
+                # Shown instead of the jobs when the session cannot be monitored
+                # (gone, unreachable, none at all), under the session list.
+                html.Div(
+                    id="monitor-error-container",
+                    className="monitor-error-card hidden",
+                    children=[
+                        html.Div(id="monitor-status", className="monitor-error-message"),
+                        html.Div(
+                            "Choose another session in the list above, or start new jobs.",
+                            className="monitor-error-hint",
+                        ),
+                        html.Div(
+                            className="monitor-error-actions",
+                            children=[
+                                dcc.Link("Run jobs", href="/choose_job_type", className="color-button primary monitor-error-link"),
+                                dcc.Link("Back to home", href="/", className="color-button secondary monitor-error-link"),
+                            ],
+                        ),
+                    ],
+                ),
                 split_view,
             ],
         ),
+        dcc.ConfirmDialog(id="monitor-stop-all-confirm", message=""),
         html.Div(
             id="monitor-finished-popup",
             className="overlay-odatix",
@@ -1685,6 +1887,9 @@ layout = html.Div(
         dcc.Store(id="monitor-snapshot", data=None),
         dcc.Store(id="monitor-error", data=""),
         dcc.Store(id="monitor-last-action", data=None),
+        # The URL query (?session=...) of a session stopped from this page: the
+        # URL still names it, but the session list must stop waiting for it.
+        dcc.Store(id="monitor-stopped-search", data=None),
         dcc.Store(id="monitor-daemon", data=None),
         dcc.Store(id="monitor-selected-job", data=0),
         # Log pane transport: `monitor-log-chunk` carries one batch of

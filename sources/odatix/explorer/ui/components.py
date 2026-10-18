@@ -44,6 +44,24 @@ _SYMBOL_GLYPHS = {
 }
 
 
+# Mode bar buttons no Explorer chart shows. "sendChartToCloud" ("Share
+# chart...") uploads the figure and its data to Plotly Cloud: results are often
+# confidential, two clicks must not publish them on a third-party server.
+REMOVED_MODEBAR_BUTTONS = ["lasso2d", "select2d", "sendChartToCloud", "sendDataToCloud", "editInChartStudio"]
+
+
+def graph_config(**options):
+  """The dcc.Graph config of every Explorer chart, plus ``options``."""
+  config = {
+    "displaylogo": False,
+    "showSendToCloud": False,
+    "showEditInChartStudio": False,
+    "modeBarButtonsToRemove": list(REMOVED_MODEBAR_BUTTONS),
+  }
+  config.update(options)
+  return config
+
+
 def marker_glyph(color, symbol="circle"):
   """Colored marker glyph mirroring a trace marker, for filter/legend items."""
   return html.Span(

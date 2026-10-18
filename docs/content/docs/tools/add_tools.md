@@ -58,10 +58,13 @@ Nothing else is registered anywhere: dropping this directory in
 | `label` | string | the directory name | Display name in the GUI. |
 | `description` | string | — | One line, shown on the tool's card. |
 | `icon` | string | — | Image shown on the tool's card, relative to the GUI assets. |
+| `icon_filter` | bool | `false` | Recolor the icon to follow the theme, for a monochrome logo. |
+| `extends` | string | — | A tool this one is a variant of: it runs that tool's flows and scripts, and only says what differs. See [Extending a tool](/docs/reference/tools/#extending-a-tool). |
 | `process_group` | bool | `true` | Run each job in its own process group, so that pausing, resuming or killing it reaches the tool and everything it started. Set to `false` for tools that manage their own process group (containers, `make` wrappers): only the job's own process -- the shell running the command -- is then signaled, and whatever the tool started on its own is left running on purpose, for the tool to stop. See [Stopping a job](#stopping-a-job). |
-| `default_metrics_file` | string | — | Metrics definition file used at export time; use `$tool_path/metrics.yml` to point inside your own tool directory. Needed to export results: only a tool that measures nothing (an RTL linter) goes without. |
+| `default_metrics_file` | string | `$tool_path/metrics.yml` when that file exists | Metrics definition file used at export time; use `$tool_path/metrics.yml` to point inside your own tool directory. Needed to export results: only a tool that measures nothing (an RTL linter) goes without. |
 | `target_file` | string | `target_<tool>.yml` | Name of the [target definition file](#target-definition-file). |
 | `default_flow` | string | `default` | Name the commands of the platform sections are known under. |
+| `parameters` | dict | — | Parameters of the default flow, used in commands as `$<name>` and inherited by every flow. See [Parameters](/docs/tools/add_flows/#parameters-a-strategy-in-a-few-lines). |
 | `unix` / `windows` | dict | — | What the tool runs on that platform — the commands of the default flow. |
 | `flows` | dict | — | Additional flows. See [Run your own flows and scripts](/docs/tools/add_flows/). |
 | `format` | dict | — | [Log formatting](#log-formatting) rules for the Job Monitor. |
@@ -126,21 +129,29 @@ Commands are expanded before being run:
 | `$tool_path` | The tool's own directory. |
 | `$eda_tools_path` | The built-in tools directory. |
 | `$odatix_path` | The Odatix installation directory. |
-| `$tool_install_path` | The `tool_install_path` of the target file. |
+| `$rtl_path` | `<work_path>/rtl`, the design sources of the job. |
+| `$report_path`, `$result_path` | `<work_path>/report`, `<work_path>/result`. |
+| `$tool_install_path` | The `tool_install_path` of the target file; empty when the tool is on your `PATH`. |
 | `$clock_signal` | Clock signal name of the design. |
 | `$top_level_module` | Top level module name. |
 | `$lib_name` | Library name of the job. |
+| `$architecture` | The design and its configuration, `Counter/08bits`. |
+| `$target` | The target the job runs on. |
+| `$tool` | The name of the tool. |
+| `$<parameter>` | A [parameter](/docs/tools/add_flows/#parameters-a-strategy-in-a-few-lines) of the flow; a list is joined with spaces. This is how a script that is not tcl gets the options of a flow. |
 | `$source_work_path`, `$source_tool` | Place & route jobs only: the synthesis job this one continues. |
 
-Commands do not run from a guaranteed working directory: start them with
-`cd $work_path;`, or pass absolute paths built from the variables above.
+Commands run from the job directory (`$work_path`), so a script can read
+`rtl/`, `settings.yml` or `frequency.txt` relative to it. Starting a command with
+`cd $work_path;` costs nothing and keeps it right wherever it is run from, by
+hand for instance.
 
 ## The job directory
 
 Before running anything, Odatix builds one directory per job and fills it. This
 is the contract between Odatix and your tool.
 
-{{< code lang=text filename="work/custom_freq_synthesis/myTool/<target>/<config>/100MHz/" >}}
+{{< code lang=text filename="work/custom_freq_synthesis/myTool/<target>/<architecture>/<config>/100MHz/" >}}
 ├── rtl/                  # the design sources, parameters already substituted
 ├── scripts/              # _common/ scripts, then your tool's, then the target's
 │   ├── settings.tcl      # job settings, as tcl "set" statements
@@ -152,8 +163,16 @@ is the contract between Odatix and your tool.
 ├── architecture.txt      # configuration name
 ├── target.txt            # target name
 ├── flow.txt              # flow the job ran with
+├── frequency.txt         # "100 MHz": the target frequency
 └── <constraint file>     # the constraint file named by the target file
 {{< /code >}}
+
+`frequency.txt` and the constraint file are written by Odatix before the job
+runs, for a fixed-frequency synthesis. The constraint file holds a clock
+constraint in SDC (`create_clock -period 10 [get_ports clock]` at 100 MHz), the
+format most timing tools read; a tool sourcing `_common/init_script.tcl` (all
+the built-in ones) rewrites it in its own format. An fmax search gets neither:
+its frequency changes at each iteration, so your script writes them.
 
 ### Knowing what to run
 
@@ -178,7 +197,7 @@ is prepared, so a script keeps sourcing its siblings whatever directory the tool
 runs from.
 {{% /tab %}}
 {{% tab name="Anything else" %}}
-`settings.yml`, at the root of the job directory, holds the same information as
+`settings.yml`, at the root of the job directory, describes the design as
 plain YAML — for tools driven by Python, shell or a Makefile:
 
 {{< code lang=yaml filename="settings.yml" >}}
@@ -198,7 +217,17 @@ fmax_upper_bound: 1000
 constraint_filename: constraints.xdc
 lib_name: WORK
 param_domains: [...]
+workspace_path: /home/me/my_workspace
+job_path: /home/me/my_workspace/work/custom_freq_synthesis/my_tool/.../100MHz
 {{< /code >}}
+
+Its paths are not where your command runs: `rtl_path` is relative to the job
+directory (`job_path`), the others to the workspace (`workspace_path`), both
+absolute. Join them, or take the paths from the variables of the
+command instead (`$work_path`, `$script_path`, `$log_path`, `$report_path`),
+start the command with `cd $work_path;` and read `rtl/`, `report/`… relative to
+it. An empty value is written as `None`. The parameters of the flow are not in
+this file: pass them to your script in the command, as `$<name>`.
 {{% /tab %}}
 {{< /tabs >}}
 
@@ -208,15 +237,19 @@ The Job Monitor reads two files under `log/`:
 
 | File | Written by | Format |
 |------|-----------|--------|
-| `log/synth_status.log` | any synthesis job | `In progress: <n>%` — and `Done: 100%` when finished |
-| `log/status.log` | fmax searches | `<label>: <n>% (<current>/<total>)` |
+| `log/synth_status.log` | any synthesis job | `In progress: <n>%`, then `Done: 100%` when finished |
+| `log/status.log` | fmax searches | `<label>: <n>% (<current>/<total>)`, then `Done: 100%` |
 
 A run that never writes them still works; it just shows no progress bar. In tcl,
 `_common/settings.tcl` provides `report_progress <percent> <file>` for exactly
 this.
 
 A job is considered successful when its command exits `0`. Odatix does not parse
-your log to decide.
+your log to decide. `Done: 100%` is what tells a finished job from a stopped
+one: when your command exits `0` without writing it, Odatix appends it to the
+status file itself (`log/synth_status.log`, or `log/status.log` for an fmax
+search), so that `odatix results` exports the job later too. A job whose status
+file lacks it is skipped by `odatix results`, with a warning naming the file.
 
 ### Producing results
 
@@ -319,8 +352,8 @@ Targets — devices, technology nodes, PDKs — are not declared in `tool.yml` b
 `odatix_userconfig/targets/target_<tool>.yml` (or the name given by `target_file`).
 
 {{< code lang=yaml filename="odatix_userconfig/targets/target_myTool.yml" >}}
-constraint_file: "constraints.xdc"
-tool_install_path: "~/tools/myTool"
+constraint_file: "constraints.sdc"   # optional, constraints.sdc by default
+tool_install_path: "~/tools/myTool"  # optional, empty: the tool is on your PATH
 
 targets:
   - xc7a100t-csg324-1
@@ -372,8 +405,10 @@ variants): a tool only chooses which marker string maps to each of them.
 
 ## The Tool Editor
 
-`odatix-gui` → **Tools** → **Create New Tool** creates the directory and a
-minimal `tool.yml`; **Settings** opens the editor:
+`odatix-gui` → **Configure** → **Tools** → **Add new tool** opens the editor on a
+new tool; **Save all** creates its directory and its `tool.yml`, which names
+`$tool_path/metrics.yml` as its metrics file. On an existing tool, **Settings**
+opens the same editor:
 
 | Section | Keys |
 |---------|------|
@@ -403,7 +438,8 @@ tool keeps the tool's own flows and the parameters its default flow changed.
    least one job type command.
 2. Scripts in `<name>/tcl/`, reading `scripts/settings.tcl` or `settings.yml`.
 3. A `metrics.yml`, pointed at by `default_metrics_file`.
-4. A `target_<name>.yml` with a `constraint_file` and at least one target.
+4. A `target_<name>.yml` with at least one target (`constraint_file` and
+   `tool_install_path` are optional).
 5. Optionally, write `log/synth_status.log` for progress, and the
    `result/netlist.v` + `design.sdc` + `design.sdf` handoff for `odatix pnr`.
 6. Run it: `odatix synth -t <name>` — the tool appears in `-t`, in `odatix-gui`

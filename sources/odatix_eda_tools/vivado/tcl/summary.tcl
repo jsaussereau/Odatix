@@ -64,8 +64,7 @@ proc timing_summary {freq_rep timing_rep} {
     }
 
     puts ""
-    set pwd [pwd]
-    puts "Complete timming report can be found in \"$pwd/$timing_rep\""
+    puts "Complete timing report can be found in \"[file join [pwd] $timing_rep]\""
 }
 
 
@@ -93,8 +92,7 @@ proc utilization_summary {utilization_rep} {
         puts "  +----------------------------+------+-------+-----------+-------+"
     }
 
-    set pwd [pwd]
-    puts "Complete utilization report can be found in \"$pwd/$utilization_rep\""
+    puts "Complete utilization report can be found in \"[file join [pwd] $utilization_rep]\""
 }
 
 
@@ -123,8 +121,7 @@ proc power_summary {power_rep} {
         puts "  +--------------------------+--------------+"
     }
 
-    set pwd [pwd]
-    puts "Complete power report can be found in \"$pwd/$power_rep\""
+    puts "Complete power report can be found in \"[file join [pwd] $power_rep]\""
 }
 
 ######################################

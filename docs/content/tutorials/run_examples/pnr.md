@@ -21,17 +21,22 @@ second tool. This tutorial runs that chain end to end.
 > You need a synthesis tool (Design Compiler or Genus) **and** a place & route
 > tool (Innovus or IC Compiler II), each with its own installation and licence.
 > The shipped place & route definitions are a starting point, not a validated
-> flow — see [Step 6](#step-5--adapt-the-flow-to-your-pdk).
+> flow — see [step 6](#step-6--adapt-the-flow-to-your-pdk).
 
 
 ## Prerequisites
 
-For this tutorial, you need **at least one** of the following tools installed and available in your `PATH`:
-- [AMD Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (for Xilinx FPGAs)
-- [Synopsys Design Compiler](https://www.synopsys.com/implementation-and-signoff/rtl-synthesis.html) (for ASICs)
-- [Cadence Genus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/synthesis/genus-synthesis-solution.html) (for ASICs)
+For this tutorial, you need **both**, installed and available in your `PATH`:
+- an ASIC synthesis tool, which writes the gate-level netlist:
+  [Synopsys Design Compiler](https://www.synopsys.com/implementation-and-signoff/rtl-synthesis.html)
+  or [Cadence Genus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/synthesis/genus-synthesis-solution.html);
+- a place & route tool: [Cadence Innovus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/soc-implementation-and-floorplanning/innovus-implementation-system.html)
+  or [Synopsys IC Compiler II](https://www.synopsys.com/implementation-and-signoff/physical-implementation/ic-compiler.html).
 
-[](/install/eda_tools/)
+The commands below use Design Compiler and Innovus on the AMS C35 1.8 V
+technology, whose setup scripts Odatix ships. An FPGA tool such as Vivado places
+& routes within its own synthesis flow, so it is not used here. See
+[EDA tools](/install/eda_tools/#synopsys-and-cadence-tools) for their setup.
 
 Make sure you have [Odatix installed](/install/) and available in your `PATH`. For example, if you installed Odatix in a virtual environment, activate it first:
 
@@ -40,21 +45,28 @@ $ source odatix_venv/bin/activate
 {{< /code >}}
 ## Steps
 
-### Step 1 — Run the synthesis that will be the source
+### Step 1 — Initialize an example workspace
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ mkdir ~/odatix_pnr && cd ~/odatix_pnr
+$ odatix init --examples
+{{< /code >}}
+
+The target files of the workspace, `odatix_userconfig/targets/target_design_compiler.yml`
+and `target_innovus.yml`, both enable the `AMS_c35_1V8` target.
+
+### Step 2 — Run the synthesis that will be the source
 
 A place & route job has nothing to do without a synthesis to consume. Pick a
 small design and one frequency:
 
-{{< code lang=yaml filename="odatix_userconfig/synth_settings.yml" >}}
-nb_jobs: 4
-
-architectures:
-  - Example_Counter_sv/08bits
-{{< /code >}}
-
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix synth -t design_compiler --at 100 --until netlist
+$ odatix synth -t design_compiler -a Example_Counter_sv/08bits --at 100 --until netlist
 {{< /code >}}
+
+`-a` runs this configuration instead of the list of
+`odatix_userconfig/synth_settings.yml`, and `--at` this frequency instead of the
+ones of the design.
 
 A synthesis stops by default once its area, timing and power are known; the
 netlist is exported by the last step of the Design Compiler flow, `netlist`,
@@ -72,37 +84,43 @@ stopped. When it finishes, the job's result directory holds the three
 > If those files are absent, the synthesis cannot be a source — whatever its
 > status says. A flow of your own must write them to be chainable.
 
-### Step 2 — Select which synthesis jobs to implement
+### Step 3 — Select which synthesis jobs to implement
 
-Open `odatix_userconfig/pnr_settings.yml`. Each entry is a **selector** pointing
-at completed synthesis jobs:
+Open `odatix_userconfig/pnr_settings.yml`. Each entry of `sources` is a
+**selector** pointing at completed synthesis jobs:
 
 {{< code lang=text filename="Selector grammar" >}}
 <source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]
 {{< /code >}}
 
-{{< code lang=yaml filename="odatix_userconfig/pnr_settings.yml" >}}
-nb_jobs: 4
-
-sources:
-  - custom_freq_synthesis/design_compiler/gf22/Example_Counter_sv/08bits@100MHz
-{{< /code >}}
-
-`*` works at every level, so widening it later is one character at a time:
+`*` works at every level. The file Odatix ships takes every completed
+synthesis of the work directory, which is what this tutorial needs:
 
 {{< code lang=yaml filename="odatix_userconfig/pnr_settings.yml" >}}
 sources:
-  - custom_freq_synthesis/design_compiler/gf22/Example_Counter_sv/*
-  - fmax_synthesis/genus/*/*/*
+  - custom_freq_synthesis/*/*/*/*
+  - fmax_synthesis/*/*/*/*
 {{< /code >}}
 
-### Step 3 — Choose the place & route target
+To implement only some of them, list them instead:
 
-Select the technology in the target file of your place & route tool —
+{{< code lang=yaml filename="odatix_userconfig/pnr_settings.yml" >}}
+sources:
+  - custom_freq_synthesis/design_compiler/AMS_c35_1V8/Example_Counter_sv/08bits@100MHz
+  - custom_freq_synthesis/design_compiler/AMS_c35_1V8/Example_Counter_sv/*
+{{< /code >}}
+
+A selection that matches no completed synthesis stops the run with the list of
+the sources there are.
+
+### Step 4 — Check the place & route target
+
+The technology is selected in the target file of the place & route tool —
 `odatix_userconfig/targets/target_innovus.yml` or `target_icc2.yml`. A place &
-route job keeps the target of its synthesis, so list the same target names as
-your synthesis tool. This is also where the technology setup script that your
-PDK needs is brought in:
+route job keeps the target of its synthesis, so this file lists the same target
+names as the one of the synthesis tool; the workspace already does for
+`AMS_c35_1V8`. This is also where the technology setup script that your PDK
+needs is brought in:
 
 {{< code lang=yaml filename="odatix_userconfig/targets/target_innovus.yml" >}}
 constraint_file: timing_constraints.txt
@@ -122,7 +140,7 @@ target_settings:
 The Innovus flow sources the script under the name `technology_setup.tcl`.
 Odatix ships one for the AMS C35 1.8 V standard cells, to start yours from.
 
-### Step 4 — Run the place & route
+### Step 5 — Run the place & route
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix pnr -t innovus --from-tool design_compiler
@@ -133,6 +151,7 @@ The flow runs as ordered, resumable **steps** — `init`, `place`, `cts`, `route
 database, so you can stop partway and continue later:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix pnr -t innovus --until init           # floorplan only, a first check of the setup
 $ odatix pnr -t innovus --until route          # stop after routing
 $ odatix pnr -t innovus                        # continue from where it stopped
 $ odatix pnr -t innovus --rerun-from place     # redo placement onwards
@@ -145,9 +164,9 @@ the settings file:
 |--------|---------|
 | `--from-type` | Only `fmax_synthesis` or only `custom_freq_synthesis` jobs. |
 | `--from-tool` | Only jobs run with this eda tool. |
-| `--from-flow` | Only jobs run with this flow of `--from-tool`. |
+| `--from-flow` | Only jobs run with this flow of `--from-tool` (a flow the tool does not have is an error). |
 
-### Step 5 — Adapt the flow to your PDK
+### Step 6 — Adapt the flow to your PDK
 
 > [!WARNING]
 > The shipped Innovus and IC Compiler II definitions run the usual sequence, but
@@ -171,19 +190,23 @@ declare `pnr_steps` in a `tool.yml`. Your scripts reach the source job through
 `$source_netlist`, `$source_sdc`, `$source_sdf` and `$source_work_path`. See
 [Add non supported tools](/docs/tools/add_tools/).
 
-### Step 6 — Compare estimate against reality
+### Step 7 — Compare estimate against reality
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix-explorer
 {{< /code >}}
 
-Both runs export into the same results files, so the synthesis estimate and the
-implemented result sit next to each other per configuration — which is the whole
-point of running the chain.
+Each tool exports into its own results file: the synthesis into
+`results/results_design_compiler.yml`, the place & route into
+`results/results_innovus.yml`, whose records name the synthesis they started
+from (`source_type`, `source_tool`). Explorer reads both, so the synthesis
+estimate and the implemented result of a configuration, same target, same
+frequency, can be shown side by side — which is the whole point of running the
+chain.
 
 ## Doing it from the GUI
 
-`odatix-gui` → **Run** → **Place & Route** lists the tools declaring a `pnr` job
+`odatix-gui` → **Run jobs** → **Run place & route** lists the tools declaring a `pnr` job
 type, then the sources actually available in your work directory — so you pick
 from what exists instead of writing a selector. Choosing a step on the tool's
 card runs up to that step.
@@ -192,15 +215,15 @@ card runs up to that step.
 
 | Symptom | Likely cause |
 |---------|--------------|
-| No sources found | The selector matches nothing, or the synthesis did not write the three handoff files (with Design Compiler, run it `--until netlist`). |
-| `init` stops on "no technology_setup.tcl" | The target file brings in no technology script for this target. See [step 3](#step-3--choose-the-place--route-target). |
+| No sources found | The selector matches nothing (the error lists the sources there are), or the synthesis did not write the three handoff files (with Design Compiler, run it `--until netlist`). |
+| `init` stops on "no technology_setup.tcl" | The target file brings in no technology script for this target. See [step 4](#step-4--check-the-place--route-target). |
 | The tool is not offered | Its `tool.yml` declares no `pnr_command` / `pnr_steps`. |
 | A run restarts from the beginning | A step recorded in `log/steps.yml` no longer matches the flow — the `tool.yml` changed. |
-| Numbers look wrong | The technology setup is not yours yet. See [step 5](#step-5--adapt-the-flow-to-your-pdk). |
+| Numbers look wrong | The technology setup is not yours yet. See [step 6](#step-6--adapt-the-flow-to-your-pdk). |
 
 ## Related resources
 
 - **Feature** — [Place & route](/docs/features/pnr/).
 - **Reference** — [Run settings files](/docs/reference/run_settings/#sources--place--route-inputs) · [Tool definitions](/docs/reference/tools/#steps) · [Target files](/docs/reference/targets/)
 - **Guides** — [Tools and flows](/docs/tools/) · [Commands](/docs/commands/)
-- **Related tutorial** — [Custom-frequency synthesis](/tutorials/run_examples/synthesis/), which produces the source jobs.
+- **Related tutorial** — [Fixed-frequency synthesis](/tutorials/run_examples/synthesis/), which produces the source jobs.

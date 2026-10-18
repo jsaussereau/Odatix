@@ -144,7 +144,7 @@ Three things are worth pointing out.
 
 `generate_command` is run in the job's work directory before the eda tool is started, exactly as `sbt runMain` is for the [Chisel examples](/docs/examples/architectures/counter/). Nothing about it is HLS-specific: any command that writes RTL into `rtl/` will do.
 
-That directory is not a convention of the example — Odatix always reads the design from `rtl/`, which is why the last thing `run_hls.tcl` does is copy the generated Verilog there:
+Odatix reads the generated design from the directory `generate_output` names — `rtl` here — which is why the last thing `run_hls.tcl` does is copy the generated Verilog there:
 
 {{< code lang=tcl filename="examples/fir_hls/run_hls.tcl" >}}
 file mkdir rtl

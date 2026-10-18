@@ -35,6 +35,7 @@ Adding a category means adding one entry to CATEGORIES; every consumer follows.
 """
 
 import re
+import sys
 
 import odatix.lib.printc as printc
 
@@ -44,6 +45,7 @@ class Category:
     OVERWRITE = "overwrite"
     INCOMPLETE = "incomplete"
     RESUME = "resume"
+    RERUN = "rerun"
     CACHED = "cached"
     DAEMON = "daemon"
     ERROR = "error"
@@ -65,7 +67,7 @@ CATEGORIES = {
         "color": printc.colors.RED,
         "runs": False,
         "severity": 0,
-        "cli_order": 6,
+        "cli_order": 7,
     },
     Category.OVERWRITE: {
         "glyph": "↻",
@@ -87,6 +89,16 @@ CATEGORIES = {
         "severity": 2,
         "cli_order": 2,
     },
+    Category.RERUN: {
+        "glyph": "↺",
+        "style": "warning",
+        "label": "Re-run",
+        "description": "Steps already done (will run again from the step asked for)",
+        "color": printc.colors.YELLOW,
+        "runs": True,
+        "severity": 3,
+        "cli_order": 3,
+    },
     Category.RESUME: {
         "glyph": "▸",
         "style": "warning",
@@ -94,8 +106,8 @@ CATEGORIES = {
         "description": "Partially done (will resume at the first missing step)",
         "color": printc.colors.YELLOW,
         "runs": True,
-        "severity": 3,
-        "cli_order": 3,
+        "severity": 4,
+        "cli_order": 4,
     },
     Category.NEW: {
         "glyph": "+",
@@ -104,8 +116,8 @@ CATEGORIES = {
         "description": "New {noun}",
         "color": printc.colors.ENDC,
         "runs": True,
-        "severity": 4,
-        "cli_order": 5,
+        "severity": 5,
+        "cli_order": 6,
     },
     Category.CACHED: {
         "glyph": "=",
@@ -114,7 +126,7 @@ CATEGORIES = {
         "description": "Existing results (skipped -> use '-o' to overwrite)",
         "color": printc.colors.CYAN,
         "runs": False,
-        "severity": 5,
+        "severity": 6,
         "cli_order": 0,
     },
     Category.DAEMON: {
@@ -124,8 +136,8 @@ CATEGORIES = {
         "description": "Already managed in a session (skipped)",
         "color": printc.colors.CYAN,
         "runs": False,
-        "severity": 6,
-        "cli_order": 4,
+        "severity": 7,
+        "cli_order": 5,
     },
 }
 
@@ -160,6 +172,13 @@ def runs(category):
     return CATEGORIES.get(category, {}).get("runs", False)
 
 
+def _stdout_is_a_terminal():
+    try:
+        return sys.stdout.isatty()
+    except Exception:
+        return False
+
+
 class JobPlan:
     """
     The jobs a check phase found, each with its category and optional details.
@@ -190,12 +209,19 @@ class JobPlan:
                 "details": dict(entry["details"]),
             })
 
-    def names(self, category, colored=True):
+    def names(self, category=None, colored=None):
         """
-        Names of the jobs of one category, in insertion order. `colored=False`
-        strips the terminal color codes, for anything but a terminal.
+        Names of the jobs of one category, in insertion order: every job when
+        `category` is None. `colored=False` strips the terminal color codes, for
+        anything but a terminal; by default, they are kept only when the
+        standard output is one.
         """
-        names = [entry["name"] for entry in self.entries if entry["category"] == category]
+        if colored is None:
+            colored = _stdout_is_a_terminal()
+        names = [
+            entry["name"] for entry in self.entries
+            if category is None or entry["category"] == category
+        ]
         return names if colored else [plain(name) for name in names]
 
     def counts(self):
@@ -222,7 +248,7 @@ class JobPlan:
     def print_summary(self, noun="architectures"):
         """The CLI checklist: one section per non-empty category."""
         for category in CLI_ORDER:
-            names = self.names(category)
+            names = self.names(category, colored=True)
             if not names:
                 continue
             print()

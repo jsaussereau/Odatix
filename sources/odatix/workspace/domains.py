@@ -524,8 +524,21 @@ class ParameterDomainCollection(object):
         return self[name].duplicate(new_name, instance=instance)
 
     def configs(self):
-        """The configurations of every domain, as a ``{domain: [name, ...]}`` mapping."""
+        """
+        The configuration files of every domain, as a ``{domain: [name, ...]}``
+        mapping -- what each ``domain.configs`` holds on disk. What the rules of
+        a domain describe without having been written is not among them: see
+        :meth:`configuration_names`.
+        """
         return dict((domain.name, domain.configs.names()) for domain in self)
+
+    def configuration_names(self):
+        """
+        The configurations of every domain, rules and files together, as a
+        ``{domain: [name, ...]}`` mapping (see
+        :meth:`ParameterDomain.configuration_names`): what a run sweeps.
+        """
+        return dict((domain.name, domain.configuration_names()) for domain in self)
 
     def __repr__(self):
         return "<ParameterDomainCollection {0}>".format(self.names())

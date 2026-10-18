@@ -37,8 +37,36 @@ import odatix.lib.yaml_loader as yaml_loader
 import odatix.sim.design_info as design_info
 from odatix.sim.design_info import check_testbench
 import odatix.sim.templates as sim_templates
+from odatix.workspace.space import selected_config_file
 
 script_name = os.path.basename(__file__)
+
+#: Written in a job's work directory once every task of the simulation
+#: succeeded: what tells a simulation that ran to its end from one that failed
+#: or was stopped halfway, which is not a result to keep.
+SIM_DONE_FILENAME = "sim_done"
+
+
+def sim_done_file(tmp_dir):
+  """The file a job writes once its simulation ran to its end."""
+  return os.path.join(tmp_dir, SIM_DONE_FILENAME)
+
+
+def job_category(tmp_dir, overwrite, resume=False):
+  """
+  What a run does with the job of one simulation, from what its work directory
+  holds.
+
+  A job whose simulation succeeded has results: it is skipped, unless the run
+  overwrites them. A directory without that mark is a simulation that failed or
+  was stopped: it is run again, in place with "resume".
+  """
+  if not isdir(tmp_dir):
+    return Category.NEW
+  if isfile(sim_done_file(tmp_dir)):
+    return Category.OVERWRITE if overwrite else Category.CACHED
+  return Category.RESUME if resume else Category.INCOMPLETE
+
 
 class Simulation:
   def __init__(
@@ -101,7 +129,7 @@ class Simulation:
 
 class SimulationHandler:
 
-  def __init__(self, work_path, arch_path, sim_path, work_rtl_path, work_script_path, work_log_path, log_path, param_settings_filename, sim_settings_filename, sim_makefile_filename, overwrite):
+  def __init__(self, work_path, arch_path, sim_path, work_rtl_path, work_script_path, work_log_path, log_path, param_settings_filename, sim_settings_filename, sim_makefile_filename, overwrite, resume=False):
     self.work_path = work_path
     self.arch_path = arch_path
     self.sim_path = sim_path
@@ -110,6 +138,7 @@ class SimulationHandler:
     self.work_log_path = work_log_path
     self.log_path = log_path
     self.overwrite = overwrite
+    self.resume = resume
     self.param_settings_filename = param_settings_filename
     self.sim_settings_filename = sim_settings_filename
     self.sim_makefile_filename = sim_makefile_filename
@@ -621,6 +650,10 @@ class SimulationHandler:
                 domain_overrides.setdefault('start_delimiter', architecture.start_delimiter)
                 domain_overrides.setdefault('stop_delimiter', architecture.stop_delimiter)
                 domain_overrides.setdefault('param_target_file', architecture.param_target_filename)
+                # What is substituted is the configuration itself, unless the
+                # simulation names parameters of its own.
+                if 'param_file' not in domain_overrides and 'param_dir' not in domain_overrides:
+                  domain_overrides['param_file'] = os.path.abspath(selected_config_file(self.arch_path, architecture.arch_name))
 
               if base_domain is not None:
                 # "combine" says what to do with the architecture's own substitution for
@@ -765,17 +798,18 @@ class SimulationHandler:
         self.plan.add(sim_display_name, Category.ERROR)
         return None
 
-    # check if the architecture is in cache and has a status file
-    if isdir(tmp_dir):
-      if self.overwrite:
-        printc.warning("Found cached results for \"" + sim_display_name +"\".", script_name)
-        self.plan.add(sim_display_name, Category.OVERWRITE)
-      else:
-        printc.note("Found cached results for \"" + sim_display_name + "\". Skipping.", script_name)
-        self.plan.add(sim_display_name, Category.CACHED)
-        return None
-    else:
-      self.plan.add(sim_display_name, Category.NEW, tasks=max(len(tasks), 1))
+    # Only a simulation that succeeded is in cache: one that failed, or was
+    # stopped, is run again
+    category = job_category(tmp_dir, self.overwrite, resume=self.resume)
+    if category == Category.CACHED:
+      printc.note("Found cached results for \"" + sim_display_name + "\". Skipping.", script_name)
+      self.plan.add(sim_display_name, Category.CACHED)
+      return None
+    if category == Category.OVERWRITE:
+      printc.warning("Found cached results for \"" + sim_display_name +"\".", script_name)
+    elif category in (Category.INCOMPLETE, Category.RESUME):
+      printc.warning("The previous simulation of \"" + sim_display_name + "\" failed or did not finish.", script_name)
+    self.plan.add(sim_display_name, category, tasks=max(len(tasks), 1))
 
     # passed all check: added to the list
     self.valid_sims.append(sim_display_name)

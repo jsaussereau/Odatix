@@ -31,9 +31,11 @@ simulation result, typically).
 That is also why this runs after the exporters rather than inside them. When a
 job finishes, the record it needs may simply not exist yet: a synthesis can
 complete long before the simulation it borrows a cycle count from. Deriving is
-therefore a whole-workspace pass, run once everything else is exported, and
-recomputed from scratch every time (see odatix.lib.derived_metrics), so running
-it again is a no-op rather than a duplication.
+therefore a whole-workspace pass, run once every job of a run is done (see
+configure_post_batch_derivation) and by "odatix results" / "odatix results
+derived", and recomputed from scratch every time (see
+odatix.lib.derived_metrics), so running it again is a no-op rather than a
+duplication.
 """
 
 import os
@@ -197,6 +199,9 @@ def configure_post_batch_derivation(parallel_jobs, result_path, derived_metrics_
     return False
 
   if derived_metrics_file is None:
+    if settings is None and os.path.isfile(OdatixSettings.DEFAULT_SETTINGS_FILE):
+      # The workspace may keep its derived metrics elsewhere ("derived_metrics_file")
+      settings = OdatixSettings(OdatixSettings.DEFAULT_SETTINGS_FILE, silent=True)
     derived_metrics_file = derived_metrics_lib.default_derived_metrics_file(settings)
   if not os.path.isfile(derived_metrics_file):
     return False

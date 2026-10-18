@@ -25,7 +25,7 @@ tasks:
       - sleep 1
       - "echo 'Progress: 60' > progress.txt"
       - ...
-      - "echo 'Progress: 100' > progress.txt"
+      - python3 main.py   # writes output.txt, which _metrics.yml reads
 
   - name: "generate_config"
     commands:
@@ -35,7 +35,7 @@ tasks:
       - touch config.txt
 {{< /code >}}
 
-The dependency task takes progress from 20% to 40%, `main` from 60% to 100% — which is how the monitor shows a single coherent bar for a job made of several steps.
+The dependency task takes progress from 20% to 40%, `main` from 60% to 80%, and `main.py` writes the last 100% — which is how the monitor shows a single coherent bar for a job made of several steps.
 
 It is also the only workflow that **substitutes into a source file**, exactly like an RTL architecture:
 
@@ -54,6 +54,9 @@ print(AWESOME_STRING)
 with open("output.txt", "w") as f:
     f.write("text: " + AWESOME_STRING + "\n")
     f.write("letters: " + str(len(AWESOME_STRING)) + "\n")
+
+with open("progress.txt", "w") as f:
+    f.write("Progress: 100%")
 {{< /code >}}
 
 Two configurations are provided, `default.txt` and `hehe.txt`, each holding the string to write between the quotes. And the metrics are read back with regexes over the output file:

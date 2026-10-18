@@ -47,7 +47,8 @@ from odatix.lib.config_generator import ConfigGenerator
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
-from odatix.lib.run_report import JobPlan, Category
+from odatix.lib.run_report import JobPlan, Category, runs
+from odatix.run.planner import leave_jobs_to_sessions
 from odatix.lib.param_domain import ParamDomain
 import odatix.lib.virtual_param_domain as virtual_param_domain
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, get_timestamp_string, KeyNotInListError, BadValueInListError
@@ -58,6 +59,9 @@ import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 WORKFLOW_META_FILENAME = "workflow_meta.yml"
+#: Written by the task "main" of a job once every task succeeded: what tells a
+#: workflow that ran to its end from one that failed or was stopped halfway.
+WORKFLOW_DONE_FILENAME = "workflow_done"
 
 
 class WorkflowInstance:
@@ -85,6 +89,8 @@ class WorkflowInstance:
         use_parameters=True,
         extra_command_substitutions=None,
         virtual_param_domains=None,
+        command_param_file=None,
+        progress_regex=None,
     ):
         self.workflow_name = workflow_name
         self.workflow_display_name = workflow_display_name
@@ -112,6 +118,11 @@ class WorkflowInstance:
         self.virtual_param_domains = (
             dict(virtual_param_domains) if isinstance(virtual_param_domains, dict) else {}
         )
+        # The configuration's parameter file, for ${<workflow_name>} in the
+        # commands: read whether or not it is also replaced into a source file
+        # (param_file is None when "use_parameters" is off).
+        self.command_param_file = command_param_file
+        self.progress_regex = progress_regex
 
 
 _read_command_parameter_value = virtual_param_domain.read_command_parameter_value
@@ -144,8 +155,9 @@ def _build_workflow_command_substitutions(workflow_instance):
         for key, value in workflow_instance.extra_command_substitutions.items():
             substitutions[str(key)] = str(value)
 
-    if workflow_instance.param_file is not None:
-        main_value = _read_command_parameter_value(workflow_instance.param_file)
+    main_param_file = workflow_instance.command_param_file or workflow_instance.param_file
+    if main_param_file is not None:
+        main_value = _read_command_parameter_value(main_param_file)
         if main_value is not None:
             substitutions[workflow_instance.workflow_param_dir] = main_value
 
@@ -243,13 +255,99 @@ def _expand_env_tokens(path):
     return expanded
 
 
+def workflow_done_file(tmp_dir):
+    """The file a job writes once its workflow ran to its end."""
+    return os.path.join(tmp_dir, WORKFLOW_DONE_FILENAME)
+
+
+def _done_command(tmp_dir):
+    """What the task "main" runs last: the same line for sh and cmd.exe."""
+    return "echo done> \"" + os.path.realpath(workflow_done_file(tmp_dir)) + "\""
+
+
+def job_category(tmp_dir, overwrite, resume=False):
+    """
+    What a run does with the job of one workflow variant, from what its work
+    directory holds.
+
+    A job whose workflow ran to its end has results: it is skipped, unless the
+    run overwrites them. A directory without that mark is a job that failed or
+    was stopped: it is run again, from where it is with "resume".
+    """
+    if not os.path.isdir(tmp_dir):
+        return Category.NEW
+    if os.path.isfile(workflow_done_file(tmp_dir)):
+        return Category.OVERWRITE if overwrite else Category.CACHED
+    return Category.RESUME if resume else Category.INCOMPLETE
+
+
+#: ${name} in a command: what the shell would expand when Odatix does not.
+_BRACED_PLACEHOLDER = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def unresolved_placeholders(tasks, substitutions, environment=None):
+    """
+    The ${name} placeholders of the commands of the tasks that nothing replaces:
+    no variable, parameter domain or built-in name of the job, and no variable of
+    the environment. The shell expands them, to nothing most of the time.
+
+    Returns:
+        list: (task name, placeholder name) pairs, in the order they appear.
+    """
+    environment = os.environ if environment is None else environment
+    found = []
+    for task in tasks or []:
+        if not isinstance(task, dict):
+            continue
+        for key in ("commands", "on_failure_commands", "path"):
+            value = task.get(key)
+            lines = value if isinstance(value, list) else [value]
+            for line in lines:
+                if not isinstance(line, str):
+                    continue
+                for name in _BRACED_PLACEHOLDER.findall(line):
+                    if name in substitutions or name in environment:
+                        continue
+                    entry = (str(task.get("name", "")), name)
+                    if entry not in found:
+                        found.append(entry)
+    return found
+
+
+def _warn_unresolved_placeholders(workflow_instance, workflow_path, warned):
+    """
+    Say which placeholders of a job nothing replaces, once per workflow. A
+    domain left out of the selection or a configuration that is not selected
+    runs the command with an empty value otherwise, without a word.
+    """
+    try:
+        tasks = task_common.select_platform_task_implementations(workflow_instance.tasks, sys.platform)
+    except Exception:
+        return
+    substitutions = _build_workflow_command_substitutions(workflow_instance)
+    workflow = workflow_instance.workflow_param_dir
+    for task_name, name in unresolved_placeholders(tasks, substitutions):
+        if (workflow, name) in warned:
+            continue
+        warned.add((workflow, name))
+        printc.warning(
+            "Placeholder \"${" + name + "}\" of task \"" + task_name + "\" of workflow \"" + workflow
+            + "\" matches no variable, parameter domain or built-in name: the shell will expand it, most likely to nothing.",
+            script_name,
+        )
+        if name == workflow:
+            printc.tip("Select a configuration of the workflow: \"" + workflow + "/<configuration>\".", script_name)
+        elif os.path.isdir(os.path.join(workflow_path, workflow, name)):
+            printc.tip("Add the parameter domain to the selection: \"" + workflow + " + " + name + "/*\".", script_name)
+
+
 ######################################
 # Parse Arguments
 ######################################
 
 def add_arguments(parser):
     add_options(
-        parser, "overwrite", "noask", "daemon_options", "settings_file", "workflow_path", "work_path",
+        parser, "workflows", "overwrite", "noask", "daemon_options", "settings_file", "workflow_path", "work_path",
         "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "debug", "export_options", "config",
         work_path={"help": "workflow work directory"},
         keep={"help": "store workflow batch with a timestamp in the configuration name"},
@@ -315,12 +413,17 @@ def check_settings(
     nb_jobs,
     debug=False,
     keep=False,
+    resume=False,
+    selected_workflows=None,
 ):
     _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, workflows = get_workflow_settings(run_config_settings_filename)
+    # Workflows named by the run ("--workflow") replace the list of the file.
+    if selected_workflows:
+        workflows = list(selected_workflows)
 
     if workflows is None:
         printc.error('The "workflows" section of "' + run_config_settings_filename + '" is empty.', script_name)
-        printc.note('You must define your workflows in "' + run_config_settings_filename + '" before using this command.', script_name)
+        printc.note('You must define your workflows in "' + run_config_settings_filename + '" before using this command, or name them with -W/--workflow.', script_name)
         sys.exit(-1)
 
     overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs = normalize_run_settings(
@@ -352,6 +455,7 @@ def check_settings(
 
     plan = JobPlan()
     workflow_instances = []
+    warned_placeholders = set()
 
     first_progress_regex = None
 
@@ -436,13 +540,10 @@ def check_settings(
             progress_file = hard_settings.sim_progress_file
             progress_regex = hard_settings.sim_status_pattern.pattern
 
+        # Each job reads its progress with the regex of its own workflow (see
+        # ParallelJob progress_pattern); this one is only the default.
         if first_progress_regex is None:
             first_progress_regex = progress_regex
-        elif first_progress_regex != progress_regex:
-            printc.note(
-                "Multiple progress.regex values detected. Using the first one for monitor parsing: \"" + first_progress_regex + "\"",
-                script_name,
-            )
 
         # A configuration described by a rule is resolved here, on the way, so
         # nothing has to have been generated before the run.
@@ -458,6 +559,7 @@ def check_settings(
             printc.note("Add it, or declare the configurations of this workflow in \"" + workflow_settings_file + "\".", script_name)
             plan.add(workflow_display_name, Category.ERROR)
             continue
+        command_param_file = None if no_main_configuration else param_file
         if no_main_configuration or not use_parameters:
             param_file = None
 
@@ -532,46 +634,65 @@ def check_settings(
                 workflow_config_dir_work_variant,
                 _variant_domains,
             ) = ArchitectureHandler.get_basic(workflow_full_variant)
+            if no_main_configuration and len(_variant_domains) > 0:
+                # No configuration to name: "basic [width:8]", not "basic/basic [width:8]".
+                workflow_display_name_variant = (
+                    workflow + " [" + ", ".join(_variant_domains).replace("/", ":") + "]"
+                )
 
             workflow_config_dir_work_variant = (
                 workflow_config_dir_work_variant + "_" + timestamp if keep and timestamp != "" else workflow_config_dir_work_variant
             )
             tmp_dir = os.path.join(work_path, workflow_param_dir_work_variant, workflow_config_dir_work_variant)
 
-            workflow_instances.append(
-                WorkflowInstance(
-                    workflow_name=workflow,
-                    workflow_display_name=workflow_display_name_variant,
-                    workflow_full=workflow_full_variant,
-                    workflow_param_dir=workflow_param_dir,
-                    workflow_config=workflow_config,
-                    tmp_dir=tmp_dir,
-                    source_path=source_path,
-                    source_whitelist=source_whitelist,
-                    source_blacklist=source_blacklist,
-                    param_target_file=param_target_file,
-                    start_delimiter=start_delimiter,
-                    stop_delimiter=stop_delimiter,
-                    param_file=param_file,
-                    param_domains=param_domains,
-                    progress_file=progress_file,
-                    tasks=tasks,
-                    workflow_settings_file=workflow_settings_file,
-                    workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
-                    no_main_configuration=no_main_configuration,
-                    use_parameters=use_parameters,
-                    extra_command_substitutions=virtual_variant.get("substitutions", {}),
-                    virtual_param_domains=virtual_param_domain.domains_dict(
-                        virtual_variant.get("requested_param_domains", [])
-                    ),
-                )
+            workflow_instance = WorkflowInstance(
+                workflow_name=workflow,
+                workflow_display_name=workflow_display_name_variant,
+                workflow_full=workflow_full_variant,
+                workflow_param_dir=workflow_param_dir,
+                workflow_config=workflow_config,
+                tmp_dir=tmp_dir,
+                source_path=source_path,
+                source_whitelist=source_whitelist,
+                source_blacklist=source_blacklist,
+                param_target_file=param_target_file,
+                start_delimiter=start_delimiter,
+                stop_delimiter=stop_delimiter,
+                param_file=param_file,
+                param_domains=param_domains,
+                progress_file=progress_file,
+                tasks=tasks,
+                workflow_settings_file=workflow_settings_file,
+                workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
+                no_main_configuration=no_main_configuration,
+                use_parameters=use_parameters,
+                extra_command_substitutions=virtual_variant.get("substitutions", {}),
+                virtual_param_domains=virtual_param_domain.domains_dict(
+                    virtual_variant.get("requested_param_domains", [])
+                ),
+                command_param_file=command_param_file,
+                progress_regex=progress_regex,
             )
-            plan.add(workflow_display_name_variant, Category.NEW, tasks=len(tasks))
+            _warn_unresolved_placeholders(workflow_instance, workflow_path, warned_placeholders)
+
+            category = job_category(tmp_dir, overwrite, resume=resume)
+            plan.add(workflow_display_name_variant, category, tasks=len(tasks))
+            if runs(category):
+                workflow_instances.append(workflow_instance)
 
     if first_progress_regex is None:
         first_progress_regex = hard_settings.sim_status_pattern.pattern
 
     ParallelJob.set_patterns(re.compile(first_progress_regex))
+
+    # A job a session is already running is left to it: two sessions running
+    # the same run directory would write into each other's files.
+    workflow_instances = leave_jobs_to_sessions(
+        workflow_instances, plan,
+        tmp_dir=lambda instance: instance.tmp_dir,
+        name=lambda instance: instance.workflow_display_name,
+        overwrite=overwrite, script_name=script_name,
+    )
 
     plan.print_summary(noun="workflows")
 
@@ -584,6 +705,9 @@ def check_settings(
     def prepare_job(workflow_instance, resume=False):
         if not (resume and os.path.isdir(workflow_instance.tmp_dir)):
             create_dir(workflow_instance.tmp_dir)
+        elif os.path.isfile(workflow_done_file(workflow_instance.tmp_dir)):
+            # Running again in place: done only once it is done again.
+            os.remove(workflow_done_file(workflow_instance.tmp_dir))
 
         # Write run metadata to make post-processing/export robust.
         workflow_meta_file = os.path.join(workflow_instance.tmp_dir, WORKFLOW_META_FILENAME)
@@ -657,8 +781,9 @@ def check_settings(
         resolved_tasks = _resolve_workflow_tasks(selected_tasks, substitutions)
         task_common.validate_selected_tasks(resolved_tasks, sys.platform)
 
+        done_command = _done_command(workflow_instance.tmp_dir)
         try:
-            maker = createTaskGraph(resolved_tasks)
+            maker = createTaskGraph(resolved_tasks, done_command=done_command)
             old_cwd = os.getcwd()
             try:
                 os.chdir(workflow_instance.tmp_dir)
@@ -672,8 +797,10 @@ def check_settings(
             sys.exit(-1)
 
         if execution_stages is None or len(execution_stages) == 0:
-            printc.error("Failed to generate execution stages for workflow \"" + workflow_instance.workflow_display_name + "\". Please check your workflow settings file and task definitions.", script_name)
-            sys.exit(-1)
+            # Every task stands for a file that is already there ("phony: No"):
+            # nothing to run, but the job still ends as done.
+            printc.note("Every task of workflow \"" + workflow_instance.workflow_display_name + "\" is up to date.", script_name)
+            execution_stages = {0: [{"name": "main", "command": done_command}]}
 
         progress_file = os.path.join(workflow_instance.tmp_dir, workflow_instance.progress_file)
 
@@ -691,6 +818,7 @@ def check_settings(
             tmp_dir=workflow_instance.tmp_dir,
             log_size_limit=log_size_limit,
             status="idle",
+            progress_pattern=workflow_instance.progress_regex,
         )
 
         job_list.append(running_workflow)

@@ -139,3 +139,29 @@ class TestLoadExisting:
         f.write_text(": : not : valid : yaml :\n")
         units, records = ec.load_existing_results_file(str(f))
         assert units == {} and records == []
+
+
+class TestMissingFileReportedOnce:
+    """A failed job's missing report: one error, not one per metric (C-17)."""
+
+    def test_one_error_per_missing_file(self, tmp_path, capsys):
+        import odatix.components.export_common as export_common
+        missing = str(tmp_path / "results.yml")
+        for key in ("a", "b", "c"):
+            assert export_common.parse_yaml(missing, key, True, "job => ") is None
+        assert export_common.parse_regex(missing, "x", 0, True, "job => ") is None
+        assert capsys.readouterr().out.count("does not exist") == 1
+
+    def test_said_again_after_a_while(self, tmp_path, capsys, monkeypatch):
+        import odatix.components.export_common as export_common
+        missing = str(tmp_path / "output.txt")
+        export_common.parse_regex(missing, "x", 0, True)
+        monkeypatch.setattr(export_common, "MISSING_FILE_REPEAT_S", 0.0)
+        export_common.parse_regex(missing, "x", 0, True)
+        assert capsys.readouterr().out.count("does not exist") == 2
+
+    def test_other_files_are_still_reported(self, tmp_path, capsys):
+        import odatix.components.export_common as export_common
+        export_common.parse_regex(str(tmp_path / "one.txt"), "x", 0, True)
+        export_common.parse_regex(str(tmp_path / "two.txt"), "x", 0, True)
+        assert capsys.readouterr().out.count("does not exist") == 2

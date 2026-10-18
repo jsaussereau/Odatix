@@ -45,11 +45,14 @@ campaigns:
 #--------------------------------------------#
 
   # A filter whose three knobs are handed to the high-level synthesis, searched
-  # for the fastest design at the smallest area.
+  # for the fastest design at the smallest area. It needs Vitis HLS and Vivado,
+  # and each design is an fmax synthesis: count hours.
   - fir_area_speed
 
   # An exploration of a workflow instead of a synthesis: a small image codec
   # whose four knobs describe 3150 encoders, searched for the rate/quality
-  # curve none of them is beaten on.
+  # curve none of them is beaten on. It needs no eda tool and a batch takes
+  # seconds: "odatix dse -p image_codec_rate_quality -b 10" is the quickest
+  # way to see an exploration run.
   - image_codec_rate_quality
 

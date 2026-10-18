@@ -58,7 +58,7 @@ own all fit.
 - **Guarding a sweep.** Before implementing 200 configurations, confirm they are
   functionally worth implementing.
 - **Sweeping testbench parameters.** A shorter run time, a seed, a stimulus
-  length — the simulation's own override pass changes those without touching the
+  length — the simulation's own replacements change those without touching the
   design's configurations.
 
 ## How it works
@@ -85,9 +85,10 @@ file feeds the [Job Monitor](/docs/sessions/gui_monitor/)'s progress bar.
 
 Two mechanisms are specific to simulations:
 
-- **A second, simulation-only replacement pass** (`override_parameters`) for
-  values only the testbench cares about, kept separate from the design's
-  configurations.
+- **Replacements of its own**, per architecture (`param_domains` under
+  `architectures`): the value of a configuration written into the testbench
+  instead of the design, or values only the testbench cares about (a run
+  length, a seed), kept separate from the design's configurations.
 - **Invariant domains** — parameter domains a testbench is blind to (a memory
   configuration, a target voltage). Declaring one runs a single value instead of
   all of them, and drops that dimension from the result, so a synthesis result of
@@ -120,45 +121,70 @@ simulations:
 {{< /code >}}
 
 The simulation's own `_settings.yml` says what to run, if `make sim` is not
-enough:
+enough. Here, a simulation of your own, `TB_My_Counter_GHDL`, holding the
+testbench of the example in its `tb/` directory:
 
-{{< code lang=yaml filename="simulations/TB_Example_Counter_GHDL/_settings.yml" >}}
+{{< code lang=yaml filename="simulations/TB_My_Counter_GHDL/_settings.yml" >}}
 tasks:
   - name: analyze
     commands:
-      - ghdl -a --workdir=obj rtl/* tb/*
+      - ghdl -a ${vhdl_files} ${tb_files}
 
   - name: main
     dependencies:
       - analyze
     commands:
-      - ghdl -e --workdir=obj tb_counter
-      - ghdl -r --workdir=obj tb_counter --stop-time=500ns | tee log/sim.log
+      - ghdl -e tb_counter
+      - ghdl -r tb_counter --stop-time=500ns --vcd=${log_path}/counter.vcd
+
+# The width of each configuration goes into the generic of the testbench,
+# which passes it on to the counter
+architectures:
+  - Example_Counter_vhdl:
+      param_domains:
+        __main__:
+          param_target_file: "tb/tb_counter.vhdl"
 {{< /code >}}
 
-And its `_metrics.yml` says what to keep from it:
+`${vhdl_files}` and `${tb_files}` are the sources of the design and of the
+testbench, in compilation order, and `${log_path}` a directory Odatix creates
+before the first task runs.
 
-{{< code lang=yaml filename="simulations/TB_Example_Counter_GHDL/_metrics.yml" >}}
+And its `_metrics.yml` says what to keep from it, here from the `results.yml`
+file the testbench writes:
+
+{{< code lang=yaml filename="simulations/TB_My_Counter_GHDL/_metrics.yml" >}}
 metrics:
-  Cycles:
-    type: regex
+  cycles:
+    type: yaml
     settings:
-      file: log/sim.log
-      pattern: "Total cycles: ([0-9]+)"
-      group_id: 1
+      file: results.yml
+      key: cycles
     format: "%.0f"
     unit: cycles
+
+  status:
+    type: yaml
+    settings:
+      file: results.yml
+      key: status
 {{< /code >}}
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix sim
+$ odatix sim -s TB_My_Counter_GHDL -a "Example_Counter_vhdl/*"
 $ odatix sim -d -S nightly     # detached, named session
 $ odatix results sim           # re-export after editing _metrics.yml
 {{< /code >}}
 
+A simulation that succeeded is not run again: `-o` runs it again. One that
+failed, or was stopped, runs again at the next `odatix sim`; `-r` runs it in its
+existing work directory instead of a new one.
+
 Results land in `results/results_simulation.yml`, tagged with both the simulation
-and the configuration it ran on. A simulation without a `_metrics.yml` exports
-nothing — perfectly fine for a testbench that only has to pass.
+and the configuration it ran on. A simulation that failed is exported too, so
+that its verdict replaces the one of an earlier run. A simulation without a
+`_metrics.yml` exports nothing — perfectly fine for a testbench that only has
+to pass.
 
 Every key is on the
 [simulation settings reference](/docs/reference/simulation/); every option on the
@@ -167,8 +193,9 @@ Every key is on the
 ### From the GUI
 
 `odatix-gui` → **RTL Architectures** → **Simulations** edits the testbench
-definition: its tasks and dependencies as cards, the parameter delimiters, the
-override pass, and the metrics editor for `_metrics.yml`. **Run jobs** →
+definition: the template it starts from, its testbench, its tasks and
+dependencies as cards, the replacements it does per architecture, and the
+metrics editor for `_metrics.yml`. **Run jobs** →
 **Simulation** then picks which simulation runs on which configurations, and
 launches into the same daemon.
 

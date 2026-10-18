@@ -34,9 +34,9 @@ from os.path import isdir, isfile
 
 import odatix.lib.printc as printc
 from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
-from odatix.lib.run_report import Category, JobPlan
+from odatix.lib.run_report import Category, JobPlan, runs
 
-__all__ = ["JobPlanner"]
+__all__ = ["JobPlanner", "leave_jobs_to_sessions"]
 
 script_name = os.path.basename(__file__)
 
@@ -97,7 +97,8 @@ class JobPlanner(object):
 
         Returns "cached" when the directory already holds every step this run
         asks for, "resume" when it holds some of them (the run picks up at the
-        first missing one), "new" otherwise.
+        first missing one), "rerun" when steps it holds are run again because
+        the run was asked to ("--rerun-from"), "new" otherwise.
 
         This has to take precedence over the status file: a directory left by a
         run that stopped at an earlier step holds a perfectly valid status file,
@@ -108,11 +109,17 @@ class JobPlanner(object):
 
         import odatix.lib.job_steps as job_steps
 
-        done = job_steps.resume_index(tmp_dir, self.requested_steps)
+        recorded = job_steps.resume_index(tmp_dir, self.requested_steps)
+        done = recorded
         if self.rerun_step_index is not None:
             done = min(done, self.rerun_step_index)
         if done >= len(self.requested_steps):
             return "cached"
+        # Picking up where a job stopped and doing again what it has done are
+        # not the same thing to be told about: the second one costs what those
+        # steps cost the first time.
+        if recorded > done:
+            return "rerun"
         return "resume" if done > 0 else "new"
 
     ######################################
@@ -186,7 +193,7 @@ class JobPlanner(object):
         # A job still queued or running belongs to its session whatever the
         # steps say; a finished one does not when steps are left to run, nor
         # when the run was asked to overwrite what is done.
-        finished_is_restartable = self.overwrite or steps_decision in ("resume", "new")
+        finished_is_restartable = self.overwrite or steps_decision in ("resume", "rerun", "new")
 
         for entry in daemon_entries:
             status = entry["status"]
@@ -221,7 +228,7 @@ class JobPlanner(object):
 
         Returns:
             tuple: (state, daemon_entry) where state is one of "cached",
-            "daemon", "overwrite", "incomplete", "resume" or "new". Mapping a
+            "daemon", "overwrite", "incomplete", "resume", "rerun" or "new". Mapping a
             state to a plan category is left to the caller, which knows how it
             names its jobs there.
         """
@@ -238,8 +245,8 @@ class JobPlanner(object):
                 else:
                     printc.note("Every requested step is already done for " + subject + ". Skipping.", script_name)
                     state = "cached"
-            elif steps_decision == "resume" and not self.overwrite:
-                state = "resume"
+            elif steps_decision in ("resume", "rerun") and not self.overwrite:
+                state = steps_decision
         elif isdir(tmp_dir) and isfile(status_file):
             # Check whether the previous run completed.
             with open(status_file, "r") as sf:
@@ -313,5 +320,58 @@ STATE_CATEGORIES = {
     "overwrite": Category.OVERWRITE,
     "incomplete": Category.INCOMPLETE,
     "resume": Category.RESUME,
+    "rerun": Category.RERUN,
     "new": Category.NEW,
 }
+
+
+def leave_jobs_to_sessions(instances, plan, tmp_dir, name, overwrite=False, script_name=script_name):
+    """
+    Leave to its session a job a session is already running.
+
+    Two sessions running the same job directory at once write into each other's
+    files. A synthesis checks for that job by job (see
+    :meth:`JobPlanner.classify_job`); a run that builds its plan on its own (a
+    simulation, a workflow) calls this once its plan is built, before printing
+    it.
+
+    Args:
+        instances (list): the jobs the run is about to run.
+        plan (JobPlan): its plan. The entry of each job left to a session moves
+            to the "Already managed in a session" category.
+        tmp_dir (callable): the work directory of a job, from its instance.
+        name (callable): its name in the plan, from its instance.
+        overwrite (bool): whether the run overwrites what is done, which lets
+            it take over a job a session already finished.
+        script_name (str): who reports the jobs left to a session.
+
+    Returns:
+        list: the instances left for this run to run.
+    """
+    planner = JobPlanner(overwrite=overwrite)
+    kept = []
+    for instance in instances:
+        decision, entry = planner.daemon_decision(tmp_dir(instance))
+        if decision != "skip":
+            if decision == "replace" and (entry or {}).get("status") in JobPlanner.DAEMON_RESTARTABLE_STATUSES:
+                printc.warning(
+                    'Found previously failed/canceled daemon job for "' + str(name(instance))
+                    + '" (status "' + str(entry.get("status")) + '"). Re-enqueueing.',
+                    script_name,
+                )
+            kept.append(instance)
+            continue
+
+        job_name = str(name(instance))
+        printc.note(
+            'Found existing daemon job for "' + job_name + '" (session "'
+            + (str(entry.get("session_id", "")).strip() or "unknown") + '", status "'
+            + str(entry.get("status", "unknown")) + '"). Skipping.',
+            script_name,
+        )
+        for plan_entry in plan.entries:
+            if plan_entry["name"] == job_name and runs(plan_entry["category"]):
+                plan_entry["category"] = Category.DAEMON
+                plan_entry["name"] = job_name + JobPlanner.format_daemon_entry(entry)
+                break
+    return kept

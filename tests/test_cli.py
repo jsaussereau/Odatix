@@ -458,7 +458,9 @@ class TestExplorerAndGuiParsers:
         assert args.safe_mode is False
         assert args.normal_term_mode is False
         assert args.theme is None
-        assert isinstance(args.port, int)
+        # Unset, so that the launcher tells a port asked for (that one or an
+        # error) from the default one (8052, or the next free port)
+        assert args.port is None
 
     @pytest.mark.parametrize("add_arguments", [odatix_explorer.add_arguments, odatix_gui.add_arguments])
     def test_options(self, add_arguments):
@@ -681,12 +683,12 @@ class TestDaemonCommandStatus:
     def test_stop_zombies(self, monkeypatch):
         monkeypatch.setattr(
             odatix_main.daemon_control, "kill_zombie_daemons",
-            lambda session=None: {"total": 1, "killed": 1, "failed": []},
+            lambda session=None, **kwargs: {"total": 1, "killed": 1, "failed": []},
         )
         assert run_main("stop", "-z") == 0
         monkeypatch.setattr(
             odatix_main.daemon_control, "kill_zombie_daemons",
-            lambda session=None: {"total": 1, "killed": 0, "failed": [{}]},
+            lambda session=None, **kwargs: {"total": 1, "killed": 0, "failed": [{}]},
         )
         monkeypatch.setattr(odatix_main.daemon_control, "format_daemons_table", lambda *args, **kwargs: "")
         assert run_main("stop", "-z") != 0

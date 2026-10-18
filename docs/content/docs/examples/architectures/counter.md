@@ -281,7 +281,7 @@ variables:
       list: [4, 8, 16, 24, 32, 48, 64]
 {{< /code >}}
 
-`width` behaves exactly like a [parameter domain](/docs/configurations/param_domains/): the design is synthesized once per value, and results are labelled `width/04bits`, `width/08bits`, and so on — but the domain is **virtual**, with no directory and no file behind it.
+`width` behaves exactly like a [parameter domain](/docs/configurations/param_domains/): the design is synthesized once per value, and results are labelled `width/4bits`, `width/8bits`, and so on (no leading zero: the values are not formatted) — but the domain is **virtual**, with no directory and no file behind it.
 
 The Scala side simply reads the flag, and forwards everything else to firtool:
 
@@ -424,4 +424,4 @@ $ odatix sim
 - [Cordic](/docs/examples/architectures/cordic/) — the same ideas, with two independent parameter domains and four simulators.
 - [Multiplier & Shift Register](/docs/examples/architectures/mult_shift_register/) — two more one-parameter designs, whose curves are worth comparing against the counter's.
 - [Virtual parameter domains](/docs/configurations/virtual_param_domains/) — the mechanism behind `Example_Counter_chisel_cli`.
-- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.
+- [All architecture examples](/docs/examples/architectures/) — the seven designs and what each one adds.

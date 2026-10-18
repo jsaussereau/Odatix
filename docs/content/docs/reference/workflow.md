@@ -41,8 +41,8 @@ sources:
 ## `tasks` — the pipeline
 
 **Required.** A list of tasks forming a dependency graph, resolved like a
-makefile: execution starts at the task named **`main`**, its dependencies run
-first, and independent branches run concurrently.
+makefile: execution starts at the task named **`main`**, and its dependencies
+run first.
 
 ### Task entries
 
@@ -52,7 +52,8 @@ first, and independent branches run concurrently.
 | `commands` | list of strings | No | Shell commands, run in order. |
 | `on_failure_commands` | list of strings | No | Fallback commands, run in order when one of `commands` fails. The task then succeeds if they do. |
 | `dependencies` | list of strings | No | Task names that must complete first. |
-| `path` | path | No | Working directory of this task — absolute, or relative to the run directory. |
+| `path` | path | No | Directory the commands of this task run from — absolute, or relative to the run directory. It applies to this task only. |
+| `phony` | bool | No | `Yes` (default): the task always runs. `No`: the task stands for the file it is named after, and is skipped when that file exists — see [below](#a-task-that-produces-a-file). |
 | `platforms` | string or list | No | Platforms this implementation applies to (`linux`, `darwin`, `win32`). |
 
 {{< code lang=yaml filename="_settings.yml" >}}
@@ -118,6 +119,34 @@ tasks:
       - env/bin/python3 -m pip install tensorflow
 {{< /code >}}
 
+### A task that produces a file
+
+By default a task is *phony*: it runs every time its job runs. With
+`phony: No`, a task is named after a file it produces instead, and is skipped
+when that file already exists (relative to the task's `path`, or absolute), as
+long as none of its dependencies has to run. A dependency that builds an
+environment once for every job is the typical use, as in the
+[TensorFlow example](/docs/examples/workflows/tensorflow/):
+
+{{< code lang=yaml filename="_settings.yml" >}}
+tasks:
+  - name: main
+    dependencies:
+      - /tmp/odatix_tensorflow_example_env/ready
+    commands:
+      - /tmp/odatix_tensorflow_example_env/bin/python3 train.py
+
+  - name: /tmp/odatix_tensorflow_example_env/ready
+    phony: No
+    commands:
+      - python3 setup_env.py python3      # builds the environment, then writes "ready"
+{{< /code >}}
+
+Whether the file exists is decided when the jobs are prepared, before any of
+them runs. The jobs of a run that all need the file therefore all run the task:
+when they run at the same time, the task has to take a lock and check again
+(`setup_env.py` does it with `fcntl.flock`). The next runs skip it.
+
 ### Placeholders in commands and paths
 
 `${name}` placeholders in `commands`, `on_failure_commands` and `path` are substituted from the
@@ -125,7 +154,7 @@ resolved configuration:
 
 | Placeholder | Value |
 |-------------|-------|
-| `${<workflow_name>}` | The workflow's own configuration value (its parameter file's content). |
+| `${<workflow_name>}` | The content of the selected configuration's file (`cli_profile/aggressive` → `aggressive.txt`), whether `use_parameters` is on or off. |
 | `${<domain>}` | One per [parameter domain](/docs/configurations/param_domains/) of the workflow. |
 | `${<variable>}` | One per inline [variable](/docs/configurations/virtual_param_domains/). |
 | `${workflow}` | Name of this workflow. |
@@ -140,9 +169,12 @@ resolved configuration:
 A parameter domain or a variable named like a built-in placeholder wins over it,
 so declaring one never silently changes what a command already did.
 
-A placeholder that resolves to nothing is left unchanged, so environment
-variables still reach the shell. Environment tokens (`$env(VAR)`, `$VAR`,
-`${VAR}`) are expanded in paths.
+A placeholder Odatix does not know is left unchanged, so environment variables
+still reach the shell. A `${name}` that is not an environment variable either
+gets a warning when the run is checked: the shell would expand it, most of the
+time to nothing — a parameter domain left out of the selection, or a workflow
+selected without a configuration, does that. Environment tokens (`$env(VAR)`,
+`$VAR`, `${VAR}`) are expanded in paths.
 
 ## `progress` — feeding the monitor
 
@@ -158,7 +190,16 @@ progress:
 {{< /code >}}
 
 Whenever a task writes `Progress: 60` to that file, the
-[Job Monitor](/docs/sessions/gui_monitor/) shows 60 %.
+[Job Monitor](/docs/sessions/gui_monitor/) shows 60 %. Each workflow is read
+with its own regex, including when one run mixes several workflows.
+
+## Jobs that already ran
+
+A job writes `workflow_done` into its run directory once its task `main`
+succeeded. The next run skips the jobs that have it (**Existing results**),
+unless it overwrites them (`overwrite: Yes` in `workflow_settings.yml`, or
+`-o/--overwrite`). A job without it — failed or stopped — runs again from an
+empty run directory, or from the one it left with `-r/--resume`.
 
 ## Parameters
 
@@ -250,6 +291,6 @@ cards, variables in the shared variable editor, and the metrics editor for
 ## See also
 
 - Feature: [Custom workflows](/docs/features/workflows/) — what this file is for.
-- Tutorial: [Run your own workflow](/tutorials/own_designs/workflows/).
+- Tutorial: [Create your own workflow](/tutorials/own_designs/workflows/).
 - [Simulation settings](/docs/reference/simulation/) — the same task engine, applied to testbenches.
 - [Run settings files](/docs/reference/run_settings/#workflows--workflows-and-their-parameters) — selecting workflows for a run.

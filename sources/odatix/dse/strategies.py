@@ -53,7 +53,7 @@ from odatix.dse.strategy import Strategy
 
 __all__ = [
     "Strategy", "ExhaustiveSearch", "RandomSearch", "GeneticSearch", "BayesianSearch",
-    "STRATEGIES", "strategy_for",
+    "STRATEGIES", "STRATEGY_ALIASES", "strategy_for", "strategy_names",
 ]
 
 
@@ -327,8 +327,25 @@ def strategy_for(name):
     key = STRATEGY_ALIASES.get(key, key)
     if key not in STRATEGIES:
         raise ValueError(
-            "Unknown search strategy \"{0}\". Odatix searches with: {1}.".format(
-                name, ", ".join(sorted(STRATEGIES))
+            "Unknown search strategy \"{0}\". Odatix searches with: {1} "
+            "(also accepted: {2}).".format(
+                name, ", ".join(sorted(STRATEGIES)), describe_aliases()
             )
         )
     return STRATEGIES[key]
+
+
+def strategy_names():
+    """Every word a settings file may use for a strategy: the names, then the aliases."""
+    return sorted(STRATEGIES) + sorted(STRATEGY_ALIASES)
+
+
+def describe_aliases():
+    """The other words for each strategy, as a user reads them."""
+    return "; ".join(
+        "{0} for {1}".format(
+            ", ".join(sorted(alias for alias, target in STRATEGY_ALIASES.items() if target == name)),
+            name,
+        )
+        for name in sorted(set(STRATEGY_ALIASES.values()))
+    )

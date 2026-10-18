@@ -16,7 +16,7 @@ from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, create_dir_if_missing, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict
-from odatix.lib.prepare_work import edit_config_file
+from odatix.lib.prepare_work import edit_config_file, write_frequency_files
 from odatix.lib.check_tool import start_tool_check
 from odatix.workspace.space import selected_config_file
 from odatix.lib.run_settings import get_synth_settings
@@ -57,6 +57,10 @@ def restrict_targets(targets, selected, tool, eda_target_filename, script_name="
             script_name,
         )
         printc.note('Enabled targets in "' + eda_target_filename + '" are: ' + ", ".join(str(t) for t in targets), script_name)
+        printc.note(
+            'To enable a target, add it to the "targets" list of that file (or uncomment it)',
+            script_name,
+        )
         raise SystemExit(-1)
     return kept
 
@@ -167,9 +171,15 @@ def load_synthesis_context(
 
         try:
             targets = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
-            constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
         except (KeyNotInListError, BadValueInListError):
             raise SystemExit(-1)
+        # Optional: a tool that reads no constraint file has no use for it, and
+        # the default suits the tools that read SDC.
+        constraint_file = settings_data.get("constraint_file") if isinstance(settings_data, dict) else None
+        if not constraint_file:
+            from odatix.lib.prepare_work import DEFAULT_CONSTRAINT_FILE
+            constraint_file = DEFAULT_CONSTRAINT_FILE
+        constraint_file = str(constraint_file)
 
         targets = restrict_targets(targets, selected_targets, tool, eda_target_filename, script_name=script_name)
 
@@ -177,8 +187,12 @@ def load_synthesis_context(
             install_path = read_from_list(
                 "tool_install_path", settings_data, eda_target_filename, print_error=False, script_name=script_name
             )
-            install_path = os.path.realpath(os.path.expanduser(str(install_path)))
-            if not os.path.isdir(install_path):
+            # Empty means "on the PATH": it stays empty, rather than becoming
+            # the current directory through realpath.
+            install_path = str(install_path or "").strip()
+            if install_path:
+                install_path = os.path.realpath(os.path.expanduser(install_path))
+            if install_path and not os.path.isdir(install_path):
                 printc.error(
                     'The installation path "'
                     + install_path
@@ -197,8 +211,8 @@ def load_synthesis_context(
                 raise SystemExit(-1)
 
         except (KeyNotInListError, BadValueInListError):
-            printc.note('No tool_install_path specified for "' + tool + '"', script_name=script_name)
-            install_path = "/"
+            # Optional: the tool is on the PATH.
+            install_path = ""
 
         force_single_thread, _ = get_from_dict(
             "force_single_thread", settings_data, eda_target_filename, default_value=False, script_name=script_name
@@ -210,7 +224,7 @@ def load_synthesis_context(
     from odatix.lib.settings import OdatixSettings
 
     variables = Variables(
-        tool_install_path=os.path.realpath(install_path),
+        tool_install_path=os.path.realpath(install_path) if install_path else "",
         odatix_path=OdatixSettings.odatix_path,
         odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         tool_path=eda_tool_dir,
@@ -391,7 +405,7 @@ def build_job_variables(arch_instance, tool, **extra):
 
     return Variables(
         work_path=os.path.realpath(arch_instance.tmp_dir),
-        tool_install_path=os.path.realpath(arch_instance.install_path),
+        tool_install_path=os.path.realpath(arch_instance.install_path) if arch_instance.install_path else "",
         odatix_path=OdatixSettings.odatix_path,
         odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         tool_path=eda_tools.get_tool_dir(tool),
@@ -403,7 +417,9 @@ def build_job_variables(arch_instance, tool, **extra):
         clock_signal=arch_instance.clock_signal,
         top_level_module=arch_instance.top_level_module,
         lib_name=arch_instance.lib_name,
-        architecture=arch_instance.arch_display_name,
+        # The design and its configuration ("Counter/08bits"), one shell word:
+        # the display name adds " @ 100 MHz" for a custom frequency synthesis.
+        architecture=arch_instance.arch_name,
         target=arch_instance.target,
         tool=tool,
         **extra,
@@ -504,10 +520,14 @@ def build_parallel_job(
     fmax_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.fmax_status_filename)
     synth_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.synth_status_filename)
 
+    # The tool runs from the job directory, never from the workspace root: what
+    # it leaves in its working directory (Vivado's .Xil and journals, Genus's
+    # command logs, ...) then belongs to this job alone, and is neither shared by
+    # jobs running in parallel nor removed by an "odatix clean" during the run.
     job = ParallelJob(
         process=None,
         command=command,
-        directory=".",
+        directory=arch_instance.tmp_dir,
         generate_rtl=arch_instance.generate_rtl,
         generate_command=arch_instance.generate_command,
         target=arch_instance.target,
@@ -624,6 +644,7 @@ def build_prepare_synthesis_job(
         )
 
         write_job_identity_files(arch_instance, flow)
+        write_frequency_files(arch_instance)
 
         if arch_instance.file_copy_enable:
             file_copy_dest = os.path.join(arch_instance.tmp_dir, arch_instance.file_copy_dest)

@@ -177,7 +177,8 @@ def _card(index, reco):
             n_clicks=0,
             type="button",
             className="xp-reco-save",
-            title="Keep this chart as a saved view",
+            disabled=views.is_read_only(),
+            title=views.READ_ONLY_MESSAGE.capitalize() if views.is_read_only() else "Keep this chart as a saved view",
           ),
         ],
         className="xp-reco-foot",
@@ -372,7 +373,8 @@ def save_recommendation(clicks, store):
   if view is None:
     raise dash.exceptions.PreventUpdate
   try:
-    slug = views.save_view(STORE.result_path, view.get("name"), view)
+    # A proposal never replaces a view the user saved: it takes a free name
+    slug = views.save_view(STORE.result_path, views.free_name(STORE.result_path, view.get("name")), view)
   except (OSError, ValueError) as e:
     return html.Div("⚠ Could not save the view: " + str(e), className="xp-view-warning")
   return html.Div('Saved as "' + slug + '.json" — it now shows up on the Explorer home page', className="xp-view-ok")

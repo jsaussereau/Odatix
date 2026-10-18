@@ -182,6 +182,9 @@ AVOIDED = [
     (re.compile(r"\beda tools?\b", re.IGNORECASE), ("gui", "cli")),
     # "Fixed-frequency synthesis", never "custom freq" or "custom synthesis" in a label.
     (re.compile(r"\bcustom[ -](freq|synth)", re.IGNORECASE), ("gui", "cli")),
+    # ... nor "custom frequency synthesis" / "custom-frequency synthesis" in the
+    # documentation (the key "custom_freq_synthesis" keeps its name: not matched).
+    (re.compile(r"\bcustom[ -]frequency\b", re.IGNORECASE), ("docs",)),
     # A search evaluates design points.
     (re.compile(r"\bhow many designs\b", re.IGNORECASE), ("gui", "cli", "docs")),
     # A session, never a "daemon session".
@@ -194,7 +197,12 @@ def _sources(where):
         return [("gui/" + path + ":" + str(line), text) for path, line, text in gui_strings()]
     if where == "cli":
         return [(command + " " + option, text) for command, option, text in cli_help()]
-    return [("docs/" + path + ":" + str(line), text) for path, line, text in docs_text()]
+    # The glossary names the words it avoids, on purpose.
+    return [
+        ("docs/" + path + ":" + str(line), text)
+        for path, line, text in docs_text()
+        if path != os.path.join("docs", "glossary.md")
+    ]
 
 
 @pytest.mark.parametrize("pattern, places", AVOIDED, ids=[pattern.pattern for pattern, _places in AVOIDED])

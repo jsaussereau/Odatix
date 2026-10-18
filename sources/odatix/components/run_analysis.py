@@ -30,7 +30,7 @@ import odatix.lib.eda_tools as eda_tools
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
-from odatix.lib.run_report import JobPlan
+from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import ask_to_continue, get_timestamp_string, resolve_nb_jobs
 from odatix.lib.get_from_dict import get_from_dict
@@ -69,7 +69,7 @@ def add_arguments(parser):
     parser, "tool", "architectures", "flow", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path",
     "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "keep", "log_size_limit", "export_options", "config",
     tool={"nargs": "+", "default": None, "help": "tool(s) to run (default: \"tools\" of the analysis settings file, else \"default_tool\" of odatix.yml)"},
-    flow={"nargs": "+", "help": "flow(s) to run, as \"flow\" (applied to every tool) or \"tool:flow\" (default: each tool's default flow)"},
+    flow={"nargs": "+", "help": "flow(s) to run, as \"flow\" (applied to every tool that has it) or \"tool:flow\" (default: each tool's default flow)"},
   )
 
 
@@ -91,8 +91,10 @@ DEFAULT_ANALYSIS_TOOLS = []
 def parse_flow_selection(flow_args, tools):
   """
   Turn the "--flow" arguments into a {tool: flow} mapping. An entry without a
-  tool prefix ("place_route") applies to every tool; an entry of the form
-  "tool:flow" only applies to that tool and wins over a bare entry.
+  tool prefix ("runtime") applies to every selected tool that has a flow of
+  that name, the others keeping their default flow; when none of them has it,
+  it applies to all of them, so that the unknown flow is reported. An entry of
+  the form "tool:flow" only applies to that tool and wins over a bare entry.
 
   Returns:
       dict: {tool: flow name or None for the tool's default flow}
@@ -103,8 +105,14 @@ def parse_flow_selection(flow_args, tools):
 
   for entry in flow_args:
     if ":" not in str(entry):
-      for current_tool in flows:
-        flows[current_tool] = str(entry).strip()
+      flow_name = str(entry).strip()
+      having = [current_tool for current_tool in flows if _has_analysis_flow(current_tool, flow_name)]
+      if len(flows) > 1 and having:
+        for current_tool in flows:
+          if current_tool not in having:
+            printc.note(f'"{current_tool}" has no flow "{flow_name}": it runs its default flow', script_name)
+      for current_tool in (having or flows):
+        flows[current_tool] = flow_name
 
   for entry in flow_args:
     entry = str(entry)
@@ -119,6 +127,14 @@ def parse_flow_selection(flow_args, tools):
     flows[tool_name] = flow_name.strip()
 
   return flows
+
+
+def _has_analysis_flow(tool, flow_name):
+  """Whether a tool has a flow of this name able to run an analysis (False for an unknown tool)."""
+  try:
+    return flow_name in eda_tools.list_flows(tool, job_type="analysis")
+  except Exception:
+    return False
 
 
 def get_analysis_tools_from_settings(settings_filename):
@@ -532,7 +548,15 @@ def check_settings(
   # Single confirmation for all tools
   total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
   ask_continue = any(context["ask_continue"] for _, context in prepared_tools)
-  confirm_valid_jobs(total_valid, ask_continue, ask_to_continue, script_name=script_name)
+  # The report of an analysis that is not run again is the one it already has.
+  if total_valid and plan.counts().get(Category.CACHED, 0):
+    printc.note(
+      'Analyses already done are not run again (-o/--overwrite runs them again): "odatix results analysis" reports them',
+      script_name,
+    )
+  elif plan.counts().get(Category.CACHED, 0):
+    printc.note('"odatix results analysis" reports the analyses already done', script_name)
+  confirm_valid_jobs(total_valid, ask_continue, ask_to_continue, script_name=script_name, plan=plan)
 
   print()
 
@@ -660,8 +684,9 @@ def main(args):
   run = run_cli.execute(run_cli.command_run("analysis", workspace=workspace, options=options))
 
   # Attached to the monitor, the jobs are over when it returns: their report
-  # is what the user is waiting for. Detached, they are only starting.
-  if options.detach:
+  # is what the user is waiting for. Detached, or without a terminal able to
+  # show the monitor, they are only starting.
+  if options.detach or not run.followed:
     printc.note("Run \"odatix results analysis\" once the jobs are done to get their report", script_name)
     return
 

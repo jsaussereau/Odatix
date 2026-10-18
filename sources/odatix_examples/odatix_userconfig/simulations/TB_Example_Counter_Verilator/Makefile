@@ -47,9 +47,9 @@ RESULT_FILE = $(WORK_DIR)/results.yml
 VERILATOR_LOGFILE = verilator.log
 SIM_LOGFILE = sim.log
 
-# Compiler les fichiers SystemVerilog
+# Verilog and SystemVerilog sources of the design
 EXCLUDE_PREFIX = tb_
-RTL_FILES := $(shell find $(RTL_DIR) -name '*.sv' -not -name '$(EXCLUDE_PREFIX)*')
+RTL_FILES := $(shell find $(RTL_DIR) \( -name '*.sv' -o -name '*.v' \) -not -name '$(EXCLUDE_PREFIX)*')
 SV_FILES := $(wildcard $(RTL_DIR)/**/*.sv)
 
 # Compiler les fichiers C++

@@ -13,6 +13,8 @@ logs:
 # Lines that are no finding of their own.
 ignore:
   - "^%Error: Exiting due to"
+  # What it says after a syntax error, which is already a finding.
+  - "^%Error: Cannot continue"
   - "^- V e r i l a t i o n"
   - "^- Verilator:"
 

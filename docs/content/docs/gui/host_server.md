@@ -46,6 +46,13 @@ $ ssh -N -L 8052:localhost:8052 user@server
 
 Then open `http://localhost:8052` in your local browser. For a step-by-step guide, see the [SSH tutorial](/tutorials/ssh/).
 
+A port given with `--port` is the port Explorer listens on, or nothing: if
+another program (another user's Explorer, on a shared server) already holds it,
+Explorer stops with an error rather than moving to another port your tunnel
+does not point at. Without `--port`, it takes 8052 or the next free one: read
+the address it prints before you open the tunnel. Restarting it right away on
+the same port works, the port is not left blocked by the previous run.
+
 ### Option B — expose on the local network
 
 If the server and your workstation share a trusted network, bind Explorer to the network interface:
@@ -57,7 +64,24 @@ $ odatix-explorer --network --port 8052
 Then browse to `http://<server-address>:8052` from your workstation.
 
 > [!WARNING]
-> `--network` exposes Explorer to every machine that can reach the server on that port. Only use it on a trusted network, and prefer the SSH tunnel otherwise.
+> `--network` exposes Explorer to every machine that can reach the server on that port, with no authentication. Anyone who reaches it can read every result of the result directory, and save or replace [saved views](/docs/gui/explorer/#saved-views) in it. Only use it on a trusted network, prefer the SSH tunnel otherwise, and add `--read_only` so that visitors cannot write anything:
+>
+> `odatix-explorer --network --read_only --port 8052`
+
+## Running it in the background
+
+Under `nohup`, `tmux` or a service manager, Explorer and the GUI write their
+address as soon as they start, so the log tells which address to use:
+
+{{< code lang=bash filename="Terminal (on the server)" prompt="true" >}}
+$ nohup odatix-explorer --nobrowser > explorer.log 2>&1 < /dev/null &
+$ cat explorer.log
+[odatix-explorer] Server running on http://127.0.0.1:8052/ (localhost only)
+[odatix-explorer] not started from a terminal: end the process (Ctrl+C, kill) to stop the server
+{{< /code >}}
+
+Without a terminal on its standard input, there is no key to wait for and no
+terminal mode to change: `--normal_term_mode` is not needed.
 
 ## Keeping a foreground process alive
 

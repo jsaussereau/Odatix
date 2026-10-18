@@ -146,6 +146,24 @@ messages:
     severity: error
     category: missing_file
 
+  # A tool that is not installed, or not on the $PATH: what the environment
+  # scripts of a tool say ("error: quartus_sh not found"), and what a shell says
+  # of a command it cannot find (sh, bash, dash, then zsh).
+  tool_not_found:
+    pattern: "^error: (?P<message>(?P<subject>[\\w.+-]+) not found)\\b"
+    severity: error
+    category: tool_setup
+
+  command_not_found:
+    pattern: "^(?:\\S*/)?[a-z]*sh: (?:line \\d+: |\\d+: )?(?P<message>(?P<subject>[^\\s:]+): (?:command )?not found)\\s*$"
+    severity: error
+    category: tool_setup
+
+  zsh_command_not_found:
+    pattern: "^zsh: (?P<message>command not found: (?P<subject>\\S+))"
+    severity: error
+    category: tool_setup
+
   # What a script says once the tool has reported the actual errors: a summary
   # of them, kept as the least relevant of all.
   odatix_failed:

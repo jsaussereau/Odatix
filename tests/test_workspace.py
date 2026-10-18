@@ -1055,6 +1055,25 @@ class TestWorkspace:
         assert reloaded.metrics == {"efficiency": {"operation": "a / b"}}
         assert reloaded.groups == {"all": {"pattern": "*"}}
 
+    def test_derived_metrics_written_through_the_workspace_attribute_are_saved(self, tmp_path):
+        # Each access gives back the same object: set() then save() on two
+        # accesses must not save a fresh, unchanged copy (C-05).
+        workspace = Workspace.open(str(tmp_path))
+        assert workspace.derived_metrics is workspace.derived_metrics
+        workspace.derived_metrics.set("FER_x2", {"type": "operation", "op": "FER * 2"})
+        workspace.derived_metrics.save()
+        assert Workspace.open(str(tmp_path)).derived_metrics.metrics == {"FER_x2": {"type": "operation", "op": "FER * 2"}}
+
+    def test_reload_forgets_the_cached_files(self, tmp_path):
+        workspace = Workspace.open(str(tmp_path))
+        derived, clean = workspace.derived_metrics, workspace.clean_settings
+        assert workspace.clean_settings is clean
+        Workspace.open(str(tmp_path)).derived_metrics.set("x", {"op": "a"}).save()
+        workspace.reload()
+        assert workspace.derived_metrics is not derived
+        assert workspace.clean_settings is not clean
+        assert "x" in workspace.derived_metrics.metrics
+
 
 ######################################
 # The settings engine itself
@@ -1100,3 +1119,40 @@ class TestSettingsEngine:
     def test_update(self):
         settings = SampleSettings().update({"name": "x"}, count=2)
         assert (settings.name, settings.count) == ("x", 2)
+
+
+def test_a_run_settings_file_is_the_same_object_until_saved(tmp_path):
+    # "ws.jobs.simulation.settings.nb_jobs = 7" then "ws.jobs.simulation.save()"
+    # is the documented way to change a run settings file.
+    from odatix.workspace import Workspace
+
+    (tmp_path / "odatix.yml").write_text("")
+    ws = Workspace.open(str(tmp_path))
+    ws.jobs.simulation.settings.nb_jobs = 7
+    ws.jobs.simulation.save()
+
+    assert Workspace.open(str(tmp_path)).jobs.simulation.settings.nb_jobs == 7
+    assert ws.jobs.simulation is ws.jobs["sim"]
+
+
+def test_saving_does_not_fold_a_long_value(tmp_path):
+    from odatix.workspace.yaml_io import dump_document
+
+    command = "python3 sim.py " + " ".join("--opt{0} ${{v{0}}}".format(i) for i in range(12))
+    text = dump_document({"command": command, "n": 1})
+
+    assert "command: " + command + "\n" in text
+
+
+def test_frequencies_without_a_range_use_none():
+    # The GUI form showed (and ran) a 50-100 MHz range the file never had.
+    from odatix.workspace.jobs import FrequenciesSettings
+
+    assert FrequenciesSettings.from_dict({"list": [50, 100]}).use_custom_freq_range is False
+    assert FrequenciesSettings.from_dict({"range": {"from": 50, "to": 100, "step": 10}}).use_custom_freq_range is True
+
+
+def test_the_glossary_name_of_a_run_mode_is_accepted():
+    from odatix.workspace.jobs import resolve_mode
+
+    assert resolve_mode("fixed_freq_synthesis") == "custom_freq_synthesis"

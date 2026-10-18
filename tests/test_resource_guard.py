@@ -21,7 +21,7 @@ class _PausedJob(object):
         self.status = "paused"
         self.log_history = []
 
-    def resume(self):
+    def resume(self, by="user", detail=None):
         self.status = "running"
 
 

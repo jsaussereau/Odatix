@@ -69,6 +69,17 @@ class TestJobSettingsFiles:
         *_, archs = get_synth_settings(str(f))
         assert archs is None
 
+    def test_a_missing_required_key_says_how_to_fix_it(self, tmp_path, capsys):
+        # The tutorials used to show a selection alone: the error must say what
+        # the file still needs, not just which key is missing.
+        f = tmp_path / "s.yml"
+        f.write_text("nb_jobs: 4\nworkflows:\n  - basic/default\n")
+        with pytest.raises(SystemExit):
+            get_workflow_settings(str(f))
+        out = capsys.readouterr().out
+        assert 'Cannot find key "overwrite"' in out
+        assert '"ask_continue: Yes"' in out
+
     def test_nb_jobs_as_string_exits(self, tmp_path):
         f = tmp_path / "s.yml"
         f.write_text('overwrite: no\nask_continue: no\nnb_jobs: "8"\narchitectures: []\n')

@@ -61,7 +61,7 @@ looks like this:
 1. Describe the design and its parameters once — [architecture exploration](/docs/features/architecture-exploration/).
 2. Validate and benchmark them — [simulation](/docs/features/simulation/).
 3. Check that every configuration elaborates — [RTL analysis](/docs/features/analysis/).
-4. Implement them — [fmax](/docs/features/rtl_fmax_synthesis/) or [custom-frequency synthesis](/docs/features/rtl_synthesis/).
+4. Implement them — [fmax](/docs/features/rtl_fmax_synthesis/) or [fixed-frequency synthesis](/docs/features/rtl_synthesis/).
 5. Take the interesting ones further — [place & route](/docs/features/pnr/).
 6. Compare and publish — [Explorer](/docs/features/explorer/).
 

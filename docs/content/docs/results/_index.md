@@ -34,8 +34,8 @@ That same property is what makes manual export useful: if a metric was missing o
 
 | Command | Exports |
 |---------|---------|
-| `odatix results` | Everything that was run: synthesis, custom-frequency and place & route results, simulation and workflow results, then derived metrics. |
-| `odatix results synth` | Synthesis, custom-frequency and place & route results only. |
+| `odatix results` | Everything that was run: synthesis, fixed-frequency and place & route results, simulation and workflow results, then derived metrics. |
+| `odatix results synth` | Synthesis, fixed-frequency and place & route results only. |
 | `odatix results sim` | Simulation results only. |
 | `odatix results workflow` | Workflow results only. |
 | `odatix results analysis` | RTL analysis results, with their report. |
@@ -52,17 +52,26 @@ $ odatix results workflow   # values defined in workflows/*/_metrics.yml
 $ odatix results derived    # join and compute cross-source metrics
 {{< /code >}}
 
-Useful options for `odatix results`:
+Useful options for `odatix results` (they are those of `odatix results all`,
+see `odatix results all -h`; the options of a type come after it, see
+`odatix results <type> -h`):
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix results -t vivado -r results
+$ odatix results derived -d my_derived_metrics.yml
 {{< /code >}}
 
 | Option | Meaning |
 |--------|---------|
-| `-t`, `--tool` | Restrict the synthesis export to a given tool. |
+| `-t`, `--tool` | Restrict the synthesis and place & route export to a given tool. |
 | `-w`, `--work` | Work directory to read. |
 | `-r`, `--respath` | Results directory to write to. |
+| `-m`, `--metrics` | Metrics definition file to use instead of the `metrics.yml` of each tool. |
+| `-c`, `--config` | Workspace settings file (default `odatix.yml`). |
+| `-d`, `--derived` | `odatix results derived` only: derived metrics file (default: the one of the workspace). |
+
+A job that failed has no report to read: `odatix results` says once per missing
+file that no metric could be read from it, and goes on with the other jobs.
 
 ## Metrics come with the tools
 
@@ -80,7 +89,7 @@ A metric extracted this way can only describe the job that produced it. But the 
 
 **Derived metrics** close that gap. Declared once for the whole workspace in `odatix_userconfig/derived_metrics.yml`, they can import a metric from another result — matched on architecture, configuration, target, parameter domains — and compute new values from it. Cycles + Fmax gives runtime; runtime + power gives energy per operation.
 
-Because they are recomputed from the existing result files, `odatix results derived` applies them in seconds, without touching a single job.
+They are recomputed from the existing result files once every job of a run is done, and by every `odatix results` (all types) and `odatix results derived`, in seconds, without touching a single job.
 
 {{< card title="Derived metrics" link="/docs/results/derived_metrics/" >}}
 Import a metric from a matching result, control how the two are joined, and compute values across simulation, synthesis and workflows.

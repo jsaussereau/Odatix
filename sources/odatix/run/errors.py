@@ -27,7 +27,7 @@ what a command line wants. A script does not: it gets these instead, carrying
 what would have been printed.
 """
 
-__all__ = ["RunError", "RunCancelled", "NOTHING_TO_RUN"]
+__all__ = ["RunError", "NothingToRun", "RunCancelled", "NOTHING_TO_RUN"]
 
 #: Exit code of a run that has nothing left to do because every job it selected
 #: is already done. Not a failure: the results are there, they were produced
@@ -56,6 +56,17 @@ class RunError(Exception):
     def errors(self):
         """Only what was reported as an error."""
         return [text for level, text in self.messages if level == "error"]
+
+
+class NothingToRun(RunError):
+    """
+    Every job the run selected is already done, or already running in a
+    session: there is nothing left to start. Not a failure; :attr:`code` is
+    :data:`NOTHING_TO_RUN`.
+    """
+
+    def __init__(self, message, messages=None):
+        super(NothingToRun, self).__init__(message, messages=messages, code=NOTHING_TO_RUN)
 
 
 class RunCancelled(Exception):

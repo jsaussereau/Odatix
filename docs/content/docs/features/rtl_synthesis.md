@@ -23,14 +23,14 @@ Odatix wraps the EDA tools you already use and runs them for you. You point it a
 a design, pick a target and a tool, and it synthesizes **every configuration** —
 extracting the metrics you care about into a single, comparable table.
 
-This page covers **custom-frequency synthesis** (`odatix synth`): synthesis at
+This page covers **fixed-frequency synthesis** (`odatix synth`): synthesis at
 clock constraints *you* choose. Its sibling,
 [fmax synthesis](/docs/features/rtl_fmax_synthesis/), searches for the highest
 frequency a configuration can reach.
 
 | Mode | Command | What it answers |
 |------|---------|-----------------|
-| **Custom-frequency synthesis** | `odatix synth` | *"How does this configuration behave at 200 MHz?"* |
+| **Fixed-frequency synthesis** | `odatix synth` | *"How does this configuration behave at 200 MHz?"* |
 | **Fmax synthesis** | `odatix fmax` | *"How fast can this configuration go?"* |
 
 <!-- ![Synthesis results in the Explorer table: one row per configuration, target and frequency](/images/screenshots/synthesis-results.png) -->
@@ -114,7 +114,7 @@ targets:
 And which frequencies, in the design's own settings — globally, per target, or
 per configuration:
 
-{{< code lang=yaml filename="architectures/Example_ALU_sv/_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/architectures/Example_ALU_sv/_settings.yml" >}}
 fixed_freq_synthesis:
   lower_bound: 100
   upper_bound: 400
@@ -142,13 +142,14 @@ Every key is in the [architecture](/docs/reference/architecture/#frequency-setti
 `odatix-gui` → **Run jobs** → **Fixed-frequency synthesis** walks the same
 path: pick the tool (its card shows the available flows, and the steps you can
 stop at), pick the targets, set the frequency range, the designs and the number
-of parallel jobs, and launch. The page writes the same settings files before
-enqueueing, and drops you on the Monitor — where a run started from a terminal
-shows up too, since there is one daemon for both.
+of parallel jobs, and launch. The run uses what the page shows, saved or not;
+**Save all** writes it to the same settings files the command reads. The page
+then drops you on the Monitor — where a run started from a terminal shows up
+too, since there is one daemon for both.
 
 ## Where to go next
 
-- **Tutorial** — [Custom-frequency synthesis](/tutorials/run_examples/synthesis/), on the bundled examples.
+- **Tutorial** — [Fixed-frequency synthesis](/tutorials/run_examples/synthesis/), on the bundled examples.
 - **Reference** — [Architecture settings](/docs/reference/architecture/) · [Run settings files](/docs/reference/run_settings/) · [Target files](/docs/reference/targets/) · [Tool definitions](/docs/reference/tools/)
 - **Guides** — [Commands](/docs/commands/) · [Tools and flows](/docs/tools/)
 - **Next feature** — [Maximum frequency search](/docs/features/rtl_fmax_synthesis/).

@@ -29,6 +29,14 @@ import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
+# How a job type is named in a message (see docs/content/docs/glossary.md).
+JOB_TYPE_LABELS = {
+  "fmax_synthesis": "Fmax synthesis",
+  "custom_freq_synthesis": "Fixed-frequency synthesis",
+  "pnr": "Place & route",
+  "analysis": "RTL analysis",
+}
+
 def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', flow=None):
   """
   Reads the settings for a given EDA tool from a YAML configuration file.
@@ -99,6 +107,11 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
   # Ensure the corresponding section exists in the configuration file
   if platform_key not in settings_data:
     printc.error(f'The selected EDA tool "{tool}" does not support {platform_key}', script_name)
+    printc.note(
+      f'Its tool.yml ("{tool_settings_file}") has no "{platform_key}" section: that is where its '
+      '"tool_test_command" and the command of each job type go',
+      script_name,
+    )
     sys.exit(-1)
 
   platform_settings = settings_data[platform_key]
@@ -108,6 +121,11 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
 
   if not tool_test_supported:
     printc.error(f'The selected EDA tool "{tool}" is not supported on {platform_key} (tool_test_command is missing)', script_name)
+    printc.note(
+      f'Add to the "{platform_key}" section of "{tool_settings_file}" a "tool_test_command": '
+      'a command that exits 0 when the tool is installed (e.g. "mytool --version")',
+      script_name,
+    )
     sys.exit(-1)
 
   # Retrieve the command of the requested job type, for the requested flow.
@@ -115,7 +133,7 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
   # in the platform section of tool.yml).
   available_flows = eda_tools.list_flows(tool, settings=settings_data)
   runnable_flows = eda_tools.list_flows(tool, job_type=synth_type, settings=settings_data)
-  job_type_label = synth_type.replace("_", " ").capitalize()
+  job_type_label = JOB_TYPE_LABELS.get(synth_type, synth_type.replace("_", " ").capitalize())
 
   if not runnable_flows:
     printc.error(f'{job_type_label} is not supported with the selected EDA tool "{tool}" on {platform_key}', script_name)

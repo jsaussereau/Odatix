@@ -52,6 +52,8 @@ SIMULATION_META_FILENAME = "sim_meta.yml"
 SIMULATION_SETTINGS_FILENAME = hard_settings.sim_settings_filename
 SIMULATION_METRICS_FILENAME = "_metrics.yml"
 DEFAULT_OUTPUT_FILENAME = "results_simulation.yml"
+# The verdict of a run, which the templates report themselves
+STATUS_METRIC = "sim_status"
 
 
 def add_arguments(parser):
@@ -180,14 +182,48 @@ def _build_simulation_records(run_records, identity, run_dir):
     return built
 
 
-def _extract_records_for_run(run_dir, work_root, sim_path):
+def _with_status(records, run_dir, failed=False):
+    """
+    Give every record the verdict of its run, unless the metrics of the
+    simulation report it themselves (those of the templates do): "passed" once
+    the simulation ran to its end, "failed" when its job failed. A directory
+    that says neither (written before the end of a simulation was marked) is
+    left without one.
+    """
+    if not records:
+        return records
+    from odatix.lib.simulation_handler import sim_done_file
+
+    if os.path.isfile(sim_done_file(run_dir)):
+        status = "passed"
+    elif failed:
+        status = "failed"
+    else:
+        return records
+    for record in records:
+        metrics = record.setdefault("metrics", {})
+        if metrics.get(STATUS_METRIC) in (None, ""):
+            metrics[STATUS_METRIC] = status
+    return records
+
+
+def _extract_records_for_run(run_dir, work_root, sim_path, failed=False):
     """
     Extract every record a single run directory yields.
+
+    Args:
+        failed (bool): the job of the run failed.
 
     Returns:
         tuple: (records, units), both empty when the simulation defines nothing
         to extract, or (None, None) when its metrics file cannot be read.
     """
+    records, units = _extract_metrics_for_run(run_dir, work_root, sim_path)
+    return _with_status(records, run_dir, failed=failed), units
+
+
+def _extract_metrics_for_run(run_dir, work_root, sim_path):
+    """The records of a run, as its metrics files describe them (see _extract_records_for_run)."""
     identity = _run_identity(run_dir, work_root, sim_path)
 
     declared_metrics_file = _declared_metrics_file(
@@ -306,6 +342,10 @@ def configure_simulation_job_exports(
 
         job.post_run_export = {
             "kind": "simulation",
+            # A failed simulation is a result too: a template reports it as
+            # "sim_status: failed", which must reach the results file rather
+            # than leave the record of an earlier run in place.
+            "on_failure": True,
             "run_dir": run_dir,
             "work_root": work_root,
             "sim_path": sim_path,
@@ -337,7 +377,9 @@ def export_single_simulation_job(job, export_config=None):
         printc.error('Simulation run directory "' + run_dir + '" does not exist', script_name=script_name)
         return False
 
-    new_records, run_units = _extract_records_for_run(run_dir, work_root, sim_path)
+    new_records, run_units = _extract_records_for_run(
+        run_dir, work_root, sim_path, failed=bool(getattr(job, "_failed_before_export", False)),
+    )
     if new_records is None:
         return False
 

@@ -46,7 +46,7 @@ from odatix.workspace.configs import (
 from odatix.workspace.domains import ParameterDomain, ParameterDomainCollection
 from odatix.workspace.entries import Collection, Entry
 from odatix.workspace.exclusions import parse_exclusions
-from odatix.workspace.selection import Message
+from odatix.workspace.selection import ExclusionFilter, Message
 from odatix.workspace.settings import Setting, Settings
 from odatix.workspace.yaml_io import parse_bool
 
@@ -80,7 +80,7 @@ class FrequencyBounds(Settings):
 
 class CustomFrequencies(Settings):
     """
-    The frequencies a custom frequency synthesis runs at, in MHz.
+    The frequencies a fixed-frequency synthesis runs at, in MHz.
 
     They come as a list, as a range, or as both: a range is expanded and
     appended to the list. A range whose step is missing, zero or "No" is off,
@@ -532,7 +532,7 @@ class ResolvedFrequencies(object):
     Attributes:
         lower_bound (int): lowest frequency the fmax binary search tries.
         upper_bound (int): highest frequency it tries.
-        frequencies (list): the frequencies a custom frequency synthesis runs
+        frequencies (list): the frequencies a fixed-frequency synthesis runs
             at, the range expanded.
         deprecated_bounds (bool): the file still spells its bounds the old way
             ("fmax_lower_bound" instead of a "fmax_synthesis" block).
@@ -691,7 +691,14 @@ def _resolve_custom_frequencies(blocks, fallback, messages):
     # A step that is missing, zero, or "No" means the block keeps a range it
     # does not currently use.
     if step_defined and step not in (0, False) and lower_defined and upper_defined:
-        range_messages = check_bounds(lower_bound, upper_bound, step, kind="custom frequency synthesis")
+        range_messages = check_bounds(lower_bound, upper_bound, step, kind="fixed-frequency synthesis")
+        if not range_messages and step < 0:
+            # A negative step used to give an empty range, and so no frequency
+            # from it, without a word.
+            range_messages = [Message("error", (
+                'Step for fixed-frequency synthesis is {0}: it must be strictly positive, '
+                'or 0 / "No" to use no range'
+            ).format(step))]
         messages.extend(range_messages)
         if not range_messages:
             frequencies = frequencies + list(range(lower_bound, upper_bound + 1, step))
@@ -844,23 +851,76 @@ class Architecture(Entry):
         """
         result = {}
         for domain in self.domains:
-            if not domain.use_parameters:
+            # A domain substituting nothing into a file still is an axis when
+            # what it feeds is a command (see substitutes_in_commands).
+            if not domain.use_parameters and not self.substitutes_in_commands:
                 continue
             names = domain.configuration_names()
             if names:
                 result[domain.name] = names
         return result
 
-    def combinations(self):
+    def variable_combinations(self):
+        """
+        The combinations of the variables this architecture substitutes into
+        its commands (the variables of a file without a configuration template),
+        each a list of ``"variable/value"`` selectors. Paired variables are
+        zipped, the others crossed, as a run does. Empty without such variables.
+        """
+        import odatix.lib.virtual_param_domain as virtual_param_domain
+
+        variants = virtual_param_domain.build_variants(
+            settings=self.settings.to_dict(), settings_file=self.settings_path,
+        )
+        return [list(variant.get("requested_param_domains", [])) for variant in variants or []]
+
+    def combinations(self, exclusions=True):
         """
         Every configuration combination of this architecture, written the way a
-        job selection names it.
-        """
-        return combinations(self.parameter_domains(), self.name)
+        job selection names it: its parameter domains crossed with its
+        variables (see :meth:`variable_combinations`).
 
-    def count_combinations(self):
-        """How many configuration combinations this architecture amounts to."""
-        return count_combinations(self.parameter_domains())
+        This is the full sweep, every domain included -- what the selection
+        ``"<arch>/* + <domain>/* + ..."`` runs, naming every domain. A selection
+        that leaves a domain out (``"<arch>/*"``) does not sweep it: the
+        sources keep the value written in them.
+
+        Args:
+            exclusions (bool): leave out the combinations the architecture
+                excludes (see :meth:`exclusions`), as a run does.
+        """
+        found = combinations(self.parameter_domains(), self.name)
+        variables = self.variable_combinations()
+        if variables:
+            found = [base + tokens for base in (found or [[self.name]]) for tokens in variables]
+        if exclusions and found:
+            excluder = ExclusionFilter.of(self)
+            if not excluder.empty:
+                found = [tokens for tokens in found if excluder.check("+".join(tokens)) is None]
+        return found
+
+    def count_combinations(self, exclusions=True):
+        """
+        How many configuration combinations this architecture amounts to: the
+        length of :meth:`combinations`, i.e. how many jobs the full sweep runs
+        per target and frequency.
+        """
+        if exclusions and len(self.exclusions()):
+            return len(self.combinations())
+        count = count_combinations(self.parameter_domains())
+        variables = len(self.variable_combinations())
+        if not variables:
+            return count
+        return max(count, 1) * variables
+
+    def preview_configurations(self):
+        """
+        The configurations the rules of the main parameter domain describe, as
+        a ``{name: content}`` mapping, without writing anything (see
+        :meth:`ParameterDomain.preview_configurations`; the other domains have
+        their own, under :attr:`domains`).
+        """
+        return self._main.preview_configurations()
 
     def frequencies(self, target="", configuration="", tool="", flow="", mode="fmax", fallback=None):
         """

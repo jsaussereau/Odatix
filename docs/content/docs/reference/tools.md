@@ -7,7 +7,7 @@ weight: 7
 # `tools/<tool>/tool.yml`
 
 A `tool.yml` tells Odatix **how to invoke an eda tool**: which command runs an
-fmax search, which one runs a custom-frequency synthesis, an analysis or a place
+fmax search, which one runs a fixed-frequency synthesis, an analysis or a place
 & route, and how to check the tool is installed.
 
 Odatix ships definitions for Vivado, Quartus, Design Compiler, Genus, LibreLane,
@@ -31,7 +31,8 @@ This page is the schema. For the walkthrough, see
 | `default_flow` | string | Name of the flow the `unix` / `windows` commands belong to. Default `default`. |
 | `extends` | string | A tool this one is a variant of. See [Extending a tool](#extending-a-tool). |
 | `parameters` | mapping | Parameters of the default flow, inherited by every other flow. See [Flow parameters](#flow-parameters). |
-| `default_metrics_file` | path | [Metrics definitions](/docs/reference/metrics/) for this tool. |
+| `default_metrics_file` | path | [Metrics definitions](/docs/reference/metrics/) for this tool. `$tool_path/metrics.yml` for a tool of your own. When it is missing, a `metrics.yml` next to the `tool.yml` is used. |
+| `target_file` | string | Name of the [target file](/docs/reference/targets/) of this tool. Default `target_<tool>.yml`. Two tools can share one: DC NXT reads `target_design_compiler.yml`. |
 | `process_group` | bool | Run each job in its own process group, so stopping a job kills the whole tool tree (default `true`). With `false`, only the job's own process is signaled and the processes the tool started itself are left running. |
 | `unix` / `windows` | mapping | The commands, per platform. See below. |
 | `flows` | mapping | Additional [flows](#flows), keyed by name. |
@@ -59,7 +60,7 @@ A command is a string, or a list of fragments joined with spaces.
 
 {{< code lang=yaml filename="tools/mytool/tool.yml" >}}
 label: "My Tool"
-default_metrics_file: "$eda_tools_path/mytool/metrics.yml"
+default_metrics_file: "$tool_path/metrics.yml"
 
 unix:
   tool_test_command: mytool -version
@@ -122,7 +123,7 @@ cannot run a job type is an error rather than a silent run of the wrong thing.
 
 > [!NOTE]
 > A flow name becomes part of a directory name, so it cannot contain `@`, `/` or
-> `\`. A flow declared with such a name is ignored.
+> `\`, or be `.` or `..`. A flow declared with such a name is ignored.
 
 ### Flow parameters
 
@@ -272,14 +273,26 @@ default flow is stepped.
 | `-o`, `--overwrite` | Redo everything from the first step. |
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix synth -t vivado --until elaboration  # operator and register counts, in seconds
 $ odatix synth -t vivado --until synthesis    # post-synthesis estimates only
 $ odatix synth -t vivado                      # continues to the flow's default step
 $ odatix synth -t vivado --until bitstream    # goes all the way
 $ odatix synth -t vivado --rerun-from pnr     # redo implementation onwards
 {{< /code >}}
 
+In the graphical interface, the step buttons of a tool card on **Run jobs** are
+`--until`, and **Re-run from** in the job settings is `--rerun-from`.
+
+The built-in Vivado tool splits a fixed-frequency synthesis into `elaboration`
+(operator and register counts, in seconds), `synthesis`, `pnr` (the default
+stop) and `bitstream`, and an fmax search into `synthesis`, `pnr` and
+`bitstream`. A run stopped at `elaboration` exports a record whose
+post-synthesis metrics are empty: they are measured by the later steps.
+
 A job whose requested steps are all done is skipped like any cached result; a
-partially done one is listed as **Partially done** in the run checklist. Steps
+partially done one is listed as **Partially done** in the run checklist, and one
+whose done steps `--rerun-from` runs again as **Steps already done (will run
+again from the step asked for)**. Steps
 completed are recorded in `log/steps.yml`, and the last one reached is exported
 as the `step` meta key.
 
@@ -381,9 +394,11 @@ producing meaningful numbers must write the reports they are read from. The
 built-in Vivado flows report after `synthesis` and after `pnr`, keeping a copy of
 each under `report/<step>/`.
 
-`step` is **not** a dimension: a job carried further replaces its own record, its
-post-synthesis estimates giving way to the implemented numbers. `flow` *is* a
-dimension — two flows run in separate directories and are meant to be compared.
+`flow` and `step` are both dimensions: a job exports one record per step it
+completed, `_last_step` marking the furthest one. A job carried further adds a
+record next to the ones it already had, so its post-synthesis estimates and its
+implemented numbers can be compared. See
+[One record per step](/docs/tools/add_flows/#one-record-per-step).
 
 ## Log formatting
 

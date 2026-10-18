@@ -71,7 +71,7 @@ home_cards = [
         "name": "Run jobs",
         "link": "/choose_job_type",
         "icon": "run",
-        "description": "Run workflows, RTL analysis, Fmax and fixed-frequency synthesis",
+        "description": "Run synthesis, place & route, simulations, RTL analysis and workflows",
     },
     {
         "name": "Monitor jobs",

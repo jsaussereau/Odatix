@@ -131,6 +131,15 @@ class Workflow(Architecture):
     # dimension of the sweep whatever its "use_parameters" says.
     substitutes_in_commands = True
 
+    def __init__(self, workspace, root, name):
+        super(Workflow, self).__init__(workspace, root, name)
+        self._metrics = None
+
+    def reload(self):
+        """Forget the settings and metrics held in memory and read them from file again."""
+        self._metrics = None
+        return super(Workflow, self).reload()
+
     ######################################
     # Metrics
     ######################################
@@ -141,8 +150,15 @@ class Workflow(Architecture):
 
     @property
     def metrics(self):
-        """The metrics this workflow extracts from its runs."""
-        return MetricsFile(self.metrics_path)
+        """
+        The metrics this workflow extracts from its runs. The same object on
+        every access, like :attr:`settings`: what is set on it is what
+        ``metrics.save()`` writes.
+        """
+        # A renamed workflow reads the file where it now is.
+        if self._metrics is None or self._metrics.path != self.metrics_path:
+            self._metrics = MetricsFile(self.metrics_path)
+        return self._metrics
 
     ######################################
     # Tasks

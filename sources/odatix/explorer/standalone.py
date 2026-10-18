@@ -42,6 +42,7 @@ from odatix.lib.utils import internal_error
 from odatix.explorer.integration import register_explorer
 from odatix.explorer.ui.shell import explorer_state_stores
 from odatix.explorer.core.store import STORE
+import odatix.explorer.core.views as explorer_views
 
 script_name = os.path.basename(__file__)
 error_logfile = "odatix-explorer_error.log"
@@ -50,13 +51,14 @@ top_bar_height = "50px"
 
 
 class ExplorerStandaloneApp:
-  def __init__(self, result_path="results", old_settings=None, safe_mode=False, theme=None):
+  def __init__(self, result_path="results", old_settings=None, safe_mode=False, theme=None, read_only=False):
     if theme is not None and not gui_themes.exists(theme):
       printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.', script_name=script_name)
     self.start_theme = gui_themes.resolve(theme)
     self.result_path = result_path
     self.old_settings = old_settings
     self.safe_mode = safe_mode
+    explorer_views.set_read_only(read_only)
 
     gui_assets = os.path.join(os.path.dirname(os.path.abspath(odatix.gui.__file__)), "assets")
 

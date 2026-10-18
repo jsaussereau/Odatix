@@ -74,6 +74,12 @@ JOBS_QUERY_TIMEOUT_BLOCKING = 30.0
 class DaemonControlError(RuntimeError):
     pass
 
+class MonitorUnavailableError(DaemonControlError):
+    """The terminal cannot show the job monitor; the session itself is fine."""
+
+class SessionGoneError(DaemonControlError):
+    """The session a monitor was attached to stopped (from elsewhere) while it watched."""
+
 class MultipleDaemonsError(DaemonControlError):
     def __init__(self, daemons=None, message=None):
         normalized = []
@@ -394,6 +400,57 @@ def _filter_by_workspace(daemons, workspace_root=None):
     return filtered, root
 
 
+def is_workspace(root):
+    """Whether `root` is a workspace (it holds an odatix.yml)."""
+    return os.path.isfile(os.path.join(str(root), "odatix.yml"))
+
+
+def scope_daemons(daemons, workspace_root=None, any_workspace=False):
+    """
+    The sessions a session command acts on, out of `daemons`.
+
+    Those of the current workspace, unless `any_workspace` asks for every one.
+    Outside of any workspace there is no "current" one to keep to: every session
+    is in reach, as it has always been.
+
+    Returns:
+        tuple: (sessions in scope, workspace root, whether the scope is the
+        workspace).
+    """
+    root = os.path.realpath(detect_workspace_root(workspace_root))
+    if any_workspace or not is_workspace(root):
+        return list(daemons), root, False
+    scoped, _root = _filter_by_workspace(daemons, workspace_root=root)
+    return scoped, root, True
+
+
+def _home_relative(path):
+    path = str(path or "")
+    home = os.path.expanduser("~")
+    if home and home != "/" and (path == home or path.startswith(home + os.sep)):
+        return "~" + path[len(home):]
+    return path
+
+
+def _other_workspaces_hint(others, selector=None):
+    """What to tell when only sessions of other workspaces would match."""
+    shown = ", ".join(
+        "{} ({})".format(d.get("session_id", "?"), _home_relative(d.get("workspace_root", "")))
+        for d in others[:5]
+    )
+    if len(others) > 5:
+        shown += ", ..."
+    if selector:
+        return (
+            "No session of this workspace matches '{}'. In other workspaces: {}. "
+            "Add --any-workspace to reach them".format(selector, shown)
+        )
+    return (
+        "No session in this workspace. In other workspaces: {}. "
+        "Add --any-workspace to reach them".format(shown)
+    )
+
+
 def _resolve_session_selector(daemons, selector, allow_missing=False):
     selector = str(selector or "").strip().lower()
     if selector == "":
@@ -521,7 +578,12 @@ def _pid_claiming_session(paths, session_name):
         candidate_slug = _session_slug(candidate.get("session_name"))
 
         same_state_file = target_state_file != "" and candidate_state_file == target_state_file
-        same_session_name = target_slug is not None and candidate_slug == target_slug
+        # The name alone only tells a process without a known state file: a
+        # session of the same name in another workspace keeps its state file
+        # there, and is not this one.
+        same_session_name = (
+            target_slug is not None and candidate_slug == target_slug and candidate_state_file == ""
+        )
         if not (same_state_file or same_session_name):
             continue
 
@@ -803,6 +865,11 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
     )
 
     payload = {"jobs": [job_to_payload(job) for job in job_list]}
+    # What the run wants done once its batch is over: the handler that holds it
+    # stays here, only the jobs travel (see ParallelJobHandler.add_post_batch_action).
+    post_batch_action = getattr(parallel_jobs, "post_batch_action", None)
+    if isinstance(post_batch_action, dict):
+        payload["post_batch_action"] = dict(post_batch_action)
     if configure:
         payload["options"] = {
             "nb_jobs": int(getattr(parallel_jobs, "nb_jobs", 4)),
@@ -827,6 +894,12 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
         # real work.
         timeout=15.0,
     )
+    # Which session took the jobs: what the run reports, and what a script
+    # follows them through (see odatix.run.Run.session).
+    try:
+        parallel_jobs.session_state = state
+    except Exception:
+        pass
     return state, response
 
 
@@ -844,18 +917,36 @@ def explicit_endpoint_state(host=None, port=None, token=None):
     }
 
 
-def _resolve_state_for_attach_or_stop(workspace_root=None, host=None, port=None, session=None, token=None):
+def _resolve_state_for_attach_or_stop(
+    workspace_root=None, host=None, port=None, session=None, token=None, any_workspace=False
+):
+    """
+    The session a "monitor" or a "stop" acts on.
+
+    A selector is looked up among the sessions of the current workspace: a
+    session of another one is only reached when `any_workspace` says so, since
+    a name like "nightly" means a different session in every project. Without
+    a selector, the only session of the workspace is the one; several are an
+    ambiguity listing those, not every session of the machine.
+    """
     if host is not None or port is not None:
         state = explicit_endpoint_state(host=host, port=port, token=token)
         _decorate_session_fields(state)
         return state
 
     all_daemons = list_daemons(workspace_root=workspace_root)
-    workspace_daemons, workspace_root = _filter_by_workspace(all_daemons, workspace_root=workspace_root)
+    in_scope, workspace_root, scoped = scope_daemons(all_daemons, workspace_root, any_workspace=any_workspace)
+    others = [d for d in all_daemons if d not in in_scope] if scoped else []
 
     selector = str(session).strip() if session is not None else ""
     if selector != "":
-        return _resolve_session_selector(all_daemons, selector, allow_missing=False)
+        matched = _resolve_session_selector(in_scope, selector, allow_missing=True)
+        if matched is not None:
+            return matched
+        elsewhere = _filter_daemons_by_session_selector(others, selector)
+        if elsewhere:
+            raise DaemonControlError(_other_workspaces_hint(elsewhere, selector))
+        raise DaemonControlError("No session matches '{}'".format(selector))
 
     paths = get_daemon_paths(workspace_root)
     state = _read_json_file(paths["state_file"])
@@ -866,23 +957,21 @@ def _resolve_state_for_attach_or_stop(workspace_root=None, host=None, port=None,
         _decorate_session_fields(state)
         return state
 
-    if len(workspace_daemons) == 1:
-        return workspace_daemons[0]
+    if len(in_scope) == 1:
+        return in_scope[0]
 
-    if len(workspace_daemons) > 1:
-        raise MultipleDaemonsError(all_daemons)
+    if len(in_scope) > 1:
+        raise MultipleDaemonsError(in_scope)
 
-    if len(all_daemons) == 1:
-        return all_daemons[0]
-
-    if len(all_daemons) > 1:
-        raise MultipleDaemonsError(all_daemons)
+    if others:
+        raise DaemonControlError(_other_workspaces_hint(others))
 
     raise DaemonControlError("No session found")
 
 
 def attach_monitor(
-    workspace_root=None, host=None, port=None, session=None, auto_exit=False, token=None, remote=None
+    workspace_root=None, host=None, port=None, session=None, auto_exit=False, token=None, remote=None,
+    any_workspace=False,
 ):
     from odatix.lib.parallel_job_handler.daemon_monitor import run_monitor
 
@@ -891,17 +980,37 @@ def attach_monitor(
 
         tunnel, endpoint, _state = open_remote_endpoint(remote, session=session)
         try:
-            return run_monitor(endpoint=endpoint, auto_exit=bool(auto_exit))
+            return _run_monitor_in_terminal(
+                run_monitor, endpoint=endpoint, auto_exit=bool(auto_exit),
+                session_label=_state.get("session_id") if isinstance(_state, dict) else None,
+            )
         finally:
             tunnel.close()
 
     state = _resolve_state_for_attach_or_stop(
-        workspace_root=workspace_root, host=host, port=port, session=session, token=token
+        workspace_root=workspace_root, host=host, port=port, session=session, token=token,
+        any_workspace=any_workspace,
     )
     if not daemon_is_alive(state):
         raise DaemonControlError("Daemon is not running")
 
-    return run_monitor(endpoint=endpoint_for_state(state), auto_exit=bool(auto_exit))
+    return _run_monitor_in_terminal(
+        run_monitor, endpoint=endpoint_for_state(state), auto_exit=bool(auto_exit),
+        session_label=state.get("session_id") or None,
+    )
+
+
+def _run_monitor_in_terminal(run_monitor, **kwargs):
+    """Run the curses monitor, or say plainly why this terminal cannot show it."""
+    import curses
+
+    try:
+        return run_monitor(**kwargs)
+    except curses.error as e:
+        term = os.environ.get("TERM") or "unset"
+        raise MonitorUnavailableError(
+            "This terminal cannot show the job monitor (TERM={}: {})".format(term, e)
+        )
 
 
 def _terminate_pid(pid):
@@ -1004,7 +1113,8 @@ def _stop_daemon_from_state(state, workspace_root):
     return stopped
 
 
-def stop_daemon(workspace_root=None, host=None, port=None, session=None, token=None, remote=None):
+def stop_daemon(workspace_root=None, host=None, port=None, session=None, token=None, remote=None,
+                any_workspace=False):
     if remote is not None:
         return stop_remote_daemon(remote, session=session)
 
@@ -1015,6 +1125,7 @@ def stop_daemon(workspace_root=None, host=None, port=None, session=None, token=N
         port=port,
         session=session,
         token=token,
+        any_workspace=any_workspace,
     )
     return _stop_daemon_from_state(state, workspace_root)
 
@@ -1036,9 +1147,15 @@ def stop_remote_daemon(remote, session=None):
         tunnel.close()
 
 
-def stop_all_daemons(workspace_root=None, host=None, port=None, token=None):
+def stop_all_daemons(workspace_root=None, host=None, port=None, token=None, any_workspace=False):
+    """
+    Stop every session of the current workspace, or of every workspace with
+    `any_workspace` (see :func:`scope_daemons`).
+    """
     workspace_root = detect_workspace_root(workspace_root)
     daemons = list_daemons(workspace_root=workspace_root, host=host, port=port, token=token)
+    if host is None and port is None:
+        daemons, _root, _scoped = scope_daemons(daemons, workspace_root, any_workspace=any_workspace)
 
     if len(daemons) == 0:
         _cleanup_workspace_daemon_dir_if_empty(workspace_root)
@@ -1401,10 +1518,17 @@ def daemon_jobs_report(workspace_root=None, session=None, timeout=JOBS_QUERY_TIM
         session_name = str(daemon.get("session_name", _session_name_from_state(daemon)))
         address = _state_address(daemon)
 
+        daemon_root = daemon.get("workspace_root")
         for job in daemon_jobs:
             if not isinstance(job, dict):
                 continue
             entry = dict(job)
+            # A run names its job directory relative to where it was started:
+            # read that way from another workspace, the same "work/..." would
+            # point at a job of this one.
+            tmp_dir = entry.get("tmp_dir")
+            if tmp_dir and daemon_root and not os.path.isabs(str(tmp_dir)):
+                entry["tmp_dir"] = os.path.join(str(daemon_root), str(tmp_dir))
             entry["session_id"] = session_id
             entry["session_name"] = session_name
             entry["address"] = address
@@ -1574,14 +1698,19 @@ def list_zombie_daemons(workspace_root=None, session=None):
     return _filter_daemons_by_session_selector(zombies, session)
 
 
-def kill_zombie_daemons(workspace_root=None, session=None):
+def kill_zombie_daemons(workspace_root=None, session=None, any_workspace=False):
     """Kill unresponsive daemon processes and remove leftover state files.
+
+    Only those of the current workspace, unless `any_workspace` (see
+    :func:`scope_daemons`): a session of another project can look unresponsive
+    for a while just because it is busy.
 
     Returns a dict with ``total``, ``killed`` and ``failed`` (the zombie
     descriptors that survived).
     """
     workspace_root = detect_workspace_root(workspace_root)
     zombies = list_zombie_daemons(workspace_root=workspace_root, session=session)
+    zombies, _root, _scoped = scope_daemons(zombies, workspace_root, any_workspace=any_workspace)
 
     killed = 0
     failed = []

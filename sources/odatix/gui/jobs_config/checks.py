@@ -66,9 +66,6 @@ def start_check(mode, workspace, **options):
         run = Run(
             workspace, mode,
             cancel_event=prepare_state._prepare_cancel_event,
-            # From the page a run always resumes where it stopped: re-running an
-            # already completed step ("--rerun-from") is a command line thing.
-            rerun_from=None,
             **options
         )
         # The eda tool check keeps running in the background instead of blocking

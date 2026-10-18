@@ -67,8 +67,9 @@ $ odatix init
 
 - An RTL design with **one top level module**, a clock and a reset.
 
-No EDA tool is needed to follow this tutorial: the last step checks the setup
-without running any synthesis.
+No EDA tool is needed up to Step 6: the replacement is checked without running
+anything. Step 7 runs a synthesis, which needs the tool of your target (Vivado
+in the examples).
 
 Throughout, the example is this small counter, in `~/my_project/rtl/counter.v`:
 
@@ -104,10 +105,11 @@ $ odatix-gui
 {{< /code >}}
 
 Open **RTL Architectures** from the home page, then click the
-**Create New Architecture** card. Name it `MyCounter` — this name is how the
-design is selected in every run afterwards.
-
-You land on the **Architecture Editor**, the page the next steps fill in.
+**Create new architecture** card. You land on the **Architecture editor**, the
+page the next steps fill in, on an architecture called `New_Architecture1`:
+rename it `MyCounter` in the title field at the top — this name is how the
+design is selected in every run afterwards. Nothing is written to disk until
+you save.
 
 {{% /tab %}}
 {{% tab name="YAML files" %}}
@@ -159,7 +161,7 @@ Five settings are all Odatix needs to build your design:
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-In the **Top Level Settings** section of the Architecture Editor, fill in:
+In the **Top level settings** section of the Architecture editor, fill in:
 
 | Field | Value |
 |-------|-------|
@@ -169,7 +171,7 @@ In the **Top Level Settings** section of the Architecture Editor, fill in:
 | Clock Signal | `clock` |
 | Reset Signal | `reset` |
 
-Then click **Save** in the header. The save button turns to a warning colour
+Then click **Save all** in the header. The button turns to a warning colour
 whenever something is unsaved, so you always know whether what you see is on
 disk.
 
@@ -228,7 +230,8 @@ description — Chisel, HLS, an in-house generator — Odatix copies the
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-In the Architecture Editor, open the **RTL Generation** section and enable it.
+In the Architecture editor, open the **RTL generation** section and tick
+**Enable RTL generation**.
 Fill in **Design Path**, **Generation Command** and **Generation Output**; the
 **Top Level File** of the previous step then names the file the command
 produces.
@@ -304,23 +307,33 @@ and a configuration file holds nothing but the replacement text:
 {{< /code >}}
 
 > [!TIP]
-> Pick delimiters that appear **once** in the file. `#(` alone would match every
-> instantiation; `counter #(` matches only the top level's own parameter list.
-> When nothing convenient exists, add a comment of your own around the section
-> — `// <params>` / `// </params>` — which works in every language and can never
-> be ambiguous.
+> Only the **first** match of the delimiters in the file is replaced. `#(` alone
+> would pick the first parameter list of the file, which may be an instantiation
+> rather than the module's own; `counter #(` names the top level's. When nothing
+> convenient exists, add a comment of your own around the section —
+> `// <params>` / `// </params>` — which can never be ambiguous.
+
+> [!IMPORTANT]
+> The text of a configuration is written **right after** the start delimiter.
+> When that delimiter is a line comment such as `// <params>`, end it with a
+> line break — `"// <params>\n"` (`\n` is understood in every field and
+> settings file) — or start every configuration with an empty line. Otherwise
+> the first line of the configuration lands at the end of the comment line and
+> is commented out with it. Odatix warns about it (`odatix replace`, the check
+> of a run, the Preview Pane), but the design would still be built without the
+> parameter.
 
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-On the **RTL Architectures** page, click **Edit Configs** on the `MyCounter`
-card. The **Configuration Editor** opens on the **Main parameter domain**.
+On the **RTL Architectures** page, click **Edit configs** on the `MyCounter`
+card. The **Configuration editor** opens on the **Main parameter domain**.
 
-In the **Configuration Parameters** panel:
+In the **Configuration parameters** panel:
 
 1. Tick **Enable parameter replacement**.
-2. Leave **Param Target File** empty — the top level file is used by default.
-3. Set **Start Delimiter** to `counter #(` and **Stop Delimiter** to `)(`.
+2. Leave **Param target file** empty — the top level file is used by default.
+3. Set **Start delimiter** to `counter #(` and **Stop delimiter** to `)(`.
 4. Click **Save**.
 
 The **Preview Pane** on the right shows the target file with the selected
@@ -376,15 +389,18 @@ file name — without `.txt` — is the configuration name.
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-In the Configuration Editor, click the **add** card of the main parameter
-domain, name the configuration `08bits`, and type its content:
+In the Configuration editor, click the **Add design configuration** card of the
+main parameter domain (it is there once parameter replacement is enabled). It
+creates `new_config1` on disk straight away: rename it `08bits` in the title
+field of its card, and type its content:
 
 {{< code lang=verilog filename="08bits" >}}
   parameter BITS = 8
 {{< /code >}}
 
-Repeat for `16bits` and `32bits`, then **Save**. Selecting a configuration
-updates the Preview Pane with the file as the job would see it.
+Repeat for `16bits` and `32bits`, then click **Save all** (or the save button
+of each card). Selecting a configuration updates the Preview Pane with the file
+as the job would see it.
 
 {{% /tab %}}
 {{% tab name="YAML files" %}}
@@ -415,6 +431,12 @@ When the values follow a pattern — a range, powers of two, a list — describe
 **rule** instead of writing the files. Odatix resolves it when a run starts;
 nothing has to be written to disk.
 
+> [!NOTE]
+> This rule replaces the files of A: delete them if you wrote them. The rule
+> names its configurations `8bits`, `16bits` and `32bits`; with the files of A
+> still there, the domain would hold `08bits` **and** `8bits` — the same
+> hardware, run twice.
+
 A rule is made of a **variable** (the values), a **configuration name** (how each
 variant is named) and a **content template** (what it writes between the
 delimiters):
@@ -428,11 +450,12 @@ variable width = 8, 16, 32       name: "${width}bits"      08bits, 16bits, 32bit
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-In the Configuration Editor, in the **Variables** panel of the main parameter
+In the Configuration editor, in the **Variables** panel of the main parameter
 domain:
 
-1. Click the **add variable** card, name it `width`, choose the type
-   **power_of_two**, and set `from` to 8 and `to` to 32.
+1. Click the **Add new variable** card, name it `width`, choose the type
+   **Power of 2**, and set **From** to 8 and **To** to 32 — values, not
+   exponents: the powers of two between them are kept.
 2. Open **Advanced**, next to the delimiters, and set:
    - **Configuration name**: `${width}bits`
    - **Content template**: `  parameter BITS = ${width}`
@@ -488,8 +511,10 @@ architecture.generate_configurations()  # optional: write them out as files
 When parameters are **independent** — a data width *and* a multiplier type *and*
 a memory depth — do not write one file per combination. Give each parameter its
 own **parameter domain**: a sub-directory of the architecture with its own
-delimiters, replacing its own block of the file. Odatix then runs every
-combination, named `A+B`.
+delimiters, replacing its own block of the file. Selecting `MyCPU/* + Mul/*`
+then runs every combination, named `A+B`. A domain left out of the selection is
+not swept: with `MyCPU/*` alone, the `Mul` block keeps what the source file
+holds.
 
 {{< code lang=text filename="An architecture with two domains" >}}
 architectures/MyCPU/
@@ -514,11 +539,13 @@ Each domain must replace a **distinct** block of the target file:
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-In the Configuration Editor, click the **add parameter domain** card, name it
-`Mul`, and fill in its delimiters (`  // <mul>` and `  // </mul>`) exactly as
-for the main domain. Add its configurations, or give it a rule — a domain
-sweeping a single variable needs no name or template at all: its configurations
-are named after the values.
+In the Configuration editor, click the **Add new parameter domain** card. The
+new domain is called `new_domain1` and holds nothing yet: rename it `Mul` in its
+title field and confirm with the ✓ button next to it (a domain is renamed on its
+own, not by **Save all**). Then fill in its delimiters (`  // <mul>\n` and
+`  // </mul>`) exactly as for the main domain. Add its configurations, or give
+it a rule — a domain sweeping a single variable needs no name or template at
+all: its configurations are named after the values.
 
 Each domain of the architecture is one section of the page, so the whole design
 space is readable at a glance.
@@ -527,28 +554,34 @@ space is readable at a glance.
 {{% tab name="YAML files" %}}
 
 {{< code lang=yaml filename="architectures/MyCPU/Mul/_settings.yml" >}}
-start_delimiter: "  // <mul>"
+use_parameters: Yes
+start_delimiter: "  // <mul>\n"     # the line break keeps the parameter out of the comment
 stop_delimiter: "  // </mul>"
 {{< /code >}}
 
 Everything else — sources, top level, clock — is inherited from the
 architecture. Then add `Mul/Fast.txt` and `Mul/Off.txt`, or a `configurations`
-rule scoped to the domain.
+rule scoped to the domain:
+
+{{< code lang=verilog filename="architectures/MyCPU/Mul/Fast.txt" >}}
+  parameter MUL = "fast",
+{{< /code >}}
 
 {{% /tab %}}
 {{% tab name="Python API" %}}
 
 {{< code lang=python filename="setup.py" >}}
 mul = architecture.domains.create("Mul")
-mul.settings.start_delimiter = "  // <mul>"
+mul.settings.use_parameters = True
+mul.settings.start_delimiter = "  // <mul>\n"   # the line break keeps the parameter out of the comment
 mul.settings.stop_delimiter = "  // </mul>"
 mul.save()
 
 mul.configs.write("Fast", '  parameter MUL = "fast",\n')
 mul.configs.write("Off",  '  parameter MUL = "off",\n')
 
-architecture.combinations()          # what a run would sweep
-architecture.count_combinations()
+architecture.combinations()          # what "MyCPU/* + Mul/*" sweeps
+architecture.count_combinations()    # how many jobs that is, exclusions left out
 {{< /code >}}
 
 {{% /tab %}}
@@ -584,16 +617,18 @@ $ cat /tmp/counter_16bits.v
 If the configurations come from a rule, write them out to look at them:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix generate
+$ odatix generate --architecture MyCounter
 {{< /code >}}
 
-This is optional — a run resolves the rules on its own.
+This is optional — a run resolves the rules on its own. Without
+`--architecture`, the command writes the configurations of every architecture
+and workflow of the workspace.
 
 {{% /tab %}}
 {{% tab name="Python API" %}}
 
 {{< code lang=python filename="check.py" >}}
-print(architecture.count_combinations())      # how many jobs a full sweep is
+print(architecture.count_combinations())      # jobs of the full sweep, every domain included
 for name, content in architecture.preview_configurations().items():
     print(name, "->", content)
 {{< /code >}}
@@ -605,13 +640,16 @@ for name, content in architecture.preview_configurations().items():
 
 Your design is now an architecture like any other, selected by
 `<design>/<configuration>`, or with a `*` wildcard for all of its
-configurations.
+configurations. An architecture with parameter domains names each domain it
+sweeps: `MyCPU/* + Mul/*`.
 
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-Go to **Run jobs**, pick a job type, a tool and a target, then select
-`MyCounter/*` in the job settings, and run. You land on the **Monitor**.
+Go to **Run jobs**, pick a job type, a tool and a flow (**Standard** is the
+usual one). The targets are those the target file of the tool enables;
+**Choose targets** changes them. Select `MyCounter/*` in the job settings, click
+**Run jobs**, check the plan, and start. You land on the **Monitor**.
 
 {{% /tab %}}
 {{% tab name="YAML files" %}}
@@ -631,10 +669,8 @@ $ odatix fmax --tool vivado
 {{< code lang=python filename="run.py" >}}
 from odatix.run import Run
 
-ws.jobs.fmax_synthesis.settings.architectures = ["MyCounter/*"]
-ws.jobs.fmax_synthesis.save()
-
-run = Run(ws, "fmax_synthesis", tool="vivado")
+# Like "odatix fmax -a": the settings file is left as it is.
+run = Run(ws, "fmax_synthesis", tool="vivado", architectures=["MyCounter/*"])
 plan = run.check()          # what would be run, having touched nothing
 print(plan.counts())
 run.start()
@@ -660,6 +696,8 @@ the binary search, `fixed_freq_synthesis` for explicit frequency points, and
 | The replacement produced invalid code | The delimiters match somewhere else in the file, or the configuration text does not fit the block (a trailing comma, a missing one). Check it with the Preview Pane or `odatix replace`. |
 | The top level file is not found | `top_level_file` is relative to `rtl_path` — or to `generate_output` in a generation flow — not to the workspace. |
 | Nothing is replaced | `use_parameters` is off, or the configuration files are in the architecture directory but the delimiters are empty. |
+| A parameter is "not declared", or keeps its default value | The start delimiter is a line comment (`// <mul>`) and the configuration does not start with a line break: its first line ended up inside the comment. End the delimiter with `\n`. Odatix warns about it. |
+| A domain is not swept | It is not named in the selection: write `MyCPU/* + Mul/*`, not `MyCPU/*`. |
 | Two domains fight over the same lines | Each parameter domain must replace a **distinct** block of the target file. |
 | Timing constraints look wrong | `clock_signal` does not name the actual top level clock port. |
 

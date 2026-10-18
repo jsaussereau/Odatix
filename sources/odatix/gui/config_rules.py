@@ -442,12 +442,15 @@ def form_rules_settings(blocks, variables, domain_name, saved=None, match=None):
         key, name, template, constraints = blocks[0]
         # The main domain of a workspace describes its configurations by
         # declaring variables alone; saying so explicitly is what keeps it
-        # describing them once anything else about it is written.
+        # describing them once anything else about it is written. Variables it
+        # already declared without saying so are virtual parameter domains --
+        # values of its commands (D-21) -- and stay what they are.
         enabled = configuration_defaults_enabled(saved) or (
             domain_name == hard_settings.main_parameter_domain
             and bool(variables)
             and not name
             and not template
+            and not (saved or {}).get("variables")
         )
         written = [_block_settings(
             name, template, enabled=enabled, constraints=constraints, extra=extras.get(key),
@@ -483,6 +486,36 @@ def rules_space(settings, implicit=True):
     the cross product of everything it declares.
     """
     return config_set_rules(settings or {}, implicit=implicit)
+
+
+def implicit_for(domain_name):
+    """
+    Whether the variables of a domain describe its configurations on their own
+    (see ``ParameterDomain.config_set``): a named domain does, the main one does
+    not -- it shares its settings file with the instance, whose variables may
+    instead feed its commands (virtual parameter domains).
+    """
+    return domain_name != hard_settings.main_parameter_domain
+
+
+def declared_order(definition, values):
+    """
+    The values of a variable in the order its "list" declares them. The
+    generator returns them sorted, which is not how a list such as
+    ``["none", "cyclic", "complete"]`` is meant to be read.
+    """
+    if not isinstance(definition, dict) or definition.get("type") != "list" or values is None:
+        return values
+    declared = (definition.get("settings") or {}).get("list") or []
+    by_text = {}
+    for value in values:
+        by_text.setdefault(str(value), value)
+    ordered = []
+    for item in declared:
+        key = str(item)
+        if key in by_text:
+            ordered.append(by_text.pop(key))
+    return ordered + [value for value in values if str(value) in by_text]
 
 
 def describes_configurations(settings, implicit=True):
@@ -768,7 +801,8 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
     substitutes for by selector, so only such a section shows the "Matching"
     field (see :func:`match_form`).
     """
-    space = config_set_rules(settings or {}, implicit=True)
+    implicit = implicit_for(domain_name)
+    space = config_set_rules(settings or {}, implicit=implicit)
     blocks, variables = rule_set_fields(settings)
     has_rules = space.generates
     # Counted here as well as by the preview callback, so the header says what
@@ -777,6 +811,15 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
         count = space.count() if has_rules else None
     except Exception:
         count = None
+    if not has_rules and variables and not implicit:
+        # Variables of the main domain alone: virtual parameter domains (D-21).
+        try:
+            virtual = config_set_rules(settings or {}, implicit=True)
+            summary = virtual_summary(len(variables), virtual.count() if virtual.generates else 0)
+        except Exception:
+            summary = virtual_summary(len(variables), None)
+    else:
+        summary = rules_summary(has_rules, len(variables), count)
 
     # A page shows every domain of an instance at once, so each variable is a
     # folded row: its name, its type and its values on one line.
@@ -789,7 +832,7 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
                 children=[
                     html.H3("Variables", style={"margin": "0px"}),
                     html.Div(
-                        rules_summary(has_rules, len(variables), count),
+                        summary,
                         id={"type": "cfg-rules-summary", "domain_uuid": domain_uuid},
                         style={"display": "flex", "alignItems": "center", "gap": "10px"},
                     ),
@@ -844,6 +887,22 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
             dcc.Store(id={"type": "cfg-rules-saved", "domain_uuid": domain_uuid}, data=0),
         ],
     )
+
+
+def virtual_summary(variable_count, combination_count):
+    """
+    The state of variables that describe no configuration: what the commands are
+    run with, once per combination (virtual parameter domains).
+    """
+    badges = []
+    if combination_count is not None:
+        badges.append(ui.badge("{0} combinations".format(combination_count)))
+    badges.append(html.Span(
+        "of {0} variable{1}, substituted into the commands: virtual parameter domains, not configurations".format(
+            variable_count, "" if variable_count == 1 else "s"),
+        style={"opacity": "0.65", "fontSize": "13px"},
+    ))
+    return badges
 
 
 def rules_summary(has_rules, variable_count, config_count):
@@ -1246,14 +1305,16 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
     # the same order every variable field comes back in.
     row_values = [[] for _ in title_ids]
 
-    def say(domain_uuid, values=None, message=None):
+    def say(domain_uuid, values=None, message=None, variables=None):
         """What each row of one domain shows next to its name."""
         for position in indices.get(domain_uuid, []):
             if message is not None:
                 row_values[position] = html.Span(message, className="odx-variable-values-empty")
                 continue
             title = titles[position] if position < len(titles) else ""
-            row_values[position] = variable_values_inline((values or {}).get(title))
+            row_values[position] = variable_values_inline(
+                declared_order((variables or {}).get(title), (values or {}).get(title))
+            )
 
     summaries = []
     config_previews = []
@@ -1274,8 +1335,10 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
         )
         # Read from the settings the form means, so a domain of several rule
         # sets is previewed as the union it is rather than as everything its
-        # variables could be combined into.
-        space = rules_space(current)
+        # variables could be combined into. The variables of the main domain
+        # alone describe no configuration (see implicit_for).
+        implicit = implicit_for(domain_names.get(domain_uuid))
+        space = rules_space(current, implicit=implicit)
         implicit_name = implicit_config_name(variables) or DEFAULT_NAME
         implicit_content = implicit_template(variables) or DEFAULT_TEMPLATE
         for position in positions:
@@ -1285,6 +1348,20 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
                 template_placeholders[position] = implicit_content
         unsaved = current != saved
         held = held_configurations(config_metadata, domain_uuid)
+        if not space.generates and variables and not implicit:
+            # D-21: variables of the main domain without a configuration
+            # template are virtual parameter domains -- substituted into the
+            # commands, one run per combination -- not configurations.
+            virtual = rules_space(current, implicit=True)
+            try:
+                count = len(virtual.points()) if virtual.generates else 0
+                say(domain_uuid, values=virtual.values(), variables=variables)
+            except Exception as error:
+                say(domain_uuid, message=str(error) or "these variables cannot be resolved")
+                count = None
+            summaries.append(virtual_summary(len(variables), count))
+            config_previews.append(configurations_preview({}, held, layout) if unsaved and held else [])
+            continue
         if not space.generates:
             say(domain_uuid, message="no values")
             summaries.append(rules_summary(False, 0, None))
@@ -1300,7 +1377,7 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
             summaries.append([ui.badge("invalid", color="caution")])
             config_previews.append([])
             continue
-        say(domain_uuid, values=values)
+        say(domain_uuid, values=values, variables=variables)
         summaries.append(rules_summary(True, len(variables), len(configurations)))
         config_previews.append(configurations_preview(configurations, held, layout) if unsaved else [])
     return row_values, summaries, config_previews, name_placeholders, template_placeholders

@@ -33,11 +33,14 @@ metrics:
       group_id: 2
     format: "%.0f"
 
+  # The utilization is the last column of the row. Vivado writes "<0.01" for a
+  # design too small to reach it, read as 0.01: a pattern stopping at the first
+  # number it can read used to take the "Available" column instead.
   LUT_percent:
     type: regex
     settings:
       file: report/$step/utilization.rep
-      pattern: "\\| (?:Slice|CLB) LUTs\\*?\\s.*\\|\\s*([0-9.]+)\\s*\\|.*"
+      pattern: "\\| (?:Slice|CLB) LUTs\\*?[ \\t]*\\|.*\\|[ \\t]*<?([0-9.]+)[ \\t]*\\|[ \\t]*$"
       group_id: 1
     format: "%.2f"
 
@@ -53,7 +56,7 @@ metrics:
     type: regex
     settings:
       file: report/$step/utilization.rep
-      pattern: "\\| (?:Slice|CLB) Registers\\*?\\s.*\\|\\s*([0-9.]+)\\s*\\|.*"
+      pattern: "\\| (?:Slice|CLB) Registers\\*?[ \\t]*\\|.*\\|[ \\t]*<?([0-9.]+)[ \\t]*\\|[ \\t]*$"
       group_id: 1
     format: "%.2f"
 
@@ -76,7 +79,7 @@ metrics:
     type: regex
     settings:
       file: report/$step/utilization.rep
-      pattern: "\\| Block RAM Tile .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      pattern: "\\| Block RAM Tile[ \\t]*\\|.*\\|[ \\t]*<?([0-9.]+)[ \\t]*\\|[ \\t]*$"
       group_id: 1
     format: "%.2f"
 
@@ -92,7 +95,7 @@ metrics:
     type: regex
     settings:
       file: report/$step/utilization.rep
-      pattern: "\\| DSPs .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      pattern: "\\| DSPs[ \\t]*\\|.*\\|[ \\t]*<?([0-9.]+)[ \\t]*\\|[ \\t]*$"
       group_id: 1
     format: "%.2f"
 

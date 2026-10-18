@@ -206,7 +206,11 @@ class ArgParser:
     ArgParser.add_nobanner(ArgParser.dse_parser)
 
     # Results
-    ArgParser.res_parser = add("results", "export the results of the work directory (all of them by default)")
+    ArgParser.res_parser = add(
+      "results", "export the results of the work directory (all of them by default)",
+      epilog='Without a type, "odatix results" is "odatix results all", and takes its options: '
+             'see "odatix results all -h". The options of a type come after it.',
+    )
     ArgParser.add_nobanner(ArgParser.res_parser)
     result_types = ArgParser.res_parser.add_subparsers(dest="result_type", metavar="<type>")
     result_types.required = True
@@ -240,32 +244,36 @@ class ArgParser:
     ArgParser.add_nobanner(ArgParser.exp_derived_parser)
 
     # Daemon
-    ArgParser.monitor_parser = add("monitor", "attach the monitor to a session")
+    ArgParser.monitor_parser = add("monitor", "attach the monitor to a session of the workspace")
     add_options(
-      ArgParser.monitor_parser, "session", "endpoint_options",
+      ArgParser.monitor_parser, "session", "any_workspace", "endpoint_options",
       remote={"help": "attach to a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
+    ArgParser.add_nobanner(ArgParser.monitor_parser)
 
-    ArgParser.ls_parser = add("ls", "list the active sessions")
+    ArgParser.ls_parser = add("ls", "list the active sessions of the workspace")
     add_options(
-      ArgParser.ls_parser, "session", "zombies", "endpoint_options",
+      ArgParser.ls_parser, "session", "zombies", "any_workspace", "endpoint_options",
       session={"help": "filter sessions by name or prefix"},
       zombies={"help": "also list zombie sessions (unresponsive daemons and leftover state files)"},
+      any_workspace={"help": "list the sessions of every workspace (default: those of the current workspace only)"},
       host={"help": "daemon API host (optional explicit endpoint)"},
       port={"help": "daemon API port (optional explicit endpoint)"},
       remote={"help": "list the sessions of another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
     ArgParser.ls_parser.add_argument('--json', action='store_true', help='print the session list as JSON, session tokens included (this is what a remote odatix reads over ssh: do not pipe it anywhere public)')
+    ArgParser.add_nobanner(ArgParser.ls_parser)
 
-    ArgParser.stop_parser = add("stop", "stop a session")
+    ArgParser.stop_parser = add("stop", "stop a session of the workspace")
     stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
     add_options(stop_selector_group, "session")
-    stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all sessions')
+    stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all the sessions of the workspace (of every workspace with --any-workspace)')
     add_options(
-      ArgParser.stop_parser, "zombies", "endpoint_options",
+      ArgParser.stop_parser, "zombies", "any_workspace", "endpoint_options",
       zombies={"help": "also kill zombie sessions (unresponsive daemons and leftover state files)"},
       remote={"help": "stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
+    ArgParser.add_nobanner(ArgParser.stop_parser)
 
     # Utilities
     ArgParser.init_parser = add("init", "create the configuration files of a workspace in the current directory")
@@ -373,6 +381,7 @@ def monitor_daemon(args):
       session=args.session,
       token=getattr(args, "token", None),
       remote=getattr(args, "remote", None),
+      any_workspace=args.any_workspace,
     )
   except daemon_control.MultipleDaemonsError as e:
     if args.session is not None and args.session != "":
@@ -391,7 +400,7 @@ def monitor_daemon(args):
   return success
 
 def kill_zombie_sessions(args):
-  result = daemon_control.kill_zombie_daemons(session=args.session)
+  result = daemon_control.kill_zombie_daemons(session=args.session, any_workspace=args.any_workspace)
   total = int(result.get("total", 0))
   killed = int(result.get("killed", 0))
   failed = result.get("failed", [])
@@ -419,7 +428,9 @@ def stop_daemon(args):
         return success
 
     if args.all:
-      result = daemon_control.stop_all_daemons(host=args.host, port=args.port, token=getattr(args, "token", None))
+      result = daemon_control.stop_all_daemons(
+        host=args.host, port=args.port, token=getattr(args, "token", None), any_workspace=args.any_workspace,
+      )
       total = int(result.get("total", 0))
       stopped = int(result.get("stopped", 0))
       failed = result.get("failed", [])
@@ -445,6 +456,7 @@ def stop_daemon(args):
       session=args.session,
       token=getattr(args, "token", None),
       remote=getattr(args, "remote", None),
+      any_workspace=args.any_workspace,
     )
     session_label = args.session if args.session not in (None, "") else "daemon"
     if stopped:
@@ -461,7 +473,7 @@ def stop_daemon(args):
       print(daemon_control.format_daemons_table(e.daemons))
     else:
       printc.cyan(str(e), script_name)
-    printc.note("Use the -S/--session option to specify a session or -a/--all to stop all sessions", script_name)
+    printc.note("Use the -S/--session option to specify a session or -a/--all to stop all the sessions of the workspace", script_name)
     success = False
   except Exception as e:
     printc.error(str(e), script_name)
@@ -482,6 +494,15 @@ def list_daemons(args):
       remote=remote,
     )
 
+    # The sessions of this workspace, unless asked for every one. An explicit
+    # endpoint or another machine is a scope of its own.
+    scanning = args.host is None and args.port is None and remote is None
+    elsewhere = 0
+    if scanning:
+      in_scope, _root, scoped = daemon_control.scope_daemons(daemons, any_workspace=args.any_workspace)
+      elsewhere = len(daemons) - len(in_scope)
+      daemons = in_scope
+
     if getattr(args, "json", False):
       # The consumer of this is a remote odatix reading it through an ssh
       # pipe, so the tokens are part of the payload. Anything printed for a
@@ -492,16 +513,22 @@ def list_daemons(args):
     # Zombies are only meaningful when scanning the system, not when an
     # explicit endpoint is given.
     zombies = []
-    if show_zombies and args.host is None and args.port is None and remote is None:
+    if show_zombies and scanning:
       zombies = daemon_control.list_zombie_daemons(session=args.session)
+      zombies, _root, _scoped = daemon_control.scope_daemons(zombies, any_workspace=args.any_workspace)
       # A daemon answering intermittently can show up in both scans: keep it
       # in the zombie section only, never advertise it as an active session.
       daemons = daemon_control.exclude_zombies(daemons, zombies)
 
     if len(daemons) == 0:
-      printc.note("No active session found", script_name)
+      printc.note("No active session in this workspace" if elsewhere else "No active session found", script_name)
     else:
       print(daemon_control.format_daemons_table(daemons))
+    if elsewhere:
+      printc.note(
+        "{} more session(s) in other workspaces: '{} ls --any-workspace' lists them".format(elsewhere, prog),
+        script_name,
+      )
 
     if show_zombies:
       print()
@@ -602,6 +629,9 @@ COMMANDS = {
 ######################################
 
 def main(args=None):
+
+  # No color codes in a pipe or a file (or with NO_COLOR): they are for a terminal.
+  printc.plain_unless_terminal()
 
   if args is None:
     args = ArgParser.parse_arguments()

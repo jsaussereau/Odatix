@@ -57,8 +57,7 @@ $ odatix init --examples
 
 Open `odatix_userconfig/sim_settings.yml`. Each entry maps a **simulation** to the list of **architectures** to run it on:
 
-{{< code lang=yaml filename="odatix_userconfig/sim_settings.yml" linenos="true" linenostart="23" >}}
-simulations:
+{{< code lang=yaml filename="odatix_userconfig/sim_settings.yml" linenos="true" linenostart="48" >}}
   - TB_Example_Cordic_Verilator:
     - Example_Cordic_sv + iterations/* + width/*
  
@@ -78,9 +77,15 @@ simulations:
 
   # - TB_Example_Counter_Verilator:
   #   - Example_Counter_sv/*
+  #   - Example_Counter_verilog/*
+  #   - Example_Counter_chisel/*   # needs sbt and firtool
 {{< /code >}}
 
-To disable a confiuguration and/or simulation, comment it out with `#` or simply remove the line.  
+To disable a configuration and/or simulation, comment it out with `#` or simply remove the line.
+
+A simulation whose simulator is not in your `PATH` is listed among the invalid
+jobs and skipped, so you can keep the four of them. To run a single one, name it
+on the command line instead: `odatix sim -s TB_Example_Cordic_Verilator`.
 
 > [!NOTE]
 > The `*` wildcard selects all configurations in the architecture's directory. You can replace it with a specific configuration name, or use multiple lines to select several configurations. Here ` + iterations/* + width/*` means "all combinations of the `iterations` and `width` parameters". 
@@ -176,12 +181,19 @@ The job monitor shows the status of each job, and the log of the currently selec
 ### Step 5 — Explore the results
 
 What each simulation exports is declared in its `_metrics.yml`; results land in
-`results/results_simulation.yml` as jobs finish. Re-export at any time — for
-instance after editing a metric — then open the dashboard:
+`results/results_simulation.yml` as jobs finish. Re-export at any time, for
+instance after editing a `_metrics.yml`, with `odatix results sim`, then open the
+dashboard:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix results sim     # re-export, after editing a _metrics.yml
 $ odatix-explorer
 {{< /code >}}
+
+The Explorer opens on its home page: choose **Table** to see every metric of
+every simulation, or a chart such as **Scatter** with a simulation metric, like
+the `max_error` of the Cordic, on one of its axes. A metric holding text, like
+`status`, is offered as a dimension: filter on it, or color the points by it.
 
 ## Going further
 

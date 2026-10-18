@@ -192,7 +192,7 @@ overrides:
 {{< /code >}}
 
 > [!INFO]
-> `Example_Mult/16bits` is annotated in the run settings as **failing with Vivado**. It is left enabled deliberately: a sweep that maps out a design space will hit configurations a tool cannot handle, and Odatix reports them as failed jobs and carries on with the rest rather than aborting the run. Seeing one in the shipped examples is the point.
+> `Example_Mult/16bits` is annotated in the run settings as **failing with Vivado**. It is kept in the list on purpose — commented out with the rest of the `Example_Mult` block in the shipped `fmax_settings.yml` and `synth_settings.yml`, so uncomment the block to run it: a sweep that maps out a design space will hit configurations a tool cannot handle, and Odatix reports them as failed jobs and carries on with the rest rather than aborting the run. Seeing one in the shipped examples is the point.
 
 ## Shared configuration files
 
@@ -242,4 +242,4 @@ Then open the [Explorer](/docs/features/explorer/) and plot fmax and area agains
 - [ALU](/docs/examples/architectures/alu/) — the third curve of the comparison, and where the `#(` delimiter needs more care.
 - [Counter](/docs/examples/architectures/counter/) — the reference sweep, in four languages.
 - [Explorer](/docs/features/explorer/) — where these curves are meant to end up.
-- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.
+- [All architecture examples](/docs/examples/architectures/) — the seven designs and what each one adds.

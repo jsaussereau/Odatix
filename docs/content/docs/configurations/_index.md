@@ -75,7 +75,7 @@ stop_delimiter: ")"
 > [!IMPORTANT]
 > With generated RTL (Chisel, HLS), `param_target_file` is **mandatory**: the top level does not exist yet when parameters are replaced, so replacement must target the source file that produces it.
 
-A full list of `_settings.yml` keys is on the [Configuration reference](/docs/reference/) page.
+A full list of `_settings.yml` keys is on the [Architecture settings](/docs/reference/architecture/) page.
 
 ## Writing parameter files by hand
 
@@ -97,12 +97,21 @@ a configuration file simply provides the replacement:
   parameter BITS = 16
 {{< /code >}}
 
-Create as many files as you want. The only constraint is a strict correspondence — in names and count — between the parameter files and the parameter section of your top level.
+Create as many files as you want, one per configuration: the file name, without
+`.txt`, is the configuration name. The one thing each file must hold is text that
+makes valid code once it replaces what lies between the delimiters — no more
+parameters than the section can take, and the same separators (a trailing comma,
+or none) as the lines around it.
+
+> [!IMPORTANT]
+> The text is written **right after** the start delimiter. With a start
+> delimiter that is a line comment (`"// <params>"`), end it with a line break
+> (`"// <params>\n"`) or start each file with an empty line: otherwise its
+> first line lands inside the comment. Odatix warns when that happens.
 
 > [!TIP]
 > If you don't want to write the files by hand, use [parameter domains](/docs/configurations/param_domains/) or [configuration generation](/docs/configurations/config_generation/) to produce them automatically. You can also use the [Python API](/docs/python_api/) to generate them programmatically.
 
-<!-- 
 ## Test a replacement on its own
 
 `odatix replace` is useful when preparing a new design: it applies the same
@@ -120,7 +129,10 @@ $ odatix replace \
 
 By default, the first delimited block is replaced. Add `--all` when every
 matching block must receive the same replacement. The command keeps the
-delimiter text itself, so the output remains suitable for a later Odatix run. -->
+delimiter text itself, so the output remains suitable for a later Odatix run. A
+replacement shorter than the block is padded with empty lines, so that the lines
+after it keep the number they have in your source — what an EDA tool reports at
+line 42 of the work copy is line 42 of your file.
 
 ## In this section
 

@@ -73,7 +73,7 @@ implement only the part of the space that turned out to be worth it.
 |-----------------|-----|
 | [Architecture exploration](/docs/features/architecture-exploration/) | Every configuration gets its own Fmax — this is what makes a design space explorable. |
 | [RTL analysis](/docs/features/analysis/) | A configuration that does not elaborate wastes an entire binary search. Check first. |
-| [Custom-frequency synthesis](/docs/features/rtl_synthesis/) | Once you know the ceiling, study area and power below it. |
+| [Fixed-frequency synthesis](/docs/features/rtl_synthesis/) | Once you know the ceiling, study area and power below it. |
 | [Place & route](/docs/features/pnr/) | Take the netlist of a completed fmax job to a second tool for post-route numbers. |
 | [Simulation](/docs/features/simulation/) | Cycles × 1/Fmax = real runtime, across the whole space. |
 | [Explorer](/docs/features/explorer/) | Fmax across configurations is the chart this feature exists for. |
@@ -83,30 +83,31 @@ implement only the part of the space that turned out to be worth it.
 ### From the configuration files and the CLI
 
 Bounds live in the design's `_settings.yml`, and can be tuned per target and per
-configuration so no synthesis run is wasted:
+configuration, in its `overrides` rules, so no synthesis run is wasted:
 
-{{< code lang=yaml filename="architectures/ALU/_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/architectures/ALU/_settings.yml" >}}
 fmax_synthesis:              # applies everywhere
   lower_bound: 50
   upper_bound: 500
 
-xc7s25-csga225-1:            # ... except on this target
-  fmax_synthesis:
-    lower_bound: 100
-    upper_bound: 450
-
-xc7a100t-csg324-1:
-  fmax_synthesis:
-    lower_bound: 50
-    upper_bound: 800
-  32bits:                    # ... and this configuration of it
-    fmax_synthesis:
-      upper_bound: 600
+overrides:
+  - targets: xc7s25-csga225-1        # ... except on this target
+    fmax_synthesis: {lower_bound: 100, upper_bound: 450}
+  - targets: xc7a100t-csg324-1
+    fmax_synthesis: {lower_bound: 50, upper_bound: 800}
+  - targets: xc7a100t-csg324-1       # ... and this configuration on it
+    configurations: 32bits
+    fmax_synthesis: {upper_bound: 600}
 {{< /code >}}
+
+The rules apply in order: the last one matching a job has the last word on the
+keys it names, and leaves the others as the rules before it set them (the
+`32bits` configuration above searches from 50 to 600 MHz). See
+[Overrides](/docs/reference/architecture/#overrides).
 
 Which designs and how many jobs at once come from the run settings file, and the
 targets from the tool's target file — exactly as for
-[custom-frequency synthesis](/docs/features/rtl_synthesis/#from-the-configuration-files-and-the-cli):
+[fixed-frequency synthesis](/docs/features/rtl_synthesis/#from-the-configuration-files-and-the-cli):
 
 {{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" >}}
 nb_jobs: 12

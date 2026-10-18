@@ -44,6 +44,36 @@ from odatix.workspace.yaml_io import dump_document, parse_bool, read_text, read_
 __all__ = ["Target", "TargetFile", "TargetFileCollection"]
 
 
+# The settings of a target file that belong to the tool rather than to one
+# target, and what a new file starts with: the values Odatix uses when a key is
+# missing, written out so the file says what can be set.
+TOOL_SETTINGS = ("constraint_file", "tool_install_path", "force_single_thread")
+
+
+def _new_file_text(tool):
+    """The text of a new target file, before its targets are written."""
+    from odatix.lib.prepare_work import DEFAULT_CONSTRAINT_FILE
+
+    return (
+        "##############################################\n"
+        "# Target settings for {tool}\n"
+        "##############################################\n"
+        "\n"
+        "# File, in the job directory, that holds the clock constraint at the\n"
+        "# target frequency (written by Odatix as SDC, then by the tool scripts)\n"
+        "constraint_file: {constraint_file}\n"
+        "\n"
+        "tool_install_path: \"\" # empty: the tool is on your PATH\n"
+        "\n"
+        "force_single_thread: No\n"
+        "\n"
+        "script_copy_enable: No\n"
+        "script_copy_source: \"/dev/null\"\n"
+        "\n"
+        "targets: []\n"
+    ).format(tool=tool, constraint_file=DEFAULT_CONSTRAINT_FILE)
+
+
 # "  - name" (enabled) or "  # - name" (disabled), optional trailing comment
 _target_item_pattern = re.compile(r'^\s+-\s*([^#]+?)\s*(?:#.*)?$')
 _target_commented_pattern = re.compile(r'^\s*#\s*-\s*([^#]+?)\s*(?:#.*)?$')
@@ -188,6 +218,8 @@ class TargetFile(object):
         #: given here, so a target file can also be worked on on its own.
         self._target_path = target_path
         self._targets = None
+        #: Tool settings changed through update(), written by save().
+        self._changes = {}
 
     ######################################
     # Location
@@ -291,6 +323,7 @@ class TargetFile(object):
 
     def reload(self):
         self._targets = None
+        self._changes = {}
         return self
 
     def names(self):
@@ -333,7 +366,8 @@ class TargetFile(object):
         """Add a target and, unless told otherwise, write the file back."""
         name = check_name(name, "target")
         if name in self:
-            raise AlreadyExistsError("Target '{0}' already exists.".format(name))
+            hint = "" if self[name].enabled else " It is disabled: enable(\"{0}\") turns it on.".format(name)
+            raise AlreadyExistsError("Target '{0}' already exists.{1}".format(name, hint))
         target = Target(name, enabled, script_copy_enable, script_copy_source)
         self.targets.append(target)
         if save:
@@ -398,12 +432,17 @@ class TargetFile(object):
         yaml_obj = YAML()
         yaml_obj.preserve_quotes = True
 
-        settings = None
-        if os.path.exists(path):
-            with open(path, "r") as f:
-                settings = yaml_obj.load(f)
+        # A new file starts with the settings of the tool spelled out, so that
+        # it runs as it is and says what else can be set.
+        previous = read_text(path) if os.path.exists(path) else _new_file_text(self.tool)
+        settings = yaml_obj.load(previous)
         if settings is None:
             settings = CommentedMap()
+
+        for key, value in self._changes.items():
+            if key == "force_single_thread":
+                value = "Yes" if value else "No"
+            settings[key] = value
 
         old_target_settings = settings.get("target_settings")
         if not isinstance(old_target_settings, dict):
@@ -447,7 +486,6 @@ class TargetFile(object):
         else:
             settings.pop("target_settings", None)
 
-        previous = read_text(path)
         offset = sequence_offset(previous)
         if offset:
             yaml_obj.indent(mapping=2, sequence=offset + 2, offset=offset)
@@ -465,6 +503,7 @@ class TargetFile(object):
 
         for target in self.targets:
             target.original_name = target.name
+        self._changes = {}
         return self
 
     ######################################
@@ -475,10 +514,70 @@ class TargetFile(object):
         """
         Everything the target file holds, as plain values. Useful to read the
         keys that belong to the tool rather than to the target list (its
-        constraint file, its install path, ...).
+        constraint file, its install path, ...). Changes made by
+        :meth:`update` and not saved yet are included.
         """
         data = read_yaml(self.path, default={})
-        return data if isinstance(data, dict) else {}
+        data = dict(data) if isinstance(data, dict) else {}
+        data.update(self._changes)
+        return data
+
+    @property
+    def constraint_file(self):
+        """
+        File of the job directory that holds the clock constraint: Odatix
+        writes it there as SDC before the job runs, then the scripts of a tool
+        that sources ``_common/init_script.tcl`` rewrite it in the tool's own
+        format. "constraints.sdc" when the file names none.
+        """
+        from odatix.lib.prepare_work import DEFAULT_CONSTRAINT_FILE
+
+        return str(self.settings().get("constraint_file") or DEFAULT_CONSTRAINT_FILE)
+
+    @property
+    def tool_install_path(self):
+        """Installation directory of the tool; empty when it is on the PATH."""
+        value = self.settings().get("tool_install_path")
+        return "" if value is None else str(value)
+
+    @property
+    def force_single_thread(self):
+        """Whether the tool is asked to run on a single thread."""
+        return parse_bool(self.settings().get("force_single_thread"), False)
+
+    def update(self, save=True, **values):
+        """
+        Change the settings of the tool held by this file, and, unless told
+        otherwise, write the file back.
+
+        Args:
+            constraint_file (str): file of the job directory holding the clock
+                constraint.
+            tool_install_path (str): installation directory of the tool; empty
+                when it is on the PATH.
+            force_single_thread (bool): run the tool on a single thread.
+
+        Example::
+
+            ws.targets["mytool"].update(constraint_file="constraints.sdc",
+                                        tool_install_path="/opt/mytool")
+        """
+        unknown = sorted(set(values) - set(TOOL_SETTINGS))
+        if unknown:
+            raise ValueError(
+                "Unknown target file setting(s): {0}. Valid ones: {1}.".format(
+                    ", ".join(unknown), ", ".join(TOOL_SETTINGS)
+                )
+            )
+        for key, value in values.items():
+            if key == "force_single_thread":
+                value = parse_bool(value, False)
+            else:
+                value = "" if value is None else str(value)
+            self._changes[key] = value
+        if save:
+            self.save()
+        return self
 
     def __repr__(self):
         return "<TargetFile {0!r} {1}>".format(self.tool, self.names())

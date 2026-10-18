@@ -238,4 +238,4 @@ $ odatix fmax -t vivado -a "Example_Rom_Chisel + addr/12bits + data/*"
 - [Variables](/docs/configurations/variables/) — the full variable-type reference, and the [dedicated example](/docs/examples/architectures/config_generation/) that walks through every one of them.
 - [Parameter domains](/docs/configurations/param_domains/) — the mechanism that combines `addr` and `data`.
 - [Cordic](/docs/examples/architectures/cordic/) — the same two-dimensional trade-off, computed instead of stored.
-- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.
+- [All architecture examples](/docs/examples/architectures/) — the seven designs and what each one adds.

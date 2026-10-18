@@ -235,6 +235,10 @@ class Settings(_SettingsBase):
     Instances behave both as objects (``settings.rtl_path``) and as mappings
     (``settings["rtl_path"]``, ``dict(settings.items())``), so they can be
     handed to code that expects either.
+
+    Setting an attribute the class does not declare raises AttributeError,
+    so that a misspelled setting is not silently left out of the file. A key it
+    does not declare is set as a mapping key, and kept in ``extra``.
     """
 
     #: True for settings whose file is expected to spell every key out, even the
@@ -291,6 +295,16 @@ class Settings(_SettingsBase):
         spec = self._specs.get(name)
         if spec is not None:
             value = spec.coerce(value)
+        elif not name.startswith("_") and name not in self.__dict__ and not hasattr(type(self), name):
+            # A misspelled setting would otherwise be kept on the object, and
+            # never written nor read by anything.
+            raise AttributeError(
+                '"{0}" is not a setting of {1}. Its settings are: {2}. A key it does '
+                'not declare is set as settings["{0}"].'.format(
+                    name, type(self).__name__,
+                    ", ".join(self._specs[spec_name].key for spec_name in self._spec_order),
+                )
+            )
         object.__setattr__(self, name, value)
 
     ######################################

@@ -220,6 +220,11 @@
     background: var(--theme-tertiary-color);
     border-color: transparent;
 }
+/* Something the run does that it does not do by default. */
+.odx-tag.warning {
+    color: var(--theme-warning-color);
+    border-color: var(--theme-warning-color);
+}
 .odx-spacer {
     flex: 1;
 }
@@ -1701,6 +1706,48 @@
     cursor: pointer;
     box-sizing: border-box;
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+/* --- Exclusions (/arch_editor) ------------------------------------------ */
+/* Same cards as the overrides. An expression reads as code. */
+.odx-expression-field input {
+    font-family: var(--theme-mono-font-family, monospace);
+}
+/* What a rule left out once checked: a line of the card, not a banner. */
+.odx-exclusion-status:empty {
+    display: none;
+}
+.odx-exclusion-count {
+    font-size: 13px;
+    color: var(--theme-text-color);
+}
+.odx-exclusion-count.muted {
+    opacity: 0.6;
+}
+.odx-exclusion-count.warning {
+    color: var(--theme-warning-color);
+}
+.odx-exclusion-count code {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+.odx-exclusions-check {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+.odx-exclusions-summary .odx-message {
+    margin-bottom: var(--space-2);
+}
+.odx-exclusion-names {
+    margin: var(--space-1) 0 0 0;
+    padding-left: var(--space-4);
+    font-size: 13px;
+}
+.odx-exclusion-names code {
+    font-weight: 700;
 }
 
 /* Configuration rules: the configurations the rules of a parameter domain

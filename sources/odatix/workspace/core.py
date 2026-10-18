@@ -256,6 +256,15 @@ class Workspace(object):
         self.root = root or "."
         self._settings = dict(settings) if isinstance(settings, dict) else None
         self._paths = None
+        self._forget_files()
+
+    def _forget_files(self):
+        # The objects that hold the content of a file until save(): each
+        # access must give back the same one, or "ws.derived_metrics.set(...)"
+        # then "ws.derived_metrics.save()" would save a fresh, unchanged copy.
+        self._jobs = None
+        self._derived_metrics = None
+        self._clean_settings = None
 
     ######################################
     # Opening
@@ -370,6 +379,7 @@ class Workspace(object):
         """Read the settings file again, and resolve the paths anew."""
         self._settings = None
         self._paths = None
+        self._forget_files()  # their paths may have changed
         self.paths  # latch the tools path of the file as it now stands
         return self
 
@@ -425,17 +435,33 @@ class Workspace(object):
     @property
     def jobs(self):
         """What each run command of this workspace runs, and how."""
-        return JobConfigCollection(self)
+        if self._jobs is None:
+            self._jobs = JobConfigCollection(self)
+        return self._jobs
 
     @property
     def derived_metrics(self):
-        """The metrics this workspace computes from the ones its runs produce."""
-        return DerivedMetricsFile(self.paths.derived_metrics_file)
+        """
+        The metrics this workspace computes from the ones its runs produce.
+
+        Always the same object for a given workspace (until :meth:`reload`), so
+        ``ws.derived_metrics.set(...)`` then ``ws.derived_metrics.save()``
+        saves the change.
+        """
+        if self._derived_metrics is None:
+            self._derived_metrics = DerivedMetricsFile(self.paths.derived_metrics_file)
+        return self._derived_metrics
 
     @property
     def clean_settings(self):
-        """What "odatix clean" removes from this workspace."""
-        return CleanSettingsFile(self.paths.clean_settings_file, root=self.root)
+        """
+        What "odatix clean" removes from this workspace.
+
+        Always the same object for a given workspace (until :meth:`reload`).
+        """
+        if self._clean_settings is None:
+            self._clean_settings = CleanSettingsFile(self.paths.clean_settings_file, root=self.root)
+        return self._clean_settings
 
     ######################################
     # Display

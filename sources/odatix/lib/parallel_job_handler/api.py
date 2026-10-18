@@ -302,6 +302,13 @@ def create_parallel_job_app(
             handler.add_job(job)
             added += 1
 
+        # What the run wants done once its batch is over (deriving metrics
+        # from the records its jobs export). Added after the jobs: added to an
+        # idle session first, it would run right away, before the batch.
+        add_action = getattr(handler, "add_post_batch_action", None)
+        if callable(add_action):
+            add_action(payload.get("post_batch_action"))
+
         return _ok("jobs enqueued", added=added, total_jobs=len(handler.job_list))
 
     @app.post("/config")

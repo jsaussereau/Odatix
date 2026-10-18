@@ -22,13 +22,14 @@
 
 import os
 import sys
+import fnmatch
 import argparse
 from collections import namedtuple
 
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
-from odatix.components.cli_options import add_options, deprecated_option
+from odatix.components.cli_options import ExtendAction, add_options, deprecated_option
 from odatix.lib.architecture_handler import ArchitectureHandler
 import odatix.workspace.space as space
 from odatix.workspace.errors import WorkspaceError
@@ -44,6 +45,16 @@ def add_arguments(parser):
   parser.add_argument("-o", "--overwrite", action="store_true", help="take configurations edited by hand back to what their rules say")
   parser.add_argument("-C", "--clean", action="store_true", help="delete the configurations an earlier generation wrote and the rules no longer describe")
   add_options(parser, "noask")
+  # "-a" is still the deprecated alias of "--archpath" here (see below).
+  parser.add_argument(
+    "--architecture", "--arch",
+    dest="architectures",
+    action=ExtendAction,
+    nargs="+",
+    metavar="NAME",
+    help="only the architectures (or workflows) of these names, glob patterns accepted "
+         "(\"MyAdder\", \"Example_*\"; a selector such as \"MyAdder/*\" names its architecture)",
+  )
   parser.add_argument(
     "--archpath",
     dest="arch_path",
@@ -90,9 +101,33 @@ def domain_paths(path):
   return found
 
 
-def collect_configs(path, overwrite, debug=False, path_kind="config", clean=False):
+def requested_entries(architectures):
+  """
+  The entry names `--architecture` asks for: the entry of a selector
+  ("MyAdder/* + Regs/*" names "MyAdder"), a name or a glob pattern as is.
+  """
+  if not architectures:
+    return None
+  import odatix.workspace.selection as selection
+  return [selection.parse(text).entry for text in architectures if str(text).strip()] or None
+
+
+def entry_of(path, root):
+  """The entry (architecture, workflow) a domain directory `root` under `path` belongs to."""
+  return os.path.relpath(root, path).split(os.sep)[0]
+
+
+def selects(entries, name):
+  """Whether `name` is one of `entries` (names or glob patterns); None selects everything."""
+  return entries is None or any(fnmatch.fnmatchcase(name, entry) for entry in entries)
+
+
+def collect_configs(path, overwrite, debug=False, path_kind="config", clean=False, entries=None):
   """
   What generating would do, without doing any of it.
+
+  `entries` restricts it to the architectures (or workflows) of these names,
+  glob patterns accepted.
 
   Everything is decided by resolving each domain (see
   :class:`odatix.workspace.space.ConfigSet`): a configuration whose file is
@@ -111,6 +146,8 @@ def collect_configs(path, overwrite, debug=False, path_kind="config", clean=Fals
     sys.exit(-1)
 
   for root in domain_paths(path):
+    if not selects(entries, entry_of(path, root)):
+      continue
     settings_file_path = os.path.join(root, hard_settings.param_settings_filename)
 
     if debug:
@@ -175,13 +212,15 @@ def print_summary(path, path_kind, plan):
   ArchitectureHandler.print_arch_list(plan.errors, "Invalid settings (skipped, see errors above)", printc.colors.RED)
 
 
-def write_configs(valid_configs, overwrite=False, clean=False):
+def write_configs(valid_configs, overwrite=False, clean=False, changed=None):
   """
   Write what was announced, one domain at a time.
 
   Each domain is materialized as a whole, which is also what records the
   manifest that a later generation reads to tell an edit from what it wrote
-  itself.
+  itself. Only the files in `changed` (new, or taken back to their rule) are
+  said to be generated: rewriting one that is up to date changes nothing, and
+  saying so contradicted the "Up to date" list printed just before.
   """
   roots = []
   for config_file_path in valid_configs:
@@ -197,7 +236,9 @@ def write_configs(valid_configs, overwrite=False, clean=False):
       printc.error(f"Failed to generate the configurations of \"{root}\": {e}", script_name)
       continue
     for name in written:
-      printc.note(f"Generated {os.path.join(root, name + '.txt')}", script_name)
+      written_path = os.path.join(root, name + '.txt')
+      if changed is None or written_path in changed:
+        printc.note(f"Generated {written_path}", script_name)
 
 
 def generate_configs(path, overwrite, noask, debug=False, path_kind="config", clean=False):
@@ -238,7 +279,7 @@ def generate_configs(path, overwrite, noask, debug=False, path_kind="config", cl
     sys.exit(-1)
   print()
 
-  write_configs(plan.valid, overwrite=overwrite, clean=clean)
+  write_configs(plan.valid, overwrite=overwrite, clean=clean, changed=set(plan.new + plan.overwrite))
 
 
 ######################################
@@ -297,6 +338,9 @@ def main(args, settings=None):
 
   generated_any = False
   all_valid_configs = []
+  changed_configs = set()
+  entries = requested_entries(getattr(args, "architectures", None))
+  matched_entries = False
 
   for selected_path, path_kind in dedup_selected_paths:
     if not os.path.isdir(selected_path):
@@ -307,12 +351,19 @@ def main(args, settings=None):
         printc.warning(f"Skipping missing {path_kind} path '{selected_path}'.", script_name)
         continue
 
+    if entries is not None:
+      names = [name for name in os.listdir(selected_path) if os.path.isdir(os.path.join(selected_path, name))]
+      if not any(selects(entries, name) for name in names):
+        continue
+      matched_entries = True
+
     plan = collect_configs(
       path=selected_path,
       overwrite=overwrite,
       debug=debug,
       path_kind=path_kind,
       clean=clean,
+      entries=entries,
     )
 
     print_summary(selected_path, path_kind, plan)
@@ -321,6 +372,11 @@ def main(args, settings=None):
     if plan.valid:
       generated_any = True
       all_valid_configs.extend(plan.valid)
+      changed_configs.update(plan.new + plan.overwrite)
+
+  if entries is not None and not matched_entries:
+    printc.error("No architecture or workflow is named " + ", ".join('"' + e + '"' for e in entries) + ".", script_name)
+    sys.exit(-1)
 
   if not generated_any:
     printc.error("No valid architecture/workflow path found for configuration generation.", script_name)
@@ -338,7 +394,7 @@ def main(args, settings=None):
     ask_to_continue()
 
   print()
-  write_configs(dedup_valid_configs, overwrite=overwrite, clean=clean)
+  write_configs(dedup_valid_configs, overwrite=overwrite, clean=clean, changed=changed_configs)
 
 if __name__ == "__main__":
   args = parse_arguments()

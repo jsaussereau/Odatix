@@ -55,6 +55,7 @@ __all__ = [
     "names_in",
     "evaluate",
     "evaluate_bool",
+    "syntax_error",
     "identifier_of",
     "FUNCTIONS",
 ]
@@ -416,6 +417,24 @@ def evaluate(expression, values, functions=None):
         raise
     except Exception as error:
         raise ExpressionError(expression, "{0}: {1}".format(type(error).__name__, error))
+
+
+def syntax_error(expression):
+    """
+    What keeps an expression from being read at all, or None when it can be.
+
+    Only the syntax is checked: what a name is worth is a question for the
+    point the expression is evaluated on, and a name nothing defines is not an
+    error (see :data:`UNKNOWN`). This is what an editor can tell while the
+    expression is being written, before there is anything to evaluate it on.
+    """
+    if expression is None or not str(expression).strip():
+        return None
+    try:
+        _prepared(expression)
+    except ExpressionError as error:
+        return error.reason
+    return None
 
 
 def evaluate_bool(expression, values, functions=None):

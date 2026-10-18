@@ -174,3 +174,72 @@ class TestParcoordsMissingValues:
     def test_nothing_excluded_says_nothing(self):
         fig = self._figure(self._df().dropna())
         assert not fig.layout.annotations
+
+
+class TestNoRecordHiddenAtTheSameX:
+    """Several records of a trace at the same x: every one of them is drawn."""
+
+    def _sweep(self):
+        # A ``multiple`` metric: one record per EBNO row, x = configuration
+        return pd.DataFrame(
+            {
+                schema.COL_CONFIGURATION: ["gain-0.5"] * 3 + ["gain-1.0"] * 3,
+                "EBNO": ["1.0", "2.0", "3.0"] * 2,
+                "FER": [0.31, 0.17, 0.07, 0.11, 0.04, 0.01],
+            }
+        )
+
+    def _dimensions(self, df):
+        return {column: sorted(df[column].astype(str).unique().tolist()) for column in (schema.COL_CONFIGURATION, "EBNO")}
+
+    @pytest.mark.parametrize("kind", ["lines", "columns", "radar"])
+    def test_every_record_is_drawn(self, kind):
+        df = self._sweep()
+        spec = FigureSpec(kind=kind, x=schema.COL_CONFIGURATION, y="FER")
+        fig = builder.build_figure(df, spec, self._dimensions(df), ["FER"], {}, {})
+        values = []
+        for trace in fig.data:
+            values += [value for value in (trace.r if kind == "radar" else trace.y) if value is not None]
+        assert sorted(set(values)) == sorted(df["FER"].tolist())
+        assert len(fig.data) == 3
+        assert not fig.layout.annotations
+
+    def test_split_dimension_is_named_in_the_trace_and_colored(self):
+        df = self._sweep()
+        spec = FigureSpec(kind="lines", x=schema.COL_CONFIGURATION, y="FER")
+        fig = builder.build_figure(df, spec, self._dimensions(df), ["FER"], {}, {})
+        assert sorted(trace.name for trace in fig.data) == ["EBNO: 1.0", "EBNO: 2.0", "EBNO: 3.0"]
+        assert len({trace.line.color for trace in fig.data}) == 3
+
+    def test_user_colors_kept_split_goes_to_symbols(self):
+        df = self._sweep()
+        spec = FigureSpec(kind="lines", x=schema.COL_CONFIGURATION, y="FER", color_by=(schema.COL_CONFIGURATION,))
+        dimensions = self._dimensions(df)
+        split, hidden = builder.split_dimensions(df, spec, dimensions)
+        assert split == ["EBNO"] and hidden == 0
+        assert builder.auto_style_dimensions(spec, dimensions, split) == (None, ("EBNO",))
+
+    def test_step_preferred_to_step_scope(self):
+        df = pd.DataFrame(
+            {
+                schema.COL_CONFIGURATION: ["a", "a", "b", "b"],
+                schema.COL_STEP: ["synthesis", "pnr"] * 2,
+                schema.COL_STEP_SCOPE: ["intermediate", "last"] * 2,
+                "LUT": [10, 12, 20, 22],
+            }
+        )
+        dimensions = {column: sorted(df[column].unique().tolist()) for column in (schema.COL_CONFIGURATION, schema.COL_STEP, schema.COL_STEP_SCOPE)}
+        spec = FigureSpec(kind="columns", x=schema.COL_CONFIGURATION, y="LUT")
+        assert builder.split_dimensions(df, spec, dimensions) == ([schema.COL_STEP], 0)
+
+    def test_records_nothing_tells_apart_are_counted_on_the_figure(self):
+        df = pd.DataFrame({schema.COL_CONFIGURATION: ["a", "a", "b"], "LUT": [1, 2, 3]})
+        dimensions = {schema.COL_CONFIGURATION: ["a", "b"]}
+        spec = FigureSpec(kind="lines", x=schema.COL_CONFIGURATION, y="LUT")
+        fig = builder.build_figure(df, spec, dimensions, ["LUT"], {}, {})
+        assert "1 record shares an x value" in fig.layout.annotations[0].text
+
+    def test_scatter_is_left_alone(self):
+        df = self._sweep()
+        spec = FigureSpec(kind="scatter", x="FER", y="FER")
+        assert builder.split_dimensions(df, spec, self._dimensions(df)) == ([], 0)

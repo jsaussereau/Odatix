@@ -90,7 +90,10 @@ def add_arguments(parser):
     add_options(parser, "overwrite", "noask", "daemon_options", "settings_file")
     # The work directory of a place & route is the whole work tree: its
     # sources are what the synthesis jobs left there.
-    add_options(parser, "work_path", work_path={"dest": "source_work_root"})
+    add_options(parser, "work_path", work_path={
+        "dest": "source_work_root",
+        "help": "work directory the synthesis jobs are read from, the place & route jobs going to its pnr sub-directory (default: \"work_path\" of odatix.yml)",
+    })
     add_options(parser, "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "log_size_limit", "export_options", "config")
 
 
@@ -112,8 +115,15 @@ def _restrict_selectors(selectors, from_type, from_tool, from_flow):
         return list(selectors or [])
 
     if from_flow is not None and from_tool is None:
-        printc.error("--from-flow cannot be used without --from-tool", script_name)
+        printc.error("A source flow (from_flow, --from-flow) needs its source tool (from_tool, --from-tool)", script_name)
         raise SystemExit(-1)
+
+    if from_flow is not None and eda_tools.is_supported(from_tool):
+        tool_flows = eda_tools.get_flow_names(from_tool)
+        if from_flow not in tool_flows:
+            printc.error('The source tool "' + str(from_tool) + '" has no flow named "' + str(from_flow) + '"', script_name)
+            printc.note('Flows of "' + str(from_tool) + '": ' + ", ".join(tool_flows), script_name)
+            raise SystemExit(-1)
 
     wanted_work_dirname = None
     if from_tool is not None:
@@ -145,7 +155,7 @@ def _restrict_selectors(selectors, from_type, from_tool, from_flow):
         restricted.append(selector)
 
     if not restricted:
-        printc.warning("No selected source matches the requested --from-* filters", script_name)
+        printc.warning("No selected source is of the requested source type, tool or flow", script_name)
 
     return restricted
 
@@ -185,6 +195,13 @@ def check_settings(
     way whatever the job type.
     """
     _check_cancel(cancel_event)
+
+    # Checked before the settings file: an empty "sources" section is not what
+    # needs fixing when the tool cannot place & route at all.
+    if eda_tools.is_supported(tool) and not eda_tools.tool_supports(tool, "pnr"):
+        printc.error('The eda tool "' + str(tool) + '" cannot run a place & route', script_name)
+        _note_pnr_tools()
+        raise SystemExit(-1)
 
     context = load_pnr_context(
         run_config_settings_filename=run_config_settings_filename,
@@ -411,17 +428,21 @@ def run_pnr(
 ######################################
 
 
+def _note_pnr_tools():
+    supported = eda_tools.tools_supporting("pnr")
+    if supported:
+        printc.note("Eda tools able to run a place & route: " + ", ".join(supported), script_name)
+    else:
+        printc.note(
+            'No eda tool declares a place & route: add a "pnr_command" or "pnr_steps" section to the tool.yml of one.',
+            script_name,
+        )
+
+
 def main(args):
     if args.tool is None:
-        supported = eda_tools.tools_supporting("pnr")
         printc.error("No eda tool specified: use -t/--tool to say what should place & route", script_name)
-        if supported:
-            printc.note("Eda tools able to run a place & route: " + ", ".join(supported), script_name)
-        else:
-            printc.note(
-                'No eda tool declares a place & route: add a "pnr_command" or "pnr_steps" section to the tool.yml of one.',
-                script_name,
-            )
+        _note_pnr_tools()
         sys.exit(-1)
 
     workspace = run_cli.command_workspace(args.config, script_name)

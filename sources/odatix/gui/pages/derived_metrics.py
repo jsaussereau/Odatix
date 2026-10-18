@@ -84,14 +84,40 @@ RESULT_TYPE_OPTIONS = [
     {"label": "Synthesis (any)", "value": "synthesis"},
     {"label": "Fmax synthesis", "value": "fmax_synthesis"},
     {"label": "Fixed-frequency synthesis", "value": "custom_freq_synthesis"},
+    {"label": "Place & route", "value": "pnr"},
     {"label": "Any", "value": "any"},
 ]
+
+
+def result_type_options(*values):
+    """
+    The result kinds a "From" or "Apply to" dropdown offers: the usual ones,
+    plus any other value the file holds ("fmax", "custom_freq", "all"...), so
+    that showing a definition never drops what it says.
+    """
+    options = list(RESULT_TYPE_OPTIONS)
+    known = set(option["value"] for option in options)
+    for value in values:
+        for item in as_type_list(value):
+            if item not in known:
+                options.append({"label": item, "value": item})
+                known.add(item)
+    return options
+
+
+# Keys of a definition the cards edit. Any other key (written by hand, or by a
+# newer Odatix) is carried over untouched by a save.
+CARD_KEYS = (
+    "type", "from", "metric", "op", "for", "apply_to", "unit", "step", "match",
+    "on_multiple", "where", "source_where", "optional", "overwrite",
+)
+CARD_MATCH_KEYS = ("pin", "ignore", "map", "keys", True)
 
 ON_MULTIPLE_OPTIONS = [{"label": choice, "value": choice} for choice in derived_metrics_lib.ON_MULTIPLE_CHOICES]
 
 PAGE_TOOLTIP = (
-    "Metrics a result gets from another result. Recomputed over the whole result set every "
-    'time results are exported, and by "odatix results derived".'
+    "Metrics a result gets from another result. Recomputed over the whole result set once every "
+    'job of a run is done, and by "odatix results" and "odatix results derived".'
 )
 GROUP_TOOLTIP = (
     'A named list of patterns, used as "@name" in any pattern field of this page. Groups are not '
@@ -225,20 +251,44 @@ def card_fields_of(definition):
         "source_where_value": join_conditions(definition.get("source_where")),
         "optional_value": bool(definition.get("optional", False)),
         "overwrite_value": bool(definition.get("overwrite", False)),
+        "step_value": join_patterns(definition.get("step")),
+        "extra_value": extra_fields_of(definition),
     }
+
+
+def extra_fields_of(definition):
+    """
+    What a definition holds that no card field edits, kept aside to be written
+    back as it was: {"definition": {key: value}, "match": {key: value}}.
+    """
+    definition = definition if isinstance(definition, dict) else {}
+    extra = {"definition": {}, "match": {}}
+    for key, value in definition.items():
+        if key not in CARD_KEYS:
+            extra["definition"][str(key)] = value
+    match = definition.get("match")
+    if isinstance(match, dict):
+        for key, value in match.items():
+            if key not in CARD_MATCH_KEYS:
+                extra["match"][str(key)] = value
+    return extra
 
 
 def build_metric_definition(
     kind, from_value, metric_value, op_value, for_value, apply_to_value, unit_value,
     pin_value, ignore_value, map_value, on_value, on_multiple_value,
     where_value, source_where_value, optional_value, overwrite_value,
+    step_value="", extra_value=None,
 ):
     """
     Build one derived metric definition from its card fields.
 
     Only what the user actually set is written: a field left at its default is
     left out, so the file stays as short as the same definition written by hand.
+    ``extra_value`` (see extra_fields_of) brings back the keys no card field
+    edits, so that saving never drops them.
     """
+    extra = extra_value if isinstance(extra_value, dict) else {}
     definition = {"type": kind}
 
     if kind == derived_metrics_lib.KIND_IMPORT:
@@ -276,8 +326,14 @@ def build_metric_definition(
         if on:
             # "keys", not "on": YAML would read a bare "on" key as a boolean.
             match["keys"] = on
+        match.update(extra.get("match") or {})
         if match:
             definition["match"] = match
+
+        # Which step of the source job is read (default: the last one it reached)
+        steps = split_patterns(step_value)
+        if steps:
+            definition["step"] = steps if len(steps) > 1 else steps[0]
 
         on_multiple = str(on_multiple_value or "error")
         if on_multiple != "error":
@@ -296,6 +352,9 @@ def build_metric_definition(
     if overwrite_value:
         definition["overwrite"] = True
 
+    for key, value in (extra.get("definition") or {}).items():
+        definition.setdefault(key, value)
+
     return definition
 
 
@@ -303,6 +362,7 @@ def build_metrics_dict(
     names, kinds, from_vals, metric_vals, op_vals, for_vals, apply_to_vals, unit_vals,
     pin_vals, ignore_vals, map_vals, on_vals, on_multiple_vals,
     where_vals, source_where_vals, optional_vals, overwrite_vals,
+    step_vals=None, extra_vals=None,
 ):
     """Build the whole "derived_metrics" section from the card field values."""
     metrics = {}
@@ -334,6 +394,8 @@ def build_metrics_dict(
             source_where_value=value_at(source_where_vals, idx),
             optional_value=bool(value_at(optional_vals, idx, [])),
             overwrite_value=bool(value_at(overwrite_vals, idx, [])),
+            step_value=value_at(step_vals, idx),
+            extra_value=value_at(extra_vals, idx, None),
         )
     return metrics
 
@@ -367,6 +429,8 @@ def normalize_metrics(metrics):
             source_where_value=fields["source_where_value"],
             optional_value=fields["optional_value"],
             overwrite_value=fields["overwrite_value"],
+            step_value=fields["step_value"],
+            extra_value=fields["extra_value"],
         )
     return normalized
 
@@ -518,6 +582,8 @@ def metric_card(
     source_where_value="",
     optional_value=False,
     overwrite_value=False,
+    step_value="",
+    extra_value=None,
 ):
     """
     One derived metric card. The type dropdown decides which fields are shown:
@@ -556,8 +622,10 @@ def metric_card(
             ),
             html.Div(
                 children=[
+                    # The keys of the definition no field edits, written back by a save
+                    dcc.Store(id={"type": f"{METRIC_PREFIX}-field-extra", "name": name}, data=extra_value or {}),
                     card_dropdown(
-                        name, "from", "From", RESULT_TYPE_OPTIONS, value=from_value or [], multi=True,
+                        name, "from", "From", result_type_options(from_value), value=from_value or [], multi=True,
                         default_style=import_style, placeholder="simulation",
                         tooltip="Which kind of result the value is read from.",
                     ),
@@ -591,7 +659,7 @@ def metric_card(
                     html.Div(
                         children=[
                             card_dropdown(
-                                name, "apply_to", "Apply To", RESULT_TYPE_OPTIONS,
+                                name, "apply_to", "Apply To", result_type_options(apply_to_value),
                                 value=apply_to_value if apply_to_value is not None else ["synthesis"],
                                 multi=True, placeholder="synthesis",
                                 tooltip="Which kinds of result get this metric (default: synthesis).",
@@ -616,6 +684,15 @@ def metric_card(
                                 tooltip=(
                                     "Match on exactly these dimensions and nothing else. Empty (the default) "
                                     "matches on every dimension the two results have in common."
+                                ),
+                            ),
+                            card_field(
+                                name, "step", "Source step", value=step_value, default_style=import_style,
+                                placeholder="last step",
+                                tooltip=(
+                                    "Step of the source job to read, for a flow split into steps: a step name "
+                                    '(for instance "synthesis"), a comma-separated list, "@group", or "any". '
+                                    "Empty reads the last step each job reached."
                                 ),
                             ),
                             card_dropdown(
@@ -838,6 +915,8 @@ def unique_name(existing, stem):
     State({"type": f"{METRIC_PREFIX}-field-source_where", "name": dash.ALL}, "value"),
     State({"type": f"{METRIC_PREFIX}-field-optional", "name": dash.ALL}, "value"),
     State({"type": f"{METRIC_PREFIX}-field-overwrite", "name": dash.ALL}, "value"),
+    State({"type": f"{METRIC_PREFIX}-field-step", "name": dash.ALL}, "value"),
+    State({"type": f"{METRIC_PREFIX}-field-extra", "name": dash.ALL}, "data"),
     prevent_initial_call=True,
 )
 def update_metric_cards(
@@ -845,6 +924,7 @@ def update_metric_cards(
     names, kinds, from_vals, metric_vals, op_vals, for_vals, apply_to_vals, unit_vals,
     pin_vals, ignore_vals, map_vals, on_vals, on_multiple_vals,
     where_vals, source_where_vals, optional_vals, overwrite_vals,
+    step_vals, extra_vals,
 ):
     trigger_id = ctx.triggered_id
     cards = [card for card in (cards or []) if card_id_of(card) != f"{METRIC_PREFIX}-add-card"]
@@ -853,6 +933,7 @@ def update_metric_cards(
         names, kinds, from_vals, metric_vals, op_vals, for_vals, apply_to_vals, unit_vals,
         pin_vals, ignore_vals, map_vals, on_vals, on_multiple_vals,
         where_vals, source_where_vals, optional_vals, overwrite_vals,
+        step_vals, extra_vals,
     )
     existing = list(definitions.keys())
 
@@ -936,6 +1017,7 @@ def update_group_cards(new_click, duplicate_clicks, delete_clicks, cards, names,
     Output({"type": f"{METRIC_PREFIX}-field-on-div", "name": dash.MATCH}, "style"),
     Output({"type": f"{METRIC_PREFIX}-field-on_multiple-div", "name": dash.MATCH}, "style"),
     Output({"type": f"{METRIC_PREFIX}-field-source_where-div", "name": dash.MATCH}, "style"),
+    Output({"type": f"{METRIC_PREFIX}-field-step-div", "name": dash.MATCH}, "style"),
     Input({"type": f"{METRIC_PREFIX}-kind", "name": dash.MATCH}, "value"),
 )
 def toggle_kind_fields(kind):
@@ -948,6 +1030,7 @@ def toggle_kind_fields(kind):
     return (
         import_style, import_style, operation_style,
         import_style, import_style, import_style, import_style, import_style, import_style,
+        import_style,
     )
 
 
@@ -1000,6 +1083,8 @@ def init_page(page, odatix_settings):
     Input({"type": f"{METRIC_PREFIX}-field-source_where", "name": dash.ALL}, "value"),
     Input({"type": f"{METRIC_PREFIX}-field-optional", "name": dash.ALL}, "value"),
     Input({"type": f"{METRIC_PREFIX}-field-overwrite", "name": dash.ALL}, "value"),
+    Input({"type": f"{METRIC_PREFIX}-field-step", "name": dash.ALL}, "value"),
+    State({"type": f"{METRIC_PREFIX}-field-extra", "name": dash.ALL}, "data"),
     Input({"type": f"{GROUP_PREFIX}-title", "name": dash.ALL}, "value"),
     Input({"type": f"{GROUP_PREFIX}-field-patterns", "name": dash.ALL}, "value"),
     State(f"url_{page_path}", "pathname"),
@@ -1013,6 +1098,7 @@ def save_and_status(
     names, kinds, from_vals, metric_vals, op_vals, for_vals, apply_to_vals, unit_vals,
     pin_vals, ignore_vals, map_vals, on_vals, on_multiple_vals,
     where_vals, source_where_vals, optional_vals, overwrite_vals,
+    step_vals, extra_vals,
     group_names, group_patterns,
     page, initial, saved, odatix_settings,
 ):
@@ -1029,6 +1115,7 @@ def save_and_status(
             names, kinds, from_vals, metric_vals, op_vals, for_vals, apply_to_vals, unit_vals,
             pin_vals, ignore_vals, map_vals, on_vals, on_multiple_vals,
             where_vals, source_where_vals, optional_vals, overwrite_vals,
+            step_vals, extra_vals,
         ),
     }
     reference = saved if isinstance(saved, dict) else initial

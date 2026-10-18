@@ -74,7 +74,7 @@ simulations:      []
 
 # what makes a design better than another
 objectives:
-  - metric: frequency
+  - metric: Fmax
     goal: max
   - metric: LUT_count
     goal: min
@@ -101,7 +101,7 @@ architectures:
 | `run` | What evaluating one design runs: `fmax_synthesis`, `custom_freq_synthesis` or `workflow`. |
 | `tool`, `flow`, `target` | What runs a design: the eda tool, its flow, its target. One name each, or a list to search them (see below). |
 | `simulations` | Simulations every design is run through as well (see below). Empty: none. |
-| `frequencies` | What a custom frequency synthesis runs at (see below). Ignored by the other runs. |
+| `frequencies` | What a fixed-frequency synthesis runs at (see below). Ignored by the other runs. |
 | `reuse_results` | Whether results already measured for designs of this space are given to the search for free (see [below](#starting-from-what-is-already-measured)). Default: yes. |
 | `objectives` | What the search is looking for (see below). |
 | `constraints` | What a design has to be for it to count at all (see below). Empty: nothing is ruled out. |
@@ -203,7 +203,10 @@ architectures:
 {{< /code >}}
 
 - The names under `architectures` are **workflows**, selected the same way a
-  run selects them (`image_codec`, `image_codec/fast + threads/*`, ...).
+  run selects them (see [searching part of a space](#searching-part-of-a-space)).
+  `image_codec` declares its four variables on its main domain, so `image_codec`
+  searches all of them; a workflow with a second parameter domain `threads`
+  would be searched by `my_workflow/* + threads/*`.
 - `tool`, `flow` and `target` say nothing: a workflow runs its own commands, and
   its results are read from `results/results_workflow.yml`. `simulations` and
   `frequencies` are ignored for the same reason.
@@ -266,7 +269,7 @@ and its own place on the front. Designs of one batch that were given different
 frequencies are simply run as several jobs of that batch.
 
 > [!NOTE]
-> Exploring the frequency is what makes a custom frequency synthesis worth
+> Exploring the frequency is what makes a fixed-frequency synthesis worth
 > searching: the trade-off it is run for *is* the one between the frequency
 > asked for and what the design costs at it. Add `frequency` to the objectives
 > to make the search look for it.
@@ -302,7 +305,7 @@ derived_metrics:
     from: simulation
   Runtime:
     type: operation
-    op: "Cycles / frequency"
+    op: "Cycles / Fmax"
     unit: us
 {{< /code >}}
 
@@ -336,7 +339,7 @@ An objective is a metric to `min` or to `max`:
 
 {{< code lang=yaml >}}
 objectives:
-  - metric: frequency
+  - metric: Fmax
     goal: max
   - metric: LUT_count
     goal: min
@@ -344,9 +347,10 @@ objectives:
 {{< /code >}}
 
 Any metric of the results file works, [derived metrics](/docs/reference/metrics/)
-included — which is how a simulation result becomes an objective (see above). So
-does any dimension a record carries as a number — `frequency` in particular,
-which is where an fmax synthesis puts its answer.
+included — which is how a simulation result becomes an objective (see above).
+`Fmax` is where an fmax synthesis puts its answer. So does any dimension a
+record carries as a number — `frequency` in particular, the frequency a
+`custom_freq_synthesis` ran at.
 
 **Nothing says how the objectives compare to each other**, and nothing has to. A
 smaller design that runs slower is not worse than a bigger one that runs faster;
@@ -357,6 +361,33 @@ which is the curve you would have drawn by hand from a full sweep.
 > [!NOTE]
 > A design synthesized at several frequencies has several records. It is worth
 > what its best record is worth, "best" being your own objectives.
+>
+> A job whose tool flow has several steps (elaboration, synthesis, place and
+> route) writes one record per step. Only the record of the last step the job
+> reached measures the design: the records of the earlier steps are the same
+> job seen on its way, and are never compared with it.
+
+### Metric names
+
+An objective or a constraint names a metric exactly as the results file does:
+`Worst_Slack`, `LUT_count`, `Total_Power` for Vivado, the keys of
+`_metrics.yml` for a workflow. The names a campaign can use are the metrics its
+tool declares in `metrics.yml` for the run (see [Base metrics](/docs/results/metrics/)),
+the metrics of its simulations, the [derived metrics](/docs/reference/metrics/)
+of the workspace, and `frequency` for a `custom_freq_synthesis`.
+
+`odatix dse -C` checks them, and so does every exploration before it starts: a
+name nothing measures stops it with the list of the names that would do, and
+the closest one.
+
+{{< code lang=text >}}
+error: The campaign names metric(s) that nothing it runs measures: "Slack" (did you
+mean "Worst_Slack"?). Fix "objectives" or "constraints" in
+"odatix_userconfig/dse_campaigns/counter.yml". The metrics it can name are: ...
+{{< /code >}}
+
+When what runs a design declares no metrics (a tool without a `metrics.yml`, a
+workflow without a `_metrics.yml`), nothing is checked.
 
 ## Constraints
 
@@ -365,7 +396,7 @@ a design is either on the right side of or not:
 
 {{< code lang=yaml >}}
 constraints:
-  - metric: Slack
+  - metric: Worst_Slack
     min: 0
   - metric: LUT_count
     max: 20000
@@ -417,7 +448,7 @@ smaller one, and would otherwise be read as having achieved nothing.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `strategy` | `genetic` | `genetic`, `random`, `exhaustive` or `bayesian`. |
+| `strategy` | `genetic` | `genetic`, `random`, `exhaustive` or `bayesian`. Also accepted: `nsga2`, `ga`, `evolutionary` for `genetic`; `bo`, `mobo`, `gp` for `bayesian`; `sweep`, `full`, `all` for `exhaustive`; `uniform` for `random`. Any other name stops the exploration with the list. |
 | `mode` | `batch` | `batch` or `async` (see [below](#batch-or-async)). |
 | `budget` | `50` | How many design points are evaluated at most, per architecture. |
 | `batch` | `8` | How many design points are evaluated together, between two decisions (`async`: how many are kept running at once). |
@@ -608,6 +639,20 @@ adding what the entry selected (`asterisc_mem_AsteRISC+MEM_1024I_1024D.yml`).
 
 ## Running one
 
+The quickest exploration to watch is the workflow example: it needs no eda
+tool, and a batch comes back in seconds.
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix init --examples
+$ odatix dse -p image_codec_rate_quality -b 10 -C   # what it would do, running nothing
+$ odatix dse -p image_codec_rate_quality -b 10
+{{< /code >}}
+
+The other example, `fir_area_speed`, needs Vitis HLS to generate its rtl and
+Vivado to synthesize it, and each design is an fmax synthesis: count hours.
+Running `odatix dse` alone runs every campaign `dse_settings.yml` selects, both
+of these in the examples.
+
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix dse -C                          # what it would do, running nothing
 $ odatix dse
@@ -630,8 +675,11 @@ $ odatix dse --strategy bayesian --mode async   # one question at a time
 | `--no-reuse` | Search from nothing but what the exploration runs itself (see [starting from what is already measured](#starting-from-what-is-already-measured)). |
 | `-o/--overwrite` | Evaluate again what is already done, instead of picking the search up. |
 | `-y/--noask` | Do not stop for the confirmation. |
+| `-j/--jobs` | Maximum number of parallel jobs (`auto`: the number of CPUs minus one). |
+| `-E/--exit` | Exit the monitor, and close the session, once the exploration is over. |
+| `--logsize` | Size of the log history per job in the monitor, the exploration's own log included. |
 | `-d/--detach` | Let the exploration run without attaching the monitor to it. |
-| `-S/--session` | Daemon session it runs in. |
+| `-S/--session` | Session it runs in. A new one, `dse-<pid>`, when not given. |
 | `-i/--input` | Exploration settings file, instead of `dse_settings_file` of `odatix.yml`. |
 | `-c/--config` | Workspace settings file, as for every command. It used to name the exploration settings file: one given there is refused, with a hint. |
 | `-C/--check` | Say what the exploration would do, without running anything. |
@@ -655,12 +703,26 @@ underneath it, in the same session, and it takes none of the parallel job slots:
 So the monitor can be closed and attached again (`odatix monitor`) without
 stopping anything, and `-d` starts the exploration without opening it at all.
 
+Each exploration runs in a session of its own. With `exit_when_done: Yes` (or
+`-E`), the session closes once the exploration is over; otherwise it stays, with
+its logs, until it is stopped: `odatix stop -S <session>`, or `odatix stop --all`
+for every session of the workspace.
+
 ### Picking a search up
 
 An exploration is long and gets interrupted. What it has evaluated is written to
 its archive after every batch, and running it again reads that back: the designs
 already evaluated count against the budget and are not proposed a second time.
-An exploration of fifty designs stopped at forty has ten left to spend.
+An exploration of fifty designs stopped at forty has ten left to spend, and
+`odatix dse -C` says so before anything runs:
+
+```txt
+[fir_area_speed] Exploring "Example_FIR_hls/*": 27 designs, 27 of them evaluated at most, ...
+Its archive "results/dse/fir_area_speed.yml" already holds 20 design(s) evaluated: 7 left to run.
+```
+
+A campaign whose budget is spent runs nothing and asks nothing: raise `budget`
+to search further.
 
 Killing the search from the monitor leaves the batch it had already enqueued
 running: those designs finish, and the next run of the exploration reads their
@@ -669,9 +731,18 @@ results instead of synthesizing them again.
 The batches are numbered on from where the archive stopped, so `dse_batch`
 still reads in order across a resume.
 
-`-o/--overwrite` is how to start over rather than pick up. Asking a *different*
-question of the same designs is not that: copy the campaign file, change what it
-looks for, and the new name gives it an archive of its own.
+`-o/--overwrite` is how to start over rather than pick up.
+
+Changing the objectives or the constraints of a campaign — a metric name fixed,
+a constraint added — does not start it over either. The designs already
+evaluated are read again from the results files, measured against what the
+campaign looks for now, and the log says so. Nothing is run again. A design the
+archive holds as unmeasured is always read again on a resume, in case its
+results came in after the exploration stopped.
+
+To keep both answers instead, copy the campaign file and change what the copy
+looks for: the new name gives it an archive of its own, and it starts from the
+same designs (see below).
 
 ### Starting from what is already measured
 
@@ -720,29 +791,33 @@ On top of that, each campaign writes `results/dse/<campaign>.yml`: what it
 evaluated, in order, and which of those designs are the answer.
 
 {{< code lang=yaml filename="results/dse/fir_area_speed.yml" >}}
+campaign: fir_area_speed
 architecture: Example_FIR_hls
 strategy: genetic
 objectives:
-  - metric: frequency
+  - metric: Fmax
     goal: max
   - metric: LUT_count
     goal: min
 constraints:
-  - metric: Slack
+  - metric: Worst_Slack
     min: 0
 feasible: true          # whether the front meets the constraints
 designs_in_space: 27
-evaluated: 20
-measured: 19
+evaluated: 20            # run by this campaign: what the budget counts
+reused: 4                # already measured, given to the search for free
+measured: 23
 front:
-  - configuration: Example_FIR_hls+ii/1+partition/complete+taps/8
+  - configuration: Example_FIR_hls+ii/1+partition/complete+taps/8taps
     parameters: {taps: 8, ii: 1, partition: complete}
-    metrics: {frequency: 210, LUT_count: 1204, Slack: 0.12}
+    metrics: {Fmax: 210, LUT_count: 1204, Worst_Slack: 0.12}
     feasible: true
 {{< /code >}}
 
-`constraints`, `feasible` and the per-design `unmet` are written only by a
-campaign that declared constraints.
+`campaign` is the name of the search (the campaign, and what its entry selects
+when it names several architectures), `architecture` the architecture or the
+workflow it searched. `constraints`, `feasible` and the per-design `unmet` are
+written only by a campaign that declared constraints.
 
 It is rewritten after every batch, not at the end: an exploration is long and
 will be interrupted, and what it knew when it stopped has to be on disk — which
@@ -788,15 +863,73 @@ nothing and why.
 It reads the archives directly, and it polls: an exploration is meant to be
 watched while it runs.
 
+## From the GUI
+
+`odatix-gui` has the same exploration in two pages, under **Run jobs → Design
+space exploration** or **Run → Design space exploration** in the top bar.
+
+**`/dse`** is `odatix dse`. Its settings panel is `dse_settings.yml` (whether
+to evaluate again what is done, parallel jobs, log size, exit when done), and
+each campaign of `dse_campaigns/` is a card showing its run, its objectives and
+its architectures:
+
+- the switch of a card selects the campaign for the next exploration, which is
+  what `campaigns:` of `dse_settings.yml` lists;
+- **Edit** opens the campaign, the copy and delete buttons work on its file, and
+  **New campaign** writes a new one, commented like the ones `odatix init`
+  writes;
+- **Explore** runs the same check as `odatix dse -C`, then shows what each
+  selected campaign will spend — the designs left to run, the space, the
+  strategy — with any error found. **Start** hands it to the daemon and opens
+  the monitor on its session. The session is the one chosen in the header;
+  **New session...** starts a new one for every exploration.
+
+**`/dse_campaign?campaign=<name>`** edits one campaign: what runs a design (the
+run, the tools, flows and targets, the simulations), its frequencies, whether
+it starts from what is already measured, the objectives and the constraints
+(with the metric names of the workspace suggested), the search, and the
+architectures with what each entry fixes or searches. Saving writes the
+campaign file.
+
+What an exploration found is shown in Odatix Explorer, on the
+[exploration page](#the-exploration-page).
+
 ## Using it from Python
 
-{{< code lang=python >}}
+`odatix.dse.explore()` runs the exploration a workspace describes, from a
+script, and returns what each campaign found:
+
+{{< code lang=python filename="explore.py" >}}
 from odatix.dse import explore
 
-archives = explore(campaigns=["fir_area_speed"], tool="vivado")
-for evaluation in archives[0].front():
-    print(evaluation.entry, evaluation.metrics)
+archives = explore(campaigns=["image_codec_rate_quality"], budget=10, batch=5, nb_jobs=4)
+for archive in archives:
+    print(archive.path, len(archive.front()), "design point(s) on the front")
+    for evaluation in archive.front():
+        print(evaluation.entry, evaluation.metrics)
 {{< /code >}}
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ cd my_workspace
+$ python explore.py
+{{< /code >}}
+
+- The workspace is the one of the current directory; pass `workspace=` to give
+  another one (`odatix.workspace.Workspace.open(path)`).
+- The search runs in the script, which prints what it does and returns once
+  every campaign is over. Its batches run in a session started for it and
+  stopped at the end — `odatix monitor -S <session>` follows them meanwhile —
+  or in the one given with `session=`.
+- Nothing is asked: a script does not answer `Continue? (Y/n)`. Pass
+  `ask_continue=True` to be asked all the same.
+- A keyword is applied where it belongs: a setting of `dse_settings.yml`
+  (`campaigns`, `nb_jobs`, `overwrite`, ...), a setting of `search:`
+  (`strategy`, `mode`, `budget`, `batch`, `seed`, ...) or any other setting of
+  a campaign file (`tool`, `architectures`, `objectives`, ...), applied to every
+  campaign selected. Any other keyword raises a `TypeError` listing the ones
+  accepted.
+- A campaign that cannot run raises `odatix.dse.CampaignError`, with the message
+  `odatix dse` would print.
 
 ## Where to go next
 
@@ -805,3 +938,4 @@ for evaluation in archives[0].front():
 - [Metrics](/docs/reference/metrics/) — what an objective can be.
 - [Run Settings Files](/docs/reference/run_settings/) — the file each evaluation
   runs from.
+- [The Odatix GUI](/docs/gui/app/) — the app the exploration pages are part of.

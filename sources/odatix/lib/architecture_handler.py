@@ -177,6 +177,10 @@ class Architecture:
             'virtual_param_domains': arch.virtual_param_domains,
             'continue_on_error': arch.continue_on_error,
             'force_single_thread': arch.force_single_thread,
+            # For a tool's own scripts: the paths above are relative to the
+            # workspace, while the job runs from its own directory.
+            'workspace_path': os.path.realpath(os.getcwd()),
+            'job_path': os.path.realpath(arch.tmp_dir) if arch.tmp_dir else "",
         }
             
         with open(config_file, 'w') as f:
@@ -443,7 +447,7 @@ class ArchitectureHandler:
 
         # Define user accessible variables
         variables = Variables(
-            tool_install_path=os.path.realpath(install_path),
+            tool_install_path=os.path.realpath(install_path) if install_path else "",
             odatix_path=OdatixSettings.odatix_path,
             odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         )
@@ -598,12 +602,16 @@ class ArchitectureHandler:
                                     self.plan.add(freq_arch.arch_display_name + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
                                     continue
 
+                                # Every job of the plan names its frequency, once: two
+                                # frequencies of one configuration are two jobs.
                                 if local_state == "overwrite":
-                                    self.plan.add(unformatted_display_name, Category.OVERWRITE)
+                                    self.plan.add(unformatted_display_name + formatted_freq, Category.OVERWRITE)
                                 elif local_state == "incomplete":
                                     self.plan.add(freq_arch.arch_display_name, Category.INCOMPLETE)
                                 elif local_state == "resume":
-                                    self.plan.add(freq_arch.arch_display_name + formatted_freq, Category.RESUME)
+                                    self.plan.add(unformatted_display_name + formatted_freq, Category.RESUME)
+                                elif local_state == "rerun":
+                                    self.plan.add(unformatted_display_name + formatted_freq, Category.RERUN)
                                 else:
                                     self.plan.add(unformatted_display_name + formatted_freq, Category.NEW)
 
@@ -936,6 +944,20 @@ class ArchitectureHandler:
         else:
             param_domains = []
 
+        # A configuration written right after a start delimiter that ends inside
+        # a line comment is commented out: the design then synthesizes without
+        # the parameter, or fails on it much later. Said now, once per file.
+        if not no_configuration:
+            self.warn_commented_configurations(
+                arch_display_name,
+                design_path if generate_rtl else rtl_path,
+                [(use_parameters, param_target_filename, start_delimiter, stop_delimiter, main_param_file)] + [
+                    (domain.use_parameters, domain.param_target_file, domain.start_delimiter,
+                     domain.stop_delimiter, domain.param_file)
+                    for domain in param_domains
+                ],
+            )
+
         # Resolve ${...} placeholders in the generation command: Odatix' own names
         # first, then virtual parameter domains (variables), then the values of the
         # selected configuration and of each physical parameter domain. The user's
@@ -1038,8 +1060,8 @@ class ArchitectureHandler:
                             printc.note("Every requested step is already done for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
                             self.plan.add(arch_display_name, Category.CACHED)
                             return None
-                    elif steps_decision == "resume" and not self.overwrite:
-                        local_state = "resume"
+                    elif steps_decision in ("resume", "rerun") and not self.overwrite:
+                        local_state = steps_decision
                 elif isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
                     # check if the previous synth_fmax has completed
                     sf = open(fmax_status_file, "r")
@@ -1099,11 +1121,27 @@ class ArchitectureHandler:
                     self.plan.add(arch_display_name + formatted_bound, Category.INCOMPLETE)
                 elif local_state == "resume":
                     self.plan.add(arch_display_name + formatted_bound, Category.RESUME)
+                elif local_state == "rerun":
+                    self.plan.add(arch_display_name + formatted_bound, Category.RERUN)
                 else:
                     self.plan.add(arch_display_name + formatted_bound, Category.NEW)
 
             elif run_mode == "default":
-                self.plan.add(arch_display_name, Category.NEW)
+                # RTL analysis: a finished analysis is not run again without
+                # overwrite, and one a session already has is left to it.
+                state, daemon_entry = self.classify_job(tmp_dir, '"' + arch_display_name + '"', job_noun="analysis")
+                if state == "cached":
+                    self.plan.add(arch_display_name, Category.CACHED)
+                    return None
+                if state == "daemon":
+                    self.plan.add(arch_display_name + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
+                    return None
+                self.plan.add(arch_display_name, {
+                    "overwrite": Category.OVERWRITE,
+                    "incomplete": Category.INCOMPLETE,
+                    "resume": Category.RESUME,
+                    "rerun": Category.RERUN,
+                }.get(state, Category.NEW))
 
         # What this architecture says for a part of its jobs only: the rules of
         # its "overrides" section that select this one, in file order, the last
@@ -1139,7 +1177,7 @@ class ArchitectureHandler:
         
         # Define user accessible variables
         variables = Variables(
-            tool_install_path=os.path.realpath(install_path),
+            tool_install_path=os.path.realpath(install_path) if install_path else "",
             odatix_path=OdatixSettings.odatix_path,
             odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         )
@@ -1233,6 +1271,41 @@ class ArchitectureHandler:
 
         return arch_instance
 
+    def warn_commented_configurations(self, arch_display_name, source_path, substitutions):
+        """
+        Warn about the configurations whose first line would land in a line
+        comment of the file they are written into (see
+        replace_params.commented_out_warning).
+
+        Args:
+            source_path (str): what the target files are written against.
+            substitutions (list): ``(use_parameters, target file, start
+                delimiter, stop delimiter, configuration file)`` tuples.
+        """
+        import odatix.components.replace_params as replace_params
+
+        warned = self.__dict__.setdefault("_commented_warned", set())
+        for use_parameters, target, start_delimiter, stop_delimiter, param_file in substitutions:
+            if not use_parameters or not target or not param_file or not source_path:
+                continue
+            path = os.path.join(source_path, target)
+            key = (path, start_delimiter, param_file)
+            if key in warned or not isfile(path) or not isfile(param_file):
+                continue
+            warned.add(key)
+            try:
+                with open(path, "r") as f:
+                    base_text = f.read()
+                with open(param_file, "r") as f:
+                    replacement_text = f.read()
+            except (OSError, UnicodeDecodeError):
+                continue
+            message = replace_params.commented_out_warning(
+                base_text, replacement_text, start_delimiter, stop_delimiter, target,
+            )
+            if message:
+                printc.warning(arch_display_name + ": " + message, script_name)
+
     def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, top_level_file, no_configuration=False, add_to_error_list=True, arch_param_dir=""):
 
         use_parameters, start_delimiter, stop_delimiter, param_target_filename = ParamDomain.get_param_delimiters(settings_data, settings_filename, top_level_file)
@@ -1319,7 +1392,9 @@ class ArchitectureHandler:
         return not messages
 
     def print_summary(self):
-        self.plan.print_summary(noun="architectures")
+        # An entry is a job (a configuration on a target, at a frequency for a
+        # fixed-frequency synthesis), not an architecture.
+        self.plan.print_summary(noun="jobs")
 
     def get_valid_arch_count(self):
         return len(self.valid_archs)

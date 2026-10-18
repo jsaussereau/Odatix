@@ -236,3 +236,121 @@ def test_the_monitor_keeps_the_driver_in_sight():
     assert [job.display_name for _index, job in handler.visible_jobs(rows=3)] == ["exploration", "job2"]
     assert handler.scroll_position(0) is None
     assert handler.scroll_position(3) == 2
+
+
+def test_jobs_of_another_workspace_never_look_like_ours(monkeypatch):
+    # A session names its job directories relative to its own workspace. Read
+    # as-is from another workspace, "work/..." would match a job of that one,
+    # and the run there would skip it as "already managed in a session".
+    daemons = [{"session_id": "1.other", "workspace_root": "/elsewhere/ws", "host": None, "port": None}]
+    monkeypatch.setattr(daemon_control, "list_daemons", lambda **kwargs: daemons)
+    monkeypatch.setattr(
+        daemon_control, "_api_request",
+        lambda daemon, method, path, timeout=None: {"jobs": [{"tmp_dir": "work/synth/a"}, {"tmp_dir": "/abs/b"}]},
+    )
+
+    jobs = daemon_control.list_daemon_jobs()
+
+    assert [job["tmp_dir"] for job in jobs] == [os.path.join("/elsewhere/ws", "work/synth/a"), "/abs/b"]
+
+
+def test_a_terminal_without_monitor_leaves_the_jobs_running(monkeypatch, capsys):
+    import curses
+    import odatix.components.run_common as run_common
+    from odatix.lib.parallel_job_handler import daemon_monitor
+
+    def no_terminal(**kwargs):
+        raise curses.error("setupterm: could not find terminal")
+
+    monkeypatch.setattr(run_common, "enqueue_parallel_jobs", lambda *args, **kwargs: ({"session_id": "7.s"}, {}))
+    monkeypatch.setattr(daemon_control, "_resolve_state_for_attach_or_stop", lambda **kwargs: {"pid": 1})
+    monkeypatch.setattr(daemon_control, "daemon_is_alive", lambda state: True)
+    monkeypatch.setattr(daemon_control, "endpoint_for_state", lambda state: None)
+    monkeypatch.setattr(daemon_monitor, "run_monitor", no_terminal)
+
+    jobs = SimpleNamespace(auto_exit=False)
+    run_common.start_parallel_jobs(jobs)
+
+    out = capsys.readouterr().out
+    assert "cannot show the job monitor" in out
+    assert "odatix monitor -S 7.s" in out
+    # The run must not report on jobs it never saw finish (odatix analyze).
+    assert not getattr(jobs, "followed_in_monitor", False)
+
+
+def _no_monitor(monkeypatch, run_common, counts):
+    """A terminal that cannot show the monitor, and a session going through `counts`."""
+    import curses
+    import odatix.run.session as session_module
+    from odatix.lib.parallel_job_handler import daemon_monitor
+
+    def no_terminal(**kwargs):
+        raise curses.error("setupterm: could not find terminal")
+
+    monkeypatch.setattr(run_common, "enqueue_parallel_jobs", lambda *args, **kwargs: ({"session_id": "7.s"}, {}))
+    monkeypatch.setattr(daemon_control, "_resolve_state_for_attach_or_stop", lambda **kwargs: {"pid": 1})
+    monkeypatch.setattr(daemon_control, "daemon_is_alive", lambda state: True)
+    monkeypatch.setattr(daemon_control, "endpoint_for_state", lambda state: None)
+    monkeypatch.setattr(daemon_monitor, "run_monitor", no_terminal)
+    monkeypatch.setattr(run_common.time, "sleep", lambda seconds: None)
+
+    class FakeSession(object):
+        id = name = "7.s"
+
+        def __init__(self, state):
+            pass
+
+        def counts(self):
+            value = counts.pop(0)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+    monkeypatch.setattr(session_module, "Session", FakeSession)
+    closed = []
+    monkeypatch.setattr(run_common, "close_finished_session", lambda state: closed.append(state))
+    return closed
+
+
+def test_exit_when_done_without_monitor_waits_then_closes(monkeypatch, capsys):
+    import odatix.components.run_common as run_common
+
+    def counts(done, running, queued):
+        return {"total": 2, "done": done, "failed": 0, "running": running, "queued": queued}
+
+    closed = _no_monitor(monkeypatch, run_common, [counts(0, 1, 1), counts(0, 1, 1), counts(1, 1, 0), counts(2, 0, 0)])
+    jobs = SimpleNamespace(auto_exit=True)
+    run_common.start_parallel_jobs(jobs)
+
+    out = capsys.readouterr().out
+    assert "Waiting for the jobs of session 7.s" in out
+    # Said when it changes, not at every poll.
+    assert out.count("0/2 job(s) over") == 1 and "2/2 job(s) over" in out
+    assert closed == [{"session_id": "7.s"}]
+    # Its jobs are over: what comes after the run can read their results.
+    assert jobs.followed_in_monitor
+
+
+def test_exit_when_done_without_monitor_can_stop_waiting(monkeypatch, capsys):
+    import odatix.components.run_common as run_common
+
+    running = {"total": 1, "done": 0, "failed": 0, "running": 1, "queued": 0}
+    closed = _no_monitor(monkeypatch, run_common, [running, KeyboardInterrupt()])
+    jobs = SimpleNamespace(auto_exit=True)
+    run_common.start_parallel_jobs(jobs)
+
+    assert "the jobs keep running in session 7.s" in capsys.readouterr().out
+    assert closed == [] and not getattr(jobs, "followed_in_monitor", False)
+
+
+def test_a_session_of_the_same_name_in_another_workspace_does_not_claim_ours(monkeypatch, tmp_path):
+    # "-S night" in two workspaces: the second run used to wait 60 s for the
+    # first workspace's session, then fail with an internal error.
+    other = {"pid": os.getpid(), "session_name": "night", "state_file": str(tmp_path / "elsewhere" / "state.night.json")}
+    monkeypatch.setattr(daemon_control, "_iter_system_daemon_candidates", lambda: [other])
+    paths = {"state_file": str(tmp_path / "here" / "state.night.json")}
+
+    assert daemon_control._pid_claiming_session(paths, "night") is None
+
+    other["state_file"] = paths["state_file"]
+    assert daemon_control._pid_claiming_session(paths, "night") == os.getpid()

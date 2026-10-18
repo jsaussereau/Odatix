@@ -54,7 +54,7 @@ run_jobs_cards = [
     },
     {
         "name": "Run RTL analysis",
-        "link": "/run_jobs?type=analyze",
+        "link": "/choose_eda_tool?type=analysis",
         "icon": "analysis",
         "description": "Check that your RTL is synthesizable with the selected tools",
     },

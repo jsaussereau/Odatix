@@ -258,7 +258,7 @@ class TestSimulationJobs:
             architectures=["Example_Cordic_vhdl + iterations/12 + width/8"], noask=True,
         )
         jobs = run.prepare().job_list
-        assert [job.command for job in jobs] == ["echo tb_cordic vhdl rtl/cordic.vhdl testbench/tb_cordic.vhdl reset 8"]
+        assert [job.command.split("\n")[0] for job in jobs] == ["(echo tb_cordic vhdl rtl/cordic.vhdl testbench/tb_cordic.vhdl reset 8"]
 
     def test_every_placeholder_is_offered_by_the_editors(self):
         from odatix.gui.builtin_variables import BUILTIN_VARIABLES, DEPRECATED_VARIABLES

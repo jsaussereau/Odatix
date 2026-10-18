@@ -163,9 +163,15 @@ class Campaign(object):
     """The headline numbers of the campaign."""
     evaluated = self.data.get("evaluated")
     measured = self.data.get("measured")
+    # Designs the campaign was given (results already on disk), not run by it:
+    # counted apart from "evaluated", which is what the budget counts.
+    reused = self.data.get("reused")
+    if reused is None:
+      reused = len([record for record in self.evaluations if record.get("reused")])
     return {
       "space": self.data.get("designs_in_space") or 0,
-      "evaluated": len(self.evaluations) if evaluated is None else evaluated,
+      "evaluated": len(self.evaluations) - reused if evaluated is None else evaluated,
+      "reused": reused,
       "measured": len(self.evaluations) - len(self.failed) if measured is None else measured,
       "failed": len(self.failed),
       "front": len(self.front),

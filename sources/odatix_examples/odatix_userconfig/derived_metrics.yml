@@ -5,11 +5,14 @@
 # simulation knows how many cycles a benchmark takes, a synthesis knows at which
 # frequency the design runs, and neither can give a runtime on its own.
 #
-# Derived metrics are recomputed over the whole result set every time results are
-# exported, so they are never stale and applying them twice changes nothing.
+# Derived metrics are recomputed over the whole result set once every job of a
+# run is done, and by "odatix results", so they are never stale and applying
+# them twice changes nothing.
 #
 # Run them explicitly with:
-#   odatix res_derived
+#   odatix results derived
+#
+# The GUI edits this file in Workspace > Derived metrics.
 
 ######################################
 # Groups
@@ -32,7 +35,7 @@ derived_metrics:
   # Copy the cycle count of the matching simulation onto every synthesis result.
   #
   # Cycles:
-  #   from: simulation        # simulation | workflow | fmax_synthesis | custom_freq_synthesis | synthesis | any
+  #   from: simulation        # simulation | workflow | fmax_synthesis | custom_freq_synthesis | synthesis | pnr | any
   #   metric: Cycles          # metric to read in the source (default: the name below "derived_metrics")
   #   for: "@cpus"            # which results get it: "*" (default), a pattern, a list, or "@group"
   #   apply_to: synthesis     # which kinds of results get it (default: synthesis)
@@ -42,9 +45,17 @@ derived_metrics:
   #
   # Runtime:
   #   type: operation
-  #   op: "Cycles / Frequency"
+  #   op: "Cycles / Fmax"     # "meta.<key>" reads a meta field: "Cycles / meta.frequency"
   #   for: "@cpus"
   #   unit: us
+
+  # Read another step of the same job: what place & route did to the
+  # post-synthesis estimate. Each result reads the steps of its own job.
+  #
+  # LUT_count_after_synthesis:
+  #   metric: LUT_count
+  #   from: synthesis
+  #   step: synthesis         # a step name, a list, "@group" or "any" (default: the last step)
 
   # By default, a source result matches when both results agree on every
   # dimension they have in common (architecture, configuration and parameter
@@ -62,7 +73,7 @@ derived_metrics:
   #     pin: {MEM: 1024I_1024D}   # read this value of MEM, whatever the target's
   #     ignore: [Voltage]         # do not constrain on this domain at all
   #     map: {MEM: Cache}         # the domain is not named the same on both sides
-  #     on: [architecture, configuration]   # join on exactly these, nothing else
+  #     keys: [architecture, configuration]   # join on exactly these, nothing else
   #   on_multiple: error          # error | first | last | skip | mean | min | max | sum
   #   where: {target: "xc7a100t*"}        # only results matching this get the metric
   #   source_where: {simulation: "@benchmarks"}   # only read these results

@@ -1,6 +1,6 @@
 ---
 title: "Crossplatform"
-description: "The same task name declared twice, once for Linux/macOS and once for PowerShell, with exactly one implementation selected at run time."
+description: "The same task name declared twice, once for Linux/macOS and once for Windows, with exactly one implementation selected at run time."
 weight: 2
 ---
 
@@ -24,19 +24,28 @@ tasks:
       - sleep 1
       - "echo 'Progress: 60' > progress.txt"
       - ...
+      - python3 platform_info.py   # writes platform_info.txt
+      - python3 main.py            # writes output.txt
 
   - name: main
-    platforms: win32  # powershell
+    platforms: win32 # cmd.exe
     commands:
-      - Write-Host "Windows Task..."
-      - Start-Sleep -Seconds 1
-      - '"Progress: 60" | Set-Content progress.txt'
+      - echo Windows Task...
+      - timeout /t 1 /nobreak > NUL
+      - "echo Progress: 60> progress.txt"
       - ...
+      - python platform_info.py
+      - python main.py
 {{< /code >}}
 
-`platforms` accepts a single value or a list. The Windows implementation is PowerShell, not `cmd`, which is why it uses `Write-Host` and `Set-Content` rather than shell redirection.
+`platforms` accepts a single value or a list. A job runs its commands with the
+shell of the system: `sh` on Linux and macOS, `cmd.exe` on Windows, which is why
+the Windows implementation waits with `timeout` rather than `sleep`, and calls
+`python` rather than `python3`.
 
-Its `_metrics.yml` reads a `platform` metric out of `platform_info.txt`, so the result records show which branch actually ran.
+Its `_metrics.yml` reads a `platform` metric out of `platform_info.txt`, which
+`platform_info.py` writes with `sys.platform`, so the result records show which
+branch actually ran.
 
 > [!TIP]
 > This is the mechanism to reach for whenever a step is genuinely OS-dependent — invoking a tool that is installed differently, or cleaning up files. Everything else should stay in a single task.

@@ -28,6 +28,7 @@ from odatix.gui.utils import get_key_from_url, get_workspace
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.gui.builtin_variables as builtin_variables
+import odatix.gui.exclusion_editor as exclusion_editor
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import get_variables
 from odatix.workspace.space import config_set_rules
@@ -639,6 +640,7 @@ def architecture_form(settings):
                     className="odx-override-cards",
                 ),
             ], className="tile config"),
+            exclusion_editor.exclusions_tile(defval("exclusions", [])),
         ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
@@ -667,6 +669,7 @@ def normalize_form_settings(settings):
         "fixed_freq_synthesis": {"list": freq_list} if freq_list else {},
         "constraints": constraints_from_text(constraints_to_text(settings.get("constraints"))),
         "overrides": normalize_overrides(settings.get("overrides")),
+        "exclusions": exclusion_editor.normalize_block(settings.get("exclusions")),
     }
 
 
@@ -744,11 +747,24 @@ def apply_form_settings(architecture, settings_subset):
     elif "overrides" in settings:
         del settings["overrides"]
 
+    # Nor is "exclusions" written empty: a block saying nothing leaves the file.
+    block = top_level.pop("exclusions", None)
+    if block:
+        settings["exclusions"] = block
+    elif "exclusions" in settings:
+        del settings["exclusions"]
+
     settings.update(top_level)
     architecture.save()
 
 
 @dash.callback(
+    # The title holds the name field and the save button, which the save
+    # callback reads together with every field of the form: both are built in
+    # the same answer, so that callback never sees one without the other (a
+    # title alone made the browser report "a nonexistent object was used in an
+    # Input" for every field of the form).
+    Output({"page": page_path, "type": "architecture-title-div"}, "children"),
     Output("arch-form-container", "children"),
     Output("architecture-initial-settings", "data"),
     Input(f"url_{page_path}", "search"),
@@ -757,12 +773,12 @@ def apply_form_settings(architecture, settings_subset):
 )
 def init_form(search, page, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     architectures = get_workspace(odatix_settings).architectures
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        return architecture_form({}), {}
+        return architecture_title(""), architecture_form({}), {}
 
     if arch_name:
         full_settings = architectures.entry(arch_name).settings.to_dict()
@@ -785,11 +801,12 @@ def init_form(search, page, odatix_settings):
 
             "constraints": full_settings.get("constraints", []),
             "overrides": full_settings.get("overrides", []),
+            "exclusions": full_settings.get("exclusions", []),
         }
         settings = normalize_form_settings(settings)
     else:
         settings = {}
-    return architecture_form(settings), settings
+    return architecture_title(arch_name), architecture_form(settings), settings
 
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
@@ -821,7 +838,14 @@ def init_form(search, page, odatix_settings):
     Input({"type": "arch-override-fmax-upper", "index": dash.ALL}, "value"),
     Input({"type": "arch-override-custom-freq", "index": dash.ALL}, "value"),
     Input({"type": "arch-override-constraints", "index": dash.ALL}, "value"),
+    Input({"type": "arch-exclusion-id", "index": dash.ALL}, "value"),
+    Input({"type": "arch-exclusion-kind", "index": dash.ALL}, "value"),
+    Input({"type": "arch-exclusion-when", "index": dash.ALL}, "value"),
+    Input({"type": "arch-exclusion-require", "index": dash.ALL}, "value"),
+    Input({"type": "arch-exclusion-message", "index": dash.ALL}, "value"),
     State({"type": "arch-override-rest", "index": dash.ALL}, "data"),
+    State({"type": "arch-exclusion-rest", "index": dash.ALL}, "data"),
+    State("arch-exclusions-block", "data"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("architecture-initial-settings", "data"),
@@ -835,7 +859,9 @@ def save_and_status(
     fmax_lower, fmax_upper, custom_freq_list, constraints,
     override_tools, override_targets, override_configurations,
     override_fmax_lowers, override_fmax_uppers, override_custom_freqs, override_constraints,
-    override_rests, search, page, initial_settings, saved_settings,
+    exclusion_ids, exclusion_kinds, exclusion_whens, exclusion_requires, exclusion_messages,
+    override_rests, exclusion_rests, exclusion_block,
+    search, page, initial_settings, saved_settings,
     odatix_settings,
 ):
     triggered_id = ctx.triggered_id
@@ -889,6 +915,13 @@ def save_and_status(
             },
             override_fmax_lowers, override_fmax_uppers, override_custom_freqs, override_constraints,
             override_rests,
+        ),
+        "exclusions": exclusion_editor.build_block(
+            exclusion_editor.cards_from_values(
+                exclusion_ids, exclusion_kinds, exclusion_whens, exclusion_requires,
+                exclusion_messages, exclusion_rests,
+            ),
+            exclusion_block,
         ),
     }
 
@@ -1069,16 +1102,6 @@ def toggle_generate_settings(generate_rtl):
     generate_settings_class = "animated-section" if generate_rtl else "animated-section hide"
     rtl_path_style = "animated-section" if not generate_rtl else "animated-section hide"
     return generate_settings_class, rtl_path_style
-
-@dash.callback(
-    Output({"page": page_path, "type": "architecture-title-div"}, "children"),
-    Input(f"url_{page_path}", "search"),
-)
-def update_architecture_title(search):
-    arch_name = get_key_from_url(search, "arch")
-    if not arch_name:
-        arch_name = ""
-    return architecture_title(arch_name)
 
 # Folding the extra fields away is done on the client, on the document, by the
 # handler in assets/folds.js: nothing outside the browser reads whether a fold

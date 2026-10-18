@@ -101,8 +101,15 @@ def discover(df, store, sources=None):
 
   metrics = []
   for metric in store.metric_columns(sources):
-    if metric in df.columns and pd.to_numeric(df[metric], errors="coerce").notna().any():
+    if metric not in df.columns:
+      continue
+    if pd.to_numeric(df[metric], errors="coerce").notna().any():
       metrics.append(metric)
+    elif metric not in dimensions and df[metric].notna().any():
+      # A metric holding text (a simulation's "passed" / "failed") has no axis
+      # to be plotted on, but it can be filtered, coloured and shown by, like
+      # a dimension.
+      dimensions[metric] = dimension_values(df, metric)
 
   return dimensions, metrics
 

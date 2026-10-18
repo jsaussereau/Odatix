@@ -16,4 +16,6 @@ progress:
 # Architectures this testbench is meant to run on. Only an indication: running
 # it on another one works, and only prints a warning.
 architectures:
+- Example_Counter_sv
 - Example_Counter_verilog
+- Example_Counter_chisel

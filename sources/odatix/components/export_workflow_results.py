@@ -134,6 +134,19 @@ def _finalize_value(value, content, numeric):
     return value
 
 
+def _exact_value(value):
+    """An extracted value as a number when it reads as one, never rounded."""
+    if value is None:
+        return None
+    value = convert_to_numeric(value)
+    if isinstance(value, str):
+        try:
+            return float(value)  # "1e-05"
+        except ValueError:
+            pass
+    return value
+
+
 def _extract_direct_value(run_dir, name, content, error_prefix=""):
     """
     Extract a single non-"operation" field from a run directory.
@@ -212,6 +225,9 @@ def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix="
 
     # Phase A: extract every direct (non-operation) field exactly once.
     direct = {}   # name -> scalar, or list when the field is "multiple"
+    # The same values before their "format": an "operation" computes on them,
+    # so rounding what is written does not round what is derived from it.
+    exact = {}
     is_list = {}  # name -> whether the field expands the run into rows
     role = {}     # name -> "meta" or "metric"
     op_fields = []  # (name, content, role) evaluated per row in phase C
@@ -229,6 +245,7 @@ def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix="
         if metric_type not in ("regex", "csv", "yaml", "json", "xml"):
             printc.warning('Unsupported workflow metric type "' + str(metric_type) + '" for metric "' + name + '"', script_name)
             direct[name] = None
+            exact[name] = None
             is_list[name] = False
             role[name] = field_role
             return
@@ -244,9 +261,11 @@ def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix="
             else:
                 values = [raw]
             direct[name] = [_finalize_value(v, content, numeric=True) for v in values]
+            exact[name] = [_exact_value(v) for v in values]
             is_list[name] = True
         else:
             direct[name] = _finalize_value(raw, content, numeric=(field_role == "meta"))
+            exact[name] = _exact_value(raw)
             is_list[name] = False
         role[name] = field_role
 
@@ -276,14 +295,14 @@ def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix="
         row_values = {}
         for name in direct:
             value = direct[name][i] if is_list[name] else direct[name]
-            row_values[name] = value
+            row_values[name] = exact[name][i] if is_list[name] else exact[name]
             (meta_extra if role[name] == "meta" else metrics)[name] = value
         for name, content, field_role in op_fields:
             op = content.get("settings", {}).get("op")
             error_if_missing = bool(content.get("error_if_missing", True))
             value = calculate_operation(op, row_values, error_if_missing, error_prefix) if op is not None else None
-            value = _finalize_value(value, content, numeric=(field_role == "meta"))
             row_values[name] = value
+            value = _finalize_value(value, content, numeric=(field_role == "meta"))
             (meta_extra if field_role == "meta" else metrics)[name] = value
         records.append((meta_extra, metrics))
 
@@ -442,6 +461,14 @@ def export_single_workflow_job(job, export_config=None):
         workflow_definition_dir = os.path.join(workflow_path, workflow_param_dir)
 
     metrics_file = os.path.join(workflow_definition_dir, WORKFLOW_METRICS_FILENAME)
+    if not os.path.isfile(metrics_file):
+        # A workflow measuring nothing is a workflow like any other: the job
+        # succeeded, there is just no record to write.
+        printc.note(
+            'No "' + WORKFLOW_METRICS_FILENAME + '" in "' + workflow_definition_dir + '": nothing to export',
+            script_name=script_name,
+        )
+        return True
     metrics_def, metadata_def = _load_metrics(metrics_file)
     if metrics_def is None:
         return False

@@ -245,10 +245,14 @@ def dump_document(data, previous="", yaml_obj=None):
     and would move every list of the file when a single setting changes) and
     the blank lines it starts with. A writer given by the caller keeps its own
     indentation.
+
+    Long values stay on one line: ruamel folds plain scalars at 80 columns by
+    default, which would cut a long command in three on every save.
     """
     writer = yaml_obj
     if writer is None:
         writer = YAML()
+        writer.width = 4096
         offset = sequence_offset(previous)
         if offset:
             writer.indent(mapping=2, sequence=offset + 2, offset=offset)
@@ -258,7 +262,27 @@ def dump_document(data, previous="", yaml_obj=None):
     leading = len(previous) - len(previous.lstrip("\n"))
     if leading and not text.startswith("\n"):
         text = "\n" * leading + text
+    preamble = _preamble(previous)
+    if preamble and not text.lstrip("\n").startswith("---"):
+        text = preamble + (text if text.startswith("\n") else text.lstrip("\n"))
     return text
+
+
+_DOCUMENT_START = re.compile(r"^---[ \t]*$", re.M)
+
+
+def _preamble(text):
+    """
+    The comments a file holds before its '---' marker, which ruamel drops: the
+    "Odatix settings for ..." header of every run settings file.
+    """
+    match = _DOCUMENT_START.search(text)
+    if not match:
+        return ""
+    head = text[:match.end()]
+    if any(line.strip() and not line.lstrip().startswith("#") for line in head.splitlines()[:-1]):
+        return ""
+    return head + "\n"
 
 
 def new_document(header=None):

@@ -76,8 +76,10 @@ def add_arguments(parser):
                         help="search from nothing but what this exploration runs itself, "
                              "instead of starting from the designs of the space that are "
                              "already measured")
-    add_options(parser, "overwrite", "noask", "daemon_options",
+    add_options(parser, "overwrite", "noask", "daemon_options", "exit_when_done", "log_size_limit",
                 overwrite={"help": "evaluate again what is already done"},
+                exit_when_done={"help": 'exit the monitor when the exploration is done (default: "exit_when_done" of the exploration settings file)'},
+                log_size_limit={"help": 'size of the log history per job in the monitor, the exploration\'s own log included (default: "log_size_limit" of the exploration settings file)'},
                 detach={"help": "let the exploration run without attaching the monitor to it"})
     # Not for users: what the daemon runs to be the search itself. Everything a
     # user says has already been resolved into the settings file it is given.
@@ -112,6 +114,15 @@ def apply_arguments(settings, args):
         settings.overwrite = True
     if getattr(args, "noask", False):
         settings.ask_continue = False
+    if getattr(args, "exit_when_done", False):
+        settings.exit_when_done = True
+    value = getattr(args, "log_size_limit", None)
+    if value not in (None, ""):
+        try:
+            settings.log_size_limit = int(value)
+        except (TypeError, ValueError):
+            printc.error('"--logsize" takes a number of lines, not "{0}"'.format(value), script_name)
+            sys.exit(-1)
     if getattr(args, "campaigns", None):
         settings.campaigns = list(args.campaigns)
     return settings

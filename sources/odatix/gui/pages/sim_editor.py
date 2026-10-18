@@ -1610,7 +1610,10 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "sim-title-div"}, style={"marginTop": "20px"}),
         html.Div(ui.feedback("sim-save-feedback"), className="card-matrix config"),
-        html.Div(id="sim-form-container"),
+        # The form is in the layout from the start, replaced once the simulation
+        # is read: the callbacks reading its fields would otherwise name fields
+        # that do not exist yet, which Dash reports in the browser console.
+        html.Div(sim_form({}), id="sim-form-container"),
         html.Div(
             children=[
                 ui.title_tile(

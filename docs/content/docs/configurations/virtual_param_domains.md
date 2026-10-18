@@ -61,7 +61,7 @@ Any `${...}` placeholder in a command is substituted from the resolved configura
 tasks:
   - name: main
     commands:
-      - python3 run_profile.py --profile "${workflow_cli_profile}" --tag "demo"
+      - python3 run_profile.py --profile "${cli_profile}" --tag "demo"   # in workflow "cli_profile"
 {{< /code >}}
 
 ## Architectures: sweeping the generation command

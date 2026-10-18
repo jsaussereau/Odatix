@@ -120,6 +120,22 @@ class TestCheck:
         assert len(run.jobs) == plan.run_count()
         assert run.was_checked
 
+    def test_a_workspace_opened_from_elsewhere_finds_its_files(self, dummy_workspace, tmp_path, monkeypatch):
+        # The settings files name rtl_path, work_path... relative to the
+        # workspace root: a script started elsewhere must still find them.
+        root = os.getcwd()
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(str(elsewhere))
+        run = Run(Workspace.open(root), "custom_freq_synthesis", tool="dummy")
+        assert run.check().run_count() > 0
+        assert os.getcwd() == str(elsewhere)
+
+    def test_a_redirected_output_gets_no_color_codes(self, dummy_workspace, capsys):
+        run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy")
+        run.check()
+        assert "\033[" not in capsys.readouterr().out
+
     def test_checking_twice_does_not_check_twice(self, dummy_workspace):
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy")
         assert run.checked() is run.checked()
@@ -208,7 +224,34 @@ class TestJobPlanner:
 
         monkeypatch.setattr(job_steps, "resume_index", lambda directory, steps: len(steps))
         planner = self.planner(tmp_path, requested_steps=["synth", "pnr"], rerun_step_index=0)
+        # Done steps run again: told apart from a resume, which only runs what
+        # is missing.
+        assert planner.steps_decision(str(tmp_path)) == "rerun"
+        planner = self.planner(tmp_path, requested_steps=["synth", "pnr"], rerun_step_index=1)
+        assert planner.steps_decision(str(tmp_path)) == "rerun"
+
+    def test_rerunning_from_a_step_not_reached_is_a_resume(self, tmp_path, monkeypatch):
+        import odatix.lib.job_steps as job_steps
+
+        # Only "synth" is done: re-running from "pnr" re-runs nothing done.
+        monkeypatch.setattr(job_steps, "resume_index", lambda directory, steps: 1)
+        planner = self.planner(tmp_path, requested_steps=["synth", "pnr", "bitstream"], rerun_step_index=1)
+        assert planner.steps_decision(str(tmp_path)) == "resume"
+        monkeypatch.setattr(job_steps, "resume_index", lambda directory, steps: 0)
         assert planner.steps_decision(str(tmp_path)) == "new"
+
+    def test_a_rerun_job_is_planned_as_such(self, tmp_path, monkeypatch):
+        import odatix.lib.job_steps as job_steps
+        from odatix.lib.run_report import Category, category_description
+
+        directory = self.job_directory(tmp_path)
+        monkeypatch.setattr(job_steps, "resume_index", lambda directory, steps: len(steps))
+        planner = self.planner(tmp_path, requested_steps=["synth", "pnr"], rerun_step_index=1)
+        state, _entry = planner.classify_job(directory, '"job"')
+        assert state == "rerun"
+        assert planner.record("job", state)
+        assert planner.plan.names(Category.RERUN, colored=False) == ["job"]
+        assert "resume" not in category_description(Category.RERUN)
 
     def test_a_job_a_session_is_running_is_left_to_it(self, tmp_path, monkeypatch):
         import odatix.run.planner as planner_module

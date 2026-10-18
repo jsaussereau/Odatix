@@ -33,7 +33,8 @@ workspace root.
 | The EDA tool check fails | The executable, module, licence or target setup is unavailable. | Run the tool's native version command in the same terminal; then check `PATH`, environment modules and `tool_install_path`. |
 | No jobs are planned | The selected names do not match existing configurations, or the run settings list is empty. | Check `architectures`, `simulations` or `workflows` in the corresponding `*_settings.yml`. |
 | A parameter block cannot be found | `start_delimiter` or `stop_delimiter` does not exactly match the copied source. | Use `odatix replace` to test the delimiters against one source/configuration pair. |
-| A job is skipped unexpectedly | A matching work directory is already managed by an active daemon or contains a completed step. | Use `odatix ls`; use `--rerun-from` for a stepped flow or `-o` only when overwriting is intended. |
+| A job is skipped unexpectedly | A matching work directory is already managed by an active daemon, contains a completed step, or holds a workflow that ran to its end. | Use `odatix ls`; use `--rerun-from` for a stepped flow or `-o` only when overwriting is intended. |
+| A workflow warns that a placeholder matches nothing | A `${name}` of a task names no variable, selected parameter domain, configuration or environment variable: the shell would expand it, usually to nothing. | Check the spelling in `variables`, add the domain to the selection (`+ domain/*`), or select a configuration (`workflow/config`). |
 | Explorer has no new data | The relevant result file was not exported, or Explorer points to a different directory. | Re-export the job type and start Explorer with `--input <results-directory>`. |
 | A derived metric is missing | Its source result is absent or no result matches its join criteria. | Export source job types first, inspect `derived_metrics.yml`, then run `odatix results derived`. |
 
@@ -87,6 +88,14 @@ $ odatix stop -S nightly
 Use a meaningful `-S`/`--session` name for detached runs. The [Job Monitor &
 Sessions](/docs/sessions/) page explains selectors, reattachment and the
 scheduling policy.
+
+| Symptom | Cause | Action |
+|---|---|---|
+| `No session of this workspace matches 'nightly'` | The session belongs to another workspace: `ls`, `monitor` and `stop` keep to the current one. | Run the command from that workspace, or add `--any-workspace`. |
+| `odatix ls` says nothing runs, but jobs are running | They run in a session of another workspace. | `odatix ls --any-workspace`. |
+| Sessions pile up in `odatix ls` | A session stays alive once its jobs are done, so that their logs can still be read. | Close it from the end-of-run dialog, with `odatix stop -S <session>` or `odatix stop --all` (this workspace only), or run with `-E` to close it with the monitor. |
+| Jobs keep pausing and resuming, logs say `paused by resource guard` | The machine is loaded beyond `cpu_limit`/`mem_limit` of `odatix.yml`. | Raise the limits, or turn auto-pause off (`a` in the monitor, `resource_guard: No` in `odatix.yml`). |
+| The monitor says `Session ... was stopped while the monitor was attached to it` | The session was stopped from elsewhere (`odatix stop`, the GUI). | Nothing to do: its jobs were stopped with it. |
 
 ## Export and metric problems
 

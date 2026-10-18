@@ -16,9 +16,10 @@ Result files live in the results directory (`results/` by default) and are named
 
 | File | Contents |
 |------|----------|
-| `results_<tool>.yml` | Synthesis, custom-frequency and place & route results of one EDA tool (`results_vivado.yml`, `results_design_compiler.yml`, …). |
+| `results_<tool>.yml` | Synthesis, fixed-frequency and place & route results of one EDA tool (`results_vivado.yml`, `results_design_compiler.yml`, …). |
 | `results_simulation.yml` | Simulation results. |
 | `results_workflow.yml` | Workflow results. |
+| `results_analysis_<tool>.yml` | RTL analysis results of one tool: one record per design and configuration, with its verdict and its warning and error counts. Shown by the **RTL Analysis** page of Explorer rather than by the charts. |
 
 One file per source keeps things separable — you can delete, regenerate or share a single tool's results without touching the others. [Odatix Explorer](/docs/gui/explorer/) reads every result file it finds in the directory and presents them together, and [derived metrics](/docs/results/derived_metrics/) are exactly the mechanism that connects records across those files.
 
@@ -72,10 +73,10 @@ These keys have a fixed meaning across all result files:
 
 | Field | Meaning |
 |-------|---------|
-| `type` | Kind of job: `fmax_synthesis`, `custom_freq_synthesis`, `pnr`, `simulation` or `workflow`. |
+| `type` | Kind of job: `fmax_synthesis`, `custom_freq_synthesis`, `pnr`, `simulation`, `workflow` or `analysis`. |
 | `tool` | EDA tool the job ran with (`vivado`, `design_compiler`, …). |
 | `flow` | Flow of that tool the job ran with. |
-| `step` | Last step of that flow the job reached. |
+| `step` | Step of the flow this record was exported at. A flow split into steps writes one record **per step** (`synthesis`, `pnr`...), each with its own metrics; the informational key `_last_step: true` marks the furthest step the job reached, and `_step_index` its position in the flow. Absent for a job whose flow has no steps. |
 | `target` | Synthesis target (FPGA part, technology node, …). |
 | `architecture` | The design. |
 | `configuration` | Full configuration name, including any `+domain/value` segments. |
@@ -102,7 +103,13 @@ Any `meta` key that is not reserved and does not start with `_` is treated the s
 
 ### Informational keys
 
-Keys prefixed with an underscore — `_run_dir`, for instance — are informational only. They are carried along for traceability but are never used as a dimension, never grouped by, and never offered as an axis.
+Keys prefixed with an underscore — `_run_dir`, for instance — are informational only. They are carried along for traceability but are never used as a dimension, never grouped by, and never offered as an axis. Among them:
+
+| Field | Meaning |
+|-------|---------|
+| `_step_index`, `_last_step` | Position of the step in the flow, and whether it is the furthest step the job reached. Explorer turns `_last_step` into the **Step scope** dimension (`last` / `intermediate`); by default its filters only show `last`. |
+| `_status`, `_log_file` | Analysis records only: the verdict (`PASSED`, `WARNING`, `FAILED`...) and the log it was read from. |
+| `_derived` | The metrics of the record that [derived metrics](/docs/results/derived_metrics/) wrote, so that they can be recomputed. |
 
 ## Reading a result file yourself
 

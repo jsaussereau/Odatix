@@ -8,12 +8,19 @@ weight: 1
 
 `odatix.yml` sits at the root of a workspace and answers one question: **where
 does everything live**. Every key is optional — a workspace whose `odatix.yml`
-is empty uses the defaults below, which is what `odatix init` produces.
+is empty uses the defaults below. `odatix init` writes every key commented out
+at its default, plus `workspace: odatix` and `default_tool: vivado`.
 
 Use `-c/--config` on any command to read a different file, which is how several
 workspace layouts can share one directory.
 
 {{< toc >}}
+
+## Workspace
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `workspace` | string | `odatix` | Marks the directory as an Odatix workspace. `odatix init` writes it; nothing else reads its value. |
 
 ## Default tool
 
@@ -73,7 +80,8 @@ Each run command reads one settings file; these keys say which.
 | `workflow_settings_file` | path | `odatix_userconfig/workflow_settings.yml` | `odatix workflow` |
 | `pnr_settings_file` | path | `odatix_userconfig/pnr_settings.yml` | `odatix pnr` |
 | `clean_settings_file` | path | `odatix_userconfig/clean_settings.yml` | `odatix clean` |
-| `derived_metrics_file` | path | `odatix_userconfig/derived_metrics.yml` | `odatix results derived` and every export |
+| `dse_settings_file` | path | `odatix_userconfig/dse_settings.yml` | `odatix dse` |
+| `derived_metrics_file` | path | `odatix_userconfig/derived_metrics.yml` | The end of every run, `odatix results` and `odatix results derived` |
 
 Every one of them is also overridable per run with `-i/--input` (`--config` for
 the workspace file itself).
@@ -93,6 +101,7 @@ the workspace file itself).
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `result_path` | path | `results` | Where exported result files are written. |
+| `dse_campaign_path` | path | `odatix_userconfig/dse_campaigns` | Where the [exploration campaigns](/docs/reference/dse/) are kept. |
 
 `use_benchmark` and `benchmark_file` are no longer read: a benchmark score is a
 [simulation metric](/docs/results/metrics/).
@@ -101,9 +110,14 @@ See [Results & export](/docs/results/) for what lands there.
 
 ## Resource guard
 
-While jobs run, Odatix watches the load of the machine. When the CPU or memory
-usage reaches its limit, it pauses the most recently started job, then resumes
-the jobs it paused once the usage has dropped 5 points below the limit.
+While jobs run, Odatix watches the load of the machine, every 2 seconds. When
+the CPU or memory usage stays at its limit for two samples in a row, it pauses
+the most recently started job, and goes on pausing one job at a time while the
+overload lasts. It resumes the jobs it paused, one at a time, once the usage has
+stayed 5 points below the limit for three samples in a row, and never less than
+30 seconds after pausing them: resuming sooner would hand the machine back the
+very load that got them paused. The log of the job says what happened
+(`Job paused by resource guard: system CPU usage too high (99% CPU, 40% mem)`).
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -111,8 +125,9 @@ the jobs it paused once the usage has dropped 5 points below the limit.
 | `cpu_limit` | number | `98` | CPU usage (%) at which a job is paused. |
 | `mem_limit` | number | `98` | Memory usage (%) at which a job is paused. |
 
-These values apply to the sessions started afterwards. To switch the guard on a
-running session, use the **Auto-pause** switch of the [web monitor](/docs/sessions/gui_monitor/)
+These values apply to every run started afterwards, from the command line, the
+GUI or the [Python API](/docs/python_api/), including runs that add jobs to a
+running session with `-S`. To switch the guard on a running session, use the **Auto-pause** switch of the [web monitor](/docs/sessions/gui_monitor/)
 or the `a` key of the [terminal monitor](/docs/sessions/terminal_monitor/): turning it off resumes
 the jobs it had paused right away.
 
@@ -136,7 +151,10 @@ default_tool: genus
 ## In the GUI
 
 **Workspace Settings** (`/workspace`) edits this file directly — every key
-above has a field, and saving writes `odatix.yml`. See
+above has a field (except the `workspace` marker), grouped as in the file:
+Tools, Main paths, Settings files, Work directories, Results and Resource
+guard. A field left empty means the default shown in it; saving writes only
+what changed in `odatix.yml`, and a key emptied is removed from it. See
 [The Odatix GUI](/docs/gui/app/).
 
 ## See also

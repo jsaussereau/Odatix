@@ -51,7 +51,7 @@ nav_groups = [
     ("Run", "/choose_job_type", [
         ("Workflows", "/run_jobs?type=workflow"),
         ("Simulations", "/run_jobs?type=simulation"),
-        ("RTL analysis", "/run_jobs?type=analyze"),
+        ("RTL analysis", "/choose_eda_tool?type=analysis"),
         ("Fmax synthesis", "/choose_eda_tool?type=fmax_synthesis"),
         ("Fixed-frequency synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
         ("Place & route", "/choose_eda_tool?type=pnr"),
@@ -64,6 +64,7 @@ nav_groups = [
         ("Scatter", "/explorer/scatter"),
         ("Scatter 3D", "/explorer/scatter3d"),
         ("Radar", "/explorer/radar"),
+        ("Parallel coordinates", "/explorer/parcoords"),
         ("Table", "/explorer/table"),
         ("Overview", "/explorer/overview"),
         ("RTL analysis", "/explorer/analysis"),

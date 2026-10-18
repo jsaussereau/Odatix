@@ -25,6 +25,9 @@ import re
 
 import odatix.lib.constraint_files as constraint_files
 
+# The constraint file of a job when its target file names none.
+DEFAULT_CONSTRAINT_FILE = "constraints.sdc"
+
 
 def _normalize_path(path):
   """Normalise a path for Windows/Unix compatibility inside a tcl script."""
@@ -163,3 +166,52 @@ def edit_pnr_config_file(arch, source, config_file):
   }
 
   _apply_replacements(config_file, replacements)
+
+
+def clock_constraint(frequency, clock_signal):
+  """
+  A clock constraint in SDC, the format most timing tools read: one clock on
+  the clock port, at the given frequency (MHz).
+  """
+  period = 1000.0 / float(frequency)
+  return "create_clock -period " + ("%g" % period) + " [get_ports " + str(clock_signal or "clk") + "]\n"
+
+
+def write_frequency_files(arch):
+  """
+  Write in a custom frequency synthesis job directory what says which frequency
+  it targets: "frequency.txt" ("<f> MHz") and the constraint file the target
+  file names, holding a clock constraint in SDC.
+
+  Written before the job runs, so a tool that does not source
+  _common/init_script.tcl (a Python script, a Makefile) finds them too. A tool
+  that does source it rewrites the constraint file in its own format (see the
+  update_freq.tcl of each tool), which is why this one is only a default.
+
+  An fmax search (no target frequency) gets neither: its frequency changes at
+  each iteration, and the tool writes it.
+  """
+  frequency = getattr(arch, "target_frequency", 0)
+  try:
+    frequency = float(frequency)
+  except (TypeError, ValueError):
+    return
+  if frequency <= 0:
+    return
+  shown = int(frequency) if frequency == int(frequency) else frequency
+  # Never over what is already there: a job resuming after a completed step
+  # keeps the files its first run wrote, in its tool's own format.
+  frequency_file = os.path.join(arch.tmp_dir, "frequency.txt")
+  if not os.path.exists(frequency_file):
+    with open(frequency_file, "w") as f:
+      f.write(str(shown) + " MHz\n")
+  constraint_filename = getattr(arch, "constraint_filename", "") or ""
+  if constraint_filename:
+    path = os.path.join(arch.tmp_dir, constraint_filename)
+    if os.path.exists(path):
+      return
+    directory = os.path.dirname(path)
+    if directory and not os.path.isdir(directory):
+      os.makedirs(directory)
+    with open(path, "w") as f:
+      f.write(clock_constraint(frequency, getattr(arch, "clock_signal", None)))

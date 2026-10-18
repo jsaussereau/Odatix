@@ -60,10 +60,14 @@ A workflow lives in `odatix_userconfig/workflows/<name>/` with two files:
 (what to measure).
 
 The task list is resolved like a makefile: execution starts at the task named
-`main`, its dependencies run first, and independent branches run concurrently. A
-task can declare a working `path`, and several entries can share a `name` with
-different `platforms` — the one matching the current system wins, with a
-platform-less entry as fallback.
+`main` and its dependencies run first. A task can declare a working `path`,
+can stand for a file it produces (`phony: No`, then skipped once the file
+exists), and several entries can share a `name` with different `platforms` —
+the one matching the current system wins, with a platform-less entry as
+fallback.
+
+A job whose workflow ran to its end is not run again: the next run skips it, as
+synthesis and simulation jobs are, unless it is asked to overwrite (`-o`).
 
 Parameters reach a workflow in two ways:
 
@@ -97,12 +101,10 @@ percentage out of it, which is what fills the
 {{< code lang=yaml filename="workflows/basic/_settings.yml" >}}
 sources:
   path: examples/workflow_simple
-  blacklist:
-    - "*.log"
 
 progress:
   file: progress.txt
-  regex: "Progress: ([0-9]+)"
+  regex: ".*Progress: ([0-9]+)*"
 
 use_parameters: Yes
 param_target_file: "main.py"
@@ -114,10 +116,12 @@ tasks:
     dependencies:
       - generate_config
     commands:
-      - echo 'step 1/2 done'
+      - echo 'step 1/3 done'
       - "echo 'Progress: 60' > progress.txt"
-      - echo 'step 2/2 done'
-      - "echo 'Progress: 100' > progress.txt"
+      - echo 'step 2/3 done'
+      - "echo 'Progress: 80' > progress.txt"
+      - echo 'step 3/3 done'
+      - python3 main.py               # writes output.txt
 
   - name: generate_config
     commands:
@@ -138,20 +142,28 @@ metrics:
     format: "%.0f"
 {{< /code >}}
 
-`workflow_settings.yml` says which workflows to run, and with which parameters:
+`workflow_settings.yml` says which workflows to run, and with which
+parameters. The settings at its top are required: keep them as `odatix init`
+wrote them.
 
 {{< code lang=yaml filename="odatix_userconfig/workflow_settings.yml" >}}
-nb_jobs: 8
+overwrite:        No
+ask_continue:     Yes
+exit_when_done:   No
+log_size_limit:   300
+nb_jobs:          8
 
 workflows:
   - basic/default
   - tensorflow + epochs/*
-  - param_domains_cli + max_speed/* + num_vehicles/*
+  - param_domains_cli + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
 {{< /code >}}
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix workflow
+$ odatix workflow -W "basic/*"         # these workflows instead of the file's list
 $ odatix workflow -d -S experiments   # detached, named session
+$ odatix workflow -o                  # run again the jobs that already ran
 $ odatix workflow -r                  # resume existing work directories
 $ odatix results workflow             # re-export after editing _metrics.yml
 {{< /code >}}

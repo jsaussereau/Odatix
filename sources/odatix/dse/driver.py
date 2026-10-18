@@ -39,7 +39,13 @@ import sys
 from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
 from odatix.lib.parallel_job_handler.job import DRIVER_KIND, ParallelJob
 
-__all__ = ["driver_paths", "build_driver", "start_exploration", "run_worker"]
+__all__ = [
+    "driver_paths", "default_session", "new_session", "build_driver", "start_exploration",
+    "run_worker", "open_session", "close_session",
+]
+
+#: How many sessions this process has named with :func:`new_session`.
+_sessions_named = 0
 
 #: What the driver writes its progress with: the percentage, alone on a line.
 #: Nothing else parses the file, so nothing else has to be read out of it.
@@ -74,6 +80,33 @@ def default_session(session=None):
     """
     session = str(session).strip() if session is not None else ""
     return session or "dse-{0}".format(os.getpid())
+
+
+def new_session(workspace=None):
+    """
+    The name of a session no exploration of this process has used yet.
+
+    A command starts one exploration and is done, so the name of its process
+    (:func:`default_session`) is enough. A process that starts several -- the
+    app, a script calling :func:`odatix.dse.explore` twice -- needs one name per
+    exploration, or the second would join the first and share its directory
+    (see :func:`driver_paths`), overwriting its settings and its progress.
+
+    Args:
+        workspace (Workspace): when given, a name whose directory already
+            exists there (a session of an earlier process that had the same
+            pid) is skipped too.
+    """
+    global _sessions_named
+
+    while True:
+        _sessions_named += 1
+        session = "dse-{0}-{1}".format(os.getpid(), _sessions_named)
+        if workspace is None:
+            return session
+        directory = os.path.join(workspace.paths.work_path, "dse", _slug(session))
+        if not os.path.exists(directory):
+            return session
 
 
 def build_driver(workspace, settings, session, paths=None, architectures=None, campaigns=None):
@@ -197,6 +230,55 @@ def run_worker(workspace, settings, session, cancel_event=None):
         progress_file=paths["progress_file"],
     )
     return exploration.run(confirm=False)
+
+
+def open_session(workspace, settings, session=None):
+    """
+    The daemon session an exploration run in this process enqueues into,
+    started when it does not exist yet.
+
+    An exploration started from the command line is a job of the session it
+    runs in (see :func:`start_exploration`); one run by a script is that
+    script, and its batches still need a session to go to.
+
+    Args:
+        workspace (Workspace): the workspace being explored.
+        settings (DseSettings): how many jobs at once, how much log to keep.
+        session (str): the session to use. A new one is named when not given.
+
+    Returns:
+        tuple: the name of the session, and whether it was started here --
+        what :func:`close_session` is to be told.
+    """
+    from odatix.lib.parallel_job_handler import daemon_control
+
+    session = str(session or "").strip() or new_session(workspace)
+    existed = False
+    try:
+        existed = bool(daemon_control.list_daemons(workspace_root=workspace.root, session=session))
+    except Exception:
+        existed = False
+    daemon_control.ensure_daemon_running(
+        workspace_root=workspace.root,
+        jobs=_nb_jobs(settings.nb_jobs),
+        logsize=int(settings.log_size_limit),
+        session=session,
+        create=True,
+    )
+    return session, not existed
+
+
+def close_session(workspace, session, started):
+    """Stop the session :func:`open_session` started, and only that one."""
+    if not started:
+        return
+    from odatix.lib.parallel_job_handler import daemon_control
+
+    try:
+        daemon_control.stop_daemon(workspace_root=workspace.root, session=session)
+    except Exception:
+        # Already gone, which is what was asked for.
+        pass
 
 
 def _nb_jobs(value):

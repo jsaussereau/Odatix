@@ -28,6 +28,7 @@ import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 
 from odatix.gui.jobs_config.common import page_path
+from odatix.gui.jobs_config.settings_form import job_settings_form
 
 title_buttons = html.Div(
     children=[
@@ -125,7 +126,10 @@ layout = html.Div(
         ui.section(
             "Job settings",
             html.Div(
-                html.Div(id="job-settings-form-container"),
+                # Rendered with the defaults from the start, then filled by
+                # init_form: its fields are inputs of callbacks (the summary,
+                # "auto" nb_jobs...), which must find them on load.
+                html.Div(job_settings_form({}), id="job-settings-form-container"),
                 id="jobs-settings-body",
                 className="animated-section",
             ),

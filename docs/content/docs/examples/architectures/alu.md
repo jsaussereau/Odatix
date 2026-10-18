@@ -287,4 +287,4 @@ Running both architectures side by side and opening the [Explorer](/docs/feature
 - [Multiplier & Shift Register](/docs/examples/architectures/mult_shift_register/) — two more `BITS` sweeps, sharing the same configuration files, whose curves make a good three-way comparison with the ALU.
 - [Counter](/docs/examples/architectures/counter/) — the same architecture settings, one file and one always block.
 - [Cordic](/docs/examples/architectures/cordic/) — where one parameter is no longer enough.
-- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.
+- [All architecture examples](/docs/examples/architectures/) — the seven designs and what each one adds.

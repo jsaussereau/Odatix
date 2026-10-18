@@ -22,13 +22,14 @@ For values that come from *another* result rather than from the job's own files,
 | Workflows (`workflow`) | `odatix_userconfig/workflows/<name>/_metrics.yml` | Per workflow |
 | Simulations (`sim`) | `odatix_userconfig/simulations/<name>/_metrics.yml` | Per simulation |
 
-A tool's `metrics.yml` is split into three sections:
+A tool's `metrics.yml` is split into four sections:
 
 | Section | Applied to |
 |---------|-----------|
-| `metrics` | Every synthesis run (area, resources, power…). |
+| `metrics` | Every job of the tool (area, resources, power…). |
 | `fmax_synthesis_metrics` | `odatix fmax` runs only. |
 | `custom_freq_synthesis_metrics` | `odatix synth` runs only. |
+| `pnr_metrics` | `odatix pnr` runs only. |
 
 A workflow's `_metrics.yml` uses a single `metrics` section, plus an optional `metadata` section (see [Expanding one run into several records](#expanding-one-run-into-several-records)). A simulation's `_metrics.yml` is exactly the same file, in the simulation directory: its records carry both the simulation and the architecture configuration it ran on. A simulation without one exports nothing, which is fine for a testbench that only has to succeed.
 
@@ -54,7 +55,7 @@ metrics:
 | `format` | No | Numeric formatting string, e.g. `"%.2f"`. |
 | `unit` | No | Unit label exported alongside the value, e.g. `MHz`. |
 | `error_if_missing` | No | Default `true`. Set to `false` when a value may legitimately be absent. |
-| `multiple` | No | Workflows only. Extract *every* match instead of the first — see [below](#expanding-one-run-into-several-records). |
+| `multiple` | No | Workflows and simulations only. Extract *every* match instead of the first — see [below](#expanding-one-run-into-several-records). |
 
 All paths in `settings.file` are relative to the job's work directory.
 

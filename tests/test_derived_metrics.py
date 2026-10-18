@@ -634,3 +634,114 @@ class TestUnreadableDefinitions:
     empty = tmp_path / "derived_metrics.yml"
     empty.write_text("")
     assert derived_metrics.load_derived_metrics(str(empty)).valid is True
+
+
+######################################
+# Synthesis -> place & route of the same job (C-02)
+######################################
+
+class TestSameJob:
+  """Several frequencies and targets: each job reads its own steps."""
+
+  @staticmethod
+  def job(target, frequency, synthesis_luts, pnr_luts, flow=None):
+    records = []
+    for index, (step, luts) in enumerate((("synthesis", synthesis_luts), ("pnr", pnr_luts))):
+      record = synthesis_record(metrics={"LUT_count": luts})
+      meta = record["meta"]
+      meta[results_schema.META_TYPE] = results_schema.TYPE_CUSTOM_FREQ
+      meta[results_schema.META_TARGET] = target
+      meta[results_schema.META_FREQUENCY] = frequency
+      if flow is not None:
+        meta[results_schema.META_FLOW] = flow
+      meta[results_schema.META_STEP] = step
+      meta[results_schema.META_STEP_INDEX] = index
+      meta[results_schema.META_LAST_STEP] = step == "pnr"
+      records.append(record)
+    return records
+
+  def records(self):
+    return (self.job("a7", 50, 10, 11) + self.job("a7", 100, 20, 23)
+            + self.job("k7", 50, 30, 37) + self.job("k7", 100, 40, 41))
+
+  DEFINITIONS = {
+    "LUT_count_after_synthesis": {"metric": "LUT_count", "from": "synthesis", "step": "synthesis"},
+    "LUT_pnr_delta": {"type": "operation", "op": "LUT_count - LUT_count_after_synthesis"},
+  }
+
+  def deltas(self, records):
+    return sorted(
+      (r["meta"][results_schema.META_TARGET], r["meta"][results_schema.META_FREQUENCY], r["metrics"]["LUT_pnr_delta"])
+      for r in records if r["meta"][results_schema.META_STEP] == "pnr"
+    )
+
+  def test_the_documented_example_reads_the_synthesis_of_the_same_job(self, capsys):
+    records = self.records()
+    derived_metrics.apply_derived_metrics(config_from(self.DEFINITIONS), records)
+    assert self.deltas(records) == [("a7", 50, 1), ("a7", 100, 3), ("k7", 50, 7), ("k7", 100, 1)]
+    assert "records match" not in capsys.readouterr().out
+
+  def test_another_job_of_the_same_type_is_never_read_by_default(self):
+    # A job without a synthesis step of its own gets nothing, not a neighbour's
+    records = self.records()
+    lone = synthesis_record(metrics={"LUT_count": 99})
+    lone["meta"][results_schema.META_TYPE] = results_schema.TYPE_CUSTOM_FREQ
+    lone["meta"][results_schema.META_TARGET] = "a7"
+    lone["meta"][results_schema.META_FREQUENCY] = 75
+    lone["meta"][results_schema.META_STEP] = "pnr"
+    lone["meta"][results_schema.META_LAST_STEP] = True
+    records.append(lone)
+    derived_metrics.apply_derived_metrics(config_from(self.DEFINITIONS), records)
+    assert "LUT_count_after_synthesis" not in lone["metrics"]
+
+  def test_reserved_keys_named_in_match_keys_are_joined_on(self):
+    definitions = dict(self.DEFINITIONS)
+    definitions["LUT_count_after_synthesis"] = dict(
+      definitions["LUT_count_after_synthesis"],
+      match={"keys": ["architecture", "configuration", "target", "frequency"]},
+    )
+    records = self.records()
+    derived_metrics.apply_derived_metrics(config_from(definitions), records)
+    assert self.deltas(records) == [("a7", 50, 1), ("a7", 100, 3), ("k7", 50, 7), ("k7", 100, 1)]
+
+  def test_explicit_keys_can_read_another_job(self):
+    # Two flows of the same design point: with keys, the other flow's
+    # synthesis is a valid source once the job has none of its own.
+    records = self.job("a7", 50, 10, 11, flow="standard")
+    other = self.job("a7", 50, 5, 6, flow="power_opt")[1:]  # its pnr step only
+    records += other
+    definitions = dict(self.DEFINITIONS)
+    definitions["LUT_count_after_synthesis"] = dict(
+      definitions["LUT_count_after_synthesis"], match={"keys": ["architecture", "configuration", "target", "frequency"]},
+    )
+    derived_metrics.apply_derived_metrics(config_from(definitions), records)
+    assert other[0]["metrics"]["LUT_count_after_synthesis"] == 10
+    assert records[1]["metrics"]["LUT_pnr_delta"] == 1
+
+  def test_a_pin_on_a_reserved_key_is_honoured(self):
+    definitions = {"LUT_a7_100": {"metric": "LUT_count", "from": "synthesis", "apply_to": "simulation",
+                                  "match": {"pin": {"target": "a7", "frequency": 100}}}}
+    records = self.records() + [simulation_record()]
+    derived_metrics.apply_derived_metrics(config_from(definitions), records)
+    assert records[-1]["metrics"]["LUT_a7_100"] == 23
+
+  def test_simulation_to_synthesis_is_unchanged(self):
+    records = [synthesis_record(metrics={"LUT_count": 1}), simulation_record(metrics={"Cycles": 100})]
+    derived_metrics.apply_derived_metrics(config_from({"Cycles": {"from": "simulation"}}), records)
+    assert records[0]["metrics"]["Cycles"] == 100
+
+
+def test_end_of_run_derivation_reads_the_workspace_derived_metrics_file(tmp_path, monkeypatch):
+  """The file named by "derived_metrics_file" in odatix.yml, not the default path (C-04)."""
+  from odatix.components.export_derived_metrics import configure_post_batch_derivation
+
+  (tmp_path / "odatix.yml").write_text("derived_metrics_file: my_derived.yml\n")
+  (tmp_path / "my_derived.yml").write_text("derived_metrics:\n  X: {type: operation, op: 'a * 2'}\n")
+  monkeypatch.chdir(tmp_path)
+
+  class Handler(object):
+    pass
+
+  handler = Handler()
+  assert configure_post_batch_derivation(handler, "results")
+  assert handler.post_batch_action["derived_metrics_file"] == os.path.realpath(str(tmp_path / "my_derived.yml"))

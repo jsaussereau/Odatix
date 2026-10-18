@@ -559,3 +559,11 @@ class TestMaterializeElsewhere:
         write(domain, "16bits", "parameter WIDTH = 15; // hand-tuned")
         ConfigSet(str(domain), width_space()).materialize(str(work))
         assert read(work, "16bits") == "parameter WIDTH = 15; // hand-tuned"
+
+
+def test_a_trailing_newline_does_not_make_a_configuration_edited():
+    from odatix.workspace.space import _differs
+
+    assert not _differs("WIDTH = 8;\n", "WIDTH = 8;")
+    assert not _differs("WIDTH = 8;", "WIDTH = 8;\r\n")
+    assert _differs("WIDTH = 16;\n", "WIDTH = 8;")

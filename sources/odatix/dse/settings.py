@@ -34,7 +34,7 @@ look for it, and how to look.
     #     - xc7k70t-fbg676-2
 
     objectives:
-      - metric: frequency
+      - metric: Fmax
         goal: max
       - metric: LUT_count
         goal: min

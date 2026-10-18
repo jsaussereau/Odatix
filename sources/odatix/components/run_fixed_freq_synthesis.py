@@ -64,7 +64,7 @@ def add_arguments(parser):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Run synthesis at specigied frequencies on selected architectures")
+    parser = argparse.ArgumentParser(description="Run synthesis at specified frequencies on selected architectures")
     add_arguments(parser)
     return parser.parse_args()
 
@@ -88,8 +88,31 @@ _FREQUENCIES_EXAMPLE = (
 )
 
 
+#: What the messages call this run (see the glossary).
+SYNTH_KIND = "fixed-frequency synthesis"
+
+
 def _is_frequency(value):
-    return isinstance(value, int) and not isinstance(value, bool)
+    """A frequency in MHz: a positive integer."""
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _check_frequency_range(lower_bound, upper_bound, step):
+    """
+    Whether a "from / to / step" range can be expanded into frequencies, saying
+    what is wrong with it. On top of the checks shared with the fmax bounds, a
+    range needs a positive step (range() refuses a zero one, and a negative one
+    gives no frequency at all) and positive frequencies.
+    """
+    if not ArchitectureHandler.check_bounds(lower_bound, upper_bound, step, synth_type=SYNTH_KIND):
+        return False
+    if lower_bound <= 0:
+        printc.error("The lower bound ({0}) for {1} must be a positive frequency in MHz".format(lower_bound, SYNTH_KIND), script_name)
+        return False
+    if step <= 0:
+        printc.error("The step ({0}) for {1} must be a positive number of MHz".format(step, SYNTH_KIND), script_name)
+        return False
+    return True
 
 
 def _load_settings_custom_frequencies(run_config_settings_filename):
@@ -125,7 +148,7 @@ def _load_settings_custom_frequencies(run_config_settings_filename):
         if not isinstance(list_data, list) or not all(_is_frequency(item) for item in list_data):
             _frequencies_error(
                 run_config_settings_filename,
-                '"frequencies: list" is "' + str(list_data) + '" while it should be a list of frequencies in MHz',
+                '"frequencies: list" is "' + str(list_data) + '" while it should be a list of positive frequencies in MHz',
                 _FREQUENCIES_EXAMPLE,
             )
         custom_freq_list.extend(list_data)
@@ -150,7 +173,7 @@ def _load_settings_custom_frequencies(run_config_settings_filename):
                 _FREQUENCIES_EXAMPLE,
             )
         lower_bound, upper_bound, step = bounds
-        if not ArchitectureHandler.check_bounds(lower_bound, upper_bound, step, synth_type="custom frequency synthesis"):
+        if not _check_frequency_range(lower_bound, upper_bound, step):
             raise SystemExit(-1)
         custom_freq_list.extend(ArchitectureHandler.create_list_from_range(lower_bound, upper_bound, step))
     # Keep order stable while removing duplicates.
@@ -450,21 +473,24 @@ def start_parallel_jobs(
 def main(args):
     custom_freq_list = list(args.at_freq or [])
 
-    if args.to_freq is not None and (args.from_freq is None or args.step_freq is None):
-        printc.error("--to cannot be used without --from and --step", script_name=script_name)
+    invalid = [freq for freq in custom_freq_list if freq <= 0]
+    if invalid:
+        printc.error("--at {0}: a frequency must be a positive number of MHz".format(invalid[0]), script_name=script_name)
         sys.exit(-1)
-    elif args.from_freq is not None and (args.to_freq is None or args.step_freq is None):
-        printc.error("--from cannot be used without --to and --step", script_name=script_name)
+
+    range_options = (("--from", args.from_freq), ("--to", args.to_freq), ("--step", args.step_freq))
+    missing = [option for option, value in range_options if value is None]
+    if missing and len(missing) < len(range_options):
+        printc.error(
+            "--from, --to and --step go together: " + " and ".join(missing) + (" is" if len(missing) == 1 else " are") + " missing",
+            script_name=script_name,
+        )
+        printc.note("Example: --from 100 --to 300 --step 50", script_name=script_name)
         sys.exit(-1)
-    elif args.step_freq is not None and (args.to_freq is None or args.from_freq is None):
-        printc.error("--step cannot be used without --from and --to", script_name=script_name)
-        sys.exit(-1)
-    elif args.from_freq is not None and args.to_freq is not None and args.step_freq is not None:
-        if ArchitectureHandler.check_bounds(args.from_freq, args.to_freq, args.step_freq, synth_type="custom frequency synthesis"):
-            range_list = ArchitectureHandler.create_list_from_range(args.from_freq, args.to_freq, args.step_freq)
-            custom_freq_list = custom_freq_list + range_list
-        else:
+    if not missing:
+        if not _check_frequency_range(args.from_freq, args.to_freq, args.step_freq):
             sys.exit(-1)
+        custom_freq_list = custom_freq_list + ArchitectureHandler.create_list_from_range(args.from_freq, args.to_freq, args.step_freq)
 
     run_cli.execute(run_cli.command_run(
         "custom_freq_synthesis",

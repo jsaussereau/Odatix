@@ -227,11 +227,15 @@ errors is a result too. It is what the
 read.
 
 {{< code lang=yaml filename="results/results_analysis_verilator.yml" >}}
+schema: 2
+units: {}
+results:
 - meta:
     type: analysis
     tool: verilator
     architecture: Example_Counter_sv
     configuration: 08bits
+    flow: lint
     _status: failed
     _summary: "Cannot find file containing module: 'sub_missing'"
     _findings:
@@ -253,7 +257,16 @@ read.
     expected_count: 0
 {{< /code >}}
 
-The keys starting with `_` are informational: neither chart dimensions nor part
-of the record identity, so analyzing a design again replaces its record. A
+`flow` is the flow of the tool the analysis ran with: two flows of a tool are
+two records. The keys starting with `_` are informational: neither chart
+dimensions nor part of the record identity, so analyzing a design again
+replaces its record.
+
+A record holds the verdict of its analysis as it was read when the job ended.
+After changing the `expected` section of `analyze_settings.yml`, or the
+`analysis.yml` of a tool, run `odatix results analysis`: it reads the logs of
+the work directory again and rewrites the records, so that the terminal report
+and Explorer agree. A finished analysis is not run again unless
+`-o/--overwrite` is given (or `overwrite: Yes` in the settings file). A
 result keeps its 100 most relevant findings (`_findings_omitted` counts the
 others); the metrics count every occurrence, the expected ones apart.

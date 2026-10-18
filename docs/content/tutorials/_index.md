@@ -46,7 +46,7 @@ both are things you can add yourself.
 |---------|----------|
 | [Architecture exploration](/docs/features/architecture-exploration/) | [Implement your own RTL](/tutorials/own_designs/architecture/) |
 | [RTL analysis](/docs/features/analysis/) | [RTL analysis](/tutorials/run_examples/analysis/) |
-| [RTL synthesis](/docs/features/rtl_synthesis/) | [Custom-frequency synthesis](/tutorials/run_examples/synthesis/) |
+| [RTL synthesis](/docs/features/rtl_synthesis/) | [Fixed-frequency synthesis](/tutorials/run_examples/synthesis/) |
 | [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | [Parallel Fmax synthesis](/tutorials/run_examples/fmax_synthesis/) |
 | [Place & route](/docs/features/pnr/) | [Place & route a synthesized design](/tutorials/run_examples/pnr/) |
 | [Simulation](/docs/features/simulation/) | [Parallel simulations](/tutorials/run_examples/simulations/) · [Simulate your own RTL](/tutorials/own_designs/simulations/) |

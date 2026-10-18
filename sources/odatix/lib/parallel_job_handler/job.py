@@ -403,8 +403,19 @@ class ParallelJob:
             progress = 100
         return self._scale_to_run(progress)
 
-    def pause(self):
-        """Suspend the job execution."""
+    @staticmethod
+    def _control_message(action, by, detail):
+        text = "Job " + action + " by " + str(by or "user")
+        return text + (": " + str(detail) if detail else "")
+
+    def pause(self, by="user", detail=None):
+        """Suspend the job execution.
+
+        Args:
+            by (str): who asks, as the job log says it ("user", "resource
+                guard").
+            detail (str): why, appended to the log line.
+        """
         if self.process and self.status == "running":
             if sys.platform == "win32":
                 self.log_history.append(printc.colors.YELLOW + "Pause is not supported on Windows" + printc.colors.ENDC)
@@ -413,10 +424,10 @@ class ParallelJob:
                 return
             self.status = "paused"
             self.stop_time = time.time()
-            self.log_history.append(printc.colors.BLUE + "Job paused by user" + printc.colors.ENDC)
+            self.log_history.append(printc.colors.BLUE + self._control_message("paused", by, detail) + printc.colors.ENDC)
 
-    def resume(self):
-        """Resume the job execution."""
+    def resume(self, by="user", detail=None):
+        """Resume the job execution (see :meth:`pause` for the arguments)."""
         if self.process and self.status == "paused":
             if sys.platform == "win32":
                 self.log_history.append(printc.colors.YELLOW + "Resume is not supported on Windows" + printc.colors.ENDC)
@@ -425,4 +436,4 @@ class ParallelJob:
             self.status = "running"
             self.start_time += time.time() - self.stop_time # Adjust the start time to reflect the paused duration
             self.stop_time = None
-            self.log_history.append(printc.colors.GREEN + "Job resumed by user" + printc.colors.ENDC)
+            self.log_history.append(printc.colors.GREEN + self._control_message("resumed", by, detail) + printc.colors.ENDC)

@@ -27,11 +27,11 @@ misread.
 | <a id="tool-flow"></a>**Tool flow** / **step** | The sequence of steps a tool runs (synthesis, place, route, bitstream...). A tool can have several flows to compare. | A [workflow](#workflow). "Flow" alone is avoided in the interface. |
 | <a id="workflow"></a>**Workflow** | A chain of tasks defined by the user and run by Odatix: any command-line step becomes a task. | A [tool flow](#tool-flow). A *task* is a step of a workflow. |
 | <a id="fmax-synthesis"></a>**Fmax synthesis** | The search for the maximum frequency a design point reaches (`odatix fmax`). | |
-| <a id="fixed-frequency-synthesis"></a>**Fixed-frequency synthesis** | A synthesis at frequencies chosen by the user (`odatix synth`), whose frequencies an architecture gives in its `fixed_freq_synthesis` block. | "Custom frequency synthesis": its block was called `custom_freq_synthesis`, a name still read for one version. The job type keeps the name `custom_freq_synthesis` in work directories and result files. |
+| <a id="fixed-frequency-synthesis"></a>**Fixed-frequency synthesis** | A synthesis at frequencies chosen by the user (`odatix synth`), whose frequencies an architecture gives in its `fixed_freq_synthesis` block. | "Custom frequency synthesis" or "custom-frequency synthesis": its block was called `custom_freq_synthesis`, a name still read for one version. The job type keeps the name `custom_freq_synthesis` in work directories and result files. |
 | <a id="run"></a>**Run** | A command started by the user, from the command line or the GUI, which produces jobs. | A [job](#job). |
 | <a id="job"></a>**Job** | The execution of one design point by one tool. | A *task*, which is a step of a workflow. |
-| <a id="session"></a>**Session** | A named group of jobs, followed in the monitor. | |
-| <a id="daemon"></a>**Daemon** | The process that owns the sessions and runs their jobs (`odatix monitor`, `odatix stop`). | "Background mode". |
+| <a id="session"></a>**Session** | A named group of jobs, run in the background by its own daemon and followed in the monitor. It belongs to the workspace it was started in. | |
+| <a id="daemon"></a>**Daemon** | The process behind one session: it runs the session's jobs (`odatix monitor`, `odatix stop`). Each session has its own. | "Background mode". |
 | <a id="detached"></a>**Detached** | The mode where a run hands its jobs over to the daemon and returns (`-d/--detach`). | "Background", "daemon mode". |
 | <a id="campaign"></a>**Campaign** | A design space exploration: a space, objectives, a search strategy and a budget, in a file of `dse_campaigns/`. | "Exploration", for a campaign. |
 | <a id="results"></a>**Results** | The measurements exported in `results_*.yml`, read by Odatix Explorer. | "Benchmark": benchmark scores are simulation metrics. |

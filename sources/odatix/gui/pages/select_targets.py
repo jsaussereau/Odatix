@@ -217,17 +217,75 @@ def build_cards(search, odatix_settings):
 # Callbacks
 ######################################
 
+def tool_settings_values(search, odatix_settings):
+    """
+    The settings of the tool held by its target file (constraint file, install
+    path, single thread), as the fields of the page show them.
+    """
+    tool = get_key_from_url(search, "tool")
+    if not tool:
+        return {"constraint_file": "", "tool_install_path": "", "force_single_thread": False}
+    target_file = get_workspace(odatix_settings).targets[tool]
+    settings = target_file.settings()
+    if not target_file.exists:
+        # What saving will write: a new target file spells its settings out.
+        from odatix.lib.prepare_work import DEFAULT_CONSTRAINT_FILE
+
+        settings = {"constraint_file": DEFAULT_CONSTRAINT_FILE}
+    return {
+        "constraint_file": str(settings.get("constraint_file") or ""),
+        "tool_install_path": str(settings.get("tool_install_path") or ""),
+        "force_single_thread": bool(target_file.force_single_thread),
+    }
+
+
 # Load the page content from the url (?tool=<tool>)
 @dash.callback(
     Output("target-cards-row", "children"),
     Output("select-targets-title", "children"),
+    Output("target-constraint-file", "value"),
+    Output("target-install-path", "value"),
+    Output("target-single-thread", "value"),
+    Output("target-tool-settings", "data"),
+    Output("select-targets-back", "href"),
     Input(f"url_{page_path}", "search"),
     State("odatix-settings", "data"),
 )
 def load_page(search, odatix_settings):
     tool = get_key_from_url(search, "tool")
     title = f"{get_tool_display_name(tool)} Targets" if tool else "Targets"
-    return build_cards(search, odatix_settings), title
+    values = tool_settings_values(search, odatix_settings)
+    return (
+        build_cards(search, odatix_settings),
+        title,
+        values["constraint_file"],
+        values["tool_install_path"],
+        [True] if values["force_single_thread"] else [],
+        values,
+        back_link(search),
+    )
+
+
+def back_link(search):
+    """
+    Where the back arrow leads: the page given by "?back=" (the run page that
+    opened this one passes itself), or the choice of a job type otherwise.
+    Only a path of this app is followed, never another site.
+    """
+    back = get_key_from_url(search, "back")
+    if isinstance(back, str) and back.startswith("/") and not back.startswith("//"):
+        return back
+    return "/choose_job_type"
+
+
+def tool_settings_changed(constraint_file, install_path, single_thread, loaded):
+    """Whether the tool settings fields differ from what the file holds."""
+    loaded = loaded if isinstance(loaded, dict) else {}
+    return (
+        str(constraint_file or "").strip() != str(loaded.get("constraint_file", ""))
+        or str(install_path or "").strip() != str(loaded.get("tool_install_path", ""))
+        or bool(single_thread) != bool(loaded.get("force_single_thread", False))
+    )
 
 
 # Folding the extra fields away is done on the client, on the document, by the
@@ -251,26 +309,44 @@ def update_card_enabled_style(enable_value):
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output("target-cards-row", "children", allow_duplicate=True),
     Output("target-feedback", "children"),
+    Output("target-tool-settings", "data", allow_duplicate=True),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"type": "target-title", "name": ALL}, "value"),
     Input({"type": "target-enable", "name": ALL}, "value"),
     Input({"type": "target-script-copy-enable", "name": ALL}, "value"),
     Input({"type": "target-script-copy-source", "name": ALL}, "value"),
+    Input("target-constraint-file", "value"),
+    Input("target-install-path", "value"),
+    Input("target-single-thread", "value"),
     State({"type": "target-metadata", "name": ALL}, "data"),
+    State("target-tool-settings", "data"),
     State(f"url_{page_path}", "search"),
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
-def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, script_copy_sources, metadata, search, odatix_settings):
+def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, script_copy_sources,
+                       constraint_file, install_path, single_thread, metadata, loaded_settings, search, odatix_settings):
     trigger_id = ctx.triggered_id
 
     if trigger_id == {"page": page_path, "action": "save-all"}:
         if not save_n_clicks:
-            return dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         tool = get_key_from_url(search, "tool")
         if not tool:
-            return dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         target_file = get_workspace(odatix_settings).targets[tool]
+        # Only what changed is written: a file that leaves a key out keeps
+        # leaving it out (and its default applying).
+        if tool_settings_changed(constraint_file, install_path, single_thread, loaded_settings):
+            loaded = loaded_settings if isinstance(loaded_settings, dict) else {}
+            changes = {}
+            if str(constraint_file or "").strip() != str(loaded.get("constraint_file", "")):
+                changes["constraint_file"] = str(constraint_file or "").strip()
+            if str(install_path or "").strip() != str(loaded.get("tool_install_path", "")):
+                changes["tool_install_path"] = str(install_path or "").strip()
+            if bool(single_thread) != bool(loaded.get("force_single_thread", False)):
+                changes["force_single_thread"] = bool(single_thread)
+            target_file.update(save=False, **changes)
         target_file.targets = [
             {
                 "name": str(titles[i] or "").strip(),
@@ -284,20 +360,27 @@ def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, scri
         try:
             target_file.save()
         except Exception as e:
-            return save_button_enabled, dash.no_update, ui.error(f"Targets not saved: {e}")
-        return save_button_disabled, build_cards(search, odatix_settings), ui.success()
+            return save_button_enabled, dash.no_update, ui.error(f"Targets not saved: {e}"), dash.no_update
+        return (
+            save_button_disabled,
+            build_cards(search, odatix_settings),
+            ui.success(),
+            tool_settings_values(search, odatix_settings),
+        )
 
     # Any other trigger: compare current values against the loaded metadata
+    if tool_settings_changed(constraint_file, install_path, single_thread, loaded_settings):
+        return save_button_enabled, dash.no_update, dash.no_update, dash.no_update
     for i, meta in enumerate(metadata):
         if str(titles[i] or "") != str(meta.get("name", "")):
-            return save_button_enabled, dash.no_update, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update, dash.no_update
         if bool(enables[i]) != bool(meta.get("enabled", True)):
-            return save_button_enabled, dash.no_update, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update, dash.no_update
         if bool(script_copy_enables[i]) != bool(meta.get("script_copy_enable", False)):
-            return save_button_enabled, dash.no_update, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update, dash.no_update
         if str(script_copy_sources[i] or "") != str(meta.get("script_copy_source", "")):
-            return save_button_enabled, dash.no_update, dash.no_update
-    return save_button_disabled, dash.no_update, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update, dash.no_update
+    return save_button_disabled, dash.no_update, dash.no_update, dash.no_update
 
 
 # Add a new target
@@ -445,8 +528,40 @@ title_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        ui.title_tile("Targets", id="select-targets-title", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "20px"}),
+        ui.title_tile(
+            "Targets", id="select-targets-title", buttons=title_buttons,
+            # href set from the url by load_page (see back_link)
+            back_button_link="/choose_job_type", back_button_id="select-targets-back",
+            style={"marginTop": "10px", "marginBottom": "20px"},
+        ),
         ui.feedback("target-feedback", className="centered"),
+        # The settings of the tool the target file holds besides its targets.
+        dcc.Store(id="target-tool-settings"),
+        ui.panel(
+            title="Tool settings",
+            className="target-tool-settings",
+            body=ui.grid([
+                ui.form_field(
+                    "Constraint file",
+                    id="target-constraint-file",
+                    placeholder="constraints.sdc",
+                    tooltip="File of the job directory holding the clock constraint at the target frequency. "
+                            "Odatix writes it as SDC before the job runs; the scripts of a tcl tool rewrite it in "
+                            "their own format. Empty: constraints.sdc.",
+                ),
+                ui.form_field(
+                    "Tool install path",
+                    id="target-install-path",
+                    placeholder="Empty: the tool is on your PATH",
+                    tooltip="Installation directory of the tool, given to its commands as $tool_install_path.",
+                ),
+                ui.switch_row(
+                    "Force single thread",
+                    id="target-single-thread",
+                    tooltip="Ask the tool to run on one thread: may help when many jobs run in parallel.",
+                ),
+            ]),
+        ),
         html.Div(id="target-section", style={"marginBottom": "10px"}, children=[
             html.Div(
                 id="target-cards-row",

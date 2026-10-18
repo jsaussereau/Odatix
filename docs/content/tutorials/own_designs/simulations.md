@@ -31,7 +31,8 @@ nothing else: compiling, elaborating and running it is the job of the
   `rtl/counter.v`, whose configurations `8bits`, `16bits` and `32bits` are
   built from the variable `width`.
 - One of the simulators above in your `PATH`. Icarus Verilog and Verilator are
-  free and packaged by most Linux distributions.
+  free and packaged by most Linux distributions: see [Install the
+  simulators](/install/eda_tools/#simulations).
 
 ## Step 1 — Write a testbench
 

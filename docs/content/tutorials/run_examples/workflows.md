@@ -27,9 +27,9 @@ Odatix uses for synthesis, applied to anything that runs from a shell.
 
 ## Prerequisites
 
-For this tutorial, you need **at least one** of the following tools installed and available in your `PATH`:
-- [Verilator](https://www.veripool.org/verilator/)
-- [GHDL](https://github.com/ghdl/ghdl)
+The examples run Python scripts: `python3` must be in your `PATH`. No EDA tool
+is needed. The `tensorflow` example also installs TensorFlow, which takes a
+while and needs a Python version TensorFlow supports.
 
 Make sure you have [Odatix installed](/install/) and available in your `PATH`. For example, if you installed Odatix in a virtual environment, activate it first:
 
@@ -59,8 +59,8 @@ $ odatix init --examples
 ╚██████╔╝ ██████╔╝ ██║  ██║   ██║    ██║ ██╔╝ ██╗
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
-<font color="#555753">[settings.py]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
-<font color="#555753">[settings.py]</font> Run <b>odatix -h</b> to get a list of useful commands
+<font color="#555753">[odatix init]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
+<font color="#555753">[odatix init]</font> Run <b>odatix -h</b> to get a list of useful commands
 {{< /code >}}
 
 ### Step 2 — Look at what a workflow is
@@ -75,13 +75,19 @@ progress:
   file: progress.txt                  # what the Job Monitor reads
   regex: ".*Progress: ([0-9]+)*"
 
+use_parameters: Yes
+param_target_file: "main.py"          # where a configuration is written
+start_delimiter: 'AWESOME_STRING = "'
+stop_delimiter: '"'
+
 tasks:
   - name: main                        # execution always starts here
     dependencies:
       - generate_config               # ... which runs first
     commands:
-      - echo 'step 1/2 done'
+      - echo 'step 1/3 done'
       - "echo 'Progress: 60' > progress.txt"
+      - python3 main.py               # writes output.txt
 
   - name: generate_config
     commands:
@@ -103,20 +109,30 @@ metrics:
 {{< /code >}}
 
 `default.txt` and `hehe.txt` in the same directory are its two
-**configurations**: each is spliced into the source file named by
-`param_target_file`.
+**configurations**: each is written into `main.py`, the file named by
+`param_target_file`, between the two delimiters. `main.py` then writes the
+string and its length to `output.txt`, where `_metrics.yml` reads them.
 
 ### Step 3 — Choose what to run
 
-Open `odatix_userconfig/workflow_settings.yml` and keep it small for a first run:
+Open `odatix_userconfig/workflow_settings.yml`. Keep the settings at the top
+of the file as `odatix init` wrote them (each of them is required), and only
+make the `workflows` list small for a first run:
 
 {{< code lang=yaml filename="odatix_userconfig/workflow_settings.yml" >}}
-nb_jobs: 4
+overwrite:        No
+ask_continue:     Yes
+exit_when_done:   No
+log_size_limit:   300
+nb_jobs:          4
 
 workflows:
   - basic/default
   - basic/hehe
 {{< /code >}}
+
+The command line can also name the workflows to run, without touching the
+file: `odatix workflow -W "basic/*"`.
 
 ### Step 4 — Run it
 
@@ -137,6 +153,9 @@ $ odatix ls                       # list sessions
 $ odatix monitor -S experiments   # re-attach
 {{< /code >}}
 
+Run `odatix workflow` again and nothing runs: a job whose workflow ran to its
+end is skipped, as **Existing results**. `-o/--overwrite` runs it again.
+
 ### Step 5 — Sweep a parameter space
 
 The interesting part is running the *same* workflow across many values. Replace
@@ -156,7 +175,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles}
+      - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing} --road_length ${road_length}
 
 variables:
   max_speed:
@@ -168,14 +187,26 @@ variables:
     type: list
     settings:
       list: [100, 300]
+  signal_timing:
+    type: list
+    unit: s
+    settings:
+      list: [15, 45]
+  road_length:
+    type: list
+    unit: km
+    settings:
+      list: [1, 5]
 {{< /code >}}
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix workflow -j auto
 {{< /code >}}
 
-Odatix expands the **cross-product** of every variable, substitutes each `${...}`
-into the command, and runs one job per combination.
+Odatix expands the **cross-product** of every variable (3 × 2 × 2 × 2 = 24
+jobs), substitutes each `${...}` into the command, and runs one job per
+combination. The `unit` of a variable ends the name of its values:
+`max_speed/35kmh`.
 
 ### Step 6 — Chart the results
 
@@ -229,9 +260,9 @@ thing that makes it a workflow campaign rather than a synthesis one is
 | Symptom | Likely cause |
 |---------|--------------|
 | Progress bar stays at 0 % | `progress.file` or `progress.regex` does not match what the tasks write. |
-| A `${var}` reaches the shell literally | The name matches no variable, domain or workflow value — check the spelling in `variables`. |
+| A warning says a placeholder matches nothing | The `${var}` names no variable, selected domain or configuration, and the shell will expand it, usually to nothing. Check the spelling in `variables`, or add the domain to the selection (`+ signal_timing/*`). |
 | No results in Explorer | The workflow has no `_metrics.yml`, or the file the metric reads was never written. |
-| Jobs are skipped | They already have results; add `-o/--overwrite`, or `-r/--resume` to reuse the work directories. |
+| Jobs are skipped | Their workflow already ran to its end; add `-o/--overwrite` to run them again. |
 
 ## Related resources
 

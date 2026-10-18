@@ -26,6 +26,7 @@ import odatix.lib.printc as printc
 import odatix.run.cli as run_cli
 from odatix.components.cli_options import add_options
 from odatix.workspace import migrate as workspace_migrate
+from odatix.workspace.yaml_io import read_mapping
 
 script_name = os.path.basename(__file__)
 
@@ -44,12 +45,66 @@ def parse_arguments():
   return parser.parse_args()
 
 ######################################
+# Deprecated simulation keys
+######################################
+
+# The top-level parameter keys of a simulation, superseded by "param_domains"
+# under "architectures". They still run, but their meaning depends on the
+# architecture, which only the user can tell: they are listed, not rewritten.
+DEPRECATED_SIMULATION_KEYS = (
+  "use_parameters", "param_target_file", "start_delimiter", "stop_delimiter",
+  "override_parameters", "override_param_file", "override_param_target_file",
+  "override_start_delimiter", "override_stop_delimiter",
+)
+
+SIMULATION_REFERENCE_URL = "https://odatix.readthedocs.io/docs/reference/simulation/#parameters"
+
+def deprecated_simulation_keys(workspace):
+  """
+  The simulations of the workspace still written with the deprecated parameter
+  keys, as (settings file, [keys]) pairs.
+  """
+  found = []
+  try:
+    simulations = list(workspace.simulations)
+  except Exception:
+    return found
+  for simulation in simulations:
+    try:
+      settings_path = simulation.settings_path
+      data = read_mapping(settings_path)
+    except Exception:
+      continue
+    keys = [key for key in DEPRECATED_SIMULATION_KEYS if key in (data or {})]
+    if keys:
+      found.append((settings_path, keys))
+  return found
+
+######################################
 # Report
 ######################################
 
-def report(migrations, dry_run=False):
+def report_deprecated_simulations(deprecated):
+  """Say which simulations hold deprecated keys. False when there is one."""
+  if not deprecated:
+    return True
+  root = os.getcwd()
+  for path, keys in deprecated:
+    printc.warning(
+      os.path.relpath(path, root) + ": deprecated " + ", ".join('"' + key + '"' for key in keys)
+      + ', to express under "architectures" with "param_domains"', script_name
+    )
+  printc.note(
+    "{0} simulation(s) still use the deprecated parameter keys, which odatix migrate does not rewrite: "
+    "see {1}".format(len(deprecated), SIMULATION_REFERENCE_URL), script_name
+  )
+  return False
+
+def report(migrations, dry_run=False, deprecated=None):
   """Print what was (or would be) migrated. False when something is left to the user."""
   if not migrations:
+    if deprecated:
+      return report_deprecated_simulations(deprecated)
     printc.note("Every settings file is already in the current format", script_name)
     return True
 
@@ -72,7 +127,8 @@ def report(migrations, dry_run=False):
     printc.note("{0} file(s) rewritten".format(changed), script_name)
   if left:
     printc.warning("{0} file(s) still hold settings to rewrite by hand".format(left), script_name)
-  return left == 0
+  simulations_ok = report_deprecated_simulations(deprecated)
+  return left == 0 and simulations_ok
 
 ######################################
 # Main
@@ -81,7 +137,7 @@ def report(migrations, dry_run=False):
 def main(args):
   workspace = run_cli.command_workspace(args.config, script_name)
   migrations = workspace_migrate.migrate(workspace, dry_run=args.dry_run, backup=not args.no_backup)
-  return report(migrations, dry_run=args.dry_run)
+  return report(migrations, dry_run=args.dry_run, deprecated=deprecated_simulation_keys(workspace))
 
 if __name__ == "__main__":
   args = parse_arguments()

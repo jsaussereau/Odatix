@@ -149,6 +149,28 @@ def format_tasks(tasks):
         return ""
     return yaml.safe_dump(tasks, sort_keys=False, default_flow_style=False).strip()
 
+def keep_unmanaged_task_keys(tasks, stored_tasks):
+    """
+    The tasks the cards describe, with what the cards do not edit ("phony",
+    ...) kept as the file has it. A task is matched to the stored one of the
+    same name, implementations sharing a name being matched in order.
+    """
+    stored_by_name = {}
+    for task in stored_tasks if isinstance(stored_tasks, list) else []:
+        if isinstance(task, dict):
+            stored_by_name.setdefault(str(task.get("name")), []).append(task)
+    kept = []
+    for task in tasks:
+        candidates = stored_by_name.get(str(task.get("name")), [])
+        if candidates and isinstance(task, dict):
+            stored = candidates.pop(0)
+            extra = {key: value for key, value in stored.items() if key not in te.TASK_FIELDS}
+            if extra:
+                task = dict(task)
+                task.update(extra)
+        kept.append(task)
+    return kept
+
 def wf_build_tasks_list(*field_values):
     """
     Build the workflow tasks list from the task card field values (one list per
@@ -544,7 +566,7 @@ dash.clientside_callback(
 )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output(f"url_{page_path}", "search"),
@@ -626,7 +648,9 @@ def save_and_status(
     odatix_settings,
 ):
     triggered_id = ctx.triggered_id
-    saving = triggered_id == {"page": page_path, "action": "save-all"}
+    # The button is part of the title, which a callback renders: a new button
+    # triggers this too, without anyone clicking it. Only a click saves.
+    saving = triggered_id == {"page": page_path, "action": "save-all"} and bool(n_clicks)
     if triggered_id == f"url_{page_path}" and page != page_path:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -694,7 +718,7 @@ def save_and_status(
                 (ui.error(f"Not saved: Unauthorized character in workflow name: {label}") if saving else dash.no_update),
             )
 
-    if triggered_id == {"page": page_path, "action": "save-all"}:
+    if saving:
         new_search = dash.no_update
 
         if workflow_name and workflow_title_value != workflow_name:
@@ -718,8 +742,18 @@ def save_and_status(
         if workflow is None:
             workflow = workflows.create(workflow_name)
 
+        # What is written is what the cards say, not its normalized form (which
+        # spells every list entry as text, for comparing only), with what the
+        # cards do not edit kept as the file has it: the "unit" of a variable,
+        # the "phony" of a task...
+        stored = workflow.settings.to_dict()
+        stored_variables, _legacy = get_variables(stored)
+        to_write = dict(current_settings)
+        to_write["variables"] = ve.keep_unmanaged_keys(variables, stored_variables)
+        to_write["tasks"] = keep_unmanaged_task_keys(parsed_tasks, stored.get("tasks"))
+
         try:
-            workflow.update(current_settings)
+            workflow.update(to_write)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
@@ -918,7 +952,9 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "workflow-title-div"}, style={"marginTop": "20px"}),
         html.Div(ui.feedback("workflow-save-feedback"), className="card-matrix config"),
-        html.Div(id="workflow-form-container"),
+        # Rendered empty from the start, then filled by init_form: the fields
+        # are inputs of save_and_status, which must find them on load.
+        html.Div(workflow_form({}), id="workflow-form-container"),
         html.Div(
             children=[
                 ui.title_tile(

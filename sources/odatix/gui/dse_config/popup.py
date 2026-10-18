@@ -67,7 +67,7 @@ def body(status):
 
 def _totals():
     """The one number an exploration is really about: how many designs it runs."""
-    designs = sum(entry.get("budget", 0) for entry in exploration.plan)
+    designs = sum(entry.get("remaining", entry.get("budget", 0)) for entry in exploration.plan)
     space = sum(entry.get("space", 0) for entry in exploration.plan)
     return html.Div(
         children=[
@@ -124,6 +124,9 @@ def _campaign_card(entry):
                         "{0}/{1} designs".format(entry.get("budget", 0), entry.get("space", 0)),
                         color="success",
                     ),
+                    ui.badge(
+                        "{0} already evaluated, {1} left".format(entry.get("done", 0), entry.get("remaining", 0)),
+                    ) if entry.get("done") else html.Span(),
                 ],
                 className="dse-plan-head",
             ),

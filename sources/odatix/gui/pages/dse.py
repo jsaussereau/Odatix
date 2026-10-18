@@ -252,8 +252,17 @@ layout = html.Div(
                 html.Div(
                     children=[
                         html.Div(
-                            html.H1("Design space exploration", className="odx-title"),
-                            className="odx-header-titles",
+                            children=[
+                                # Back to the job type choice this page is opened from
+                                dcc.Link(
+                                    icon("back", className="icon back-button", width="26px", height="26px"),
+                                    href="/choose_job_type",
+                                    id="dse-back",
+                                    className="dse-editor-back",
+                                ),
+                                html.H1("Design space exploration", className="odx-title"),
+                            ],
+                            className="odx-header-titles dse-editor-titles",
                         ),
                         title_buttons,
                     ],
@@ -327,6 +336,11 @@ layout = html.Div(
         "display": "flex",
         "flexDirection": "column",
         "min-height": "calc(100vh - {0})".format(navigation.top_bar_height),
+        # The hidden tooltips of the buttons at the right edge (Explore) and of
+        # the narrow panels on a phone still take room past the page, which
+        # scrolls it sideways: clipped, without making the page a scroll box
+        # (the header stays sticky).
+        "overflowX": "clip",
     },
 )
 

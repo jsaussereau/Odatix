@@ -134,7 +134,7 @@ def _load_settings_fmax_bounds(run_config_settings_filename):
     """
     Read the fmax binary search bounds from the run settings file. The bounds
     are only returned when "override" is enabled, mirroring the "Override
-    frequencies" toggle of custom frequency synthesis: when disabled, the
+    frequencies" toggle of fixed-frequency synthesis: when disabled, the
     settings-file bounds are not applied and architecture-specific / default
     bounds are used instead.
     Returns (lower_bound, upper_bound), each None when unset or not overriding.

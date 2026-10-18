@@ -147,7 +147,12 @@ class Campaign(object):
             workspace, settings, self.objectives, cancel_event=cancel_event,
             session=session, toolchains=self.toolchains,
         )
-        self.strategy = strategy_for(self.search.strategy)(
+        try:
+            strategy_class = strategy_for(self.search.strategy)
+        except ValueError as error:
+            # A strategy name is a settings file to fix, like any other one.
+            raise CampaignError("{0} Check \"search: strategy\" in \"{1}\".".format(error, self.source))
+        self.strategy = strategy_class(
             self.space, self.rng,
             mutation=self.search.mutation,
             tournament=self.search.tournament,
@@ -165,6 +170,7 @@ class Campaign(object):
             strategy=self.strategy.name, space_size=self.space.size(),
             tolerance=self.search.improvement,
             results_path=self.results_path,
+            design=architecture.name,
         )
         #: The genomes already proposed, so that no design is ever run twice --
         #: which is what makes a budget mean "this many designs", not "this many
@@ -253,6 +259,34 @@ class Campaign(object):
         except EmptySpaceError as error:
             raise CampaignError(str(error))
         self.check_simulations()
+        self.check_metrics()
+        return self
+
+    def check_metrics(self):
+        """
+        Make sure every metric the objectives and the constraints name is one
+        that what runs a design measures.
+
+        A name nothing produces would leave every design unmeasured, which is
+        only found out once a batch is back -- hours in, for a synthesis. The
+        names are known in advance from the metrics files (see
+        :mod:`odatix.dse.metric_names`), so a misspelled one is said now. When
+        what runs a design does not declare its metrics, nothing is checked.
+        """
+        from odatix.dse.metric_names import describe_unknown, known_metric_names, unknown_metrics
+
+        if not isinstance(self.evaluator, Evaluator):
+            # Something else measures the designs (a test, a model): the
+            # metrics files say nothing about what it can measure.
+            return self
+        try:
+            names = known_metric_names(self.workspace, self.settings, self.toolchains)
+        except Exception:
+            # Not knowing the names is not a reason to refuse to run.
+            return self
+        unknown = unknown_metrics(self.objectives.measured_metrics, names)
+        if unknown:
+            raise CampaignError(describe_unknown(unknown, names, self.source, run=self.settings.run))
         return self
 
     def check_simulations(self):
@@ -303,6 +337,38 @@ class Campaign(object):
             )
             + self.describe_exclusions()
             + self.describe_constraints()
+            + self.describe_resume()
+        )
+
+    @property
+    def already_evaluated(self):
+        """
+        How many designs an earlier run of this campaign already evaluated,
+        as its archive says -- none when the run is asked to overwrite.
+        """
+        if self.settings.overwrite:
+            return 0
+        return self.archive.peek()
+
+    @property
+    def remaining(self):
+        """How many designs this run of the campaign will evaluate at most."""
+        return max(0, self.budget - self.already_evaluated)
+
+    def describe_resume(self):
+        """What an earlier run of the campaign already did, when there was one."""
+        done = self.already_evaluated
+        if not done:
+            return ""
+        if not self.remaining:
+            return (
+                " Its archive \"{0}\" already holds {1} design(s) evaluated: the budget is spent, "
+                "nothing is left to run (raise \"budget\", or start over with -o/--overwrite).".format(
+                    self.archive.path, done,
+                )
+            )
+        return " Its archive \"{0}\" already holds {1} design(s) evaluated: {2} left to run.".format(
+            self.archive.path, done, self.remaining,
         )
 
     def describe_exclusions(self):
@@ -398,6 +464,7 @@ class Campaign(object):
 
         self.started_at = time.time()
         evaluated = self.resume()
+        first_batch = self.batch_index
         idle = 0
         self.progress(evaluated)
 
@@ -479,10 +546,16 @@ class Campaign(object):
                     " (stopping after {0})".format(limit) if limit else "",
                 ), script_name)
 
-        if self.started_at is not None:
+        if self.started_at is not None and self.batch_index > first_batch:
             printc.say("Campaign \"{0}\" ran for {1} over {2} batch(es).".format(
-                self.name, _duration(time.time() - self.started_at), self.batch_index
+                self.name, _duration(time.time() - self.started_at), self.batch_index - first_batch
             ), script_name)
+        elif evaluated >= self.budget:
+            printc.note(
+                "Campaign \"{0}\" had nothing left to run: its budget of {1} design(s) was already "
+                "spent. Raise \"budget\" to search further.".format(self.name, self.budget),
+                script_name,
+            )
         self.save()
         return self.archive
 
@@ -548,6 +621,7 @@ class Campaign(object):
             # for: there is nothing to pick up.
             return 0
         genomes = self.archive.restore(self.space, self.objectives)
+        self.remeasure()
         evaluated = len([
             evaluation for evaluation in self.archive.evaluations if not evaluation.reused
         ])
@@ -567,6 +641,56 @@ class Campaign(object):
             )
         self.adopt()
         return evaluated
+
+    def remeasure(self):
+        """
+        Read again, from the results files, what the designs restored from the
+        archive are worth.
+
+        The archive keeps the verdict of the run that wrote it, for the
+        objectives and the constraints it had. When the campaign has changed
+        them since -- a misspelled metric fixed, a constraint added -- that
+        verdict answers another question: every design restored is measured
+        again against the current ones, exactly as if the campaign had just
+        run it. The designs the archive holds as unmeasured are always read
+        again too: what their run produced may have come in since (a batch
+        that finished after the exploration was stopped).
+
+        Nothing is run: a design whose records are gone keeps what the archive
+        said of it.
+        """
+        remeasure = getattr(self.evaluator, "remeasure", None)
+        if remeasure is None or not self.archive.evaluations:
+            return
+        changed = self.archive.asked_another_question(self.objectives)
+        targets = [
+            evaluation for evaluation in self.archive.evaluations
+            if changed or not evaluation.measured
+        ]
+        if not targets:
+            return
+        try:
+            records = self.evaluator._records()
+            remeasured = dict(
+                (id(evaluation), remeasure(evaluation, records)) for evaluation in targets
+            )
+        except Exception as error:
+            printc.warning(
+                "Could not read the results of the designs already evaluated again: {0}".format(error),
+                script_name,
+            )
+            return
+        self.archive.evaluations = [
+            remeasured.get(id(evaluation), evaluation) for evaluation in self.archive.evaluations
+        ]
+        if changed:
+            printc.note(
+                "The objectives or the constraints of \"{0}\" changed since \"{1}\" was written: "
+                "the {2} design(s) it holds are measured again from the results files, against "
+                "the current ones.".format(self.name, self.archive.path, len(targets)),
+                script_name,
+            )
+        self.save()
 
     def adopt(self):
         """
@@ -995,9 +1119,12 @@ class Exploration(object):
             printc.say(campaign.describe(), script_name)
         if not self.settings.ask_continue:
             return
-        printc.bold("\nTotal: {0} design(s) to evaluate".format(
-            sum(campaign.budget for campaign in campaigns)
-        ))
+        remaining = sum(campaign.remaining for campaign in campaigns)
+        if not remaining:
+            # Nothing to spend, so nothing to agree to: the run reads what is
+            # already there and says so.
+            return
+        printc.bold("\nTotal: {0} design(s) to evaluate".format(remaining))
         ask_to_continue()
 
     def run(self, confirm=True):

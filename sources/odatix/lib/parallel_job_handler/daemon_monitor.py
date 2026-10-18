@@ -22,6 +22,7 @@
 """Curses monitor attached to a running daemon, using the legacy curses UI."""
 
 import argparse
+import errno
 import os
 import shutil
 import time
@@ -81,6 +82,23 @@ def _is_terminal_log_status(status):
     return str(status) in ("success", "failed", "killed", "canceled")
 
 
+#: How long (s) a session has to stay unreachable -- its socket gone, or its
+#: port refusing connections -- before the monitor takes it as stopped. A busy
+#: session answers late (a timeout) but never refuses: that is not counted.
+SESSION_GONE_GRACE = 2.0
+
+
+def _session_gone_error(error):
+    """Whether `error` says nothing listens there any more (rather than "busy")."""
+    if isinstance(error, (FileNotFoundError, ConnectionRefusedError)):
+        return True
+    return getattr(error, "errno", None) in (errno.ENOENT, errno.ECONNREFUSED)
+
+
+#: Statuses whose elapsed time does not move.
+_FROZEN_CLOCK_STATUSES = ("success", "failed", "killed", "canceled", "paused")
+
+
 class _QueueCounter:
     def __init__(self):
         self._count = 0
@@ -135,6 +153,9 @@ class DaemonMonitorHandler(ParallelJobHandler):
         self._remote_guard_unavailable = None
         self._remote_total_jobs = 0
         self._remote_format_yaml = None
+        # Set once the session stops answering for good (see _sync_snapshot).
+        self.session_gone = False
+        self._unreachable_since = None
 
         self._placeholder = self._new_local_job(
             remote_id=-1,
@@ -203,12 +224,19 @@ class DaemonMonitorHandler(ParallelJobHandler):
         elapsed_seconds = _parse_elapsed_seconds(remote_job.get("elapsed_time"))
         if elapsed_seconds > 0:
             job.start_time = now - float(elapsed_seconds)
-            if job.status in ("success", "failed", "killed", "canceled"):
+            # A paused job's time stands still, like a finished one's: a delta
+            # snapshot does not send it again while it stays paused, and a
+            # clock left running here would keep counting until it resumes.
+            if job.status in _FROZEN_CLOCK_STATUSES:
                 job.stop_time = now
             else:
                 job.stop_time = None
         else:
-            if job.status in ("running", "starting", "paused", "exporting"):
+            if job.status == "paused":
+                if job.start_time is None:
+                    job.start_time = now
+                job.stop_time = job.start_time
+            elif job.status in ("running", "starting", "exporting"):
                 if job.start_time is None:
                     job.start_time = now
                 job.stop_time = None
@@ -263,10 +291,21 @@ class DaemonMonitorHandler(ParallelJobHandler):
             snapshot = _api_get(self._endpoint, self._status_path(), timeout=0.8)
         except Exception as e:
             self._last_poll = now
+            if _session_gone_error(e):
+                # Stopped from elsewhere ("odatix stop", the GUI): there is
+                # nothing left to show, and the monitor says so and leaves
+                # (see curses_ui and run_monitor) rather than freeze on it.
+                if self._unreachable_since is None:
+                    self._unreachable_since = now
+                if now - self._unreachable_since >= SESSION_GONE_GRACE:
+                    self.session_gone = True
+                return
+            self._unreachable_since = None
             self._append_error(e)
             return
 
         self._last_poll = now
+        self._unreachable_since = None
 
         handler_data = _extract_handler(snapshot)
         remote_jobs = _extract_jobs(snapshot)
@@ -713,6 +752,7 @@ def run_monitor(
     poll_interval=0.25,
     auto_exit=False,
     token=None,
+    session_label=None,
 ):
     handler = DaemonMonitorHandler(
         endpoint=endpoint,
@@ -722,7 +762,16 @@ def run_monitor(
         auto_exit=bool(auto_exit),
         token=token,
     )
-    return curses_ui.run(handler)
+    # Which session this is, for the header: with several sessions running,
+    # nothing else on the screen tells them apart.
+    handler.session_label = session_label
+    result = curses_ui.run(handler)
+    if handler.session_gone:
+        from odatix.lib.parallel_job_handler.daemon_control import SessionGoneError
+
+        name = "Session {}".format(session_label) if session_label else "The session"
+        raise SessionGoneError(name + " was stopped while the monitor was attached to it")
+    return result
 
 
 def add_arguments(parser):

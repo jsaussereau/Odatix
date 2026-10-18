@@ -20,25 +20,59 @@
 #
 
 import sys
+import time
 
 if sys.platform != "win32":
+  import select
   import tty
   import termios
+else:
+  import msvcrt
+
+def has_terminal():
+  """
+  Whether stdin is a terminal, i.e. whether there is a keyboard to read 'q'
+  from. A server started in the background, under nohup or by a service
+  manager reads from /dev/null, a file or a pipe instead.
+  """
+  if sys.platform == "win32":
+    return True
+  try:
+    return sys.stdin is not None and sys.stdin.isatty()
+  except (AttributeError, ValueError):
+    return False
 
 def set_raw_mode():
   """
   Sets the terminal to raw mode, which allows reading input byte by byte without requiring Enter.
   This function saves the current terminal settings so they can be restored later.
-  
+
+  Without a terminal there is no mode to change: nothing is done, and nothing
+  will have to be restored.
+
   Returns:
-    old_settings (list): The original terminal settings before switching to raw mode.
+    old_settings (list): The original terminal settings before switching to raw
+      mode, or None when stdin is not a terminal.
   """
   if sys.platform != "win32":
+    if not has_terminal():
+      return None
     fd = sys.stdin.fileno()
     global old_settings
-    old_settings = termios.tcgetattr(fd)
+    try:
+      old_settings = termios.tcgetattr(fd)
+    except termios.error:
+      return None
     tty.setraw(fd)
     return old_settings
+
+def quit_hint(normal_term_mode):
+  """How to stop a server, said once it is running."""
+  if not has_terminal():
+    return "not started from a terminal: end the process (Ctrl+C, kill) to stop the server"
+  if normal_term_mode:
+    return "press 'q', then enter to quit"
+  return "press 'q' to quit"
 
 def restore_mode(old_settings):
   """
@@ -50,6 +84,37 @@ def restore_mode(old_settings):
   if sys.platform != "win32":
     fd = sys.stdin.fileno()
     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+def wait_for_quit_key(on_quit, server_thread):
+  """
+  Call `on_quit` when 'q' is pressed in the terminal, while the server runs.
+
+  A server started without a terminal (in the background, stdin on /dev/null)
+  sees end-of-file on stdin: it then has no key to wait for, and just waits for
+  the server. Polling a stdin at end-of-file would spin a core forever.
+
+  Args:
+    on_quit (callable): what to do when 'q' is pressed.
+    server_thread (Thread): the thread serving the app.
+  """
+  while True:
+    if sys.platform == "win32":
+      if msvcrt.kbhit():
+        if msvcrt.getch().decode("utf-8", "replace").lower() == 'q':
+          on_quit()
+      else:
+        time.sleep(0.5)
+      continue
+    try:
+      ready = sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]
+      key = sys.stdin.read(1) if ready else None
+    except (OSError, ValueError):
+      key = ""
+    if key == "":
+      server_thread.join()
+      return
+    if key is not None and key.lower() == 'q':
+      on_quit()
 
 class RawModeOutputWrapper:
   """

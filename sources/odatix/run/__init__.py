@@ -32,29 +32,46 @@ a normal thing to do::
     run = Run(Workspace.open(), "fmax_synthesis", tool="vivado")
 
     plan = run.check()          # what would be run, and what is already done
-    print(plan.names())
+    print(plan.counts())        # {"new": 4, "cached": 2, ...}
+    print(plan.names("new", colored=False))
 
     run.prepare()               # every work directory written, nothing started
-    run.start()                 # handed over to the daemon
+    run.start()                 # handed over to a session
+
+    for job in run.wait():      # back once every job of the run is over
+        print(job["name"], job["status"])
+
+The jobs run in a session, a background process that outlives the script:
+:func:`sessions` lists those of the workspace, as ``odatix ls`` does, and a
+:class:`Session` is followed or stopped the way ``odatix monitor`` and
+``odatix stop`` do it.
 
 Nothing here exits the interpreter: what a run cannot do raises
-:class:`~odatix.run.errors.RunError`, and what a user should be told about comes
-back as messages. The command line turns both into what it prints and into its
-exit code.
+:class:`~odatix.run.errors.RunError` (:class:`~odatix.run.errors.NothingToRun`
+when every job is already done or already running in a session), and what a
+user should be told about comes back as messages. The command line turns both
+into what it prints and into its exit code.
 """
 
-from odatix.run.errors import RunCancelled, RunError
+from odatix.lib.run_report import JobPlan
+from odatix.run.errors import NothingToRun, RunCancelled, RunError
 from odatix.run.options import RunOptions
 from odatix.run.planner import JobPlanner
 from odatix.run.reporter import CollectingReporter, Reporter, TerminalReporter
 from odatix.run.run import Run, run_job
+from odatix.run.session import Session, SessionError, sessions
 
 __all__ = [
     "Run",
     "run_job",
     "RunOptions",
+    "JobPlan",
     "RunError",
+    "NothingToRun",
     "RunCancelled",
+    "Session",
+    "sessions",
+    "SessionError",
     "JobPlanner",
     "Reporter",
     "TerminalReporter",

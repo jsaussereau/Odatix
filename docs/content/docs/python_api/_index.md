@@ -51,7 +51,7 @@ like. Pass `required=True` to refuse it instead.
 | `ws.tools` | the [eda tools](/docs/reference/tools/), built-in ones included |
 | `ws.targets` | the [target files](/docs/reference/targets/), one per tool |
 | `ws.jobs` | the [run settings files](/docs/reference/run_settings/), one per command |
-| `ws.derived_metrics` | the [derived metrics](/docs/reference/metrics/) of the workspace |
+| `ws.derived_metrics` | the [derived metrics](/docs/results/derived_metrics/) of the workspace |
 | `ws.paths` | where each of them is |
 
 Collections behave like the mappings they are, and iterate over objects:
@@ -138,15 +138,17 @@ width.generate_configurations()              # optional: write them out as files
 {{< code lang=python filename="tools.py" >}}
 tool = ws.tools["vivado"]
 tool.is_builtin                              # shipped with Odatix
-tool.settings.flow_names()                   # ["standard", "power_opt"]
-tool.settings.default_flow.command("fmax_synthesis")
+tool.settings.flow_names()                   # ["standard", "runtime", "performance", "area", "power_opt"]
+tool.settings.default_flow.steps("fmax_synthesis")   # Vivado runs in steps: their commands are there
+ws.tools["genus"].settings.default_flow.command("fmax_synthesis")   # a tool run in one command
 
 tool.settings.label = "Vivado 2024.1"
 tool.save()          # writes only what differs from the built-in definition
 
 targets = ws.targets["vivado"]
-targets.enabled_names()                      # what runs
-targets.add("xc7a100t-csg324-1")
+targets.enabled_names()                      # what runs: ["xc7a100t-csg324-1"] after "odatix init"
+targets.enable("xc7a35t-cpg236-1")           # listed by "odatix init", commented out
+targets.add("xc7z020-clg400-1")              # a part the file does not list yet
 targets.disable("xc7s25-csga225-1")          # kept in the file, commented out
 {{< /code >}}
 
@@ -154,6 +156,7 @@ A tool of your own is created the same way, and is written whole:
 
 {{< code lang=python filename="own_tool.py" >}}
 tool = ws.tools.create("my_tool", label="My Tool")
+tool.settings.default_flow.set_command("tool_test", "my_tool --version")  # how a run checks the tool is there
 tool.settings.default_flow.set_command("fmax_synthesis", ["make fmax"])
 tool.save()
 {{< /code >}}
@@ -199,7 +202,7 @@ plan = run.check()      # what would be run, having touched nothing
 print(plan.counts())    # {'new': 12, 'cached': 3, 'error': 0, ...}
 
 run.prepare()           # every work directory written, nothing started
-run.start()             # handed over to the daemon
+run.start()             # handed over to a session
 {{< /code >}}
 
 Each step does the ones before it when they have not been done, so
@@ -209,7 +212,10 @@ tool="vivado")` is the whole thing in one call.
 Every path comes from the workspace. What a run does differently from what its
 settings file says is passed as keyword arguments — the command line flags, by
 name: `overwrite`, `nb_jobs`, `flow`, `until`, `keep`, `lower_bound` /
-`upper_bound`, `frequencies`, `detach`, `session`…
+`upper_bound`, `frequencies`, `architectures`, `detach`, `session`… (every
+setting of [`RunOptions`](/docs/python_api/run/)). A name that is not one of
+them raises `TypeError`, with the closest names: a misspelled option would
+otherwise be ignored, and the run would do what its settings file says.
 
 | Mode | What it runs |
 |------|--------------|
@@ -221,18 +227,68 @@ name: `overwrite`, `nb_jobs`, `flow`, `until`, `keep`, `lower_bound` /
 | `"workflow"` | the workflows of `odatix workflow` |
 
 A run never stops the interpreter and never asks a question: what it cannot do
-raises `RunError`, carrying what it reported, and everything it said along the
-way is on `run.reporter`.
+raises `RunError`, carrying what it reported. The notes, warnings, tips and
+errors it reported along the way are on `run.reporter` (what it prints
+otherwise — the checklist, the progress bar — is not).
+
+A run with nothing left to do — every job it selects is already done, or
+already running in a session — raises `NothingToRun`, a `RunError` whose `code`
+is `odatix.run.errors.NOTHING_TO_RUN`. It is not a failure: the results are
+there, or on their way.
 
 {{< code lang=python filename="errors.py" >}}
-from odatix.run import RunError
+from odatix.run import NothingToRun, RunError
 
 try:
     run.check()
+except NothingToRun:
+    pass                      # everything is done already
 except RunError as error:
     print(error)              # what went wrong
     print(error.errors())     # everything reported as an error
 {{< /code >}}
+
+## Following and stopping a run
+
+Once started, the jobs run in a [session](/docs/sessions/): a background process
+of its own, which goes on once the script is over. The run keeps track of it:
+
+{{< code lang=python filename="follow.py" >}}
+run.start()
+run.session.id                # "438856.no_tty.myhost", as "odatix ls" shows it
+run.status()                  # [{"name": ..., "status": "running", "progress": 40, ...}, ...]
+
+jobs = run.wait(timeout=3600) # back once every job of the run is over
+failed = [job["name"] for job in jobs if job["status"] != "success"]
+
+run.session.stop()            # close the session, as "odatix stop" does
+{{< /code >}}
+
+`run.status()` and `run.wait()` only look at the jobs of this run, even when
+the session holds others (several runs can share one with `session=`).
+
+The sessions of a workspace are listed and controlled the way `odatix ls`,
+`odatix monitor` and `odatix stop` do it:
+
+{{< code lang=python filename="sessions.py" >}}
+from odatix.run import Session, sessions
+
+for session in sessions():                    # those of this workspace
+    print(session.id, session.counts())       # {"total": 4, "running": 2, "queued": 1, "done": 1, "failed": 0}
+
+session = Session.find("nightly")             # a name, an id, a pid or the start of one
+for job in session.jobs():
+    if job["status"] == "running":
+        session.pause(job["id"])              # also resume(), kill()
+session.set_jobs(2)                           # how many jobs run at once
+session.set_resource_guard(False)             # auto-pause off
+session.wait(timeout=600)                     # every job of the session over
+session.stop()
+{{< /code >}}
+
+`sessions(any_workspace=True)` and `Session.find(..., any_workspace=True)` reach
+the sessions of every workspace. A session that does not answer raises
+`SessionError`; a wait that runs out of time raises `TimeoutError`.
 
 ## Errors
 
@@ -245,7 +301,9 @@ except RunError as error:
 | `InvalidSettingsError` | a settings file cannot be run from (missing, unreadable, incomplete) |
 
 All of them derive from `WorkspaceError`. A run raises `RunError` (it could not
-go on) and `RunCancelled` (it was asked to stop).
+go on), `NothingToRun` (a `RunError`: every job is done or already in a
+session) and `RunCancelled` (it was asked to stop); a session raises
+`SessionError` when it cannot be found or reached.
 
 ## See also
 

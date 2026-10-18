@@ -1,5 +1,5 @@
 ---
-title: "Custom-Frequency Synthesis"
+title: "Fixed-frequency synthesis"
 date: 2026-05-15
 author: "Jonathan Saussereau"
 weight: 3
@@ -11,7 +11,7 @@ featured_image: "/images/features/rtl-synthesis.svg"
 
 {{< toc >}}
 
-Where [Fmax synthesis](/tutorials/run_examples/fmax_synthesis/) answers *"how fast can it go?"*, **custom-frequency synthesis** answers *"how does it behave at these specific frequencies?"*. It is the tool for power/frequency and area/frequency trade-off studies.
+Where [Fmax synthesis](/tutorials/run_examples/fmax_synthesis/) answers *"how fast can it go?"*, **fixed-frequency synthesis** answers *"how does it behave at these specific frequencies?"*. It is the tool for power/frequency and area/frequency trade-off studies.
 
 
 ## Prerequisites
@@ -22,7 +22,7 @@ For this tutorial, you need **at least one** of the following tools installed an
 - [Synopsys Design Compiler](https://www.synopsys.com/implementation-and-signoff/rtl-synthesis.html) (for ASICs)
 - [Cadence Genus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/synthesis/genus-synthesis-solution.html) (for ASICs)
 
-[](/install/eda_tools/)
+See [Install supported EDA tools](/install/eda_tools/).
 
 Make sure you have [Odatix installed](/install/) and available in your `PATH`. For example, if you installed Odatix in a virtual environment, activate it first:
 
@@ -51,17 +51,17 @@ $ odatix init --examples
 ╚██████╔╝ ██████╔╝ ██║  ██║   ██║    ██║ ██╔╝ ██╗
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
-<font color="#555753">[settings.py]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
-<font color="#555753">[settings.py]</font> Run <b>odatix -h</b> to get a list of useful commands
+<font color="#555753">[odatix init]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
+<font color="#555753">[odatix init]</font> Run <b>odatix -h</b> to get a list of useful commands
 {{< /code >}}
 
 ### Step 2 — Choose your target
 
-Open the device or technology in the target file for your tool (`target_vivado.yml`, `target_quartus.yml`, `target_design_compiler.yml`, or `target_openlane.yml`).
+Open the device or technology in the target file for your tool (`target_vivado.yml`, `target_quartus.yml`, `target_design_compiler.yml`, or `target_genus.yml`).
 
 For instance for Vivado, open `odatix_userconfig/targets/target_vivado.yml` and select the target device:
 
-{{< code lang=yaml filename="odatix_userconfig/targets/target_vivado.yml" linenos="true" linenostart="15" >}}
+{{< code lang=yaml filename="odatix_userconfig/targets/target_vivado.yml" linenos="true" linenostart="37" >}}
 # FPGA target
 targets:
   # - xc7s6-cpga196-1
@@ -83,10 +83,10 @@ To disable a target, comment it out with `#` or simply remove the line.
 
 ### Step 3 — Choose design configurations
 
-Open `odatix_userconfig/synth_settings.yml` and select the architectures to run, exactly as for Fmax synthesis.
+Open `odatix_userconfig/synth_settings.yml` and select the architectures to run: the seven configurations of `Example_Counter_verilog` are selected, and the other examples are commented out.
 
 {{< code lang=yaml filename="odatix_userconfig/synth_settings.yml" linenos="true" linenostart="44" >}}
-  - Example_Counter_verilog/04bits
+  - Example_Counter_verilog/04bits # this configuration fails with openlane
   - Example_Counter_verilog/08bits
   - Example_Counter_verilog/16bits
   - Example_Counter_verilog/24bits
@@ -100,7 +100,14 @@ Open `odatix_userconfig/synth_settings.yml` and select the architectures to run,
 
 ### Step 4 — Run
 
-Synthesis can be run at specific frequencies, or in a range with a step, or both. For example:
+Synthesis can be run at specific frequencies, or in a range with a step, or both. Odatix lists the jobs it is about to run — one per configuration, target and frequency — and asks `Continue? (Y/n)` (`-y` skips the question).
+
+> [!IMPORTANT]
+> Each job runs Vivado up to place and route (`pnr`, its default step): the 14 jobs of the first command below take a while. For a first try, run a single configuration and stop after synthesis, with `-a` and `--until synthesis`:
+>
+> `odatix synth --tool vivado --at 50 --at 100 -a Example_Counter_verilog/08bits --until synthesis`
+>
+> A later run without `--until` resumes these jobs at place and route rather than starting over.
 
 
 {{< code lang=bash filename="Terminal" prompt="true" fold="true" ansi="true" >}}
@@ -114,7 +121,7 @@ $ odatix synth --tool vivado --at 50 --at 100
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
 
-<b>New architectures:</b>
+<b>New jobs:</b>
   - Example_Counter_verilog/04bits <font color="#555753">@ 50 MHz</font>
   - Example_Counter_verilog/04bits <font color="#555753">@ 100 MHz</font>
   - Example_Counter_verilog/08bits <font color="#555753">@ 50 MHz</font>
@@ -145,7 +152,7 @@ $ odatix synth --tool vivado --from 100 --to 300 --step 50
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
 
-<b>New architectures:</b>
+<b>New jobs:</b>
   - Example_Counter_verilog/04bits <font color="#555753">@ 100 MHz</font>
   - Example_Counter_verilog/04bits <font color="#555753">@ 150 MHz</font>
   - Example_Counter_verilog/04bits <font color="#555753">@ 200 MHz</font>
@@ -196,7 +203,7 @@ $ odatix synth --tool vivado --at 50 --from 100 --to 150 --step 20
 ╚██████╔╝ ██████╔╝ ██║  ██║   ██║    ██║ ██╔╝ ██╗
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
-<b>New architectures:</b>
+<b>New jobs:</b>
   - Example_Counter_verilog/04bits <font color="#555753">@ 50 MHz</font>
   - Example_Counter_verilog/04bits <font color="#555753">@ 100 MHz</font>
   - Example_Counter_verilog/04bits <font color="#555753">@ 120 MHz</font>
@@ -230,8 +237,10 @@ $ odatix synth --tool vivado --at 50 --from 100 --to 150 --step 20
 Continue? (Y/n)
 {{< /code >}}
 
+`--from`, `--to` and `--step` go together, and every frequency is a positive number of MHz.
+
 > [!TIP]
-> The frequencies can also be set for each design in its `_settings.yml`, per target — as a `list`, a `range`, or both.
+> The frequencies can also be set for each design in its `_settings.yml` (its `fixed_freq_synthesis` block), per target — as a `list`, a range, or both.
 
 > [!INFO]
 > Odatix enqueues one job per configuration/target/frequency in the daemon and attaches the Job Monitor.
@@ -243,9 +252,11 @@ The job monitor shows the status of each job, and the log of the currently selec
 > [!TIP]
 > Use <kbd>PageUp</kbd> and <kbd>PageDown</kbd> keys to change jobs and the <kbd>Up</kbd> and <kbd>Down</kbd> keys to scroll logs. The mouse can also be used to scroll and select jobs.  
 > Use <kbd>d</kbd> to detach and let the job run in the background, and run `odatix monitor` to re-attach.  
-> Use <kbd>q</kbd> to quit when all jobs are complete.
+> Use <kbd>q</kbd> to quit when all jobs are complete. With `-E`, the monitor closes by itself once the last job ends.
 
 ### Step 6 — Explore the results
+
+When the jobs of the run are done, Odatix exports their results to `results/`. Open them in Odatix Explorer:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix-explorer
@@ -255,12 +266,12 @@ $ odatix-explorer
 > With this example, an interesting study is to compare the dynamic power consumption of each configuration at different frequencies.  
 > The chart below can be obtained by selecting the <kbd>Dynamic Power</kbd> metric for the Y-axis, and  <kbd>Style</kbd> > <kbd>Color by</kbd> > <kbd>Frequency</kbd>.
 
-{{< img src="/images/screenshots/explorer-freq-lines.png" alt="RTL Analysis dashboard" caption="RTL Analysis dashboard" shadow="false" >}}
+{{< img src="/images/screenshots/explorer-freq-lines.png" alt="Odatix Explorer: dynamic power of each configuration, one line per frequency" caption="Dynamic power of each configuration, one line per frequency" shadow="false" >}}
 
 ## Related resources
 
-- **Reference** — [Architecture settings](/docs/reference/architecture/#frequency-settings) (Architecture-, configuration- and targets-pecific frequencies)
+- **Reference** — [Architecture settings](/docs/reference/architecture/#frequency-settings) (architecture-, configuration- and target-specific frequencies)
 - **Reference** — [Run settings files](/docs/reference/run_settings/)
 - **Reference** — [Target files](/docs/reference/targets/)
 - **Reference** — [Commands](/docs/commands/)
-- **Feature** — [Automated RTL synthesis](/docs/features/rtl_synthesis/).
+- **Feature** — [Fixed-frequency synthesis](/docs/features/rtl_synthesis/).

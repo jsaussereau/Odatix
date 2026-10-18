@@ -105,15 +105,17 @@ whose name starts with `_` or `.` are skipped — that is how `_common/` stays a
 shared script directory instead of becoming a tool.
 
 {{< code lang=text filename="Workspace layout" >}}
-odatix_userconfig/
+my_workspace/
 ├── odatix.yml                  # tools_path: "odatix_userconfig/tools"
-├── target_myTool.yml           # targets of your tool
-└── tools/
-    └── myTool/
-        ├── tool.yml            # what to run — the only required file
-        ├── metrics.yml         # what to measure
-        └── tcl/                # scripts copied into every job directory
-            └── synth_script.tcl
+└── odatix_userconfig/
+    ├── targets/
+    │   └── target_myTool.yml   # targets of your tool
+    └── tools/
+        └── myTool/
+            ├── tool.yml        # what to run — the only required file
+            ├── metrics.yml     # what to measure
+            └── tcl/            # scripts copied into every job directory
+                └── synth_script.tcl
 {{< /code >}}
 
 ### A tool defined in both places
@@ -138,23 +140,29 @@ definition.
 > Everything else goes through untouched: flows of your own, the metadata,
 > `target_file`, `default_metrics_file`, the `format` section… And to start from
 > what a built-in tool does and own all of it, **duplicate** it into your
-> workspace: the copy is a tool of its own, with nothing read-only left.
+> workspace: the copy is a tool of its own, with nothing read-only left. It is
+> the whole tool as it runs in your workspace — Odatix's definition, scripts and
+> metrics, with your flows, scripts and metrics merged in — and it gets a copy of
+> the tool's target file.
 
 ## Doing it from the GUI
 
 Everything on this page can be done without opening a text editor. `odatix-gui` →
 **Tools** lists the tools of your workspace and, apart, the built-in ones:
 
-- **Create New Tool** — a new workspace tool with a minimal `tool.yml`;
+- **Add new tool** — a new workspace tool, created when the editor saves it;
 - **Settings** — the [Tool Editor](/docs/tools/add_tools/#the-tool-editor):
   metadata, behaviour, flows, steps and log formatting;
 - **Metrics** — the metrics editor for the tool's `metrics.yml`;
 - **Duplicate** — on a built-in tool, copies it into your workspace to be edited
-  as a whole; on a workspace tool, clones it;
+  as a whole; on a workspace tool, clones it. Either way the copy gets its own
+  target file, a copy of the original's;
 - on a workspace tool, the folder button opens the tool directory, for the
   scripts the GUI does not edit, and the bin button deletes the tool.
 
-Cards of tools declaring several flows list them under the name. Built-in tools
+A card shows the tool's `label` and `description`, and, for a workspace tool
+whose label differs from its name, the name. Cards of tools declaring several
+flows list them under the name. Built-in tools
 say **built-in** under theirs, which becomes **built-in + your changes** once the
 workspace overrides or extends something — and in the Tool Editor, the flows
 Odatix itself declares carry a **read-only** badge.
