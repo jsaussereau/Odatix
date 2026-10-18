@@ -182,3 +182,24 @@ class TestResults:
         out = capsys.readouterr().out
         assert 'metric "Missing_one"' in out
         assert 'metric "Bad_op"' in out
+
+
+class TestNestedBlockFromADict:
+    """A nested block assigned as a plain mapping is saved, not ignored."""
+
+    @pytest.mark.parametrize("how", ["attribute", "update"])
+    def test_the_new_values_reach_the_file(self, tmp_path, how):
+        from odatix.workspace.jobs import FmaxSynthesisJobSettings
+        from odatix.workspace.settings import load_settings, save_settings
+        path = str(tmp_path / "fmax_synthesis_settings.yml")
+        _write(path, "fmax_synthesis:\n  override: No   # keep\n  lower_bound: 50\n  upper_bound: 500\n")
+        settings = load_settings(FmaxSynthesisJobSettings, path)
+        block = {"override": True, "lower_bound": 100, "upper_bound": 900}
+        if how == "attribute":
+            settings.fmax_synthesis = block
+        else:
+            settings.update({"fmax_synthesis": block})
+        save_settings(settings, path)
+        saved = load_settings(FmaxSynthesisJobSettings, path).fmax_synthesis
+        assert (saved.override, saved.lower_bound, saved.upper_bound) == (True, 100, 900)
+        assert "# keep" in open(path).read()

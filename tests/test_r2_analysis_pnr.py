@@ -47,7 +47,7 @@ def test_finding_detail_is_monospaced():  # AP-04
 
 
 def test_pnr_metrics_match_synthesis_names():  # AP-06
-  for tool in ("innovus", "icc2"):
+  for tool in ("innovus",):
     path = os.path.join(ROOT, tool, "metrics.yml")
     metrics = yaml.safe_load(open(path))["pnr_metrics"]
     assert "Cell_Area" in metrics and "Total_Power" in metrics

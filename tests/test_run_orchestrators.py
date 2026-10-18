@@ -1,10 +1,23 @@
 """Contract tests for the high-level synthesis, simulation and workflow runners."""
 
+import os
+import shutil
 from types import SimpleNamespace
+
+import pytest
 
 import odatix.components.run_fmax_synthesis as fmax
 import odatix.components.run_simulations as simulations
 import odatix.components.run_workflow as workflows
+
+INIT_DIR = os.path.join(os.path.dirname(__file__), "..", "sources", "odatix_init")
+
+
+@pytest.fixture(autouse=True)
+def _in_a_workspace(tmp_path, monkeypatch):
+    """The runners open the current directory as a workspace: give them one."""
+    shutil.copy(os.path.join(INIT_DIR, "odatix.yml"), str(tmp_path / "odatix.yml"))
+    monkeypatch.chdir(tmp_path)
 
 
 def test_fmax_runner_prepares_then_starts_the_same_job_handler(monkeypatch):
