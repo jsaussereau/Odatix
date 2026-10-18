@@ -79,7 +79,7 @@ Diagnose missing tools, invalid settings, daemon sessions, exports and empty Exp
   </a>
   <a class="docs-link" href="/install/eda_tools/">
     <span class="docs-link__title">Supported EDA tools</span>
-    <span class="docs-link__text">Vivado, Design Compiler, Genus, OpenLane, Verilator, GHDL…</span>
+    <span class="docs-link__text">Vivado, Quartus, Design Compiler, Genus, OpenLane, Verilator, GHDL…</span>
   </a>
   <a class="docs-link" href="/tutorials/">
     <span class="docs-link__title">Tutorials</span>
