@@ -42,6 +42,7 @@ import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
 import odatix.lib.eda_tools as eda_tools
+import odatix.sim.templates as sim_templates
 from odatix.gui.utils import get_workspace
 from odatix.lib.utils import open_path_in_explorer
 from odatix.gui.page_scope import page_callback, scoped
@@ -272,6 +273,59 @@ def builtin_tool_card(tool):
         key=unique_key,
     )
 
+def simulator_card(name):
+    """
+    The card of a simulation template: what it is for, and whether its
+    simulator is installed (filled in by check_simulator once the page shows).
+    """
+    try:
+        settings = sim_templates.read_settings(sim_templates.list_templates()[name])
+    except (KeyError, sim_templates.TemplateError):
+        settings = {}
+    languages = sim_templates.accepted_languages(settings) or []
+    return html.Div(
+        [
+            html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center"}),
+            html.Div(
+                str(settings.get("description") or ""),
+                style={"fontSize": "0.8em", "opacity": "0.7", "textAlign": "center", "marginTop": "2px"},
+            ),
+            html.Div(
+                [html.Span(language, className="odx-badge") for language in languages]
+                + [
+                    html.Span(
+                        "checking...",
+                        id={"type": "simulator-installed", "name": name},
+                        className="odx-badge",
+                        title="Runs \"" + " ".join(str(p) for p in settings.get("test_command") or []) + "\"",
+                    ),
+                ],
+                style={"display": "flex", "gap": "4px", "justifyContent": "center", "flexWrap": "wrap", "marginTop": "10px"},
+            ),
+            dcc.Store(id={"type": "simulator-check", "name": name}, data=name),
+            html.Div(
+                ui.icon_button(
+                    icon=icon("duplicate", className="icon black"),
+                    text="New simulation",
+                    tooltip="Create a simulation of the workspace starting from this template",
+                    tooltip_options="bottom delay",
+                    color="default",
+                    link="/sim_editor?template=" + name,
+                    width="auto",
+                    bold=False,
+                ),
+                style={"marginTop": "14px", "display": "flex", "justifyContent": "center"},
+            ),
+        ],
+        className="card",
+        style={"padding": "18px 20px", "margin": "0", "width": "100%", "boxSizing": "border-box", "opacity": "0.85"},
+    )
+
+
+def build_simulator_cards():
+    return [simulator_card(name) for name in sim_templates.list_templates()]
+
+
 def add_card(text: str):
     btn_id = {"type": "tool-button-add"}
     return html.Div(
@@ -305,6 +359,25 @@ def add_card(text: str):
 def update_cards(_, odatix_settings):
     tools = get_workspace(odatix_settings).tools
     return build_tool_cards(tools), build_builtin_cards(tools)
+
+
+@page_callback(PAGE_SCOPE,
+    Output({"type": "simulator-installed", "name": dash.MATCH}, "children"),
+    Output({"type": "simulator-installed", "name": dash.MATCH}, "className"),
+    Input({"type": "simulator-check", "name": dash.MATCH}, "data"),
+)
+def check_simulator(name):
+    """
+    Whether the simulator of a template is installed: its "test_command" runs
+    and succeeds, the check an eda tool gets with its "tool_test_command". One
+    callback per card, so a slow simulator does not hold the others.
+    """
+    installed = sim_templates.is_installed(name)
+    if installed is None:
+        return "not checked", "odx-badge"
+    if installed:
+        return "installed", "odx-badge success"
+    return "not installed", "odx-badge caution"
 
 @page_callback(PAGE_SCOPE,
     Output("tool-cards-matrix", "children", allow_duplicate=True),
@@ -514,6 +587,17 @@ layout = html.Div(
                     style={"justifyContent": "center", "marginTop": "32px", "gap": "0"},
                 ),
                 html.Div(id="builtin-tool-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
+                html.Div(
+                    [
+                        html.H2([html.Span("Simulators")], id="simulator-templates-title"),
+                        ui.tooltip_icon("Simulation templates shipped with Odatix: each one compiles, elaborates and "
+                                    "runs a design and its testbench with its simulator. Name one in a simulation run, "
+                                    "or start a simulation of your own from it."),
+                    ],
+                    className="odx-section-head",
+                    style={"justifyContent": "center", "marginTop": "32px", "gap": "0"},
+                ),
+                html.Div(build_simulator_cards(), id="simulator-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
             style={"display": "block", "width": "auto", "textAlign": "center", "marginBottom": "10px"},
         ),

@@ -22,6 +22,8 @@
 from dash import dcc, html
 
 import odatix.gui.ui_components as ui
+import odatix.sim.design_info as design_info
+import odatix.sim.templates as sim_templates
 import odatix.workspace.sim_architectures as sim_architectures
 from odatix.gui.icons import icon
 
@@ -81,6 +83,40 @@ def _architecture_entries(simulations, sim_name):
     """The parsed "architectures" block of a simulation, entry objects included:
     what the page rewrites has to keep the settings each entry carries."""
     return sim_architectures.parse(simulations.entry(sim_name).settings.architectures)
+
+
+def _accepted_languages(workspace, sim_name):
+    """The languages a simulation compiles (a template says), None for any."""
+    try:
+        _directories, settings = sim_templates.resolve(sim_name, workspace.simulations.path)
+    except (sim_templates.SimulationNotFound, sim_templates.TemplateError):
+        return None
+    return sim_templates.accepted_languages(settings)
+
+
+def _architecture_languages(workspace, arch_name):
+    """The languages of an architecture's RTL, [] when they are not known (a generated RTL)."""
+    try:
+        settings = workspace.architectures.entry(arch_name).settings
+    except Exception:
+        return []
+    if settings.generate_rtl or not settings.rtl_path:
+        return []
+    return design_info.source_languages(workspace.paths.resolve(settings.rtl_path))
+
+
+def compatible_architectures(workspace, sim_name, arch_names):
+    """
+    The architectures a simulation can be run on: those written in languages
+    it compiles. A simulation saying nothing of its languages runs on any.
+    """
+    accepted = _accepted_languages(workspace, sim_name)
+    if accepted is None:
+        return list(arch_names)
+    return [
+        name for name in arch_names
+        if sim_templates.compatible(accepted, _architecture_languages(workspace, name))
+    ]
 
 
 def _sim_entry_from_combo(combo: str) -> str:
@@ -207,6 +243,7 @@ def _simulation_job_sections(context, selection_settings):
     """
     architectures_collection = context["workspace"].architectures
     simulations = context["instances"]
+    templates = set(context.get("templates") or [])
 
     selection_map = context["workspace"].jobs.simulation.settings.simulations
     architectures = architectures_collection.names()
@@ -217,8 +254,12 @@ def _simulation_job_sections(context, selection_settings):
     for sim_name in simulations:
         sim_enabled = sim_name in selection_map
 
-        listed = _listed_architectures(context["workspace"].simulations, sim_name)
+        is_template = sim_name in templates
+        # A template has no settings file of its own, so it lists nothing.
+        listed = [] if is_template else _listed_architectures(context["workspace"].simulations, sim_name)
         listed_set = set(listed)
+        # Only the architectures the simulation can compile are offered
+        offered = compatible_architectures(context["workspace"], sim_name, architectures)
 
         # Group the saved entries by the architecture they belong to, converted
         # to the preview syntax _arch_config_widgets expects.
@@ -301,7 +342,12 @@ def _simulation_job_sections(context, selection_settings):
         # rather than showing an empty card. Hidden as soon as one is added.
         arch_cards.append(
             html.Div(
-                "This simulation lists no architecture. Add one below.",
+                (
+                    "Add the architectures to run this template on below. Only those written "
+                    "in a language it compiles are offered."
+                    if is_template else
+                    "This simulation lists no architecture. Add one below."
+                ),
                 id={"type": "sim-no-arch", "sim": sim_name},
                 className="odx-panel-note",
                 style={} if not shown_architectures else {"display": "none"},
@@ -321,7 +367,7 @@ def _simulation_job_sections(context, selection_settings):
                         id={"type": "sim-architecture-add", "sim": sim_name},
                         options=[
                             {"label": name, "value": name}
-                            for name in architectures
+                            for name in offered
                             if name not in shown_architectures
                         ],
                         placeholder="Add an architecture...",
@@ -339,6 +385,23 @@ def _simulation_job_sections(context, selection_settings):
 
         sim_buttons = html.Div(
             children=[
+                html.Span(
+                    "Odatix template",
+                    title=sim_templates.description(sim_name),
+                    className="odx-badge",
+                ),
+                ui.icon_button(
+                    icon=icon("duplicate", className="icon"),
+                    text="New simulation from it",
+                    tooltip="Create a simulation of the workspace starting from this template, "
+                            "to add a testbench or metrics of its own",
+                    tooltip_options="bottom delay",
+                    color="default",
+                    link="/sim_editor?template=" + sim_name,
+                    multiline=True,
+                    width="135px",
+                ),
+            ] if is_template else [
                 ui.icon_button(
                     icon=icon("gear", className="icon"),
                     text=context["settings_text"],
@@ -445,6 +508,10 @@ def _save_listed_architectures(workspace, listed, baseline):
     """
     for sim_name, names in (listed or {}).items():
         if list(names) == list((baseline or {}).get(sim_name, [])):
+            continue
+        if sim_name not in workspace.simulations:
+            # A template: its list is not kept anywhere, what it runs is in the
+            # run settings, which Save writes anyway.
             continue
         simulation = workspace.simulations.entry(sim_name)
         kept = {entry.name: entry for entry in _architecture_entries(workspace.simulations, sim_name)}

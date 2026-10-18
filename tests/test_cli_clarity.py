@@ -14,6 +14,7 @@ import odatix.lib.printc as printc
 import odatix.odatix_main as odatix_main
 from odatix.run import Run, RunError
 from odatix.workspace import Workspace
+from sim_fixtures import fake_simulators  # noqa: F401 (fixture)
 
 needs_tclsh = pytest.mark.skipif(shutil.which("tclsh") is None, reason="the dummy tool runs tclsh")
 
@@ -320,7 +321,7 @@ class TestSimulations:
         assert options.architectures == ["X/*"]
         assert options.sim_path == "sims"
 
-    def test_a_run_simulates_what_it_is_told(self, example_workspace):
+    def test_a_run_simulates_what_it_is_told(self, example_workspace, fake_simulators):
         run = Run(
             Workspace.open(), "simulation",
             simulations=["TB_Example_Cordic_Verilator"], architectures=["Example_Cordic_sv + iterations/* + width/*"],
@@ -329,7 +330,7 @@ class TestSimulations:
         assert names
         assert all(name.startswith("TB_Example_Cordic_Verilator") for name in names)
 
-    def test_a_run_is_told_a_simulation_of_the_file(self, example_workspace):
+    def test_a_run_is_told_a_simulation_of_the_file(self, example_workspace, fake_simulators):
         whole = Run(Workspace.open(), "simulation").check()
         one = Run(Workspace.open(), "simulation", simulations=["TB_Example_Cordic_GHDL"]).check()
         names = [entry["name"] for entry in one.entries]

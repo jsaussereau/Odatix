@@ -58,6 +58,9 @@ provides.
 
 import copy
 import os
+import shutil
+import subprocess
+import tempfile
 
 import yaml
 
@@ -215,6 +218,77 @@ def accepted_languages(settings):
   if not isinstance(languages, list):
     return None
   return [str(language).lower() for language in languages]
+
+
+def description(name):
+  """What the template says it is, its name when it says nothing."""
+  directory = list_templates().get(name)
+  if directory is None:
+    return name
+  try:
+    settings = read_settings(directory)
+  except TemplateError:
+    return name
+  return str(settings.get(DESCRIPTION_KEY) or name)
+
+
+def is_installed(name, timeout=15):
+  """
+  Whether the simulator of a template is installed: its "test_command" runs
+  and succeeds, the same check as the "tool_test_command" of an eda tool. None
+  when the template says no command to check with.
+  """
+  directory = list_templates().get(name)
+  if directory is None:
+    return None
+  try:
+    command = read_settings(directory).get(TEST_COMMAND_KEY)
+  except TemplateError:
+    return None
+  if isinstance(command, str):
+    command = command.split()
+  if not command:
+    return None
+  command = [str(part) for part in command]
+  if shutil.which(command[0]) is None:
+    return False
+  # Some simulators write a log where they run: not in the workspace.
+  scratch = tempfile.mkdtemp(prefix="odatix_check_")
+  try:
+    returncode = subprocess.call(
+      command, cwd=scratch, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout,
+    )
+  except (OSError, subprocess.TimeoutExpired):
+    return False
+  finally:
+    shutil.rmtree(scratch, ignore_errors=True)
+  return returncode == 0
+
+
+def missing_executable(settings):
+  """
+  The program a simulation's "test_command" runs, when it is not in the PATH:
+  a quick check, done when a run is checked (see is_installed for the full
+  one). None when it is there, or when the simulation says no command.
+  """
+  command = settings.get(TEST_COMMAND_KEY)
+  if isinstance(command, str):
+    command = command.split()
+  if not command:
+    return None
+  program = str(command[0])
+  return None if shutil.which(program) else program
+
+
+def compatible(accepted, languages):
+  """
+  Whether a design written in `languages` can run with a simulation compiling
+  `accepted` (None: anything). A design whose languages are not known yet (a
+  generated RTL) is.
+  """
+  if accepted is None or not languages:
+    return True
+  return all(language in accepted for language in languages)
 
 
 def metrics_files(directories):

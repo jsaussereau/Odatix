@@ -14,6 +14,7 @@ import yaml
 import odatix.sim.design_info as design_info
 from odatix.run import Run
 from odatix.workspace import Workspace
+from sim_fixtures import fake_simulators  # noqa: F401 (fixture)
 
 
 def write(root, relpath, text):
@@ -226,7 +227,7 @@ class TestSimulationJobs:
     ]
 
     @pytest.mark.parametrize("simulation, architecture, language, source", CASES)
-    def test_every_job_is_told_about_its_design(self, example_workspace, simulation, architecture, language, source):
+    def test_every_job_is_told_about_its_design(self, example_workspace, fake_simulators, simulation, architecture, language, source):
         Run(Workspace.open(), "simulation", simulations=[simulation], architectures=[architecture], noask=True).prepare()
 
         found = []
@@ -246,7 +247,7 @@ class TestSimulationJobs:
                 part.strip().split("/") for part in architecture.split("+")[1:]
             )
 
-    def test_the_commands_get_the_placeholders(self, example_workspace):
+    def test_the_commands_get_the_placeholders(self, example_workspace, fake_simulators):
         settings = example_workspace / "odatix_userconfig" / "simulations" / "TB_Example_Cordic_QuestaSim" / "_settings.yml"
         data = yaml.safe_load(settings.read_text())
         data["tasks"] = [{"name": "main", "commands": ["echo ${tb_top} ${languages} ${vhdl_files} ${tb_files} ${reset_signal} ${width}"]}]

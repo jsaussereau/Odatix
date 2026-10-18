@@ -35,6 +35,8 @@ import odatix.gui.navigation as navigation
 import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 import odatix.workspace.sim_architectures as sim_architectures
+import odatix.sim.design_info as design_info
+import odatix.sim.templates as sim_templates
 from odatix.gui.page_scope import page_callback, scoped
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
@@ -223,6 +225,75 @@ def settings_as_written(settings):
     return data
 
 
+def parse_lines(text):
+    """The non-empty lines of a text field, stripped."""
+    return [line.strip() for line in str(text or "").splitlines() if line.strip()]
+
+
+def parse_parameters_text(text):
+    """{name: value} from "NAME: value" lines."""
+    parameters = {}
+    for line in parse_lines(text):
+        name, separator, value = line.partition(":")
+        if separator and name.strip():
+            parameters[name.strip()] = value.strip()
+    return parameters
+
+
+def format_parameters(parameters):
+    return "\n".join(str(name) + ": " + str(value) for name, value in (parameters or {}).items())
+
+
+def normalize_testbench(testbench):
+    """
+    A "testbench" setting reduced to the keys it actually sets, with stable
+    types: an empty mapping when it sets nothing, which is then not written.
+    """
+    if not isinstance(testbench, dict):
+        return {}
+    normalized = {}
+    if testbench.get("top"):
+        normalized["top"] = str(testbench["top"])
+    files = testbench.get("files")
+    files = [files] if isinstance(files, str) else (files or [])
+    files = [str(path) for path in files if str(path).strip()]
+    if files:
+        normalized["files"] = files
+    if isinstance(testbench.get("parameters"), dict) and testbench["parameters"]:
+        normalized["parameters"] = {str(k): str(v) for k, v in testbench["parameters"].items()}
+    cycles = testbench.get("cycles")
+    if cycles not in (None, ""):
+        try:
+            normalized["cycles"] = int(cycles)
+        except (TypeError, ValueError):
+            pass
+    if testbench.get("stimulus") in design_info.STIMULI:
+        normalized["stimulus"] = testbench["stimulus"]
+    if testbench.get("waves") not in (None, ""):
+        normalized["waves"] = _parse_bool(testbench["waves"], True)
+    return normalized
+
+
+def template_settings(template, sim_path):
+    """The settings a simulation starting from `template` inherits, {} when there is none."""
+    if not template:
+        return {}
+    try:
+        return sim_templates.resolve(template, sim_path)[1]
+    except (sim_templates.SimulationNotFound, sim_templates.TemplateError):
+        return {}
+
+
+def template_options(current_sim="", current_template=""):
+    """The templates a simulation can start from: Odatix's, and the one it names."""
+    options = [{"label": "None: this simulation says what it runs", "value": ""}]
+    for name in sim_templates.list_templates():
+        options.append({"label": name + " (" + sim_templates.description(name) + ")", "value": name})
+    if current_template and current_template not in sim_templates.list_templates():
+        options.append({"label": current_template, "value": current_template})
+    return options
+
+
 def normalize_simulation_settings(settings):
     """
     Reduce a simulation settings file to the keys this page edits, with stable
@@ -254,6 +325,8 @@ def normalize_simulation_settings(settings):
         invariant_domains = {}
 
     normalized = {
+        "template": str(settings.get("template") or ""),
+        "testbench": normalize_testbench(settings.get("testbench")),
         "invariant_domains": invariant_domains,
         "architectures": normalize_architectures(settings.get("architectures")),
         "progress": {
@@ -367,7 +440,160 @@ def sim_form_field(label, id, value="", tooltip="", placeholder="", tooltip_opti
         style={"marginBottom": "12px"},
     )
 
-def sim_form(settings):
+def template_note(template, inherited):
+    """What a simulation gets from the template it starts from."""
+    if not template:
+        return (
+            "Without a template, the simulation says what it runs: its tasks below, or the "
+            "\"sim\" rule of its Makefile."
+        )
+    languages = sim_templates.accepted_languages(inherited)
+    return (
+        "Starts from \"" + template + "\""
+        + (": " + str(inherited.get("description")) if inherited.get("description") else "")
+        + ". It compiles " + (", ".join(languages) if languages else "any language")
+        + ". Its tasks, progress tracking and metrics apply, unless this simulation sets its own: "
+        "most of the time, only the testbench and the metrics of the testbench are needed here."
+    )
+
+
+def testbench_placeholders(inherited):
+    """What the testbench fields show when empty: what is inherited, or what happens then."""
+    testbench = normalize_testbench((inherited or {}).get("testbench"))
+    return (
+        testbench.get("top") or "Guessed from the files",
+        "\n".join(testbench.get("files", [])) or (
+            "None: the architecture's testbench runs, else the files of tb/, else a generated one"
+        ),
+        format_parameters(testbench.get("parameters")) or "WIDTH: ${width}",
+        str(testbench.get("cycles") or "1000"),
+    )
+
+
+def template_tiles(settings, inherited, current_sim=""):
+    """The "Template" and "Testbench" tiles of the form."""
+    template = settings.get("template", "")
+    testbench = settings.get("testbench") or {}
+    top_placeholder, files_placeholder, parameters_placeholder, cycles_placeholder = testbench_placeholders(inherited)
+    waves = testbench.get("waves")
+    return [
+        html.Div(
+            [
+                html.H3("Template"),
+                html.Div(
+                    children=[
+                        html.Label("Starts from"),
+                        ui.tooltip_icon(
+                            "A simulation template Odatix provides for a simulator. It compiles, elaborates "
+                            "and runs the design and its testbench, so this simulation only says what changes."
+                        ),
+                        dcc.Dropdown(
+                            id="sim-template",
+                            options=template_options(current_sim, template),
+                            value=template,
+                            clearable=False,
+                        ),
+                    ],
+                    style={"marginBottom": "12px"},
+                ),
+                html.Div(template_note(template, inherited), id="sim-template-note", className="odx-panel-note"),
+            ],
+            className="tile config",
+        ),
+        html.Div(
+            [
+                html.H3("Testbench"),
+                sim_form_field(
+                    label="Top",
+                    id="sim-testbench-top",
+                    value=testbench.get("top", ""),
+                    placeholder=top_placeholder,
+                    tooltip="Module or entity at the top of the testbench.",
+                ),
+                html.Div(
+                    children=[
+                        html.Label("Files"),
+                        ui.tooltip_icon(
+                            "Sources of the testbench, one per line, relative to the simulation directory. "
+                            "Glob patterns are accepted. When empty, the testbench of the architecture "
+                            "runs, else the files of tb/, else a minimal generated one."
+                        ),
+                        dcc.Textarea(
+                            id="sim-testbench-files", value="\n".join(testbench.get("files", [])),
+                            placeholder=files_placeholder, style={"width": "100%", "height": "60px"},
+                        ),
+                    ],
+                    style={"marginBottom": "12px"},
+                ),
+                html.Div(
+                    children=[
+                        html.Label("Parameters"),
+                        ui.tooltip_icon(
+                            "Parameters (generics) given to the top of the testbench, one \"NAME: value\" "
+                            "per line. Values may use the placeholders of the commands: ${width} is the "
+                            "value of the domain or variable \"width\" of the configuration."
+                        ),
+                        dcc.Textarea(
+                            id="sim-testbench-parameters", value=format_parameters(testbench.get("parameters")),
+                            placeholder=parameters_placeholder, style={"width": "100%", "height": "60px"},
+                        ),
+                    ],
+                    style={"marginBottom": "12px"},
+                ),
+                html.Div(
+                    children=[
+                        html.Div(
+                            [
+                                html.Label("Generated: cycles"),
+                                ui.tooltip_icon("Cycles the generated testbench runs, when there is no testbench."),
+                                dcc.Input(
+                                    id="sim-testbench-cycles", type="number", min=1,
+                                    value=testbench.get("cycles"), placeholder=cycles_placeholder,
+                                    style={"width": "100%"},
+                                ),
+                            ],
+                            style={"flex": "1"},
+                        ),
+                        html.Div(
+                            [
+                                html.Label("Inputs"),
+                                dcc.Dropdown(
+                                    id="sim-testbench-stimulus",
+                                    options=[
+                                        {"label": "Default (random)", "value": ""},
+                                        {"label": "Random", "value": "random"},
+                                        {"label": "Zero", "value": "zero"},
+                                    ],
+                                    value=testbench.get("stimulus", ""), clearable=False,
+                                ),
+                            ],
+                            style={"flex": "1"},
+                        ),
+                        html.Div(
+                            [
+                                html.Label("VCD"),
+                                dcc.Dropdown(
+                                    id="sim-testbench-waves",
+                                    options=[
+                                        {"label": "Default (yes)", "value": ""},
+                                        {"label": "Yes", "value": "yes"},
+                                        {"label": "No", "value": "no"},
+                                    ],
+                                    value="" if waves is None else ("yes" if waves else "no"), clearable=False,
+                                ),
+                            ],
+                            style={"flex": "1"},
+                        ),
+                    ],
+                    style={"display": "flex", "gap": "8px"},
+                ),
+            ],
+            className="tile config",
+        ),
+    ]
+
+
+def sim_form(settings, inherited=None, current_sim=""):
     defval = lambda k, v=None: settings.get(k, v)
 
     progress = defval("progress", {}) or {}
@@ -377,7 +603,7 @@ def sim_form(settings):
     legacy_style = {} if uses_legacy_parameters(settings) else Style.hidden
 
     return html.Div(
-        children=[
+        children=template_tiles(settings, inherited or {}, current_sim) + [
             html.Div(
                 [
                     html.H3("Parameters replacement (deprecated)"),
@@ -780,28 +1006,37 @@ def sim_add_task_card():
         id="sim-task-add-card",
     )
 
-def sim_default_task_note():
+def default_task_text(template=""):
+    """What a simulation defining no task runs."""
+    if template:
+        return (
+            'This simulation runs the tasks of the template "' + template + '". '
+            "Add a task to run something else instead."
+        )
+    return (
+        'This simulation runs "make sim" from its Makefile, the default since before tasks existed. '
+        "Add a task to take over: the Makefile is then no longer required."
+    )
+
+
+def sim_default_task_note(template=""):
     """
     Shown instead of task cards when the simulation defines none: the run then
-    falls back to the Makefile's "sim" rule.
+    falls back to the tasks of its template, or to the Makefile's "sim" rule.
     """
     return html.Div(
         [
             html.Div("No task defined", style={"fontWeight": "bold", "marginBottom": "6px"}),
-            html.Div(
-                'This simulation runs "make sim" from its Makefile, the default since before tasks existed. '
-                "Add a task to take over: the Makefile is then no longer required.",
-                className="odx-panel-note",
-            ),
+            html.Div(default_task_text(template), id="sim-default-task-text", className="odx-panel-note"),
         ],
         id="sim-default-task-note",
         className="tile config",
     )
 
-def sim_cards_from_tasks(tasks):
+def sim_cards_from_tasks(tasks, template=""):
     cards = te.cards_from_tasks("sim", tasks, main_is_deletable=True)
     if not cards:
-        cards.append(sim_default_task_note())
+        cards.append(sim_default_task_note(template))
     cards.append(sim_add_task_card())
     return cards
 
@@ -984,10 +1219,11 @@ def update_architectures(
     Input({"type": "sim-duplicate-task", "name": dash.ALL}, "n_clicks"),
     Input({"type": "sim-delete-task", "name": dash.ALL}, "n_clicks"),
     State("sim-task-cards-row", "children"),
+    State("sim-template", "value"),
     *te.task_field_dependencies("sim", State),
     prevent_initial_call=True,
 )
-def update_sim_task_cards(new_click, duplicate_clicks, delete_clicks, cards, *task_fields):
+def update_sim_task_cards(new_click, duplicate_clicks, delete_clicks, cards, template, *task_fields):
     trigger_id = ctx.triggered_id
 
     if cards is None:
@@ -1047,9 +1283,35 @@ def update_sim_task_cards(new_click, duplicate_clicks, delete_clicks, cards, *ta
             cards.append(sim_task_card(name=f"{trig_name}_copy{copy_idx}", **te.card_values(task_fields, idx)))
 
     if not cards:
-        cards.append(sim_default_task_note())
+        cards.append(sim_default_task_note(template or ""))
     cards.append(sim_add_task_card())
     return cards
+
+
+@page_callback(PAGE_SCOPE,
+    Output("sim-template-note", "children"),
+    Output("sim-testbench-top", "placeholder"),
+    Output("sim-testbench-files", "placeholder"),
+    Output("sim-testbench-parameters", "placeholder"),
+    Output("sim-testbench-cycles", "placeholder"),
+    Input("sim-template", "value"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def update_template(template, odatix_settings):
+    """Say what the template chosen brings, and show what the testbench inherits from it."""
+    inherited = template_settings(template, get_workspace(odatix_settings).simulations.path)
+    return (template_note(template, inherited),) + testbench_placeholders(inherited)
+
+
+# Apart from update_template: the note only exists while there is no task
+@page_callback(PAGE_SCOPE,
+    Output("sim-default-task-text", "children"),
+    Input("sim-template", "value"),
+    prevent_initial_call=True,
+)
+def update_default_task_text(template):
+    return default_task_text(template)
 
 
 @dash.callback(
@@ -1066,16 +1328,18 @@ def init_form(search, page, odatix_settings):
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     sim_name = get_key_from_url(search, "sim")
+    simulations = get_workspace(odatix_settings).simulations
     if not sim_name:
-        settings = normalize_simulation_settings({})
+        # "?template=questa": a new simulation starting from a template
+        settings = normalize_simulation_settings({"template": get_key_from_url(search, "template") or ""})
     else:
-        simulations = get_workspace(odatix_settings).simulations
         settings = normalize_simulation_settings(settings_as_written(simulations.entry(sim_name).settings))
+    inherited = template_settings(settings.get("template"), simulations.path)
 
     return (
-        sim_form(settings),
+        sim_form(settings, inherited, sim_name or ""),
         settings,
-        sim_cards_from_tasks(settings.get("tasks", [])),
+        sim_cards_from_tasks(settings.get("tasks", []), settings.get("template", "")),
         arch_cards(arch_cards_from_settings(settings.get("architectures")), odatix_settings),
     )
 
@@ -1100,6 +1364,13 @@ def init_form(search, page, odatix_settings):
     Input("sim-progress-file", "value"),
     Input("sim-progress-regex", "value"),
     Input("sim-invariant-domains", "value"),
+    Input("sim-template", "value"),
+    Input("sim-testbench-top", "value"),
+    Input("sim-testbench-files", "value"),
+    Input("sim-testbench-parameters", "value"),
+    Input("sim-testbench-cycles", "value"),
+    Input("sim-testbench-stimulus", "value"),
+    Input("sim-testbench-waves", "value"),
     *arch_dependencies(Input),
     *te.task_field_dependencies("sim", Input),
     State(f"url_{page_path}", "search"),
@@ -1124,6 +1395,13 @@ def save_and_status(
     progress_file,
     progress_regex,
     invariant_domains,
+    template,
+    testbench_top,
+    testbench_files,
+    testbench_parameters,
+    testbench_cycles,
+    testbench_stimulus,
+    testbench_waves,
     arch_ids,
     arch_names,
     arch_metrics_files,
@@ -1162,6 +1440,15 @@ def save_and_status(
             "regex": progress_regex or "",
         },
         "invariant_domains": parse_invariant_domains_text(invariant_domains),
+        "template": template or "",
+        "testbench": {
+            "top": testbench_top or "",
+            "files": parse_lines(testbench_files),
+            "parameters": parse_parameters_text(testbench_parameters),
+            "cycles": testbench_cycles,
+            "stimulus": testbench_stimulus or "",
+            "waves": testbench_waves or "",
+        },
         "tasks": build_tasks_list(
             task_names, task_dependencies, task_commands, task_on_failure_commands, task_paths, task_platforms
         ),

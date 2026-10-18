@@ -247,6 +247,8 @@ class SimulationHandler:
   def reset_lists(self):
     self._invariant_domains_cache = {}
     self._definitions_cache = {}
+    self._warned_missing = set()
+    self._noted_generated = set()
     self._architectures_cache = {}
     self._warned_unlisted = set()
     self.no_settings_sims = []
@@ -366,6 +368,16 @@ class SimulationHandler:
       return None
     definition_dirs, merged_settings = definition
     source_sim_dir = definition_dirs[-1]
+
+    # a simulator that is not installed would fail every job of the simulation
+    missing = sim_templates.missing_executable(merged_settings)
+    if missing is not None:
+      if sim not in self._warned_missing:
+        self._warned_missing.add(sim)
+        printc.error("\"" + sim + "\" runs \"" + missing + "\", which is not in the PATH", script_name)
+        printc.note("Install the simulator, or add its directory to the PATH", script_name)
+      self.plan.add(sim_display_name, Category.ERROR)
+      return None
 
     # get architecture
     architecture = arch_handler.get_architecture(arch_full)
@@ -720,6 +732,20 @@ class SimulationHandler:
         self.plan.add(sim_display_name, Category.ERROR)
         return None
       testbench_languages = design_info.languages_of(design_info.split_by_language(matched))
+
+    # A testbench is generated when there is none at all: say so, it checks
+    # nothing of what the design computes.
+    if (
+      not testbench.get("files") and not arch_testbench.get("files")
+      and not any(isdir(os.path.join(directory, design_info.DEFAULT_TESTBENCH_DIR)) for directory in definition_dirs)
+      and sim_templates.accepted_languages(merged_settings) is not None
+      and (sim, architecture.arch_name) not in self._noted_generated
+    ):
+      self._noted_generated.add((sim, architecture.arch_name))
+      printc.note(
+        "\"" + architecture.arch_name + "\" has no testbench: \"" + sim + "\" generates a minimal one, "
+        "which drives random inputs and only checks that no output is unknown", script_name
+      )
 
     # a template refuses a design written in a language its simulator does not compile
     language_error = self.check_languages(sim, merged_settings, architecture, testbench_languages)

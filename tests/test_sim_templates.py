@@ -17,6 +17,7 @@ import odatix.sim.templates as sim_templates
 from odatix.sim.runner import SimRunner
 from odatix.run import Run, RunError
 from odatix.workspace import Workspace
+from sim_fixtures import fake_simulators  # noqa: F401 (fixture)
 
 SIMULATORS = {
     "ghdl": "ghdl",
@@ -264,29 +265,37 @@ CORDIC = "Example_Cordic_{} + iterations/12 + width/8"
 
 
 class TestRuns:
-    def test_a_template_is_named_in_a_run(self, example_workspace):
+    def test_a_template_is_named_in_a_run(self, example_workspace, fake_simulators):
         plan = Run(Workspace.open(), "simulation", simulations=["ghdl"], architectures=[CORDIC.format("vhdl")]).check()
         assert [entry["name"] for entry in plan.entries] == ["ghdl: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
         assert plan_names(plan, "error") == []
 
-    def test_a_language_the_simulator_does_not_compile_is_refused_at_check(self, example_workspace):
+    def test_a_language_the_simulator_does_not_compile_is_refused_at_check(self, example_workspace, fake_simulators):
         run = Run(Workspace.open(), "simulation", simulations=["verilator", "ghdl"], architectures=[CORDIC.format("vhdl")])
         plan = run.check()
         assert plan_names(plan, "error") == ["verilator: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
         assert any('"verilator" cannot compile vhdl' in str(message) for message in run.reporter.messages)
 
-    def test_so_is_the_language_of_the_testbench(self, example_workspace):
+    def test_so_is_the_language_of_the_testbench(self, example_workspace, fake_simulators):
         set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"files": ["examples/cordic_tb/tb_cordic.vhdl"]})
         with pytest.raises(RunError) as error:
             Run(Workspace.open(), "simulation", simulations=["verilator"], architectures=[CORDIC.format("sv")]).check()
         assert "cannot compile vhdl, the language of the testbench" in str(error.value)
 
-    def test_an_unknown_simulation(self, example_workspace):
+    def test_a_simulator_that_is_not_installed_is_refused_at_check(self, example_workspace, fake_simulators):
+        (fake_simulators / "vsim").unlink()
+        os.environ["PATH"] = str(fake_simulators)
+        run = Run(Workspace.open(), "simulation", simulations=["questa", "ghdl"], architectures=[CORDIC.format("vhdl")])
+        plan = run.check()
+        assert plan_names(plan, "error") == ["questa: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
+        assert any('"questa" runs "vsim", which is not in the PATH' in str(message) for message in run.reporter.messages)
+
+    def test_an_unknown_simulation(self, example_workspace, fake_simulators):
         with pytest.raises(RunError) as error:
             Run(Workspace.open(), "simulation", simulations=["nosuch"], architectures=["Example_Counter_sv/08bits"]).check()
         assert "no template of that name" in str(error.value)
 
-    def test_the_work_directory_gets_the_template_then_the_simulation(self, example_workspace):
+    def test_the_work_directory_gets_the_template_then_the_simulation(self, example_workspace, fake_simulators):
         template_simulation(example_workspace, "TB_mine", "questa", "tb_cordic.sv")
         sims = example_workspace / "odatix_userconfig" / "simulations"
         (sims / "TB_mine" / "run.py").write_text("# mine\n")
@@ -303,7 +312,7 @@ class TestRuns:
 class TestTestbench:
     """Which testbench a job runs: the simulation's files, the architecture's, the "tb" directory."""
 
-    def test_the_architecture_s_testbench(self, example_workspace):
+    def test_the_architecture_s_testbench(self, example_workspace, fake_simulators):
         work, info = prepared_info(example_workspace, "questa", CORDIC.format("vhdl"))
         assert info["testbench"] == {
             "top": "tb_cordic",
@@ -314,12 +323,12 @@ class TestTestbench:
         }
         assert os.path.isfile(os.path.join(work, "testbench", "tb_cordic.vhdl"))
 
-    def test_the_files_a_simulation_names_come_first(self, example_workspace):
+    def test_the_files_a_simulation_names_come_first(self, example_workspace, fake_simulators):
         template_simulation(example_workspace, "TB_mine", "questa", "tb_cordic.sv")
         _work, info = prepared_info(example_workspace, "TB_mine", CORDIC.format("vhdl"))
         assert info["testbench"]["files"] == ["tb/tb_cordic.sv"]
 
-    def test_the_tb_directory_comes_last(self, example_workspace):
+    def test_the_tb_directory_comes_last(self, example_workspace, fake_simulators):
         sims = example_workspace / "odatix_userconfig" / "simulations"
         (sims / "TB_dir" / "tb").mkdir(parents=True)
         (sims / "TB_dir" / "tb" / "tb_other.sv").write_text("module tb_other; endmodule\n")
@@ -334,7 +343,7 @@ class TestTestbench:
         assert info["testbench"]["files"] == ["tb/tb_other.sv"]
         assert info["testbench"]["top"] == "tb_other"
 
-    def test_the_layout_of_the_files_is_kept(self, example_workspace):
+    def test_the_layout_of_the_files_is_kept(self, example_workspace, fake_simulators):
         bench = example_workspace / "bench"
         (bench / "inc").mkdir(parents=True)
         (bench / "tb_cordic.sv").write_text('`include "defs.svh"\nmodule tb_cordic; endmodule\n')
@@ -347,13 +356,13 @@ class TestTestbench:
         assert os.path.isfile(os.path.join(work, "testbench", "inc", "defs.svh"))
         assert info["testbench"]["include_dirs"] == ["testbench", "testbench/inc"]
 
-    def test_files_that_match_nothing_are_refused_at_check(self, example_workspace):
+    def test_files_that_match_nothing_are_refused_at_check(self, example_workspace, fake_simulators):
         set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"files": ["nowhere/*.sv"]})
         with pytest.raises(RunError) as error:
             Run(Workspace.open(), "simulation", simulations=["questa"], architectures=[CORDIC.format("sv")]).check()
         assert "match no file" in str(error.value)
 
-    def test_the_setting_is_validated(self, example_workspace):
+    def test_the_setting_is_validated(self, example_workspace, fake_simulators):
         set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"file": "tb.sv"})
         with pytest.raises(RunError) as error:
             Run(Workspace.open(), "simulation", simulations=["questa"], architectures=[CORDIC.format("sv")]).check()
@@ -444,7 +453,6 @@ class TestTutorial:
         endmodule
         """
     TESTBENCH = """
-        `timescale 1ns / 1ps
         module tb_counter #(parameter BITS = 8);
           logic clock = 0, reset = 1;
           logic [BITS-1:0] o_value, expected = 0;
@@ -496,7 +504,7 @@ class TestTutorial:
         write(example_workspace, "odatix_userconfig/architectures/MyCounter/_settings.yml", self.SETTINGS)
         return example_workspace
 
-    def test_the_testbench_gets_the_variables_of_the_configuration(self, workspace):
+    def test_the_testbench_gets_the_variables_of_the_configuration(self, workspace, fake_simulators):
         for bits in ("8", "16", "32"):
             _work, info = prepared_info(workspace, "icarus", "MyCounter/" + bits + "bits")
             assert info["testbench"]["parameters"] == {"BITS": bits}

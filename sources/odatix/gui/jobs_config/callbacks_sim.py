@@ -35,7 +35,7 @@ from odatix.gui.jobs_config.callbacks_config import (
     update_preview_title,
 )
 from odatix.gui.jobs_config.common import _simulation_badge_text
-from odatix.gui.jobs_config.simulation import _sim_arch_card, _sim_entry_from_combo
+from odatix.gui.jobs_config.simulation import _sim_arch_card, _sim_entry_from_combo, compatible_architectures
 from odatix.gui.page_scope import page_callback
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
@@ -134,7 +134,8 @@ def update_listed_architectures(
         [] if (removed is not None and arch == removed) else dash.no_update
         for arch in arch_names
     ]
-    options = [{"label": name, "value": name} for name in all_arch_names if name not in shown]
+    offered = compatible_architectures(workspace, triggered.get("sim"), all_arch_names)
+    options = [{"label": name, "value": name} for name in offered if name not in shown]
 
     # The simulation badge counts the configurations of the architectures it
     # shows: a card appearing or disappearing changes that total.

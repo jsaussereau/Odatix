@@ -607,7 +607,8 @@ A template declares the languages its simulator compiles:
 | `test_command` | list | Command telling whether the simulator is installed. |
 
 Running `verilator` on a VHDL design is reported before anything starts, with
-the design in the list of invalid jobs.
+the design in the list of invalid jobs. So is a simulator whose `test_command`
+is not in the `PATH`: every job of the run would fail otherwise.
 
 ### What a template reports
 
@@ -680,6 +681,22 @@ metrics:
 **RTL Architectures** → **Simulations** edits this file, with the same task
 editor as workflows, and the metrics editor for `_metrics.yml`. See
 [The Odatix GUI](/docs/gui/app/).
+
+The **Template** card of the Simulation Editor chooses the template the
+simulation starts from, and says what it brings: the languages it compiles,
+its tasks, its progress tracking and its metrics. The **Testbench** card sets
+`testbench`; an empty field shows, greyed, what the simulation inherits, or
+what happens without it.
+
+**Run jobs** → *Simulations* lists the templates after the simulations of the
+workspace. Their dropdown only offers the architectures written in a language
+the simulator compiles (and those whose RTL is generated, which is only known
+once generated). **New simulation from it** opens the Simulation Editor on a
+new simulation starting from that template.
+
+The **Simulators** section of the **Tools** page lists the templates, the
+languages each one compiles, and whether its simulator is installed: its
+`test_command` is run when the page opens.
 
 **Run jobs** → *Simulations* shows only the architectures a simulation lists.
 The cross next to an architecture takes it out of the list, and the dropdown at

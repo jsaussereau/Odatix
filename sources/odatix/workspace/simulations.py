@@ -32,6 +32,7 @@ import os
 
 import odatix.lib.hard_settings as hard_settings
 from odatix.workspace import sim_architectures
+from odatix.workspace.architectures import Testbench
 from odatix.workspace.domains import ParameterDomain, ParameterDomainCollection
 from odatix.workspace.entries import Collection, Entry
 from odatix.workspace.metrics import METRICS_FILENAME, MetricsFile
@@ -60,6 +61,19 @@ class SimulationSettings(Settings):
     Settings of a simulation ("<simulation>/_settings.yml").
     """
 
+    template = Setting(
+        "", type="str", skip_if_empty=True, section="Template",
+        doc="Simulation template the simulation starts from (ghdl, verilator, questa, xsim, icarus, "
+            "or a simulation of the workspace): its settings are the template's, merged with "
+            "these. See odatix.sim.templates.",
+    )
+    testbench = Setting(
+        type=Testbench, skip_if_empty=True, section="Testbench",
+        doc="Testbench the simulation runs: \"top\", \"files\" and \"parameters\". Without "
+            "files, the architecture's testbench runs, else the files of \"tb/\", else a "
+            "generated one.",
+    )
+
     architectures = Setting(
         factory=list, type="list", skip_if_empty=True, section="Architectures",
         doc="Architectures this simulation runs on, and what it changes for each of them: a list "
@@ -76,17 +90,21 @@ class SimulationSettings(Settings):
     )
 
     # Deprecated: superseded by "param_domains", which covers both of the blocks below and any
-    # number of domains instead of one. Still read so existing simulations keep running.
+    # number of domains instead of one. Still read so existing simulations keep running, but
+    # never written into a simulation that does not set them: a new simulation holding
+    # "use_parameters: Yes" with no delimiters would be refused by every run.
     use_parameters = Setting(
-        True, type="bool", style="yesno", section="Delimiters for parameter files (deprecated, use param_domains)",
+        None, type="any", style="yesno", skip_if_empty=True,
+        section="Delimiters for parameter files (deprecated, use param_domains)",
         doc="Deprecated. Whether the parameters of the architecture are substituted into the testbench.",
     )
-    param_target_file = Setting("", type="str", doc="Deprecated. File the parameters are written into.")
-    start_delimiter = Setting("", type="str", doc="Deprecated. Text after which the parameters are written. Escape sequences such as \\n are supported.")
-    stop_delimiter = Setting("", type="str", doc="Deprecated. Text before which the parameters are written. Escape sequences such as \\n are supported.")
+    param_target_file = Setting("", type="str", skip_if_empty=True, doc="Deprecated. File the parameters are written into.")
+    start_delimiter = Setting("", type="str", skip_if_empty=True, doc="Deprecated. Text after which the parameters are written. Escape sequences such as \\n are supported.")
+    stop_delimiter = Setting("", type="str", skip_if_empty=True, doc="Deprecated. Text before which the parameters are written. Escape sequences such as \\n are supported.")
 
     override_parameters = Setting(
-        False, type="bool", style="yesno", section="Parameter override (deprecated, use param_domains)",
+        None, type="any", style="yesno", skip_if_empty=True,
+        section="Parameter override (deprecated, use param_domains)",
         doc="Deprecated. Whether this simulation substitutes parameters of its own on top of the architecture's.",
     )
     override_param_file = Setting("", type="str", when="override_parameters", doc="Deprecated. File holding the overriding parameters.")
@@ -124,6 +142,7 @@ class Simulation(Entry):
     def __init__(self, workspace, root, name):
         super(Simulation, self).__init__(workspace, root, name)
         self._settings = None
+        self._metrics = None
 
     ######################################
     # Settings
@@ -147,6 +166,7 @@ class Simulation(Entry):
     def reload(self):
         """Forget the settings held in memory and read them from file again."""
         self._settings = None
+        self._metrics = None
         return self
 
     def save(self, regenerate=False):
@@ -202,8 +222,14 @@ class Simulation(Entry):
 
     @property
     def metrics(self):
-        """The metrics this simulation extracts from its runs."""
-        return MetricsFile(self.metrics_path)
+        """
+        The metrics this simulation extracts from its runs. The same object on
+        every access, like :attr:`settings`: what is set on it is what
+        ``metrics.save()`` writes.
+        """
+        if self._metrics is None:
+            self._metrics = MetricsFile(self.metrics_path)
+        return self._metrics
 
 
 class SimulationDomainCollection(ParameterDomainCollection):
@@ -244,3 +270,16 @@ class SimulationCollection(Collection):
     def _initialize(self, entry, **settings):
         if settings:
             entry.update(settings)
+
+    def templates(self):
+        """
+        The simulation templates Odatix provides (ghdl, verilator, questa, ...,
+        see odatix.sim.templates), which a run names like the simulations of
+        the workspace, and which a simulation can start from. One that a
+        simulation of the workspace has the name of is replaced by it, and is
+        left out.
+        """
+        from odatix.sim import templates
+
+        own = set(self.names())
+        return [name for name in templates.list_templates() if name not in own]

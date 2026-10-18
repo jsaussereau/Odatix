@@ -59,7 +59,10 @@ def _run_context(search, odatix_settings) -> dict:
             "arch_path": settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH),
             "settings_path": settings.get("sim_settings_file", OdatixSettings.DEFAULT_SIM_SETTINGS_FILE),
             "selection_key": "simulations",
-            "instances": ws.simulations.names(),
+            # The simulations of the workspace, then the templates Odatix
+            # provides, which a run names the same way (see odatix.sim.templates)
+            "instances": ws.simulations.names() + ws.simulations.templates(),
+            "templates": ws.simulations.templates(),
             "settings_link": lambda name: f"/sim_editor?sim={name}",
             "config_link": lambda name: f"/metric_editor?simulation={name}",
             "config_text": "Edit Metrics",
