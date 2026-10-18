@@ -29,24 +29,31 @@ workspace, so a missing file is not an error.
 
 import os
 
-from odatix.workspace.yaml_io import read_document, read_yaml, write_document
+from odatix.workspace.yaml_io import ABSENT, read_document, read_yaml, set_key, write_document
 
 __all__ = ["DerivedMetricsFile"]
 
 
-def _merge_into(current, wanted):
+def _implied_kind(definition):
+    """What a definition that does not say its "type" is (see odatix.lib.derived_metrics)."""
+    return "operation" if definition.get("op") is not None else "import"
+
+
+def _as_written(wanted, current):
     """
-    Make the mapping ``current`` (read from the file, comments attached) equal
-    to ``wanted`` in place: a value left unchanged keeps its comment and its
-    formatting, which replacing the whole section would throw away.
+    The definitions to write, saying no more than the file does: a "type" the
+    file leaves implicit stays implicit when it is still the one implied.
     """
-    for key in [key for key in current if key not in wanted]:
-        del current[key]
-    for key, value in wanted.items():
-        if key in current and isinstance(current[key], dict) and isinstance(value, dict):
-            _merge_into(current[key], value)
-        elif key not in current or current[key] != value or type(current[key]) is bool and type(value) is not bool:
-            current[key] = value
+    if not isinstance(current, dict):
+        return wanted
+    written = {}
+    for name, definition in wanted.items():
+        found = current.get(name)
+        if (isinstance(definition, dict) and isinstance(found, dict) and "type" not in found
+                and str(definition.get("type", "")).strip().lower() == _implied_kind(definition)):
+            definition = dict((key, value) for key, value in definition.items() if key != "type")
+        written[name] = definition
+    return written
 
 
 class DerivedMetricsFile(object):
@@ -141,12 +148,15 @@ class DerivedMetricsFile(object):
         """
         self._load()
         document = read_document(self.path)
+        previous = None
         for key, value in (("groups", self._groups), ("derived_metrics", self._metrics)):
             value = value if value else {}
-            if isinstance(document.get(key), dict):
-                _merge_into(document[key], value)
-            else:
-                document[key] = value
+            if key == "derived_metrics":
+                value = _as_written(value, document.get(key))
+            # Definition by definition: what was not touched keeps its layout
+            # and its comments, and an empty section stays as it was written.
+            set_key(document, key, value, after=previous if previous is not None else ABSENT)
+            previous = key
         write_document(self.path, document)
         return self
 

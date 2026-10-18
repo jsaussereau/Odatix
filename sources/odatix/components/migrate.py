@@ -22,6 +22,7 @@
 import os
 import argparse
 
+import odatix.lib.doc_links as doc_links
 import odatix.lib.printc as printc
 import odatix.run.cli as run_cli
 from odatix.components.cli_options import add_options
@@ -57,7 +58,7 @@ DEPRECATED_SIMULATION_KEYS = (
   "override_start_delimiter", "override_stop_delimiter",
 )
 
-SIMULATION_REFERENCE_URL = "https://odatix.readthedocs.io/docs/reference/simulation/#parameters"
+SIMULATION_REFERENCE_URL = doc_links.doc_url("docs/reference/simulation/#parameters")
 
 def deprecated_simulation_keys(workspace):
   """

@@ -41,6 +41,73 @@
     letter-spacing: 0.06em;
     opacity: 0.55;
 }
+/* A session name is never cut in the middle: the open list grows to fit the
+   longest one, aligned on the right edge of the field (the field sits on the
+   right of the header, a list growing rightwards would leave the screen). */
+.odx-session-dropdown .Select-menu-outer {
+    min-width: 100%;
+    width: max-content;
+    max-width: 70vw;
+    left: auto;
+    right: 0;
+}
+.odx-session-dropdown .VirtualizedSelectOption,
+.odx-session-dropdown .Select-value-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Back arrow in front of the title ---------------------------------- */
+.jobs-titles {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+.jobs-back {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    flex: none;
+}
+
+/* --- Until the cards are built ----------------------------------------- */
+.jobs-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+}
+.jobs-spinner {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: 50%;
+    border: 2px solid rgba(128, 128, 128, 0.3);
+    border-top-color: var(--theme-primary-color);
+    animation: jobs-spin 0.8s linear infinite;
+}
+@keyframes jobs-spin {
+    to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .jobs-spinner { animation-duration: 2.4s; }
+}
+
+/* --- Frequency fields: what "Override frequencies" makes of them ------- */
+.jobs-freq-note {
+    font-size: 12px;
+    line-height: 1.45;
+    opacity: 0.7;
+    margin: 2px 0 var(--space-3);
+}
+.jobs-freq-fields {
+    transition: opacity 0.18s ease;
+}
+.jobs-freq-fields.inactive {
+    opacity: 0.55;
+}
 
 /* --- Architecture / workflow card -------------------------------------- */
 .jobs-arch-list {
@@ -442,6 +509,11 @@
     color: var(--theme-primary-color);
     background: color-mix(in srgb, var(--theme-primary-color) 15%, transparent);
 }
+.jobs-plan-badge.steps {
+    color: var(--theme-text-color);
+    background: color-mix(in srgb, var(--theme-text-color) 10%, transparent);
+    font-weight: 500;
+}
 .jobs-plan-badge.freq {
     color: var(--xpa-incomplete);
     background: color-mix(in srgb, var(--xpa-incomplete) 18%, transparent);
@@ -682,4 +754,29 @@
     text-align: center;
     padding: 28px 0;
     opacity: 0.55;
+}
+
+/* What the run runs with, under the popup title: tool, flow, last step,
+   targets, work directory. */
+.jobs-plan-context {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin: -6px 0 var(--space-3);
+}
+.jobs-plan-context:empty {
+    display: none;
+}
+.jobs-plan-context-item {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--theme-text-color);
+    background: var(--theme-tertiary-color);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

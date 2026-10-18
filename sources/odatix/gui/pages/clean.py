@@ -71,6 +71,14 @@ FORCE_TOOLTIP = (
     "Without it, a clean refuses them and says so. Use at your own risks."
 )
 
+#: What a clean that removed nothing says. It does not claim the workspace is
+#: clean: what the patterns do not name (the work directories, by default) is
+#: still there.
+NOTHING_MATCHED = (
+    "None of these patterns matched anything: nothing was removed. "
+    'The work directories are only removed by a pattern naming them, such as "work/".'
+)
+
 PATTERNS_TOOLTIP = (
     'One path or glob pattern per line, e.g. "vivado*.log" or ".Xil". Lines are kept in this order '
     "in the file, and blank lines are dropped."
@@ -158,6 +166,12 @@ def clean_form(patterns_text, force=False):
                     className="odx-status",
                     style={"marginTop": "8px"},
                 ),
+                html.Div(
+                    'The work directories are kept unless a pattern names them, such as "work/": '
+                    "once they are gone, results can no longer be exported again.",
+                    className="odx-status",
+                    style={"marginTop": "8px"},
+                ),
             ]),
         ],
     )
@@ -214,7 +228,9 @@ def result_view(result, root):
     panels = [panel for panel in panels if panel is not None]
 
     if nothing_happened:
-        panels.append(ui.empty_state("Nothing to remove: the workspace is already clean."))
+        # Not "already clean": the work directories, the largest by far, are only
+        # removed when a pattern names them.
+        panels.append(ui.empty_state(NOTHING_MATCHED))
 
     return html.Div([stats, ui.grid(panels)] if panels else [stats])
 

@@ -438,13 +438,16 @@ def build_overrides(selectors, fmax_lowers, fmax_uppers, custom_freqs, constrain
     return rules
 
 
-def architecture_form(settings):
+def architecture_form(settings, names=None):
     defval = lambda k, v=None: settings.get(k, v)
     generate_rtl = True if str(defval("generate_rtl", "No")).lower() in ["yes", "true"] else False
     expand_design_path_filters = True if defval("design_path_whitelist", []) or defval("design_path_blacklist", []) else False
 
+    # Two columns of tiles rather than CSS columns: balancing CSS columns lays
+    # the whole form out again at every change of any field, which took up to a
+    # second per keystroke or added card here (UG-01).
     return html.Div(
-        children=[
+        children=[html.Div(children=[
             html.Div(style={"display": "none"}),
             # The page pushes its own variable and parameter domain names through
             # a clientside callback, hence declares_variables.
@@ -626,6 +629,7 @@ def architecture_form(settings):
                     tooltip_options="secondary large",
                 ),
             ], className="tile config"),
+        ], className="arch-form-column"), html.Div(children=[
             html.Div([
                 html.H3("Overrides"),
                 ui.caption(
@@ -640,8 +644,9 @@ def architecture_form(settings):
                     className="odx-override-cards",
                 ),
             ], className="tile config"),
-            exclusion_editor.exclusions_tile(defval("exclusions", [])),
-        ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
+            exclusion_editor.exclusions_tile(defval("exclusions", []), names),
+        ], className="arch-form-column")],
+        className="tiles-container config arch-form", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
 
@@ -767,18 +772,19 @@ def apply_form_settings(architecture, settings_subset):
     Output({"page": page_path, "type": "architecture-title-div"}, "children"),
     Output("arch-form-container", "children"),
     Output("architecture-initial-settings", "data"),
+    Output("arch-current-name", "data"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
 def init_form(search, page, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     architectures = get_workspace(odatix_settings).architectures
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        return architecture_title(""), architecture_form({}), {}
+        return architecture_title(""), architecture_form({}), {}, ""
 
     if arch_name:
         full_settings = architectures.entry(arch_name).settings.to_dict()
@@ -804,14 +810,19 @@ def init_form(search, page, odatix_settings):
             "exclusions": full_settings.get("exclusions", []),
         }
         settings = normalize_form_settings(settings)
+        names = exclusion_editor.readable_names(architectures.get(arch_name))
     else:
         settings = {}
-    return architecture_title(arch_name), architecture_form(settings), settings
+        names = None
+    return architecture_title(arch_name), architecture_form(settings, names), settings, arch_name
 
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
-    Output(f"url_{page_path}", "search"),
+    # The name the page edits. A rename keeps the page as it is rather than
+    # loading it again under its new address, which would drop what it says
+    # about the save and every callback on its way (AR-20).
+    Output("arch-current-name", "data", allow_duplicate=True),
     Output("architecture-saved-settings", "data"),
     Output("architecture-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
@@ -846,7 +857,7 @@ def init_form(search, page, odatix_settings):
     State({"type": "arch-override-rest", "index": dash.ALL}, "data"),
     State({"type": "arch-exclusion-rest", "index": dash.ALL}, "data"),
     State("arch-exclusions-block", "data"),
-    State(f"url_{page_path}", "search"),
+    State("arch-current-name", "data"),
     State(f"url_{page_path}", "pathname"),
     State("architecture-initial-settings", "data"),
     State("architecture-saved-settings", "data"),
@@ -861,13 +872,10 @@ def save_and_status(
     override_fmax_lowers, override_fmax_uppers, override_custom_freqs, override_constraints,
     exclusion_ids, exclusion_kinds, exclusion_whens, exclusion_requires, exclusion_messages,
     override_rests, exclusion_rests, exclusion_block,
-    search, page, initial_settings, saved_settings,
+    current_name, page, initial_settings, saved_settings,
     odatix_settings,
 ):
     triggered_id = ctx.triggered_id
-    if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
     if saved_settings is None:
         settings = initial_settings
     else:
@@ -881,7 +889,7 @@ def save_and_status(
         custom_freq_list = ""
 
     architectures = get_workspace(odatix_settings).architectures
-    arch_name = get_key_from_url(search, "arch")
+    arch_name = current_name or ""
 
     current_settings_subset = {
         "generate_rtl": True if generate_rtl else False,
@@ -953,7 +961,7 @@ def save_and_status(
                 if old_name in architectures:
                     architectures.rename(old_name, new_name)
                 arch_name = new_name
-                new_search = f"?arch={new_name}"
+                new_search = new_name
             except Exception as e:
                 return "color-button error-status icon-button tooltip bottom", "Failed renaming architecture", dash.no_update, dash.no_update, ui.error(
                     f"Could not rename '{old_name}' to '{new_name}': {e}"
@@ -967,7 +975,16 @@ def save_and_status(
         # Save settings
         try:
             apply_form_settings(architecture, current_settings_subset)
-            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings_subset, ui.success()
+            saved = ui.success() if new_search is dash.no_update else ui.success(
+                "Renamed to '{0}' and saved.".format(arch_name)
+            )
+            notice = exclusion_editor.save_notice(exclusion_editor.cards_from_values(
+                exclusion_ids, exclusion_kinds, exclusion_whens, exclusion_requires,
+                exclusion_messages, exclusion_rests,
+            ))
+            if notice:
+                saved = ui.error(notice)
+            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings_subset, saved
         except Exception as e:
             return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update, ui.error(f"Not saved: {e}")
     else:
@@ -979,11 +996,11 @@ def save_and_status(
 @dash.callback(
     Output("arch-hl-param-domains", "data"),
     Output("arch-hl-variables", "data"),
-    Input(f"url_{page_path}", "search"),
+    Input("arch-current-name", "data"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
-def update_arch_highlight_names(search, page, odatix_settings):
+def update_arch_highlight_names(arch_name, page, odatix_settings):
     """
     The names the generation command highlighter colors apart: the architecture's
     parameter domains (its subdirectories) and its variables, which act as
@@ -992,7 +1009,6 @@ def update_arch_highlight_names(search, page, odatix_settings):
     if page != page_path:
         return dash.no_update, dash.no_update
 
-    arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return [], []
 
@@ -1017,6 +1033,15 @@ def update_arch_highlight_names(search, page, odatix_settings):
 
     return param_domains, variables
 
+
+# The address and the configuration editor link follow a rename, without
+# loading the page again.
+dash.clientside_callback(
+    dash.ClientsideFunction(namespace="odatix_architectures", function_name="follow_rename"),
+    Output("button-open-config-editor-link", "href"),
+    Input("arch-current-name", "data"),
+    prevent_initial_call=True,
+)
 
 # Push the names to the client and ask the highlighter to redraw.
 dash.clientside_callback(
@@ -1122,6 +1147,7 @@ layout = html.Div(
         dcc.Store(id="save-state", data=""),
         dcc.Store(id="architecture-initial-settings", data=None),
         dcc.Store(id="architecture-saved-settings", data=None),
+        dcc.Store(id="arch-current-name", data=None),
         # Parameter domains (directory names) and variables (virtual parameter
         # domains) of the architecture, pushed to the client so the generation
         # command highlighter can tell them apart.

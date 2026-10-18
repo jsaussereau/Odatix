@@ -43,17 +43,17 @@
     --theme-element-background-color: var(--fg-glass);
     --theme-dimmed-element-background-color: rgba(255, 255, 255, 0.04);
     --theme-action-color: rgba(255, 255, 255, 0.12);
-    --theme-primary-color: var(--fg-accent);
-    --theme-secondary-color: var(--fg-accent);
+    --theme-primary-color: color-mix(in oklab, var(--fg-accent) 82%, white);
+    --theme-secondary-color: var(--theme-primary-color);
     --theme-tertiary-color: rgba(255, 255, 255, 0.08);
     --theme-tertiary-color-light: rgba(255, 255, 255, 0.05);
     --theme-disabled-color: #8d95ad7a;
-    --theme-running-color: var(--fg-accent);
+    --theme-running-color: var(--theme-primary-color);
     --theme-success-color: #2ee0b8;
     --theme-warning-color: #ffb454;
     --theme-caution-color: #ff6b81;
     --theme-pending-color: #4fd6ef;
-    --theme-pause-color: #8d95ad8f;
+    --theme-pause-color: #a3a9bf;
     --theme-text-color: var(--fg-ink);
     --theme-subtle-text-color: #a2a0ab;
     --theme-text-shadow: none;
@@ -62,7 +62,6 @@
     --theme-shadow-color: rgba(8, 7, 12, 0.6);
     --theme-overlay-background-color: rgba(10, 9, 14, 0.6);
     --theme-badge-background-color: rgba(160, 126, 214, 0.2);
-    --theme-badge-text-color: var(--fg-accent);
 
     /* borders & radii */
     --theme-border-color: rgba(255, 255, 255, 0.14);
@@ -123,16 +122,16 @@
     --default-button-icon-color-hover: var(--fg-accent);
     --default-button-text-color-hover: var(--fg-accent);
     --default-button-box-shadow-hover: 0 4px 12px rgba(160, 126, 214, 0.3);
-    --primary-button-background: linear-gradient(100deg, #c76fa8 0%, #a07ed6 55%, #7f6ec9 100%);
+    --primary-button-background: linear-gradient(100deg, #a8558c 0%, #8462c0 55%, #6a58b5 100%);
     --primary-button-border: 1px solid rgba(255, 255, 255, 0.18);
     --primary-button-icon-color: #ffffff;
     --primary-button-text-color: #ffffff;
     --primary-button-box-shadow: 0 8px 24px rgba(199, 111, 168, 0.28), 0 2px 8px rgba(127, 110, 201, 0.25);
-    --primary-button-background-hover: linear-gradient(100deg, #d581b7 0%, #b092e2 55%, #9080d6 100%);
+    --primary-button-background-hover: linear-gradient(100deg, #b05e94 0%, #8c6ac6 55%, #7260bb 100%);
     --primary-button-icon-color-hover: #ffffff;
     --primary-button-text-color-hover: #ffffff;
     --primary-button-box-shadow-hover: 0 10px 30px rgba(199, 111, 168, 0.36), 0 2px 10px rgba(127, 110, 201, 0.32);
-    --back-button-color: #ffffffc9;
+    --back-button-color: var(--theme-secondary-text-color);
 
     /* inputs and textareas */
     --input-background: rgba(255, 255, 255, 0.07);

@@ -313,7 +313,7 @@ class TestCommandFieldHighlighting:
         write_param_domain(arch_dir, "corner", "tt", "typical")
 
         domains, variables = architecture_editor.update_arch_highlight_names(
-            search="?arch=gen",
+            arch_name="gen",
             page=architecture_editor.page_path,
             odatix_settings={"arch_path": arch_path},
         )
@@ -336,7 +336,7 @@ class TestCommandFieldHighlighting:
             yaml.safe_dump(settings, f)
 
         _domains, variables = architecture_editor.update_arch_highlight_names(
-            search="?arch=gen",
+            arch_name="gen",
             page=architecture_editor.page_path,
             odatix_settings={"arch_path": arch_path},
         )
@@ -347,5 +347,5 @@ class TestCommandFieldHighlighting:
         architecture_editor, _ = editors
 
         assert architecture_editor.update_arch_highlight_names(
-            search="", page=architecture_editor.page_path, odatix_settings={}
+            arch_name="", page=architecture_editor.page_path, odatix_settings={}
         ) == ([], [])

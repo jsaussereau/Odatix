@@ -38,6 +38,11 @@ from odatix.explorer.charts.spec import NONE_VALUE, x_is_symbolic
 
 TRANSPARENT = "rgba(0,0,0,0)"
 
+# Notes about what a chart leaves out ("3 records ... not drawn") sit just
+# above the plot area, under the title: below it they ended up printed over
+# the x axis title, whose position depends on the length of the tick labels.
+NOTE_SHIFT = 4
+
 # Reserved dimensions used for automatic trace grouping. Configuration and
 # free dimensions (parameter domains) are excluded on purpose: they identify
 # points, not traces — unless explicitly requested through color/symbol/
@@ -240,8 +245,7 @@ def trace_name(info, dimensions, spec, units, split=()):
     elif dim == schema.COL_FREQUENCY:
       if value == schema.FMAX_FREQUENCY_VALUE:
         continue  # the result type ("Fmax") already says it
-      unit = units.get(schema.COL_FREQUENCY, "MHz") if units else "MHz"
-      parts.append("@ " + str(value) + " " + unit)
+      parts.append("@ " + _frequency_text(value, units))
     else:
       parts.append(str(value))
   return " ".join(parts) if parts else "all"
@@ -306,13 +310,87 @@ def style_indices(info, spec, dimensions, global_dimensions, color_by=None, symb
   return color_index, symbol_index
 
 
+def _as_dims(value):
+  if not value:
+    return ()
+  return (value,) if isinstance(value, str) else tuple(value)
+
+
+def _drawn_style(style, palette):
+  """What a (color index, symbol index) pair looks like once drawn: indices
+  past the end of the palette or of the symbol list wrap around."""
+  color_index, symbol_index = style
+  return palettes.get_color(color_index, palette), palettes.get_marker_symbol(symbol_index)
+
+
+def trace_styles(groups, spec, dimensions, global_dimensions=None, split=(), palette=palettes.DEFAULT_PALETTE):
+  """
+  (color index, symbol index) of every trace of group_traces(), in order.
+
+  Two different series must never look the same. Color by and Symbol by do
+  not always tell every trace apart: traces also split by the dimensions
+  varying in the selection (two frequencies of one architecture, two targets,
+  the flow of split_dimensions...). When two traces would be drawn with the
+  same color and the same symbol, the dimensions telling them apart join the
+  symbol dimensions -- for every trace, so one value keeps one symbol across
+  the chart.
+  """
+  if global_dimensions is None:
+    global_dimensions = dimensions
+  color_by, symbol_by = auto_style_dimensions(spec, dimensions, split)
+
+  def styles_for(symbol_dims):
+    return [
+      style_indices(info, spec, dimensions, global_dimensions, color_by=color_by, symbol_by=symbol_dims)
+      for info, _sub_df in groups
+    ]
+
+  styles = styles_for(symbol_by)
+  drawn = [_drawn_style(style, palette) for style in styles]
+  if len(set(drawn)) == len(drawn):
+    return styles
+
+  color_dims = _as_dims(color_by) or tuple(spec.color_by or ())
+  symbol_dims = _as_dims(symbol_by) or tuple(spec.symbol_by or ())
+  residual = []
+  for info, _sub_df in groups:
+    for dimension in info:
+      if dimension in color_dims or dimension in symbol_dims or dimension in residual:
+        continue
+      if len(set(str(other.get(dimension)) for other, _ in groups)) > 1:
+        residual.append(dimension)
+  if not residual:
+    return styles
+  return styles_for(symbol_dims + tuple(residual))
+
+
 ######################################
 # Hover
 ######################################
 
 
-def _hover_header(info):
-  lines = ["<b>" + str(dim) + ":</b> " + str(value) for dim, value in info.items()]
+def _frequency_text(value, units):
+  """A frequency value as read: "100 MHz", or "Fmax search" for the rows of
+  an fmax synthesis (which have no fixed frequency)."""
+  if str(value) == schema.FMAX_FREQUENCY_VALUE:
+    return "Fmax search"
+  unit = units.get(schema.COL_FREQUENCY, "MHz") if units else "MHz"
+  return str(value) + " " + unit
+
+
+def _hover_header(info, units=None, skip=()):
+  """The dimension values identifying a trace, one per hover line.
+
+  ``skip``: dimensions the hover already shows on a line of their own (the
+  point label of a scatter), so they are not listed twice.
+  """
+  lines = []
+  for dim, value in info.items():
+    if dim in skip or str(value) == schema.MISSING_VALUE:
+      continue
+    if dim == schema.COL_FREQUENCY:
+      value = _frequency_text(value, units)
+    lines.append("<b>" + str(dim) + ":</b> " + str(value))
   return "<br>".join(lines)
 
 
@@ -326,7 +404,7 @@ def _metric_hover_line(metric, axis, units):
 ######################################
 
 
-def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions=None, height=None, palette=palettes.DEFAULT_PALETTE, plot_theme=plot_themes.AUTO):
+def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions=None, height=None, palette=palettes.DEFAULT_PALETTE, plot_theme=plot_themes.AUTO, empty_text=None, as_dict=False):
   """
   Build a Plotly figure from a selection.
 
@@ -342,79 +420,146 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
       height (int | None): figure height (px).
       palette (str): trace color palette name.
       plot_theme (str): plot theme name ("auto" follows the app theme).
+      empty_text (str | None): what an empty selection says in place of the
+          chart (a generic sentence by default).
+      as_dict (bool): return the plain {"data", "layout"} dict, which Dash
+          sends as is, rather than wrapping it into a go.Figure.
 
   Returns:
-      go.Figure
+      go.Figure (built from plain dicts, see make_figure), or a dict
   """
   if global_dimensions is None:
     global_dimensions = dimensions
 
-  fig = go.Figure()
+  traces = []
+  layout = {}
 
   if spec.kind == "parcoords":
     excluded = 0
     if not df.empty and spec.y_metrics:
       df, excluded = _parcoords_rows(df, spec)
       if not df.empty:
-        fig.add_trace(_parcoords_trace(df, spec, units, palette))
-    _apply_layout(fig, spec, [], units, chrome, height, plot_theme)
+        traces.append(_parcoords_trace(df, spec, units, palette, global_dimensions if spec.stable_index else dimensions))
+    _apply_layout(layout, spec, [], units, chrome, height, plot_theme)
     if excluded:
-      fig.add_annotation(
-        text=str(excluded) + (" design" if excluded == 1 else " designs") + " without a value excluded",
-        xref="paper", yref="paper", x=0, y=0, xanchor="left", yanchor="top",
-        yshift=-25, showarrow=False, font=dict(size=11), opacity=0.7,
-      )
-    return fig
+      _add_note(layout, str(excluded) + (" design" if excluded == 1 else " designs") + " without a value excluded", below=True)
+    if not traces:
+      _add_empty_message(layout, df, spec, chrome, empty_text)
+    return make_figure(traces, layout, as_dict)
 
   if df.empty or spec.y is None:
-    _apply_layout(fig, spec, [], units, chrome, height, plot_theme)
-    return fig
+    _apply_layout(layout, spec, [], units, chrome, height, plot_theme)
+    _add_empty_message(layout, df, spec, chrome, empty_text)
+    return make_figure(traces, layout, as_dict)
 
   x_is_metric = not x_is_symbolic(spec.kind, spec.x, dimensions, metrics)
   categories = [] if x_is_metric else _x_categories(df, spec)
   axis_categories = _scatter_axis_categories(df, spec) if spec.kind in ("scatter", "scatter3d") else {}
 
   split, hidden = split_dimensions(df, spec, dimensions)
-  auto_color_by, auto_symbol_by = auto_style_dimensions(spec, dimensions, split)
+  groups = group_traces(df, spec, dimensions, split)
+  styles = trace_styles(groups, spec, dimensions, global_dimensions, split, palette)
 
-  for info, sub_df in group_traces(df, spec, dimensions, split):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by, symbol_by=auto_symbol_by)
+  columns = _ColumnCache(df, spec)
+  empty_traces = 0
+  for (info, sub_df), (color_index, symbol_index) in zip(groups, styles):
     color = palettes.get_color(color_index, palette)
     name = trace_name(info, dimensions, spec, units, split)
-    legend_group = None
+    common = dict(name=name)
     if spec.has("legend_groups") and spec.legend_group_by and spec.legend_group_by != NONE_VALUE:
       group_value = info.get(spec.legend_group_by)
       if group_value is not None:
         legend_group = str(spec.legend_group_by) + ": " + str(group_value)
+        common.update(legendgroup=legend_group, legendgrouptitle=dict(text=legend_group))
 
-    common = dict(
-      name=name,
-      legendgroup=legend_group,
-      legendgrouptitle_text=legend_group,
-    )
-
-    hover_header = _hover_header(info)
+    hover_header = _hover_header(info, units, skip=(spec.label_by,) if spec.kind in ("scatter", "scatter3d") else ())
 
     if spec.kind in ("scatter", "scatter3d"):
-      fig.add_trace(_scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, common, axis_categories))
+      trace = _scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, common, axis_categories)
     elif spec.kind == "columns":
-      fig.add_trace(_bar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common))
+      trace = _bar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, columns)
     elif spec.kind == "radar":
-      fig.add_trace(_radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common))
+      trace = _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, columns)
     else:
-      fig.add_trace(_line_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, x_is_metric))
+      trace = _line_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, x_is_metric, columns)
+    if not _has_value(trace):
+      # Nothing to draw: a legend entry with no line or point behind it only
+      # says "there is nothing here" in a confusing way. Counted instead.
+      empty_traces += 1
+      continue
+    traces.append(trace)
 
-  _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis_categories)
+  _apply_layout(layout, spec, categories, units, chrome, height, plot_theme, axis_categories)
+  notes = []
   if hidden:
     # Nothing tells these records apart from another one at the same x: say
     # so rather than drop them silently.
-    fig.add_annotation(
-      text=str(hidden) + (" record shares" if hidden == 1 else " records share") + " an x value with another record of the same trace and "
-           + ("is" if hidden == 1 else "are") + " not drawn (see Table)",
-      xref="paper", yref="paper", x=0, y=0, xanchor="left", yanchor="top",
-      yshift=-25, showarrow=False, font=dict(size=11), opacity=0.7,
+    notes.append(
+      str(hidden) + (" record shares" if hidden == 1 else " records share") + " an x value with another record of the same trace and "
+      + ("is" if hidden == 1 else "are") + " not drawn (see Table)"
     )
-  return fig
+  if empty_traces and traces:
+    notes.append(
+      str(empty_traces) + (" series has" if empty_traces == 1 else " series have") + " no value for "
+      + schema.metric_display_name(spec.y) + " and " + ("is" if empty_traces == 1 else "are") + " left out"
+    )
+  if notes:
+    _add_note(layout, " · ".join(notes))
+  if not traces:
+    _add_empty_message(layout, df, spec, chrome, empty_text)
+  return make_figure(traces, layout, as_dict)
+
+
+def make_figure(traces, layout, as_dict=False):
+  """
+  Wrap plain trace and layout dicts into a figure, without Plotly's property
+  validation.
+
+  Validating every property of every trace is what made the charts slow: on a
+  few hundred records it took 90 % of the build time (a chart page waited
+  seconds, the home page thumbnails tens of seconds). The dicts written here
+  only use plain plotly.js attributes, spelled out in full (``title=dict(text=
+  ...)``, never the ``title_text`` shorthand only the validator expands), so
+  skipping the validation changes nothing in what the browser receives.
+  """
+  if as_dict:
+    return dict(data=traces, layout=layout)
+  return go.Figure(dict(data=traces, layout=layout), _validate=False)
+
+
+def _add_note(layout, text, below=False):
+  """A small line above the plot area (below it on a parcoords, whose axis
+  labels take the top)."""
+  layout.setdefault("annotations", []).append(dict(
+    text=text, xref="paper", yref="paper", x=0, xanchor="left",
+    y=0 if below else 1, yanchor="top" if below else "bottom",
+    yshift=-25 if below else NOTE_SHIFT, showarrow=False, font=dict(size=11), opacity=0.7,
+  ))
+
+
+def _has_value(trace):
+  """Whether a trace holds at least one value it can draw."""
+  values = trace.get("r") if trace.get("type") == "scatterpolar" else trace.get("y")
+  return any(value is not None and value == value for value in (values or ()))
+
+
+def _add_empty_message(layout, df, spec, chrome, empty_text=None):
+  """Say why the chart is empty, in the middle of the plot, with no axes."""
+  if df is None or df.empty:
+    text = empty_text or "Nothing to plot: no record matches the selected sources and filters."
+  elif spec.kind == "parcoords" and not spec.y_metrics:
+    text = "Pick the metrics to compare in Axes → Metrics."
+  elif spec.y is None:
+    text = "These results hold no numeric metric to plot."
+  else:
+    text = "No value of " + schema.metric_display_name(spec.y) + " in this selection."
+  layout.pop("title", None)
+  for axis in ("xaxis", "yaxis"):
+    layout[axis] = dict(visible=False)
+  layout.setdefault("annotations", []).append(dict(
+    text=text, xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+    font=dict(size=14, color=chrome.get("text_color")),
+  ))
 
 
 def _x_categories(df, spec):
@@ -482,29 +627,48 @@ def _x_labels(categories, spec):
   return list(dict.fromkeys(_x_label(category, spec) for category in categories))
 
 
-def _categorical_xy(sub_df, spec, categories):
+class _ColumnCache(object):
+  """The x labels and numeric y values of a whole selection, computed once
+  rather than once per trace (a chart can hold hundreds of traces)."""
+
+  def __init__(self, df, spec):
+    # Traces look their rows up by index label, which needs unique labels
+    self.aligned = df.index.is_unique
+    # {row index: (x label, y value)} of the rows holding a y value
+    self.points = {}
+    if spec.x in df.columns and spec.y in df.columns:
+      y_values = pd.to_numeric(df[spec.y], errors="coerce")
+      x_values = _dimension_series(df, spec.x)
+      labels = {value: _x_label(value, spec) for value in x_values.unique()}
+      for index, x_value, y_value in zip(df.index, x_values, y_values):
+        if pd.notna(y_value):
+          self.points[index] = (labels[x_value], float(y_value))
+
+
+def _categorical_xy(sub_df, spec, categories, columns=None):
   """Align a trace on the shared x labels (None where a label has no value)."""
-  series = pd.to_numeric(sub_df[spec.y], errors="coerce") if spec.y in sub_df.columns else pd.Series(dtype=float)
+  if columns is None or not columns.aligned:
+    columns = _ColumnCache(sub_df, spec)
   by_label = {}
-  if spec.x in sub_df.columns:
-    x_values = _dimension_series(sub_df, spec.x)
-    for x_value, y_value in zip(x_values, series):
-      if pd.notna(y_value):
-        by_label[_x_label(x_value, spec)] = y_value
+  for index in sub_df.index:
+    point = columns.points.get(index)
+    if point is not None:
+      by_label[point[0]] = point[1]
   x = _x_labels(categories, spec)
   y = [by_label.get(label) for label in x]
   return x, y
 
 
-def _line_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, x_is_metric):
+def _line_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, x_is_metric, columns=None):
   if x_is_metric:
     points = sub_df[[spec.x, spec.y]].apply(pd.to_numeric, errors="coerce").dropna().sort_values(spec.x)
     x, y = points[spec.x].tolist(), points[spec.y].tolist()
     hover_x = _metric_hover_line(spec.x, "x", units)
   else:
-    x, y = _categorical_xy(sub_df, spec, categories)
+    x, y = _categorical_xy(sub_df, spec, categories, columns)
     hover_x = "<b>" + str(spec.x) + ":</b> %{x}"
-  return go.Scatter(
+  return dict(
+    type="scatter",
     x=x,
     y=y,
     mode="lines+markers" if spec.has("lines") else "markers",
@@ -512,35 +676,44 @@ def _line_trace(sub_df, spec, categories, units, color, symbol_index, hover_head
     marker=dict(symbol=palettes.get_marker_symbol(symbol_index), color=color),
     connectgaps=spec.has("connect_gaps"),
     hovertemplate=hover_header + ("<br>" if hover_header else "") + hover_x + "<br>" + _metric_hover_line(spec.y, "y", units) + "<extra></extra>",
-    **common,
+    **common
   )
 
 
-def _bar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common):
-  x, y = _categorical_xy(sub_df, spec, categories)
-  return go.Bar(
+def _bar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, columns=None):
+  x, y = _categorical_xy(sub_df, spec, categories, columns)
+  return dict(
+    type="bar",
     x=x,
     y=y,
-    marker=dict(color=color, pattern_shape=palettes.get_bar_pattern(symbol_index)),
+    marker=dict(color=color, pattern=dict(shape=palettes.get_bar_pattern(symbol_index))),
     hovertemplate=hover_header + ("<br>" if hover_header else "") + "<b>" + str(spec.x) + ":</b> %{x}<br>" + _metric_hover_line(spec.y, "y", units) + "<extra></extra>",
-    **common,
+    **common
   )
 
 
-def _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common):
-  theta, r = _categorical_xy(sub_df, spec, categories)
+def _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, columns=None):
+  theta, r = _categorical_xy(sub_df, spec, categories, columns)
   if spec.has("close_line") and len(theta) > 0:
     theta = theta + [theta[0]]
     r = r + [r[0]]
-  return go.Scatterpolar(
+  # Shortened labels around the circle, the full one in the hover. Only when
+  # shortening keeps every label distinct, or two categories would merge.
+  labels = _x_labels(categories, spec)
+  full = theta
+  if len(set(short_label(label) for label in labels)) == len(labels):
+    theta = [short_label(label) for label in theta]
+  return dict(
+    type="scatterpolar",
     theta=theta,
+    customdata=full,
     r=r,
     mode="lines+markers",
     line=dict(dash="dot", color=color),
     marker=dict(symbol=palettes.get_marker_symbol(symbol_index), color=color),
     connectgaps=spec.has("connect_gaps"),
-    hovertemplate=hover_header + ("<br>" if hover_header else "") + "<b>" + str(spec.x) + ":</b> %{theta}<br>" + _metric_hover_line(spec.y, "r", units) + "<extra></extra>",
-    **common,
+    hovertemplate=hover_header + ("<br>" if hover_header else "") + "<b>" + str(spec.x) + ":</b> %{customdata}<br>" + _metric_hover_line(spec.y, "r", units) + "<extra></extra>",
+    **common
   )
 
 
@@ -571,7 +744,7 @@ def _parcoords_rows(df, spec):
   return df[present], int((~present).sum())
 
 
-def _parcoords_trace(df, spec, units, palette):
+def _parcoords_trace(df, spec, units, palette, reference=None):
   """One parallel-coordinates axis per metric of spec.y_metrics.
 
   Unlike the other kinds, this is a single trace over the whole selection
@@ -599,25 +772,33 @@ def _parcoords_trace(df, spec, units, palette):
           color=color_series.tolist(),
           colorscale="Viridis",
           showscale=True,
-          colorbar=dict(title=schema.metric_display_name(color_column)),
+          colorbar=dict(title=dict(text=schema.metric_display_name(color_column))),
         )
       else:
-        line = _parcoords_categorical_line(df[color_column], color_column, palette)
+        line = _parcoords_categorical_line(df[color_column], color_column, palette, (reference or {}).get(color_column))
 
-  return go.Parcoords(dimensions=dimensions, line=line)
+  return dict(type="parcoords", dimensions=dimensions, line=line)
 
 
-def _parcoords_categorical_line(series, color_column, palette):
-  """Line spec coloring parcoords lines by a non-numeric column's distinct values."""
-  categories = series.astype(str).fillna("").tolist()
-  uniques = sorted(set(categories))
+def _parcoords_categorical_line(series, color_column, palette, reference=None):
+  """Line spec coloring parcoords lines by a non-numeric column's distinct values.
+
+  ``reference``: the values of the dimension the other charts index their
+  colors on, so one architecture keeps the same color on every chart.
+  """
+  categories = series.fillna(schema.MISSING_VALUE).astype(str).tolist()
+  uniques = schema.sort_values(set(categories))
   codes = [uniques.index(v) for v in categories]
   n = len(uniques)
+  reference = [str(value) for value in (reference or ())]
+
+  def color_of(index, value):
+    return palettes.get_color(reference.index(value) if value in reference else index, palette)
 
   if n <= 1:
-    return dict(color=palettes.get_color(0, palette))
+    return dict(color=color_of(0, uniques[0] if uniques else ""))
 
-  colors = [palettes.get_color(i, palette) for i in range(n)]
+  colors = [color_of(i, value) for i, value in enumerate(uniques)]
   colorscale = []
   for i, c in enumerate(colors):
     colorscale.append([i / n, c])
@@ -632,7 +813,7 @@ def _parcoords_categorical_line(series, color_column, palette):
     cmax=n,
     showscale=True,
     colorbar=dict(
-      title=schema.metric_display_name(color_column),
+      title=dict(text=schema.metric_display_name(color_column)),
       tickvals=tickvals,
       ticktext=uniques,
     ),
@@ -699,29 +880,31 @@ def _scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, commo
     hover_lines.insert(0, "<b>" + str(spec.label_by) + ":</b> %{text}")
   hovertemplate = hover_header + ("<br>" if hover_header else "") + "<br>".join(hover_lines) + "<extra></extra>"
 
+  if labels is not None:
+    common = dict(common, text=labels)
   if spec.kind == "scatter3d":
-    return go.Scatter3d(
-      x=points[spec.x],
-      y=points[spec.y],
-      z=points[spec.z],
+    return dict(
+      type="scatter3d",
+      x=points[spec.x].tolist(),
+      y=points[spec.y].tolist(),
+      z=points[spec.z].tolist(),
       mode=mode,
-      text=labels,
       line=dict(dash="dot", color=color),
       marker=dict(symbol=palettes.get_marker_symbol_3d(symbol_index), color=color, size=4),
       hovertemplate=hovertemplate,
-      **common,
+      **common
     )
-  return go.Scatter(
-    x=points[spec.x],
-    y=points[spec.y],
+  return dict(
+    type="scatter",
+    x=points[spec.x].tolist(),
+    y=points[spec.y].tolist(),
     mode=mode,
-    text=labels,
     textposition="top center",
     line=dict(dash="dot", color=color),
     marker=dict(symbol=palettes.get_marker_symbol(symbol_index), color=color),
     connectgaps=True,
     hovertemplate=hovertemplate,
-    **common,
+    **common
   )
 
 
@@ -768,16 +951,82 @@ def _apply_category_order(axis_layout, axis, axis_categories):
     axis_layout["categoryarray"] = axis_categories[axis]
 
 
-def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis_categories=None):
+def _title(text):
+  """A title as plotly.js reads it (the bare string form is the validator's
+  shorthand, not a plotly.js attribute)."""
+  return dict(text=text)
+
+
+def _parse_color(color):
+  """(r, g, b, alpha) of a "#rrggbb", "#rgb" or "rgb[a](...)" color, or None."""
+  text = str(color or "").strip().lower()
+  try:
+    if text.startswith("#"):
+      digits = text[1:]
+      if len(digits) == 3:
+        digits = "".join(char * 2 for char in digits)
+      return int(digits[0:2], 16), int(digits[2:4], 16), int(digits[4:6], 16), 1.0
+    if text.startswith("rgb"):
+      parts = [part.strip() for part in text[text.index("(") + 1:text.rindex(")")].split(",")]
+      alpha = float(parts[3]) if len(parts) > 3 else 1.0
+      return int(float(parts[0])), int(float(parts[1])), int(float(parts[2])), alpha
+  except (ValueError, IndexError):
+    pass
+  return None
+
+
+def opaque_grid_color(color, dark, strength=2.0):
+  """
+  An opaque version of a translucent grid color, for the 3D scene.
+
+  The WebGL renderer of the 3D scene ignores the alpha of a grid color: the
+  "rgba(240, 240, 240, 0.15)" of a dark theme was drawn as solid white lines,
+  and the light theme's grid nearly vanished. The color is premixed instead
+  over the usual page background of the theme, a bit stronger than on 2D
+  charts since the 3D lines are thinner.
+  """
+  parsed = _parse_color(color)
+  if parsed is None:
+    return color
+  red, green, blue, alpha = parsed
+  alpha = min(1.0, alpha * strength)
+  base = (36, 41, 46) if dark else (255, 255, 255)
+  mixed = [int(round(channel * alpha + background * (1 - alpha))) for channel, background in zip((red, green, blue), base)]
+  return "#%02x%02x%02x" % tuple(mixed)
+
+
+# Angular labels of a radar chart longer than this are shortened in the middle
+# (the full label stays in the hover): long configuration names were cut by
+# the edge of the chart and printed over the legend.
+RADAR_LABEL_LENGTH = 24
+
+
+def short_label(label, length=RADAR_LABEL_LENGTH):
+  """A label shortened in the middle, keeping its start and its end (where
+  the parameter values of a configuration name usually are)."""
+  label = str(label)
+  if len(label) <= length:
+    return label
+  head = (length - 1) // 2
+  tail = length - 1 - head
+  return label[:head] + "…" + label[-tail:]
+
+
+def _apply_layout(layout, spec, categories, units, chrome, height, plot_theme, axis_categories=None):
+  """Fill the ``layout`` dict of a figure (plain plotly.js attributes)."""
   template = plot_themes.get_template(plot_theme)
   auto = template is None
+  dark = bool(chrome.get("dark"))
 
-  layout = dict(
-    template=template if not auto else ("plotly_dark" if chrome.get("dark") else "plotly"),
+  layout.update(
+    template=plot_themes.template_dict(template if not auto else ("plotly_dark" if dark else "plotly")),
     showlegend=spec.has("legend"),
     uirevision=":".join(str(part) for part in (spec.kind, spec.x, spec.y, spec.z)),
     margin=dict(l=60, r=30, t=60 if spec.has("title") else 30, b=50),
     modebar=dict(bgcolor=TRANSPARENT),
+    # Marks a figure drawn by the chart engine, as opposed to the empty
+    # placeholder a chart page starts with (see explorer_tabs.js).
+    meta=dict(odatix=True),
   )
   if height is not None:
     layout["height"] = height
@@ -788,7 +1037,7 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis
     layout.update(
       paper_bgcolor=TRANSPARENT,
       plot_bgcolor=TRANSPARENT,
-      font_color=chrome.get("text_color"),
+      font=dict(color=chrome.get("text_color")),
       modebar=dict(bgcolor=TRANSPARENT, color=chrome.get("text_color"), activecolor=chrome.get("text_color")),
     )
 
@@ -802,28 +1051,40 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis
     layout["polar"] = dict(
       radialaxis=radialaxis,
       angularaxis=dict(**polar_grid),
+      # Room around the circle for the angular labels, which plotly.js draws
+      # outside the polar domain without reserving any margin for them.
+      domain=dict(x=[0.1, 0.9], y=[0.04, 0.96]),
     )
     if auto:
       layout["polar"]["bgcolor"] = TRANSPARENT
   elif spec.kind == "scatter3d":
-    axis_defaults = dict(**grid)
+    axis_defaults = {}
     if auto:
-      axis_defaults["backgroundcolor"] = TRANSPARENT
+      axis_defaults = dict(
+        gridcolor=opaque_grid_color(chrome.get("grid_color"), dark),
+        zerolinecolor=opaque_grid_color(chrome.get("zeroline_color"), dark, strength=1.0),
+        showbackground=False,
+        backgroundcolor=TRANSPARENT,
+      )
     zero = spec.has("zero_axis")
     layout["scene"] = dict(
-      xaxis=_apply_axis_scale(dict(title=schema.axis_title(spec.x, units), **axis_defaults), spec.has("log_x"), zero),
-      yaxis=_apply_axis_scale(dict(title=schema.axis_title(spec.y, units), **axis_defaults), spec.has("log_y"), zero),
-      zaxis=_apply_axis_scale(dict(title=schema.axis_title(spec.z, units), **axis_defaults), spec.has("log_z"), zero),
+      xaxis=_apply_axis_scale(dict(title=_title(schema.axis_title(spec.x, units)), **axis_defaults), spec.has("log_x"), zero),
+      yaxis=_apply_axis_scale(dict(title=_title(schema.axis_title(spec.y, units)), **axis_defaults), spec.has("log_y"), zero),
+      zaxis=_apply_axis_scale(dict(title=_title(schema.axis_title(spec.z, units)), **axis_defaults), spec.has("log_z"), zero),
       camera=dict(eye=dict(x=1.6, y=1.6, z=0.6)),
     )
     layout["legend"] = dict(itemsizing="constant")
     for name, axis in (("xaxis", spec.x), ("yaxis", spec.y), ("zaxis", spec.z)):
       _apply_category_order(layout["scene"][name], axis, axis_categories)
   elif spec.kind == "parcoords":
-    pass  # no cartesian/polar/scene axes: the dimensions carry their own labels/ranges
+    # No cartesian/polar/scene axes: the dimensions carry their own labels and
+    # ranges. Their labels sit above the plot area and are centered on the
+    # first and last axes, which stand on its edges: the margins make room
+    # for them, under the title.
+    layout["margin"].update(l=90, r=90, t=120 if spec.has("title") else 70)
   else:
     # Categorical x: title is the dimension name; numeric x: metric title with unit
-    xaxis = dict(title=str(spec.x) if categories else schema.axis_title(spec.x, units), **grid)
+    xaxis = dict(title=_title(str(spec.x) if categories else schema.axis_title(spec.x, units)), **grid)
     if categories:
       xaxis["categoryorder"] = "array"
       xaxis["categoryarray"] = _x_labels(categories, spec)
@@ -831,14 +1092,12 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis
       # Numeric x axis only: log scale / start-at-zero (ignored for categorical x).
       zero_x = spec.has("zero_x") or (spec.kind != "scatter" and spec.has("zero_y"))
       _apply_axis_scale(xaxis, spec.has("log_x"), zero_x)
-    yaxis = _apply_axis_scale(dict(title=schema.axis_title(spec.y, units), **grid), spec.has("log_y"), spec.has("zero_y"))
+    yaxis = _apply_axis_scale(dict(title=_title(schema.axis_title(spec.y, units)), **grid), spec.has("log_y"), spec.has("zero_y"))
     if spec.kind == "scatter":
       _apply_category_order(xaxis, spec.x, axis_categories)
       _apply_category_order(yaxis, spec.y, axis_categories)
     layout["xaxis"] = xaxis
     layout["yaxis"] = yaxis
-
-  fig.update_layout(**layout)
 
 
 ######################################
@@ -846,7 +1105,7 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis
 ######################################
 
 
-def build_overview_figures(df, spec, dimensions, metrics, units, chrome, global_dimensions=None, size=(475, 475), palette=palettes.DEFAULT_PALETTE, plot_theme=plot_themes.AUTO):
+def build_overview_figures(df, spec, dimensions, metrics, units, chrome, global_dimensions=None, size=(475, 475), palette=palettes.DEFAULT_PALETTE, plot_theme=plot_themes.AUTO, as_dict=False):
   """One figure per metric of the selection (same spec otherwise)."""
   from dataclasses import replace
 
@@ -856,6 +1115,7 @@ def build_overview_figures(df, spec, dimensions, metrics, units, chrome, global_
     fig = build_figure(
       df, metric_spec, dimensions, metrics, units, chrome,
       global_dimensions=global_dimensions, height=size[1], palette=palette, plot_theme=plot_theme,
+      as_dict=as_dict,
     )
     figures.append((metric, fig))
   return figures
@@ -871,8 +1131,8 @@ def legend_entries(df, spec, dimensions, global_dimensions=None, palette=palette
     global_dimensions = dimensions
   entries = []
   split, _hidden = split_dimensions(df, spec, dimensions)
-  auto_color_by, auto_symbol_by = auto_style_dimensions(spec, dimensions, split)
-  for info, _ in group_traces(df, spec, dimensions, split):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by, symbol_by=auto_symbol_by)
+  groups = group_traces(df, spec, dimensions, split)
+  styles = trace_styles(groups, spec, dimensions, global_dimensions, split, palette)
+  for (info, _), (color_index, symbol_index) in zip(groups, styles):
     entries.append((trace_name(info, dimensions, spec, {}, split), palettes.get_color(color_index, palette), palettes.get_marker_symbol(symbol_index)))
   return entries

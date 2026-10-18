@@ -150,8 +150,10 @@ def _plan_header(plan):
         for category in run_report.SEVERITY_ORDER if counts[category]
     )
 
+    # With nothing to run, whether the tool starts does not matter: its card
+    # would only be one more thing to read before "nothing to run".
     tool_check = _tool_check_state()
-    if tool_check is not None:
+    if tool_check is not None and to_run:
         cards.append(_tool_check_card(tool_check))
 
     return html.Div(children=cards, className="jobs-plan-stats xpa-stats")
@@ -241,8 +243,13 @@ def _status_badge(category):
             html.Span(info["label"]),
         ],
         className="jobs-plan-status xpa-" + info["style"],
-        title=info["description"],
+        title=run_report.category_description(category, _plan_noun()),
     )
+
+
+def _steps_badge(steps):
+    """The steps a resumed or re-run job is going to run."""
+    return html.Span("steps: " + steps, className="jobs-plan-badge steps", title="Steps this job runs: " + steps)
 
 
 def _shared(jobs, key):
@@ -274,6 +281,7 @@ def _job_group(arch, jobs, style, category=None):
     """
     shared_target = _shared(jobs, "target")
     shared_freq = _shared(jobs, "freq")
+    shared_steps = _shared(jobs, "steps")
 
     head_badges = []
     if shared_target:
@@ -296,6 +304,8 @@ def _job_group(arch, jobs, style, category=None):
     meta_badges = []
     if category is not None:
         meta_badges.append(_status_badge(category))
+    if shared_steps:
+        meta_badges.append(_steps_badge(shared_steps))
     meta_badges.append(
         html.Span(f"{len(jobs)} config" + ("s" if len(jobs) != 1 else ""), className="jobs-plan-group-count-badge")
     )
@@ -304,7 +314,7 @@ def _job_group(arch, jobs, style, category=None):
 
     # Only list configs when there is more than the architecture itself to show.
     only_arch = len(jobs) == 1 and not jobs[0]["config"]
-    if only_arch and not (jobs[0]["target"] and not shared_target):
+    if only_arch and not (jobs[0]["target"] and not shared_target) and not (jobs[0]["steps"] and not shared_steps):
         return html.Div(head, className="jobs-plan-group")
 
     rows = []
@@ -314,6 +324,8 @@ def _job_group(arch, jobs, style, category=None):
             badges.append(_badge(job["target"], "target"))
         if job["freq"] and not shared_freq:
             badges.append(_badge(job["freq"], "freq"))
+        if job["steps"] and not shared_steps:
+            badges.append(_steps_badge(job["steps"]))
         rows.append(html.Li(
             children=[html.Span(job["config"] or "default", className="jobs-plan-config"), *badges],
             className="jobs-plan-config-row",
@@ -333,8 +345,11 @@ def _bucket_entries(plan, want_run):
     for category in run_report.SEVERITY_ORDER:
         if run_report.runs(category) != want_run:
             continue
-        for name in plan.names(category, colored=False):
-            entries.append((name, category))
+        for entry in plan.entries:
+            if entry["category"] == category:
+                # The steps a resumed or re-run job runs ("synthesis → pnr").
+                steps = run_report.steps_text(entry.get("details"))
+                entries.append((run_report.plain(entry["name"]), category, steps))
     return entries
 
 
@@ -344,8 +359,9 @@ def _bucket_content(entries):
     same architecture stay adjacent, ordered by category severity."""
     groups = {}
     arch_order = []
-    for name, category in entries:
+    for name, category, steps in entries:
         job = _parse_job(name)
+        job["steps"] = steps
         key = (job["arch"], category)
         if key not in groups:
             groups[key] = []
@@ -415,7 +431,7 @@ def _section(title, rows):
 
 #: The statuses of a run that say the check is over (D-07): only then may the
 #: popup say that a selection holds no job.
-RUN_POPUP_DONE = ("checked", "prepared", "launched", "error", "canceled")
+RUN_POPUP_DONE = ("checked", "nothing", "prepared", "launched", "error", "canceled")
 
 
 def _run_popup_body(status):
@@ -441,20 +457,115 @@ def _run_popup_body(status):
         # The eda tool check outlives the check phase: show its card even when
         # there is no plan to display yet.
         tool_check = _tool_check_state()
-        if tool_check is not None:
+        if tool_check is not None and status != "nothing":
             children.append(html.Div([_tool_check_card(tool_check)], className="jobs-plan-stats xpa-stats"))
 
     children.append(_section("Diagnostics", _message_rows(prepare_state._prepare_messages)))
     if plan:
         children.append(_section(_plan_noun().capitalize(), _job_rows(plan)))
+        if not plan.run_count() and status in RUN_POPUP_DONE:
+            children.append(html.Div(_skipped_hint(plan), className="jobs-plan-placeholder"))
+    elif status == "nothing":
+        children.append(html.Div(_skipped_hint(None), className="jobs-plan-placeholder"))
     elif status not in RUN_POPUP_DONE:
         # Anything that has not ended yet is still being checked: "no job"
         # is an answer only once there is one.
         children.append(html.Div("Checking settings…", className="jobs-plan-placeholder"))
     elif not prepare_state._prepare_messages:
-        children.append(html.Div("No job found for this selection.", className="jobs-plan-placeholder"))
+        children.append(html.Div(_empty_selection_hint(), className="jobs-plan-placeholder"))
 
     return html.Div([child for child in children if child is not None], className="jobs-plan")
+
+
+def _instance_word():
+    """What the cards of the page are, for the hints of an empty run."""
+    return {
+        "workflow": "a workflow",
+        "simulation": "a simulation",
+        "pnr": "a synthesized design",
+    }.get(prepare_state._prepare_synth_type, "an architecture")
+
+
+def _empty_selection_hint():
+    """What to do when the selection holds no job at all."""
+    return (
+        "No job found for this selection: close this window and switch "
+        + _instance_word() + " on, with at least one configuration checked."
+    )
+
+
+def _skipped_hint(plan):
+    """Why nothing runs although the selection holds jobs, and what changes it."""
+    counts = plan.counts() if plan is not None else {run_report.Category.CACHED: 1}
+    if counts.get(run_report.Category.CACHED):
+        return (
+            "Nothing to run: every job of this selection is already done. Turn on "
+            "\"Overwrite existing result\" to run them again, or pick a step under "
+            "\"Re-run from\" when the flow has steps."
+        )
+    if counts.get(run_report.Category.DAEMON):
+        return "Nothing to run: these jobs are already running in a session (see the Monitor)."
+    return "Nothing to run: every job of this selection is skipped (see the diagnostics above)."
+
+
+#: Titles of the run popup once its check has an answer.
+TITLE_CHECKING = "Checking settings..."
+TITLE_READY = "Ready to run"
+TITLE_NOTHING = "Nothing to run"
+TITLE_FAILED = "Cannot run"
+
+
+def _popup_title(status):
+    """
+    The title of the run popup: "Checking settings..." while the check (the
+    eda tool included) has not answered, then what it answered.
+    """
+    if status == "running":
+        return "A check is still running"
+    if status == "preparing":
+        return "Preparing jobs..."
+    if status in ("prepared", "launched"):
+        return "Starting jobs..."
+    if status == "canceled":
+        return "Canceled"
+    if status == "nothing":
+        return TITLE_NOTHING
+    plan = _prepare_plan()
+    if status == "error":
+        return TITLE_FAILED
+    if status != "checked":
+        return TITLE_CHECKING
+    if not plan or not plan.run_count():
+        return TITLE_NOTHING
+    tool_check = _tool_check_state()
+    if tool_check is not None and tool_check["status"] == "running":
+        return TITLE_CHECKING
+    if tool_check is not None and tool_check["status"] == "failed":
+        return TITLE_FAILED
+    return TITLE_READY
+
+
+def _can_start(status):
+    """Whether Start may be clicked: the check passed, and it found something to run."""
+    if status != "checked":
+        return False
+    plan = _prepare_plan()
+    if not plan or not plan.run_count():
+        return False
+    tool_check = _tool_check_state()
+    return tool_check is None or tool_check["status"] == "passed"
+
+
+def _popup_context(tags):
+    """
+    The line under the popup title: what the run runs with (tool, flow, the
+    step it stops at, targets) and where its jobs work, so that a run is never
+    started without saying so.
+    """
+    tags = [tag for tag in (tags or []) if tag]
+    if not tags:
+        return None
+    return [html.Span(tag, className="jobs-plan-context-item", title=tag) for tag in tags]
 
 
 def _run_popup_render_key(status):

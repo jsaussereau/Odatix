@@ -39,7 +39,8 @@ campaigns:
 #--------------------------------------------#
 
   # A campaign is a file of "odatix_userconfig/dse_campaigns". Copy
-  # "example.yml", say what your design is worth in it, and name it here.
+  # "campaign_template.yml" to a name of your own, say what your design is
+  # worth in it, and name it here (without its ".yml").
 
-  #- example
+  #- my_campaign
 

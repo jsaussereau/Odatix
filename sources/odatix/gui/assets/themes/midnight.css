@@ -35,8 +35,8 @@
     --theme-element-background-color: #1b1b2f;
     --theme-dimmed-element-background-color: #1b1b2fbb;
     --theme-action-color: #0077f6;
-    --theme-primary-color: #0077f6;
-    --theme-secondary-color: #0077f6;
+    --theme-primary-color: color-mix(in oklab, #0077f6 76%, white);
+    --theme-secondary-color: var(--theme-primary-color);
     --theme-tertiary-color: #252544;
     --theme-tertiary-color-light: #25254490;
     --theme-disabled-color: #555577;
@@ -54,7 +54,7 @@
 
     /* buttons */
     --button-background: var(--theme-tertiary-color);
-    --back-button-color: var(--theme-disabled-color);
+    --back-button-color: var(--theme-secondary-text-color);
 
     /* progress bars */
     --progress-bar-background-color-hover: var(--theme-background-color);

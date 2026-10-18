@@ -68,7 +68,7 @@ html, body {
     -webkit-backdrop-filter: var(--navbar-backdrop-filter);
     border-bottom: var(--navbar-border-bottom);
     box-shadow: var(--navbar-box-shadow);
-    color: white;
+    color: var(--navbar-text-color);
     padding-right: 10px;
     display: flex;
     align-items: center;
@@ -84,7 +84,7 @@ html, body {
 }
 
 .navbar .nav-links a {
-    color: white;
+    color: var(--navbar-text-color);
     margin: 0 14px;
     text-decoration: none;
     font-size: 15px;
@@ -96,13 +96,26 @@ html, body {
 
 /* ---- Topbar dropdown navigation ---- */
 
-.nav-right {
+/* In the flow of the bar, after the title: the links never slide under it.
+   (The standalone Explorer sets its position inline, hence the !important.) */
+.nav-right,
+.navbar > #nav-right {
     display: flex;
     align-items: center;
     justify-content: right;
-    position: absolute;
-    right: 0;
+    position: static !important;
+    margin-left: auto;
+    min-width: 0;
     z-index: 1000;
+}
+.navbar > #navbar-title {
+    flex-shrink: 0;
+}
+@media screen and (max-width: 1440px) {
+    .navbar .nav-links a {
+        margin: 0 8px;
+        font-size: 14px;
+    }
 }
 
 .navbar .nav-menu {
@@ -124,7 +137,7 @@ html, body {
     display: flex;
     align-items: center;
     gap: 5px;
-    color: white;
+    color: var(--navbar-text-color);
     font-size: 15px;
     padding: 15px 12px;
     cursor: default;
@@ -141,7 +154,7 @@ a.nav-group-label {
 .navbar .nav-link-button {
     display: flex;
     align-items: center;
-    color: white;
+    color: var(--navbar-text-color);
     font-size: 15px;
     padding: 15px 12px;
     text-decoration: none;
@@ -210,7 +223,7 @@ a.nav-group-label {
     width: 22px;
     height: 2px;
     border-radius: 2px;
-    background: white;
+    background: var(--navbar-text-color);
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -314,9 +327,9 @@ a.nav-group-label {
     font-weight: bold;
     font-size: 24px;
     z-index: 2;
-    color: white;
+    color: var(--navbar-text-color);
     text-decoration: none;
-    overflow: hidden; 
+    overflow: hidden;
     transition: transform 0.4s ease;
 }
 
@@ -476,9 +489,11 @@ input {
     box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
 }
 
+/* Preformatted text is code, logs or tool output: columns and carets only line
+   up in a monospaced font. */
 pre {
-    font-family: var(--theme-font-family), Arial;
-    font-size: var(--pre-font-size);  
+    font-family: var(--theme-mono-font-family);
+    font-size: var(--pre-font-size);
     background: var(--pre-background);
     border: var(--pre-border);
     border-radius: var(--pre-border-radius);
@@ -517,6 +532,69 @@ textarea {
 
 .dropdown-label{
     margin: var(--dropdown-label-margin);
+}
+
+/* Placeholders often carry the meaning of an empty field ("Empty: the tool is
+   on your PATH"): themed, and readable, rather than the browser's grey. */
+.theme ::placeholder,
+.theme .Select-placeholder,
+.theme .Select--single > .Select-control .Select-placeholder {
+    color: var(--theme-placeholder-color);
+    opacity: 1;
+}
+
+/* An empty dropdown looks like a filled one: same field outline and fill
+   (the value of a single dropdown draws them, and it is absent then). */
+.theme .Select--single > .Select-control .Select-placeholder {
+    background-color: var(--dropdown-background);
+    border: var(--dropdown-border);
+    border-radius: var(--dropdown-border-radius);
+}
+.theme .Select--multi > .Select-control {
+    background-color: var(--dropdown-background) !important;
+    border: var(--dropdown-border) !important;
+    border-radius: var(--dropdown-border-radius);
+}
+
+/* Values of a multi-value dropdown: themed chips, like the badges. */
+.theme .Select--multi .Select-value {
+    display: inline-flex;
+    align-items: center;
+    flex-direction: row-reverse;
+    gap: 2px;
+    background: var(--theme-badge-background-color);
+    color: var(--theme-badge-text-color);
+    border: 1px solid color-mix(in srgb, var(--theme-badge-text-color) 30%, transparent);
+    border-radius: 999px;
+}
+.theme .Select--multi .Select-value-label {
+    color: var(--theme-text-color) !important;
+    padding: 2px 8px 2px 2px;
+}
+.theme .Select--multi .Select-value-icon {
+    color: inherit;
+    border: none;
+    border-radius: 999px;
+    padding: 0 4px 0 8px;
+    font-weight: 700;
+}
+.theme .Select--multi .Select-value-icon:hover,
+.theme .Select--multi .Select-value-icon:focus {
+    background: color-mix(in srgb, var(--theme-caution-color) 16%, transparent);
+    color: var(--theme-caution-color);
+}
+.theme .Select-clear-zone,
+.theme .Select-arrow-zone {
+    color: var(--theme-secondary-text-color);
+}
+.theme .Select-clear-zone:hover {
+    color: var(--theme-caution-color);
+}
+.theme .Select-arrow {
+    border-top-color: var(--theme-secondary-text-color);
+}
+.theme .is-open > .Select-control .Select-arrow {
+    border-bottom-color: var(--theme-secondary-text-color);
 }
 
 .dash-dropdown{
@@ -610,7 +688,7 @@ textarea {
 
 .error {
     background-color: var(--pre-background);
-    color: #ef553b;
+    color: var(--theme-caution-color);
     border: var(--pre-border);
     border-radius: var(--pre-border-radius); 
     text-shadow: var(--pre-text-shadow);
@@ -623,22 +701,22 @@ textarea {
 }
 
 .error.note {
-    color: #228BE6;
+    color: var(--theme-primary-color);
 }
 
 .error.warning {
-   color: #FD7E14;
+   color: var(--theme-warning-color);
 }
 
 .error pre {
-    font-family: monospace, monospace;
+    font-family: var(--theme-mono-font-family);
     font-weight: 500;
 }
 
 .error details {
-    background-color: #fff;
-    color: #24292e;
-    border: 1px solid #d1d5da;
+    background-color: var(--theme-element-background-color);
+    color: var(--theme-text-color);
+    border: var(--theme-border);
     border-radius: 6px; 
     font-weight: 600;
     margin: 10px;
@@ -684,6 +762,70 @@ textarea {
     text-align: center;
 }
 
+/* GUI home page: the workspace it is open in, and where a beginner starts */
+.odx-home-workspace {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 8px;
+    max-width: 760px;
+    margin: -16px auto 24px auto;
+    font-size: 13px;
+}
+.odx-home-workspace-label {
+    flex: 0 0 auto;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 11px;
+    color: var(--theme-text-color);
+    opacity: 0.75;
+}
+.odx-home-workspace-path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl; /* a long path keeps its end, the workspace name, in view */
+    font-family: monospace;
+    color: var(--theme-text-color);
+}
+.odx-home-start {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    max-width: 1100px;
+    margin: 0 auto 16px auto;
+    padding: 14px 20px;
+    box-sizing: border-box;
+    background-color: var(--card-background, var(--theme-element-background-color));
+    backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
+    color: var(--card-text-color, var(--theme-text-color));
+    border: var(--card-border, none);
+    border-left: 4px solid var(--theme-primary-color);
+    border-radius: var(--card-border-radius, 20px);
+    box-shadow: var(--card-box-shadow);
+    text-align: left;
+}
+.odx-home-start-pictogram {
+    flex: 0 0 auto;
+}
+.odx-home-start-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+.odx-home-start-text {
+    font-size: 14px;
+    line-height: 1.45;
+}
+.odx-home-start-text a {
+    color: var(--theme-primary-color);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
 .card {
     background-color: var(--card-background);
     color: var(--card-text-color);
@@ -701,6 +843,12 @@ textarea {
     text-decoration: none;
     /* transition: all .2s cubic-bezier(0.175, 0.885, 0, 1); */
     box-sizing: border-box;
+}
+
+/* Run jobs: titles line up from one card to the next, whatever the length of
+   the description below them. */
+#run_jobs-page .card.home {
+    justify-content: flex-start;
 }
 
 .card.configs {
@@ -744,6 +892,47 @@ textarea {
     filter: var(--card-img-filter);
 }
 
+/* --- Target selection (/select_targets) --------------------------------- */
+/* The tool settings sit in a grid of the same columns as the cards below, and
+   span all of them: the panel lines up with the cards whatever the width. */
+.target-settings-row > .odx-panel {
+    grid-column: 1 / -1;
+    margin: 0 5px 5px;
+}
+.target-settings-row .odx-grid {
+    align-items: start;
+}
+.target-field-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--theme-text-color);
+    opacity: 0.75;
+}
+.target-field-hint:empty {
+    display: none;
+}
+.target-empty-message {
+    max-width: calc(var(--tile-width) * 2 + 2 * var(--tile-gap));
+    margin: var(--space-3) auto var(--space-2);
+    padding: 0 var(--space-3);
+    box-sizing: border-box;
+    text-align: center;
+    color: var(--theme-text-color);
+}
+.target-empty-message:empty {
+    display: none;
+}
+/* A target that is not run is still listed: its card says so. */
+.card.configs.target-disabled .title-input {
+    opacity: 0.6;
+}
+.target-delete-note {
+    margin-top: 10px;
+    color: var(--theme-caution-color);
+    font-weight: bold;
+}
+
 .card-title  {
     text-align: center;
     font-size: 1.05em;
@@ -754,8 +943,7 @@ textarea {
 .card-description {
     text-align: center;
     margin: 12px 16px 4px;
-    color: var(--theme-text-color);
-    opacity: 0.7;
+    color: var(--theme-secondary-text-color);
     font-size: 0.92em;
     line-height: 1.4;
 }
@@ -845,7 +1033,7 @@ textarea {
 .tile.config h3 {
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    opacity: 0.5;
+    color: var(--section-caption-color);
     font-size: 1em;
 }
 
@@ -862,7 +1050,7 @@ textarea {
 }
 .page-header-subtitle {
     margin: 0;
-    opacity: 0.65;
+    color: var(--theme-secondary-text-color);
     font-size: 15px;
 }
 
@@ -1020,6 +1208,82 @@ textarea {
     grid-template-columns: repeat(auto-fill, minmax(var(--tile-width), 1fr));
     gap: var(--tile-gap);
     align-items: start;
+}
+
+/* --- Simulation editor ------------------------------------------------- */
+/* Two flex columns instead of CSS columns: in a CSS column, the menu of a
+   dropdown near the bottom of the column is fragmented into the next one,
+   opening at the top of the page next to its control. */
+.tiles-container.config.sim-form {
+    columns: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    column-gap: var(--tile-gap);
+}
+/* --- Architecture editor ----------------------------------------------- */
+/* Two flex columns too: balancing CSS columns laid the whole form out again
+   (up to a second) at every keystroke and every card added (UG-01). */
+.tiles-container.config.arch-form {
+    columns: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    column-gap: var(--tile-gap);
+}
+.arch-form-column {
+    display: flex;
+    flex-direction: column;
+    width: var(--tile-width);
+    max-width: 100%;
+    min-width: 0;
+}
+.arch-form-column > .tile.config {
+    width: 100%;
+    max-width: 100%;
+}
+/* --- Workflow and tool editors: the same two flex columns ------------- */
+.tiles-container.config.flex-form {
+    columns: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    column-gap: var(--tile-gap);
+}
+.flex-form-column {
+    display: flex;
+    flex-direction: column;
+    width: var(--tile-width);
+    max-width: 100%;
+    min-width: 0;
+}
+.flex-form-column > .tile.config {
+    width: 100%;
+    max-width: 100%;
+}
+
+.sim-form-column {
+    display: flex;
+    flex-direction: column;
+    width: var(--tile-width);
+    max-width: 100%;
+    min-width: 0;
+}
+/* Files and parameters are paths and "NAME: value" lines: as wide and as
+   large as the fields around them. */
+#sim-form-container textarea {
+    box-sizing: border-box;
+    width: 100%;
+    font-size: var(--input-font-size);
+}
+#sim-form-container .odx-panel-caption {
+    margin-top: var(--space-2);
+}
+#sim-run-warning .odx-message {
+    margin: var(--space-3) 0 0 0;
 }
 
 .title-input {
@@ -1255,12 +1519,35 @@ h3 {
     font-weight: bold;
 }
 
+/* Config editor: a delimiter is matched character for character, leading
+   spaces and escaped line breaks included, so it is shown in a monospaced font
+   where each of them takes room. */
+input.odx-delimiter-input,
+code.odx-delimiter-code {
+    font-family: var(--theme-mono-font-family, monospace);
+    white-space: pre;
+}
+code.odx-delimiter-code {
+    padding: 0 3px;
+    border-radius: 4px;
+    background: rgba(128, 128, 128, 0.16);
+    color: inherit;
+}
+
+/* --- Tooltips ------------------------------------------------------------
+   An element with the `tooltip` class and a `data-tooltip` text shows that
+   text on hover and on keyboard focus. The bubble is drawn by tooltips.js: a
+   single `.odx-tooltip` in fixed position, placed against the window, so it is
+   never clipped by a scrolling or rounded container, flips side near an edge
+   and passes over the top bar and the dialogs. Nothing is drawn while hidden,
+   so it never widens the page either.
+   The host's classes still choose the side (`bottom`, else above), the width
+   (`small`, `large`, `auto`), a longer delay (`delay`) and the color
+   (`primary`, `secondary`, `warning`, `caution`, `error-status`).
+   The host itself takes no z-index: an info icon must stay under an open
+   menu or a sticky header. */
 .tooltip {
     position: relative;
-    z-index: 4000;
-}
-.tooltip-icon {
-    z-index: 1;
 }
 
 .tooltip .icon {
@@ -1270,81 +1557,77 @@ h3 {
     filter: var(--tooltip-icon-filter);
 }
 
-.tooltip::after {
-    text-transform: none;
-    letter-spacing: normal;
+.odx-tooltip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2147483000;
+    display: none;
+    box-sizing: border-box;
+    width: max-content;
+    max-width: min(var(--tooltip-normal-width), calc(100vw - 12px));
+    padding: var(--tooltip-padding);
+    font-family: var(--theme-font-family), Arial, sans-serif;
     font-size: var(--tooltip-font-size);
     font-weight: normal;
     line-height: var(--tooltip-line-height);
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+    overflow-wrap: break-word;
     text-shadow: var(--tooltip-text-shadow);
     box-shadow: var(--tooltip-box-shadow);
     border-radius: var(--tooltip-border-radius);
-    width: var(--tooltip-normal-width);
-    padding: var(--tooltip-padding);
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 120%;
-    left: 50%;
-    transform: translateX(-50%);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s;
     background: var(--default-tooltip-background);
     color: var(--default-tooltip-text-color);
     border: var(--default-tooltip-border);
-    z-index: 4000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
 }
-.tooltip.delay::after {
-    transition-delay: 0s;
+.odx-tooltip.shown {
+    display: block;
 }
-
-.tooltip.auto::after {
-    width: auto;
+.odx-tooltip.visible {
+    opacity: 1;
 }
-.tooltip.small::after {
-    width: var(--tooltip-small-width);
+.odx-tooltip.small {
+    max-width: min(var(--tooltip-small-width), calc(100vw - 12px));
 }
-.tooltip.large::after {
-    width: var(--tooltip-large-width);
+.odx-tooltip.large,
+.odx-tooltip.auto {
+    max-width: min(var(--tooltip-large-width), calc(100vw - 12px));
 }
-.tooltip.bottom::after {
-    top: 120%;
-    bottom: auto;
-}
-.tooltip.primary::after {
+.odx-tooltip.primary {
     background: var(--primary-tooltip-background);
     color: var(--primary-tooltip-text-color);
     border: var(--primary-tooltip-border);
 }
-.tooltip.secondary::after {
+.odx-tooltip.secondary {
     background: var(--secondary-tooltip-background);
     color: var(--secondary-tooltip-text-color);
     border: var(--secondary-tooltip-border);
 }
-.tooltip.warning::after {
+.odx-tooltip.warning {
     background: var(--warning-tooltip-background);
     color: var(--warning-tooltip-text-color);
     border: var(--warning-tooltip-border);
 }
-.tooltip.caution::after {
+.odx-tooltip.caution {
     background: var(--caution-tooltip-background);
     color: var(--caution-tooltip-text-color);
     border: var(--caution-tooltip-border);
 }
-.tooltip.error-status::after {
+.odx-tooltip.error-status {
     background: var(--error-tooltip-background);
     color: var(--error-tooltip-text-color);
     border: var(--error-tooltip-border);
 }
-button.tooltip {
-    z-index: initial;
-}
-.tooltip:hover::after {
-    opacity: 1;
-    z-index: 999999!important;
-}
-.tooltip.delay:hover::after {
-    transition-delay: 0.5s;
+@media (prefers-reduced-motion: reduce) {
+    .odx-tooltip {
+        transition: none;
+    }
 }
 
 /* Label buttons (icon + text): consistent height, normal padding */
@@ -1390,8 +1673,8 @@ button.tooltip {
 #monitor-stop-all.color-button.caution {
     background: var(--theme-caution-color);
     border: 1px solid var(--theme-caution-color);
-    color: #fff;
-    --button-icon-color: #fff;
+    color: var(--theme-on-caution-color);
+    --button-icon-color: var(--theme-on-caution-color);
 }
 .monitor-task-button-container .color-button.caution:hover,
 #monitor-stop-all.color-button.caution:hover {
@@ -1464,8 +1747,8 @@ button.tooltip {
 /* Reverse-sort toggle: flip the arrows icon and highlight when active */
 #monitor-sort-dir.active {
     background: var(--theme-primary-color);
-    --button-icon-color: #fff;
-    color: #fff;
+    --button-icon-color: var(--theme-on-primary-color);
+    color: var(--theme-on-primary-color);
 }
 #monitor-sort-dir.active .icon {
     transform: rotate(180deg);
@@ -1875,7 +2158,7 @@ input[type="checkbox"] {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
 }
 .kpi-tile.running .kpi-value { color: var(--theme-running-color); }
 .kpi-tile.queued  .kpi-value { color: var(--theme-pending-color); }
@@ -2094,25 +2377,69 @@ input[type="checkbox"] {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
 }
+/* The name takes whatever the fixed columns leave. It is drawn in two parts
+   (assets/monitor_tasks.js): the head (architecture, workflow) gives way first,
+   down to a few letters, so that the tail -- the configuration, frequency or
+   values that tell the jobs of a run apart -- stays in sight. The full name is
+   the row's hover text. */
 .monitor-list-panel .monitor-task-name {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     width: auto;
+    display: flex;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 15px;
     font-weight: 500;
 }
+.monitor-task-name-head,
+.monitor-task-name-tail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
+}
+.monitor-task-name-head {
+    flex: 0 1000 auto;
+    min-width: 4ch;
+}
+.monitor-task-name-head:only-child,
+.monitor-task-name-tail:empty {
+    min-width: 0;
+}
+.monitor-task-name-tail {
+    flex: 0 1 auto;
+    min-width: 0;
+}
 .monitor-list-panel .monitor-task-progress {
-    width: 22%;
-    min-width: 70px;
+    flex: 0 1 96px;
+    width: auto;
+    min-width: 40px;
     height: 18px;
 }
-.monitor-list-panel .monitor-task-progress-text { width: 46px; min-width: 46px; font-size: 13px; }
-.monitor-list-panel .monitor-task-runtime { width: 68px; min-width: 68px; font-size: 13px; }
-.monitor-list-panel .monitor-task-status { width: 72px; min-width: 72px; font-size: 13px; }
-.monitor-list-panel .monitor-task-button-container { height: 18px; overflow: visible; }
+.monitor-list-panel .monitor-task-progress-text { width: 42px; min-width: 42px; font-size: 13px; }
+.monitor-list-panel .monitor-task-runtime { width: 64px; min-width: 64px; font-size: 13px; }
+.monitor-list-panel .monitor-task-status { width: 72px; min-width: 72px; font-size: 13px; white-space: nowrap; }
+.monitor-list-panel .monitor-task-status.with-time { width: auto; }
+/* Two buttons at most (start or pause, and kill), drawn at 70 %: the column is
+   as wide as they look, not as wide as they are laid out. */
+.monitor-list-panel .monitor-task-button-container {
+    width: 54px;
+    min-width: 54px;
+    height: 18px;
+    overflow: visible;
+    transform-origin: right center;
+}
+/* A row's action tooltips open to the left of the button: above or below it,
+   the list's scroll box would cut them on the first and last rows. */
+.monitor-task-button-container .tooltip::after {
+    top: 50%;
+    bottom: auto;
+    left: auto;
+    right: calc(100% + 10px);
+    transform: translateY(-50%);
+    width: max-content;
+    max-width: 220px;
+}
 
 /* --- Filter chips ------------------------------------------------------ */
 .monitor-filter {
@@ -2140,7 +2467,7 @@ input[type="checkbox"] {
 }
 .monitor-filter label:has(input:checked) {
     background: var(--theme-primary-color);
-    color: #fff;
+    color: var(--theme-on-primary-color);
     border-color: transparent;
 }
 
@@ -2170,6 +2497,7 @@ input[type="checkbox"] {
 .monitor-log-title-status.starting { color: var(--theme-running-color); }
 .monitor-log-title-status.exporting { color: var(--theme-primary-color); }
 .monitor-log-title-status.queued { color: var(--theme-pending-color); }
+.monitor-log-title-status.paused { color: var(--theme-pause-color); }
 .monitor-log-title-status.success { color: var(--theme-success-color); }
 .monitor-log-title-status.failed,
 .monitor-log-title-status.killed,
@@ -2180,6 +2508,49 @@ input[type="checkbox"] {
     min-height: 0;
     overflow: auto;
     border-radius: 0 0 var(--theme-normal-border-radius) var(--theme-normal-border-radius);
+}
+/* Log colors. The ANSI palette of a theme (--terminal-*) is drawn for a dark
+   terminal, and most themes keep the base one: green, blue, magenta or grey on
+   a light pane fell under 3:1. In the log, each color is pulled towards the
+   theme's text color, which every theme makes readable on its background:
+   darker on a light theme, lighter on a dark one, and still telling the
+   colors apart. The theme's own values are read on the scroll box (aliases),
+   so that the log can redefine the names its spans use without a cycle. */
+.monitor-log-scroll {
+    --monitor-ansi-red: var(--terminal-red);
+    --monitor-ansi-green: var(--terminal-green);
+    --monitor-ansi-yellow: var(--terminal-yellow);
+    --monitor-ansi-blue: var(--terminal-blue);
+    --monitor-ansi-magenta: var(--terminal-magenta);
+    --monitor-ansi-cyan: var(--terminal-cyan);
+    --monitor-ansi-bright-red: var(--terminal-bright-red);
+    --monitor-ansi-bright-green: var(--terminal-bright-green);
+    --monitor-ansi-bright-yellow: var(--terminal-bright-yellow);
+    --monitor-ansi-bright-blue: var(--terminal-bright-blue);
+    --monitor-ansi-bright-magenta: var(--terminal-bright-magenta);
+    --monitor-ansi-bright-cyan: var(--terminal-bright-cyan);
+}
+.monitor-log-panel .monitor-log {
+    --monitor-ansi-hue: 58%;
+    --terminal-red: color-mix(in srgb, var(--monitor-ansi-red) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-green: color-mix(in srgb, var(--monitor-ansi-green) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-yellow: color-mix(in srgb, var(--monitor-ansi-yellow) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-blue: color-mix(in srgb, var(--monitor-ansi-blue) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-magenta: color-mix(in srgb, var(--monitor-ansi-magenta) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-cyan: color-mix(in srgb, var(--monitor-ansi-cyan) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-bright-red: color-mix(in srgb, var(--monitor-ansi-bright-red) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-bright-green: color-mix(in srgb, var(--monitor-ansi-bright-green) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-bright-yellow: color-mix(in srgb, var(--monitor-ansi-bright-yellow) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-bright-blue: color-mix(in srgb, var(--monitor-ansi-bright-blue) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-bright-magenta: color-mix(in srgb, var(--monitor-ansi-bright-magenta) var(--monitor-ansi-hue), var(--theme-text-color));
+    --terminal-bright-cyan: color-mix(in srgb, var(--monitor-ansi-bright-cyan) var(--monitor-ansi-hue), var(--theme-text-color));
+    /* Black and white mean "the text" on one theme and "invisible" on the
+       other: both are the text color here; grey is the text, dimmed. */
+    --terminal-black: var(--theme-text-color);
+    --terminal-white: var(--theme-text-color);
+    --terminal-bright-white: var(--theme-text-color);
+    --terminal-bright-black: color-mix(in srgb, var(--theme-text-color) 70%, transparent);
+    color: var(--theme-text-color);
 }
 /* Focusable for keyboard scrolling, but no ring when focused by click. */
 .monitor-log-scroll:focus { outline: none; }
@@ -2239,7 +2610,7 @@ input[type="checkbox"] {
 }
 .monitor-preset-button.active {
     background: var(--theme-primary-color);
-    color: #fff;
+    color: var(--theme-on-primary-color);
 }
 
 /* --- Responsive: auto-stack on narrow viewports ------------------------ */
@@ -2367,6 +2738,117 @@ input[type="checkbox"] {
 .monitor-error-hint {
     opacity: 0.75;
 }
+/* Nothing to monitor is no error: same card, in the text color, with its own hint. */
+.monitor-error-card.empty .monitor-error-message {
+    color: var(--theme-text-color);
+}
+.monitor-error-card .monitor-error-hint.for-empty,
+.monitor-error-card.empty .monitor-error-hint.for-error {
+    display: none;
+}
+.monitor-error-card.empty .monitor-error-hint.for-empty {
+    display: block;
+}
+
+/* Until the session answers: a spinner in the job list, no figures, and no
+   action on a session the page does not know yet. */
+.monitor-loading {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-3);
+    opacity: 0.75;
+}
+.monitor-page.loading .monitor-loading {
+    display: flex;
+}
+.monitor-page.loading .monitor-container {
+    display: none;
+}
+.monitor-page.loading .monitor-toolbar-right {
+    opacity: 0.45;
+    pointer-events: none;
+}
+.monitor-spinner {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: 50%;
+    border: 2px solid rgba(128, 128, 128, 0.3);
+    border-top-color: var(--theme-primary-color);
+    animation: monitor-spin 0.8s linear infinite;
+}
+@keyframes monitor-spin {
+    to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .monitor-spinner { animation-duration: 2.4s; }
+}
+
+/* Feedback line of the header (a session closed, an action refused). */
+.monitor-header .monitor-feedback .odx-message {
+    margin-bottom: 0;
+}
+
+/* Kill-all confirmation */
+.monitor-stop-popup {
+    width: 460px;
+    max-width: min(92vw, 480px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-6, 26px) var(--space-6, 26px) var(--space-5, 20px);
+}
+.monitor-stop-popup h2 {
+    margin: 0;
+    font-size: 22px;
+    color: var(--theme-text-color);
+}
+.monitor-stop-message {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+}
+.monitor-stop-warning {
+    color: var(--theme-caution-color);
+    font-weight: 600;
+    font-size: 14px;
+}
+.monitor-stop-actions {
+    display: flex;
+    gap: var(--space-3);
+    width: 100%;
+    margin-top: var(--space-2);
+}
+.monitor-stop-actions > * {
+    flex: 1 1 0;
+    min-height: 42px;
+}
+.monitor-stop-busy {
+    display: none;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 14px;
+    opacity: 0.8;
+}
+.monitor-stop-busy::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(128, 128, 128, 0.3);
+    border-top-color: var(--theme-caution-color);
+    animation: monitor-spin 0.8s linear infinite;
+}
+#monitor-stop-all-popup.busy .monitor-stop-busy {
+    display: flex;
+}
+#monitor-stop-all-popup.busy .monitor-stop-actions {
+    opacity: 0.5;
+    pointer-events: none;
+}
 .monitor-error-actions {
     display: flex;
     gap: var(--space-3);
@@ -2411,11 +2893,12 @@ input[type="checkbox"] {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.55;
+    color: var(--theme-secondary-text-color);
     margin-top: 1px;
 }
 .monitor-stat.running .monitor-stat-value { color: var(--theme-running-color); }
 .monitor-stat.queued  .monitor-stat-value { color: var(--theme-pending-color); }
+.monitor-stat.paused  .monitor-stat-value { color: var(--theme-pause-color); }
 .monitor-stat.done    .monitor-stat-value { color: var(--theme-success-color); }
 .monitor-stat.failed  .monitor-stat-value { color: var(--theme-caution-color); }
 
@@ -2429,7 +2912,7 @@ input[type="checkbox"] {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.55;
+    color: var(--theme-secondary-text-color);
     flex: none;
 }
 .monitor-overall .monitor-overall-track {
@@ -2446,13 +2929,23 @@ input[type="checkbox"] {
     text-align: right;
 }
 
-/* Layout mode selector (segmented, always visible in the header) */
+/* Layout mode selector (segmented, always visible in the header). Not clipped
+   (no overflow: hidden): the buttons' tooltips open outside of it, and the
+   end buttons round their own corners. */
 .monitor-mode-group {
     display: inline-flex;
     flex: none;
     border: 1px solid rgba(128, 128, 128, 0.28);
     border-radius: var(--theme-small-border-radius);
-    overflow: hidden;
+}
+/* The right-most controls of the page: their tooltips are anchored on their
+   right edge and open leftwards, or they would run off the window. */
+#monitor-stop-all.tooltip::after,
+#monitor-open-path.tooltip::after,
+.monitor-mode-button:last-child.tooltip::after {
+    left: auto !important;
+    right: 0 !important;
+    transform: none !important;
 }
 .monitor-mode-button {
     background: transparent;
@@ -2476,7 +2969,7 @@ input[type="checkbox"] {
 .monitor-mode-button:hover { 
     border-color: var(--theme-primary-color); 
 }
-.monitor-mode-button.active { background: var(--theme-primary-color); color: #fff; }
+.monitor-mode-button.active { background: var(--theme-primary-color); color: var(--theme-on-primary-color); }
 
 /* --- Panels fill the remaining height and scroll internally ------------ */
 .monitor-split {
@@ -2564,7 +3057,7 @@ input[type="checkbox"] {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
     font-weight: 600;
     white-space: nowrap;
 }
@@ -2628,6 +3121,18 @@ input[type="checkbox"] {
     bottom: 100%;
     top: auto;
 }
+/* Set by floating_menus.js on an open dropdown: upward when the room is above,
+   anchored on the right when a widened menu would leave the window. */
+.Select.odx-menu-up .Select-menu-outer {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 2px;
+}
+.Select.odx-menu-right .Select-menu-outer {
+    left: auto;
+    right: 0;
+}
 
 /* Click-away layer behind a popup: the dialog sits above it (position: relative). */
 .popup-backdrop {
@@ -2684,6 +3189,11 @@ input[type="checkbox"] {
     background: color-mix(in srgb, var(--theme-caution-color) 14%, transparent);
     box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-caution-color) 7%, transparent);
 }
+.monitor-finished-badge.warning {
+    color: var(--theme-warning-color);
+    background: color-mix(in srgb, var(--theme-warning-color) 14%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-warning-color) 7%, transparent);
+}
 .monitor-finished-popup h2 {
     margin: 0;
     font-size: 22px;
@@ -2729,6 +3239,10 @@ input[type="checkbox"] {
 }
 .monitor-finished-stat.done .monitor-finished-stat-value { color: var(--theme-success-color); }
 .monitor-finished-stat.failed .monitor-finished-stat-value { color: var(--theme-caution-color); }
+.monitor-finished-stat.warning .monitor-finished-stat-value { color: var(--theme-warning-color); }
+/* An analysis gives as many figures as it has kinds of verdicts (2 to 4). */
+.monitor-finished-stats:has(> :nth-child(2):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.monitor-finished-stats:has(> :nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .monitor-finished-stat-label {
     margin-top: 3px;
     font-size: 10.5px;

@@ -1,0 +1,179 @@
+##############################################
+# Metrics for this simulation
+##############################################
+# Extracted from "results.yml", written by the testbench itself
+# (see tb/tb_cordic.sv).
+
+metrics:
+  # ----- Configuration ------------------------------------------------
+  width:
+    type: yaml
+    settings:
+      file: results.yml
+      key: width
+    unit: "bits"
+    format: "%.0f"
+
+  iterations:
+    type: yaml
+    settings:
+      file: results.yml
+      key: iterations
+    format: "%.0f"
+
+  # ----- Accuracy -----------------------------------------------------
+  max_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: max_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  rms_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: rms_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  mean_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: mean_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  max_angle_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: max_angle_error_deg
+    unit: "deg"
+    format: "%.4f"
+
+  rms_angle_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: rms_angle_error_deg
+    unit: "deg"
+    format: "%.4f"
+
+  snr:
+    type: yaml
+    settings:
+      file: results.yml
+      key: snr_db
+    unit: "dB"
+    format: "%.2f"
+
+  enob:
+    type: yaml
+    settings:
+      file: results.yml
+      key: enob
+    unit: "bits"
+    format: "%.2f"
+
+  worst_case_angle:
+    type: yaml
+    settings:
+      file: results.yml
+      key: worst_case_angle_deg
+    unit: "deg"
+    format: "%.2f"
+
+  # ----- Timing -------------------------------------------------------
+  latency:
+    type: yaml
+    settings:
+      file: results.yml
+      key: latency_cycles
+    unit: "cycles"
+    format: "%.0f"
+
+  throughput:
+    type: yaml
+    settings:
+      file: results.yml
+      key: throughput
+    unit: "samples/cycle"
+    format: "%.3f"
+
+  cycles:
+    type: yaml
+    settings:
+      file: results.yml
+      key: cycles
+    unit: "cycles"
+    format: "%.0f"
+
+  # ----- Checks -------------------------------------------------------
+  vectors:
+    type: yaml
+    settings:
+      file: results.yml
+      key: vectors
+    format: "%.0f"
+
+  checks_total:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_total
+    format: "%.0f"
+
+  checks_passed:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_passed
+    format: "%.0f"
+
+  checks_failed:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_failed
+    format: "%.0f"
+
+  pass_rate:
+    type: yaml
+    settings:
+      file: results.yml
+      key: pass_rate
+    unit: "%"
+    format: "%.2f"
+
+  status:
+    type: yaml
+    settings:
+      file: results.yml
+      key: status
+
+  reset:
+    type: yaml
+    settings:
+      file: results.yml
+      key: reset
+
+  latency_check:
+    type: yaml
+    settings:
+      file: results.yml
+      key: latency_check
+
+  completeness:
+    type: yaml
+    settings:
+      file: results.yml
+      key: completeness
+
+  accuracy:
+    type: yaml
+    settings:
+      file: results.yml
+      key: accuracy

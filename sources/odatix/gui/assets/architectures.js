@@ -55,3 +55,17 @@ window.dash_clientside.odatix_architectures.scroll_to_simulations = function(hre
     window.requestAnimationFrame(attempt);
     return "";
 };
+
+// The architecture editor renamed what it edits: the address and the link to
+// its configurations say the new name, without loading the page again (which
+// would drop what the page says about the save).
+window.dash_clientside.odatix_architectures.follow_rename = function(name) {
+    if (!name) {
+        return window.dash_clientside.no_update;
+    }
+    const search = "?arch=" + encodeURIComponent(name);
+    if (window.location.search !== search) {
+        window.history.replaceState(window.history.state, "", window.location.pathname + search);
+    }
+    return "/config_editor" + search;
+};

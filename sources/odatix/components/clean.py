@@ -55,10 +55,25 @@ def parse_arguments():
 # Helper Functions
 ######################################
 
+def display_path(path):
+  """
+  A path as the terminal shows it: relative to the workspace (the current
+  directory) when it lies inside it, absolute otherwise. What a clean touched
+  outside the workspace is exactly what must be shown in full.
+  """
+  try:
+    relative = os.path.relpath(path, os.path.realpath("."))
+  except ValueError:
+    return path
+  if relative == os.pardir or relative.startswith(os.pardir + os.sep):
+    return path
+  return relative
+
+
 def remove_path(path, force=False, verbose=False, quiet=False):
   """
   Remove everything one clean pattern matches, and report it on the terminal.
-  Returns whether everything it matched that was not skipped could be removed.
+  Returns the odatix.workspace.clean.CleanResult of the pattern.
 
   The removal itself is the one the workspace API performs (see
   odatix.workspace.clean), so "odatix clean" and the graphical interface always
@@ -68,23 +83,23 @@ def remove_path(path, force=False, verbose=False, quiet=False):
 
   for removal in result.removed:
     if not quiet:
-      printc.say("Removed \"" + removal.path + "\" (" + removal.kind + ")", script_name=script_name)
+      printc.say("Removed \"" + display_path(removal.path) + "\" (" + removal.kind + ")", script_name=script_name)
 
   for removal in result.skipped:
     if not quiet:
-      printc.warning("Deleting \"" + removal.path + "\" seems dangerous: it is left alone. Use -y/--yes to delete it anyway (at your own risk)", script_name=script_name)
+      printc.warning("Deleting \"" + display_path(removal.path) + "\" seems dangerous: it is left alone. Use -y/--yes to delete it anyway (at your own risk)", script_name=script_name)
 
   if verbose and not quiet:
     # Not a problem: a clean profile lists what a run may leave behind.
     for pattern in result.unmatched:
-      printc.note("Nothing matches \"" + pattern + "\"", script_name=script_name)
+      printc.note("Nothing matches \"" + display_path(pattern) + "\"", script_name=script_name)
 
   for removal in result.errors:
-    printc.error("Failed to remove \"" + removal.path + "\".", script_name=script_name)
+    printc.error("Failed to remove \"" + display_path(removal.path) + "\".", script_name=script_name)
     printc.cyan("error details: ", end="", script_name=script_name)
     print(removal.message)
 
-  return len(result.errors) == 0
+  return result
 
 ######################################
 # Clean
@@ -116,9 +131,20 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
       printc.note("Are you missing dashes (-)?", script_name)
       sys.exit(-1)
 
+    touched = 0
     success = True
     for path in remove_list:
-      success = remove_path(path, force, verbose, quiet) and success
+      result = remove_path(path, force, verbose, quiet)
+      touched += len(result.removed) + len(result.skipped)
+      success = success and not result.errors
+    if touched == 0 and success and not quiet:
+      # A clean that printed nothing would leave the user wondering whether it
+      # ran at all.
+      printc.note(
+        "Nothing to clean: none of the " + str(len(remove_list)) + " patterns of \""
+        + display_path(settings_filename) + "\" matches anything",
+        script_name,
+      )
     return success
 
 ######################################

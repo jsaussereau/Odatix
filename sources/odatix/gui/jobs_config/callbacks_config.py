@@ -22,7 +22,11 @@
 """Callbacks of the page itself: the Job Settings form, the instance cards and
 their parameter-domain / preview widgets, and the Save button."""
 
+import os
+import threading
+
 import dash
+import natsort
 from dash import ctx, dcc, html, Input, Output, State
 
 from odatix.workspace.configs import combinations
@@ -54,7 +58,7 @@ from odatix.gui.jobs_config.common import (
 )
 from odatix.gui.jobs_config.context import _run_context
 from odatix.gui.jobs_config.pnr import _pnr_job_sections, _pnr_sync_preview_values
-from odatix.gui.jobs_config.settings_form import job_settings_form
+from odatix.gui.jobs_config.settings_form import frequency_fields_class, frequency_note, job_settings_form
 from odatix.gui.jobs_config.settings_io import _collect_run_settings, _job_settings_baseline, write_run_settings
 from odatix.gui.jobs_config.arch_widgets import compact_selection
 from odatix.gui.jobs_config.simulation import (
@@ -63,7 +67,7 @@ from odatix.gui.jobs_config.simulation import (
     _simulation_job_sections,
     compact_simulation_selection,
 )
-from odatix.gui.page_scope import page_callback
+from odatix.gui.page_scope import page_callback, page_clientside_callback
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -87,6 +91,60 @@ def _compacted_selection(context, run_mode, selection):
     return compact_selection(instances, selection, context["mode"])
 
 
+def _list_workspace_sessions():
+    try:
+        daemons = daemon_control.list_daemons()
+        daemons, _root, _scoped = daemon_control.scope_daemons(daemons)
+    except Exception:
+        daemons = []
+    return daemons
+
+
+# Listing the sessions probes every session of the machine, which takes
+# seconds when there are many: the list is refreshed in the background and
+# the dropdown is answered from the last listing, so a slow probe never holds
+# the callback (it used to, until the next refresh superseded it and the list
+# never showed up).
+_sessions_cache = {"daemons": None, "refreshing": False}
+_sessions_lock = threading.Lock()
+
+
+def _refresh_sessions():
+    daemons = _list_workspace_sessions()
+    with _sessions_lock:
+        _sessions_cache["daemons"] = daemons
+        _sessions_cache["refreshing"] = False
+
+
+def _workspace_sessions():
+    """
+    The sessions jobs can be added to: those of the workspace the page runs in,
+    as "odatix ls" lists them. A session of another workspace runs its jobs
+    with that workspace's files: adding these jobs to it is never what is meant.
+    """
+    with _sessions_lock:
+        daemons = _sessions_cache["daemons"]
+        start = not _sessions_cache["refreshing"] and daemons is not None
+        if start:
+            _sessions_cache["refreshing"] = True
+    if daemons is None:
+        # Never listed yet: the first answer is worth waiting for.
+        _refresh_sessions()
+        daemons = _sessions_cache["daemons"]
+    elif start:
+        threading.Thread(target=_refresh_sessions, daemon=True).start()
+    daemons = list(daemons or [])
+
+    def started_at(daemon):
+        try:
+            return float(daemon.get("started_at") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    # The latest first: it is the one a run is most likely to join.
+    return sorted(daemons, key=started_at, reverse=True)
+
+
 @dash.callback(
     Output({"page": page_path, "action": "session-dropdown"}, "options"),
     Output({"page": page_path, "action": "session-dropdown"}, "value"),
@@ -96,12 +154,7 @@ def _compacted_selection(context, run_mode, selection):
 )
 def update_session_dropdown(_search, _n, current_value):
     options = [{"label": "New session...", "value": "__new_session__", "title": "Run jobs in a new session"}]
-    try:
-        daemons = daemon_control.list_daemons()
-    except Exception:
-        daemons = []
-
-    options.extend(_session_option(daemon) for daemon in daemons)
+    options.extend(_session_option(daemon) for daemon in _workspace_sessions())
 
     values = {option.get("value") for option in options}
     selected = str(current_value).strip() if current_value is not None else "__new_session__"
@@ -109,6 +162,25 @@ def update_session_dropdown(_search, _n, current_value):
         selected = "__new_session__"
 
     return options, selected
+
+def selection_source_text(search, odatix_settings):
+    """The line under the header: the settings file the selection is loaded from."""
+    path = _get_synth_settings_path(search, odatix_settings or {})
+    if not path:
+        return ""
+    return "Selection loaded from " + os.path.basename(path)
+
+
+@dash.callback(
+    Output("jobs-selection-source", "children"),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
+)
+def update_selection_source(search, page, odatix_settings):
+    if page != page_path:
+        return dash.no_update
+    return selection_source_text(search, odatix_settings)
 
 @dash.callback(
     Output("job-settings-form-container", "children"),
@@ -152,6 +224,19 @@ def toggle_auto_nb_jobs(auto_nb_jobs, nb_jobs):
         return True, str(resolve_nb_jobs(AUTO_NB_JOBS_KEYWORD))
     restored = nb_jobs if nb_jobs not in (None, "") else _JOB_SETTINGS_DEFAULTS["nb_jobs"]
     return False, str(restored)
+
+@dash.callback(
+    Output("frequency-override-note", "children"),
+    Output("frequency-fields", "className"),
+    Input("override-arch-frequencies", "value"),
+    State(f"url_{page_path}", "search"),
+    prevent_initial_call=True,
+)
+def update_frequency_note(override, search):
+    """Say what the frequency fields mean with the override switch as it is."""
+    enabled = _checklist_enabled(override)
+    return frequency_note(get_key_from_url(search, "type"), enabled), frequency_fields_class(enabled)
+
 
 @dash.callback(
     Output("job-section", "children"),
@@ -371,19 +456,18 @@ def update_param_domains(
     return job_sections, context["title"], main_title, saved_baseline
 
 
-@page_callback(PAGE_SCOPE,
+# Collapse/expand the configurations of an architecture with its switch, and
+# highlight the card while it is selected to run. Answered in the browser: a
+# round trip per card for a class name made the page slow to load and to react
+# (see assets/jobs_config.js). The classes a card is rendered with already
+# match its switch, hence no initial call.
+page_clientside_callback(PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_jobs", function_name="toggle_card"),
     Output({"type": "param-domains-container", "arch": dash.MATCH}, "className"),
     Output({"type": "job-section", "arch": dash.MATCH}, "className"),
     Input({"type": "arch-title", "arch": dash.MATCH, "is_switch": True}, "value"),
+    prevent_initial_call=True,
 )
-def toggle_param_domains(switch_value):
-    """Collapse/expand the configurations of an architecture with its switch,
-    and highlight the card while it is selected to run."""
-    enabled = bool(switch_value)
-    return (
-        "jobs-arch-body animated-section" + ("" if enabled else " hide"),
-        "jobs-arch-card" + (" enabled" if enabled else ""),
-    )
 
 
 @page_callback(PAGE_SCOPE,
@@ -394,6 +478,8 @@ def toggle_param_domains(switch_value):
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "arch-count", "arch": dash.ALL}, "id"),
     State({"type": "arch-metadata", "arch": dash.ALL}, "data"),
+    # The badges are rendered with their counts: only a change recounts them.
+    prevent_initial_call=True,
 )
 def update_arch_count(preview_values, switch_values, preview_ids, switch_ids, count_ids, metadatas):
     """Keep the "selected/total configs" badge of every architecture in sync with
@@ -450,16 +536,48 @@ def update_arch_count(preview_values, switch_values, preview_ids, switch_ids, co
     Input("auto-nb-jobs", "value"),
     Input("rerun-from", "value"),
     Input(f"url_{page_path}", "search"),
+    # Written by update_param_domains along with the cards: until then the
+    # selection is not on the page yet, and counting it would say "0".
+    Input("jobs-config-saved-selection", "data"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
     State({"type": "sim-selection", "sim": dash.ALL}, "id"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
 )
 def update_jobs_summary(
     switch_values, preview_values, sim_selection_values, nb_jobs, auto_nb_jobs, rerun_from, search,
-    preview_ids, sim_selection_ids, switch_ids,
+    saved_selection, preview_ids, sim_selection_ids, switch_ids,
 ):
     """Live recap of what the Run button is about to launch: job type, eda tool,
     how many instances are enabled and how many configurations they add up to."""
+    return jobs_summary(
+        search, switch_values, switch_ids, preview_values, preview_ids,
+        sim_selection_values, sim_selection_ids, nb_jobs, auto_nb_jobs, rerun_from,
+        loaded=saved_selection is not None,
+    )
+
+
+def _instances_labels(run_mode):
+    """How the summary names the instances and what they select, singular then plural."""
+    if run_mode == "workflow":
+        return ("workflow", "workflows"), ("configuration selected", "configurations selected")
+    if run_mode == "simulation":
+        return ("simulation", "simulations"), ("configuration selected", "configurations selected")
+    if run_mode == "pnr":
+        # The cards of a place & route are the tools that ran the syntheses it
+        # starts from, and what they select are those syntheses.
+        return ("source tool", "source tools"), ("synthesis selected", "syntheses selected")
+    return ("architecture", "architectures"), ("configuration selected", "configurations selected")
+
+
+def jobs_summary(
+    search, switch_values, switch_ids, preview_values, preview_ids,
+    sim_selection_values, sim_selection_ids, nb_jobs, auto_nb_jobs, rerun_from, loaded=True,
+):
+    """
+    The summary strip of the header. `loaded` is False while the cards are not
+    on the page yet: the counts then show an ellipsis rather than a "0" that
+    would read as "nothing selected".
+    """
     enabled = set()
     for value, sid in zip(switch_values or [], switch_ids or []):
         arch = sid.get("arch") if isinstance(sid, dict) else None
@@ -486,78 +604,84 @@ def update_jobs_summary(
     else:
         parallel = str(_to_int(nb_jobs, _JOB_SETTINGS_DEFAULTS["nb_jobs"]))
 
-    if run_mode == "workflow":
-        instances_label = "workflow" if len(enabled) == 1 else "workflows"
-    elif run_mode == "simulation":
-        instances_label = "simulation" if len(enabled) == 1 else "simulations"
-    else:
-        instances_label = "architecture" if len(enabled) == 1 else "architectures"
-    configs_label = "configuration selected" if n_configs == 1 else "configurations selected"
+    (instance_one, instance_many), (config_one, config_many) = _instances_labels(run_mode)
+    instances_label = instance_one if len(enabled) == 1 else instance_many
+    configs_label = config_one if n_configs == 1 else config_many
 
     children = [
         html.Span(RUN_MODE_LABELS.get(run_mode, "Jobs"), className="odx-tag"),
     ]
     if tool and run_mode not in ("workflow", "simulation"):
-        children.append(html.Span(eda_tools.get_tool_label(tool), className="odx-tag neutral"))
-        # Show the flow only when the tool has a choice to make: a single-flow
-        # tool would just add noise.
-        if len(eda_tools.list_flows(tool, job_type=run_mode)) > 1:
-            children.append(
-                html.Span(eda_tools.get_flow_label(tool, flow=flow, job_type=run_mode), className="odx-tag neutral")
-            )
-        # A run stopping short of the last step is worth spelling out: the rest
-        # of the flow is left for a later run.
-        steps = eda_tools.get_flow_step_names(tool, flow=flow, job_type=run_mode)
-        if until_step in steps and until_step != steps[-1]:
-            children.append(html.Span("up to " + until_step, className="odx-tag neutral"))
+        children.extend(html.Span(text, className="odx-tag neutral") for text in run_scope_tags(search))
         # Re-running steps already done costs what they cost the first time:
         # it is not what a run does by default, so it stands out.
         if rerun_from and rerun_from in rerun_step_names(search):
             children.append(html.Span("re-run from " + rerun_from, className="odx-tag warning"))
     children.append(html.Div(className="odx-spacer"))
-    children.append(ui.stat(len(enabled), instances_label, "" if enabled else "muted"))
-    children.append(ui.stat(n_configs, configs_label, "accent" if n_configs else "muted"))
+    if not loaded:
+        children.append(ui.stat("…", instance_many, "muted"))
+        children.append(ui.stat("…", config_many, "muted"))
+    else:
+        children.append(ui.stat(len(enabled), instances_label, "" if enabled else "muted"))
+        children.append(ui.stat(n_configs, configs_label, "accent" if n_configs else "muted"))
     children.append(ui.stat(parallel, "in parallel"))
     return children
 
 
-@dash.callback(
+def run_scope_tags(search):
+    """
+    What a run opened with this url runs with, in words: the eda tool, its flow
+    when the tool has several, and the step it stops at. Shared by the summary
+    strip and the run popup, so both say the same thing.
+    """
+    run_mode = get_key_from_url(search, "type")
+    tool = get_key_from_url(search, "tool")
+    if not tool or run_mode in ("workflow", "simulation"):
+        return []
+    flow = get_key_from_url(search, "flow")
+    tags = [eda_tools.get_tool_label(tool)]
+    try:
+        # Show the flow only when the tool has a choice to make: a
+        # single-flow tool would just add noise.
+        if len(eda_tools.list_flows(tool, job_type=run_mode)) > 1:
+            tags.append(eda_tools.get_flow_label(tool, flow=flow, job_type=run_mode))
+        # Where the run stops is always said for a flow split into steps: it
+        # is what makes a run take minutes or hours, and the step a run stops
+        # at by default is not the last one of every flow.
+        steps = eda_tools.get_flow_step_names(tool, flow=flow, job_type=run_mode)
+        until_step = get_key_from_url(search, "until")
+        if steps and until_step not in steps:
+            # No "until": the step the flow stops at by default, or its last.
+            until_step = eda_tools.get_default_step(tool, flow=flow, job_type=run_mode) or steps[-1]
+        if steps and until_step in steps:
+            tags.append("up to " + until_step)
+    except Exception:
+        pass
+    return tags
+
+
+# Filtering the cards by name (and "Selected only"), and the "Select all" /
+# "Clear" buttons, are answered in the browser (assets/jobs_config.js): they
+# only read and write what the page already holds, and a round trip made "Clear"
+# take seconds to show on a loaded machine.
+dash.clientside_callback(
+    dash.ClientsideFunction(namespace="odatix_jobs", function_name="filter_cards"),
     Output({"type": "job-section", "arch": dash.ALL}, "style"),
     Input("jobs-arch-search", "value"),
     Input("jobs-arch-filter", "value"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     State({"type": "job-section", "arch": dash.ALL}, "id"),
+    prevent_initial_call=True,
 )
-def filter_arch_cards(search_text, filter_value, switch_values, section_ids):
-    """Filter the instance cards by name and, optionally, hide the ones that are
-    not selected to run."""
-    needle = (search_text or "").strip().lower()
-    only_enabled = "enabled" in (filter_value or [])
-    styles = []
-    for enabled, sid in zip(switch_values or [], section_ids or []):
-        arch = sid.get("arch", "") if isinstance(sid, dict) else ""
-        visible = (not needle or needle in str(arch).lower()) and (not only_enabled or bool(enabled))
-        styles.append({} if visible else {"display": "none"})
-    # The switch list and the card list always have the same length; if a card
-    # has no switch yet (page still rendering), leave it visible.
-    styles.extend([{}] * (len(section_ids or []) - len(styles)))
-    return styles
 
-
-@dash.callback(
+dash.clientside_callback(
+    dash.ClientsideFunction(namespace="odatix_jobs", function_name="select_all"),
     Output({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     Input("jobs-select-all", "n_clicks"),
     Input("jobs-select-none", "n_clicks"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     prevent_initial_call=True,
 )
-def select_all_archs(select_all_clicks, select_none_clicks, switch_values):
-    """Enable / disable every instance at once."""
-    if ctx.triggered_id == "jobs-select-all":
-        return [[True]] * len(switch_values or [])
-    if ctx.triggered_id == "jobs-select-none":
-        return [[]] * len(switch_values or [])
-    raise dash.exceptions.PreventUpdate
 
 
 # Folding the Job Settings section away is done on the client, on the document,
@@ -569,6 +693,8 @@ def select_all_archs(select_all_clicks, select_none_clicks, switch_values):
     Output({"type": "domain-selections", "arch": dash.MATCH}, "data"),
     Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
+    # Rendered with the selections of the checklists it mirrors.
+    prevent_initial_call=True,
 )
 def update_domain_selections(selected_per_domain, domain_ids):
     domains_configs = {}
@@ -617,6 +743,10 @@ def preview_select_all(n_clicks, options):
     State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
     State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
     State({"type": "domain-selections", "arch": dash.MATCH}, "data"),
+    # The preview is rendered matching its panels: only a click changes it.
+    # Firing once per card on load held the summary back until every card had
+    # answered (several seconds for the examples).
+    prevent_initial_call=True,
 )
 def sync_preview_values(
     selected_per_domain,
@@ -751,12 +881,12 @@ def sync_preview_values(
     if current_preview_values and arch_name in current_preview_values:
         preview_set.add(arch_name)
 
-    # Return a sorted list for display stability
+    # Return a sorted list for display stability ("8bits" before "16bits")
     result = []
     if arch_name in preview_set:
         result.append(arch_name)
         preview_set.remove(arch_name)
-    result.extend(sorted(preview_set))
+    result.extend(natsort.natsorted(preview_set))
 
     return result
 
@@ -808,6 +938,23 @@ def update_preview_title(preview_value, arch_metadata):
     default_enabled = arch_name in selected
     n_selected = len([v for v in selected if v != arch_name])
     return _preview_title(n_combos, default_enabled, n_selected)
+
+
+def changed_settings(current_settings, saved_settings):
+    """
+    What Save writes: only the settings the page changed since it loaded them.
+    The file is updated in place, so what is left out stays as it is written
+    there -- a key the file never had is not added (force_single_thread, the
+    frequencies of a run that does not override them...), and a block the page
+    does not edit (the "expected" findings of an analysis) is not rewritten.
+    """
+    if not isinstance(saved_settings, dict):
+        return dict(current_settings)
+    return {
+        key: value
+        for key, value in current_settings.items()
+        if key not in saved_settings or saved_settings.get(key) != value
+    }
 
 
 @dash.callback(
@@ -926,14 +1073,12 @@ def save_architecture_selections(
     if triggered_id == {"page": page_path, "action": "save-all"}:
         try:
             settings_path = context["settings_path"]
-            payload = {
-                **read_yaml(settings_path, default={}),
-                **current_settings,
+            payload = changed_settings(current_settings, saved_settings)
+            if selection_key in payload:
                 # Written with domain wildcards ("Design/* + domain/config"),
                 # so a selection covering a whole domain keeps covering it when
                 # a configuration is added to that domain later.
-                selection_key: _compacted_selection(context, run_mode, current_settings.get(selection_key)),
-            }
+                payload[selection_key] = _compacted_selection(context, run_mode, payload[selection_key])
             write_run_settings(
                 settings_path,
                 payload,

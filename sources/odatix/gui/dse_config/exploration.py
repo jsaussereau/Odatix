@@ -115,6 +115,17 @@ def start_check(workspace, settings, campaigns, session=None):
             campaigns = exploration.check()
             plan = [_describe(campaign) for campaign in campaigns]
         checked = exploration
+        if not any(entry["remaining"] for entry in plan):
+            # Every budget is spent: "odatix dse" starts nothing in that case,
+            # and neither does Start.
+            messages.add(
+                "note",
+                "Nothing to run: every selected campaign has spent its budget. Raise its "
+                "\"budget\" to search further, or switch on \"Evaluate again what is already "
+                "done\" to start over.",
+            )
+            status = {"status": "spent", "error": None}
+            return
         status = {"status": "checked", "error": None}
     except CampaignError as error:
         messages.add("error", str(error))
@@ -142,6 +153,31 @@ def check(workspace, settings, campaigns, session=None):
     )
     _check_thread.start()
     return status
+
+
+def faulty_campaigns(error):
+    """
+    The campaigns of the exploration being checked that an error is about:
+    the ones whose file it names, or every one of them when it names none.
+    """
+    from odatix.dse.campaigns import campaign_path
+
+    names = [
+        str(getattr(campaign, "name", "") or "")
+        for campaign in ((request or {}).get("campaigns") or [])
+    ]
+    names = [name for name in names if name]
+    workspace = (request or {}).get("workspace")
+    text = str(error or "")
+    named = []
+    for name in names:
+        try:
+            path = campaign_path(workspace, name) if workspace is not None else ""
+        except Exception:
+            path = ""
+        if (path and path in text) or '"{0}"'.format(name) in text or "[{0}]".format(name) in text:
+            named.append(name)
+    return named or names
 
 
 def is_checking():

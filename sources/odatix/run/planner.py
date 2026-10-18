@@ -34,7 +34,7 @@ from os.path import isdir, isfile
 
 import odatix.lib.printc as printc
 from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
-from odatix.lib.run_report import Category, JobPlan, runs
+from odatix.lib.run_report import Category, JobPlan, runs, step_details
 
 __all__ = ["JobPlanner", "leave_jobs_to_sessions"]
 
@@ -144,6 +144,24 @@ class JobPlanner(object):
             return " {0}(session status: {1}){2}".format(printc.colors.GREY, status, printc.colors.ENDC)
         return " {0}({1} in session {2}){3}".format(printc.colors.GREY, status, session_id, printc.colors.ENDC)
 
+    @staticmethod
+    def skipped_message(subject, entry):
+        """What a run says of a job it leaves to the session that has it."""
+        entry = entry or {}
+        session_id = str(entry.get("session_id", "")).strip() or "unknown"
+        return "Already in session {0} ({1}): {2} skipped.".format(
+            session_id, str(entry.get("status", "unknown")), subject
+        )
+
+    @staticmethod
+    def requeued_message(subject, entry):
+        """What a run says of a job a session left failed or canceled, which it runs again."""
+        entry = entry or {}
+        session_id = str(entry.get("session_id", "")).strip() or "unknown"
+        return "{0} is {1} in session {2}: running it again.".format(
+            subject, str(entry.get("status", "unknown")), session_id
+        )
+
     def refresh_daemon_jobs(self):
         """Read what the daemon sessions are working on."""
         self._daemon_jobs_by_tmp_dir = {}
@@ -237,13 +255,13 @@ class JobPlanner(object):
         status_file = os.path.join(tmp_dir, self.work_log_path, self.status_filename)
         steps_decision = self.steps_decision(tmp_dir)
 
+        # A job already done is not announced here: the checklist lists it,
+        # under "Existing results" (or "Overwrite" with -o/--overwrite).
         if steps_decision is not None:
             if steps_decision == "cached":
                 if self.overwrite:
-                    printc.warning("Every requested step is already done for " + subject + ".", script_name)
                     state = "overwrite"
                 else:
-                    printc.note("Every requested step is already done for " + subject + ". Skipping.", script_name)
                     state = "cached"
             elif steps_decision in ("resume", "rerun") and not self.overwrite:
                 state = steps_decision
@@ -253,10 +271,8 @@ class JobPlanner(object):
                 completed = self.valid_status in sf.read()
             if completed:
                 if self.overwrite:
-                    printc.warning("Found cached results for " + subject + ".", script_name)
                     state = "overwrite"
                 else:
-                    printc.note("Found cached results for " + subject + ". Skipping.", script_name)
                     state = "cached"
             else:
                 printc.warning(
@@ -271,23 +287,12 @@ class JobPlanner(object):
 
         decision, daemon_entry = self.daemon_decision(tmp_dir, steps_decision)
         if decision == "skip":
-            daemon_status = str(daemon_entry.get("status", "unknown"))
-            daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
-            printc.note(
-                "Found existing daemon job for " + subject
-                + " (session \"" + daemon_session + "\", status \"" + daemon_status + "\"). Skipping.",
-                script_name,
-            )
+            printc.note(JobPlanner.skipped_message(subject, daemon_entry), script_name)
             return "daemon", daemon_entry
         # A finished job re-enqueued for the steps it has left is a resume, which
         # the plan already reports ("Partially done"): only a failure is news.
         if decision == "replace" and daemon_entry.get("status") in JobPlanner.DAEMON_RESTARTABLE_STATUSES:
-            daemon_status = str(daemon_entry.get("status", "unknown"))
-            printc.warning(
-                "Found previously failed/canceled daemon job for " + subject
-                + " (status \"" + daemon_status + "\"). Re-enqueueing.",
-                script_name,
-            )
+            printc.warning(JobPlanner.requeued_message(subject, daemon_entry), script_name)
 
         return state, daemon_entry
 
@@ -295,9 +300,10 @@ class JobPlanner(object):
     # The plan
     ######################################
 
-    def record(self, name, state, daemon_entry=None):
+    def record(self, name, state, daemon_entry=None, tmp_dir=None):
         """
-        Add a job to the plan, under the category its state calls for.
+        Add a job to the plan, under the category its state calls for. Given its
+        directory, a job that resumes or runs steps again says which ones.
 
         Returns whether the job is one this run will actually work on, which is
         what tells a caller to keep building it.
@@ -308,7 +314,10 @@ class JobPlanner(object):
         if state == "daemon":
             self.plan.add(name + JobPlanner.format_daemon_entry(daemon_entry or {}), Category.DAEMON)
             return False
-        self.plan.add(name, STATE_CATEGORIES.get(state, Category.NEW))
+        details = {}
+        if tmp_dir is not None and state in ("resume", "rerun"):
+            details = step_details(tmp_dir, self.requested_steps, self.rerun_step_index)
+        self.plan.add(name, STATE_CATEGORIES.get(state, Category.NEW), **details)
         return True
 
     def __repr__(self):
@@ -354,21 +363,12 @@ def leave_jobs_to_sessions(instances, plan, tmp_dir, name, overwrite=False, scri
         decision, entry = planner.daemon_decision(tmp_dir(instance))
         if decision != "skip":
             if decision == "replace" and (entry or {}).get("status") in JobPlanner.DAEMON_RESTARTABLE_STATUSES:
-                printc.warning(
-                    'Found previously failed/canceled daemon job for "' + str(name(instance))
-                    + '" (status "' + str(entry.get("status")) + '"). Re-enqueueing.',
-                    script_name,
-                )
+                printc.warning(JobPlanner.requeued_message('"' + str(name(instance)) + '"', entry), script_name)
             kept.append(instance)
             continue
 
         job_name = str(name(instance))
-        printc.note(
-            'Found existing daemon job for "' + job_name + '" (session "'
-            + (str(entry.get("session_id", "")).strip() or "unknown") + '", status "'
-            + str(entry.get("status", "unknown")) + '"). Skipping.',
-            script_name,
-        )
+        printc.note(JobPlanner.skipped_message('"' + job_name + '"', entry), script_name)
         for plan_entry in plan.entries:
             if plan_entry["name"] == job_name and runs(plan_entry["category"]):
                 plan_entry["category"] = Category.DAEMON

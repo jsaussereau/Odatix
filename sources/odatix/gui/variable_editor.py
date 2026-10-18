@@ -129,11 +129,14 @@ def number(text):
 def build_variables_dict(
     titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals,
     from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals,
-    sources_vals, format_vals, group_vals,
+    sources_vals, format_vals, group_vals, unit_vals=None,
 ):
     """
     Build a ``variables`` dict from the values
     of the variable card fields (one entry per index).
+
+    ``unit_vals`` comes from the cards of a page showing the "Unit" field (see
+    :func:`variable_card`); a page that does not show it passes nothing.
     """
     variables = {}
     for idx, title in enumerate(titles):
@@ -172,6 +175,10 @@ def build_variables_dict(
             settings["sources"] = [x.strip() for x in sources_vals[idx].split(",") if x.strip()] if sources_vals[idx] else []
         group = group_vals[idx] if group_vals[idx] else None
         variable = variable_definition(title, variable_type, settings, format=var_format, group=group)
+        unit = unit_vals[idx] if unit_vals is not None and idx < len(unit_vals) else None
+        unit = "" if unit is None else str(unit).strip()
+        if unit:
+            variable[str(title)]["unit"] = unit
         variables.update(variable)
     return variables
 
@@ -180,23 +187,41 @@ def build_variables_dict(
 #: the card, and is kept as the file has it (see :func:`keep_unmanaged_keys`).
 MANAGED_KEYS = ("type", "settings", "format", "group")
 
+#: The same, for the cards showing the "Unit" field.
+MANAGED_KEYS_WITH_UNIT = MANAGED_KEYS + ("unit",)
 
-def keep_unmanaged_keys(variables, stored_variables):
+
+def merge_in_file_order(edited, stored, managed):
+    """
+    One entry as a page edited it, laid out as the file had it: the keys the
+    file had come back at their place, those the page does not edit (not in
+    ``managed``) with the file's value, and the keys the page added come last.
+    Saving a page then never drops what it does not show, nor moves what it
+    did not touch.
+    """
+    if not isinstance(edited, dict) or not isinstance(stored, dict):
+        return edited
+    merged = {}
+    for key, value in stored.items():
+        if key in edited:
+            merged[key] = edited[key]
+        elif key not in managed:
+            merged[key] = value
+    for key, value in edited.items():
+        if key not in merged:
+            merged[key] = value
+    return merged
+
+
+def keep_unmanaged_keys(variables, stored_variables, managed=MANAGED_KEYS):
     """
     The variables the cards describe, with the keys the cards do not edit kept
-    from the stored variable of the same name. Saving a page then never drops
-    what it does not show.
+    from the stored variable of the same name, where the file had them.
     """
     stored_variables = stored_variables if isinstance(stored_variables, dict) else {}
     kept = {}
     for name, definition in (variables or {}).items():
-        stored = stored_variables.get(name)
-        if isinstance(definition, dict) and isinstance(stored, dict):
-            extra = {key: value for key, value in stored.items() if key not in MANAGED_KEYS}
-            if extra:
-                definition = dict(definition)
-                definition.update(extra)
-        kept[name] = definition
+        kept[name] = merge_in_file_order(definition, stored_variables.get(name), managed)
     return kept
 
 
@@ -296,9 +321,14 @@ def variable_card(
     op_value="", list_value="", source_value="", sources_value="", format_value="", group_value="",
     scope: Optional[dict] = None,
     collapsible: bool = False, collapsed: bool = False,
+    unit_value=None,
 ):
     """
     A full variable definition card (title, type dropdown, fields, actions).
+
+    ``unit_value`` adds the "Unit" field, whatever the type, to the cards of a
+    page that reads it back (a workflow, whose values name the jobs and the
+    columns of the results). None leaves the field out.
 
     A page holding many of them at once may ask for ``collapsible`` cards. The
     card is then a row rather than a tile: name, type, and the values the
@@ -391,14 +421,24 @@ def variable_card(
                     # Not behind a fold of their own: they are fields of the
                     # variable like any other, shown whenever its type uses them
                     # and laid out on the same line when there is room.
-                    variable_field(prefix, var=name, name="format", label="Format", type="text", value=format_value, scope=scope),
+                    variable_field(prefix, var=name, name="format", label="Format", type="text", value=format_value, scope=scope,
+                        placeholder="e.g. %03d, %.2f",
+                        tooltip="A printf-style format applied to each value where the variable is used: "
+                                "\"%03d\" writes 8 as 008, \"%.2f\" as 8.00. Leave empty to use the value as it is.",
+                    ),
                     variable_field(prefix, var=name, name="group", label="Variable group", type="text",
                         placeholder="Zip with same-group variables", value=group_value, scope=scope,
                         tooltip="Variables sharing the same group name are paired: their values are matched "
                                 "position by position (like zip) instead of being combined with every other value. "
                                 "Paired variables must have the same number of values. Leave empty for no pairing.",
                     ),
-                ],
+                ] + ([
+                    variable_field(prefix, var=name, name="unit", label="Unit", type="text", value=unit_value,
+                        placeholder="e.g. ms, bits", default_style=Style.visible, scope=scope,
+                        tooltip="Appended to each value in the name of the jobs and in the results "
+                                "(\"10\" with unit \"km\" gives \"10km\"). Leave empty for none.",
+                    ),
+                ] if unit_value is not None else []),
         id=component_id(prefix, "variable-fields-container", name, scope),
         className="odx-variable-fields-grid odx-variable-fields" if collapsible else "odx-variable-fields-grid",
         style=Style.hidden if (collapsible and collapsed) else {},
@@ -444,11 +484,12 @@ def variable_card(
     })
 
 
-def card_field_values(var_keys):
+def card_field_values(var_keys, with_unit=False):
     """
     What every field of a card shows for one ``variables`` dict entry, as the
     strings the components hold. The counterpart of
     :func:`build_variables_dict`, which reads those same fields back.
+    ``with_unit`` adds the value of the "Unit" field.
     """
     def field(source, key, default=""):
         """Field value as a string, treating a missing and a None value alike."""
@@ -486,7 +527,7 @@ def card_field_values(var_keys):
             else:
                 to_value = value
 
-    return {
+    values = {
         "type_value": variable_type,
         "base_value": field(var_settings, "base"),
         "from_value": from_value,
@@ -506,16 +547,20 @@ def card_field_values(var_keys):
         "format_value": field(var_settings if variable_type == "format" else var_keys, "format"),
         "group_value": field(var_keys, "group"),
     }
+    if with_unit:
+        values["unit_value"] = field(var_keys, "unit")
+    return values
 
 
 def variable_card_from_config(prefix: str, var_name, var_keys, scope: Optional[dict] = None,
-                              collapsible: bool = False, collapsed: bool = False):
+                              collapsible: bool = False, collapsed: bool = False, with_unit: bool = False):
     """Build a variable card from a single ``variables`` dict entry."""
     return variable_card(prefix, name=var_name, scope=scope, collapsible=collapsible, collapsed=collapsed,
-                         **card_field_values(var_keys))
+                         **card_field_values(var_keys, with_unit=with_unit))
 
 
-def variable_cards_from_dict(prefix: str, variables, scope: Optional[dict] = None, collapsible: bool = False):
+def variable_cards_from_dict(prefix: str, variables, scope: Optional[dict] = None, collapsible: bool = False,
+                             with_unit: bool = False):
     """
     Build the list of variable cards for a ``variables`` dict (no add card).
 
@@ -526,7 +571,8 @@ def variable_cards_from_dict(prefix: str, variables, scope: Optional[dict] = Non
     if isinstance(variables, dict):
         for var_name, var_keys in variables.items():
             cards.append(variable_card_from_config(prefix, var_name, var_keys, scope,
-                                                   collapsible=collapsible, collapsed=collapsible))
+                                                   collapsible=collapsible, collapsed=collapsible,
+                                                   with_unit=with_unit))
     return cards
 
 

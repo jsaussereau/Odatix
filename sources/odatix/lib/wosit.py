@@ -22,6 +22,50 @@
 import os
 from wosit.Maker import Maker
 
+# WoSIT reads a "%" as the stem of a pattern rule, and refuses one in the command
+# of any other rule. A task command is plain shell, where "%" is common
+# ("date +%s", "printf %d"): it is handed to WoSIT under this stand-in, and given
+# back when the stages are read (see _TaskGraph.getStages).
+_PERCENT = "\x00odatix-percent\x00"
+
+
+def _escape_percent(command):
+    return command.replace("%", _PERCENT) if isinstance(command, str) else command
+
+
+def _restore_percent(command):
+    return command.replace(_PERCENT, "%") if isinstance(command, str) else command
+
+
+class _Stage(dict):
+    """A task of a stage: a {"name", "command"} entry, read as a WoSIT task too."""
+
+    def getName(self):
+        return self["name"]
+
+    def getCommand(self):
+        return self["command"]
+
+
+class _TaskGraph(Maker):
+    """
+    A WoSIT graph whose stages hold the tasks as {"name", "command"} entries,
+    the commands as the settings file wrote them.
+    """
+
+    def getStages(self, name=None, max_process=1):
+        stages = super().getStages(name=name, max_process=max_process)
+        if not isinstance(stages, dict):
+            return stages
+        return {
+            level: [
+                _Stage(name=task.getName(), command=_restore_percent(task.getCommand()))
+                for task in tasks
+            ]
+            for level, tasks in stages.items()
+        }
+
+
 def _command_list(commands, key, task_name):
     if commands is None:
         return []
@@ -113,7 +157,7 @@ def createTaskGraph(
     if not isinstance(tasks, list):
         raise TypeError(f"Expected a list for 'tasks', but got {type(tasks).__name__}.")
 
-    maker = Maker()
+    maker = _TaskGraph()
 
     # What each task stands for in the graph: its name, or the file it produces
     # in its own directory. Dependencies name tasks, they are mapped to that.
@@ -122,6 +166,8 @@ def createTaskGraph(
         name = task.get("name")
         if name is None:
             raise ValueError("Each task must have a 'name' key.")
+        if "%" in str(name):
+            raise ValueError(f"Task name \"{name}\" contains \"%\": a task name cannot contain it.")
         task_dir = _task_directory(task.get("path"), path)
         target = str(name)
         if not _is_phony(task, name) and task_dir is not None and not os.path.isabs(target):
@@ -158,10 +204,16 @@ def createTaskGraph(
         if done_command and name == "main":
             command = command + "\n" + done_command if command else done_command
 
+        for source in resolved_sources:
+            if "%" in str(source):
+                raise ValueError(
+                    f"Dependency \"{source}\" of task \"{name}\" contains \"%\": a dependency cannot contain it."
+                )
+
         maker.addRule(
             target=targets[name],
             source=resolved_sources,
-            command=command,
+            command=_escape_percent(command),
             phony=_is_phony(task, name),
         )
 

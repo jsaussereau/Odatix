@@ -295,11 +295,16 @@ def create_parallel_job_app(
             raise ValueError("'jobs' must be a list")
 
         added = 0
+        # The ids the session gives the jobs: what the run that sent them waits
+        # for, when the session also runs the jobs of other runs ("-E").
+        job_ids = []
         for item in jobs_data:
             if not isinstance(item, dict):
                 raise ValueError("each job entry must be a JSON object")
             job = payload_to_job(item, default_log_size_limit=getattr(handler, "log_size_limit", 200))
-            handler.add_job(job)
+            job_id = handler.add_job(job)
+            if isinstance(job_id, int):
+                job_ids.append(job_id)
             added += 1
 
         # What the run wants done once its batch is over (deriving metrics
@@ -309,7 +314,7 @@ def create_parallel_job_app(
         if callable(add_action):
             add_action(payload.get("post_batch_action"))
 
-        return _ok("jobs enqueued", added=added, total_jobs=len(handler.job_list))
+        return _ok("jobs enqueued", added=added, total_jobs=len(handler.job_list), job_ids=job_ids)
 
     @app.post("/config")
     def set_config(

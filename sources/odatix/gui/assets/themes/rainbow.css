@@ -61,7 +61,7 @@
     --default-button-icon-color: var(--theme-text-color);
     --default-button-text-color: var(--theme-text-color);
     --default-button-background: var(--theme-tertiary-color);
-    --back-button-color: #fdfdfdc4;
+    --back-button-color: var(--theme-secondary-text-color);
 
     /* monitor */
     --progress-bar-background-color: #ffffff3d;

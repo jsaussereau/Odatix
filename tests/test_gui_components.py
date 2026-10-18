@@ -251,13 +251,13 @@ class TestNavigation:
     def test_choose_targets_link_follows_url_tool(self):
         jobs_config = import_jobs_config()
 
-        href, _cls = jobs_config.update_choose_targets_link("?type=fmax&tool=openlane")
-        assert href == "/select_targets?tool=openlane"
-        href, _cls = jobs_config.update_choose_targets_link("?type=fmax&tool=design_compiler")
-        assert href == "/select_targets?tool=design_compiler"
+        href, _cls, _back = jobs_config.update_choose_targets_link("?type=fmax&tool=openlane")
+        assert href.startswith("/select_targets?tool=openlane&back=")
+        href, _cls, _back = jobs_config.update_choose_targets_link("?type=fmax&tool=design_compiler")
+        assert href.startswith("/select_targets?tool=design_compiler&back=")
         # no tool in the url: same default as the rest of the page
-        href, _cls = jobs_config.update_choose_targets_link("")
-        assert href == "/select_targets?tool=vivado"
+        href, _cls, _back = jobs_config.update_choose_targets_link("")
+        assert href.startswith("/select_targets?tool=vivado&back=")
 
     def test_choose_targets_link_hidden_for_analyze(self):
         # RTL analysis does not use target definition files: the "Choose
@@ -265,11 +265,11 @@ class TestNavigation:
         dash.Dash(__name__, use_pages=True, pages_folder="")
         jobs_config = import_jobs_config()
 
-        _href, cls = jobs_config.update_choose_targets_link("?type=analyze&tool=vivado")
+        _href, cls, _back = jobs_config.update_choose_targets_link("?type=analyze&tool=vivado")
         assert cls == "hidden"
 
         # sanity: a non-analyze mode keeps the button visible
-        _href, cls = jobs_config.update_choose_targets_link("?type=fmax_synthesis&tool=vivado")
+        _href, cls, _back = jobs_config.update_choose_targets_link("?type=fmax_synthesis&tool=vivado")
         assert cls != "hidden"
         assert "disabled" not in cls
 
@@ -969,10 +969,16 @@ class TestWorkflowCheckSettings:
         import odatix.components.run_workflow as run_workflow
 
         monkeypatch.setattr(run_workflow, "prepare_workflows", fake_prepare_workflows)
+        # Preparing hands the jobs over to a session too (see checks.start_prepare)
+        from odatix.gui.jobs_config import checks
+        monkeypatch.setattr(
+            checks.daemon_control, "enqueue_parallel_jobs",
+            lambda jobs, session=None: ({"session_id": "1.s"}, {}),
+        )
         jobs_config_module._prepare_synth_type = "workflow"
         jobs_config_module.start_prepare()
 
-        assert jobs_config_module._prepare_status == {"status": "prepared", "error": None}
+        assert jobs_config_module._prepare_status == {"status": "launched", "error": None}
         assert jobs_config_module._prepare_parallel_jobs == "fake-parallel-jobs"
         assert "workflow_instances" in called
         assert "prepare_job" in called
@@ -1415,18 +1421,12 @@ class TestWorkflowEditorAddButtons:
     def test_add_variable_callback_listens_on_the_real_button_id(self, workflow_editor_module, monkeypatch):
         from types import SimpleNamespace
 
-        monkeypatch.setattr(workflow_editor_module, "ctx", SimpleNamespace(triggered_id="wf-variable-new"))
-        result = workflow_editor_module.update_wf_variable_cards(
-            new_click=1,
-            duplicate_clicks=[],
-            delete_clicks=[],
-            cards=[],
-            types=[], base_vals=[], from_vals=[], to_vals=[], from_2_pow_vals=[], to_2_pow_vals=[],
-            from_type_vals=[], to_type_vals=[], step_vals=[], op_vals=[], list_vals=[], source_vals=[], sources_vals=[],
-            group_vals=[],
-        )
-        ids = [getattr(card, "id", None) for card in result]
-        assert {"type": "wf-variable-card", "name": "var1"} in ids
+        monkeypatch.setattr(workflow_editor_module, "ctx", SimpleNamespace(
+            triggered_id="wf-variable-new", triggered=[{"prop_id": "wf-variable-new.n_clicks", "value": 1}]))
+        slots = {"cards": {}, "add": 0, "next": 1}
+        children, slots = workflow_editor_module.update_wf_variable_cards(
+            1, [], [], [], [{"type": "wf-variable-slot", "slot": 0}], slots, *([[]] * 16))
+        assert "var1" in str(children[0]) and slots["cards"] == {"var1": 1}
 
     def test_add_task_callback_listens_on_the_real_button_id(self, workflow_editor_module, monkeypatch):
         from types import SimpleNamespace
@@ -1434,10 +1434,13 @@ class TestWorkflowEditorAddButtons:
         task_card = workflow_editor_module.wf_add_card(prefix="wf-task", text="Add new task", mode="task")
         assert task_card.children.id == "wf-task-new"
 
-        monkeypatch.setattr(workflow_editor_module, "ctx", SimpleNamespace(triggered_id="wf-task-new"))
-        result = workflow_editor_module.update_wf_task_cards(1, [], [], [], [], [], [], [], [], [])
-        ids = [getattr(card, "id", None) for card in result]
-        assert any(isinstance(i, dict) and i.get("name") == "task1" for i in ids)
+        monkeypatch.setattr(workflow_editor_module, "ctx", SimpleNamespace(
+            triggered_id="wf-task-new", triggered=[{"prop_id": "wf-task-new.n_clicks", "value": 1}]))
+        slots = {"cards": {"main": 0}, "add": 1, "next": 2}
+        slot_ids = [{"type": "wf-task-slot", "slot": 0}, {"type": "wf-task-slot", "slot": 1}]
+        children, _slots = workflow_editor_module.update_wf_task_cards(
+            1, [], [], [{"type": "wf-task-card", "name": "main"}], slot_ids, slots, *([[]] * 8))
+        assert "task1" in str(children[1])
 
 
 ######################################
@@ -1501,8 +1504,8 @@ class TestChooseEdaToolPage:
         assert links
         assert all(link.startswith("/run_jobs?") for link in links)
 
-    def test_a_tool_with_nothing_to_choose_is_a_single_link(self, page, tmp_path):
-        # A tool with a single one shot flow: its whole card is the link.
+    def test_a_tool_with_nothing_to_choose_has_a_run_button(self, page, tmp_path):
+        # A tool with a single one shot flow: one "Run" button in its card (AP-16).
         tool_dir = tmp_path / "tools" / "oneshot"
         tool_dir.mkdir()
         (tool_dir / "tool.yml").write_text(
@@ -1514,7 +1517,7 @@ class TestChooseEdaToolPage:
             "  synthesis:\n"
             "    label: Synthesis\n"
         )
-        links = self.links(page, "custom_freq_synthesis", className="odx-tool-card")
+        links = self.links(page, "custom_freq_synthesis", className="odx-flow")
         assert "/run_jobs?type=custom_freq_synthesis&tool=oneshot&flow=synthesis" in links
 
     def test_the_flows_of_a_tool_are_buttons_inside_its_card(self, page):
@@ -1583,6 +1586,11 @@ class TestStepSelectionReachesTheRun:
     def check(self, jobs_config_module, mode, **options):
         from odatix.workspace import Workspace
 
+        # Run refuses a directory that is not a workspace.
+        import os
+
+        if not os.path.isfile("odatix.yml"):
+            open("odatix.yml", "w").close()
         jobs_config_module.start_check(mode, Workspace.open(), **options)
 
     def test_custom_freq_passes_the_last_step_to_the_runner(self, jobs_config_module, monkeypatch, in_tmp_dir):
@@ -3527,7 +3535,7 @@ class TestTaskEditor:
         import odatix.gui.task_editor as te
 
         for module, prefix, callback in (
-            (workflow_editor_module, "wf", "save_and_status"),
+            (workflow_editor_module, "wf", "save_workflow"),
             (sim_editor_module, "sim", "save_and_status"),
         ):
             source = __import__("inspect").getsource(getattr(module, callback))
@@ -3541,17 +3549,16 @@ class TestTaskEditor:
     def test_duplicating_a_task_keeps_its_fallback(self, workflow_editor_module, monkeypatch):
         from types import SimpleNamespace
 
-        cards = workflow_editor_module.wf_cards_from_tasks(
-            [{"name": "main", "commands": ["a"], "on_failure_commands": ["b"]}]
-        )
-        cards = [card.to_plotly_json() if hasattr(card, "to_plotly_json") else card for card in cards]
         monkeypatch.setattr(
             workflow_editor_module, "ctx",
-            SimpleNamespace(triggered_id={"type": "wf-duplicate-task", "name": "main"}),
+            SimpleNamespace(triggered_id={"type": "wf-duplicate-task", "name": "main"},
+                            triggered=[{"prop_id": "x.n_clicks", "value": 1}]),
         )
-        result = workflow_editor_module.update_wf_task_cards(
-            None, [1], [None], cards, ["main"], [""], ["a"], ["b"], [""], [""],
+        children, _slots = workflow_editor_module.update_wf_task_cards(
+            None, [1], [None], [{"type": "wf-task-card", "name": "main"}],
+            [{"type": "wf-task-slot", "slot": 0}, {"type": "wf-task-slot", "slot": 1}],
+            {"cards": {"main": 0}, "add": 1, "next": 2},
+            ["main"], [""], ["a"], ["b"], [""], [""], [], [],
         )
-        names, _, _, fallbacks, _, _ = self._fields([c for c in result if not isinstance(c, dict)])
-        assert "main_copy1" in names
-        assert fallbacks[names.index("main_copy1")] == "b"
+        text = str(children[1])
+        assert "main_copy1" in text and "'b'" in text

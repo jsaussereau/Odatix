@@ -28,6 +28,7 @@ standalone shell) without touching the host layout.
 
 from dash import dcc, html
 
+from odatix.explorer.core.store import STORE
 import odatix.explorer.core.rules as rules
 import odatix.explorer.ui.components as components
 import odatix.explorer.ui.sidebar as sidebar
@@ -63,6 +64,33 @@ def explorer_state_stores():
   ]
 
 
+def placeholder_figure():
+  """
+  What a chart page shows until its first figure arrives.
+
+  An empty ``figure={}`` is drawn by Plotly with its default template: a white
+  rectangle with axes from -1 to 6, which flashed in every dark theme and
+  read as an empty result in the light ones. This one is transparent, has no
+  axes, and says it is coming. It carries no ``meta.odatix`` mark, which is how
+  explorer_tabs.js tells it from a drawn chart.
+  """
+  hidden = dict(visible=False)
+  return {
+    "data": [],
+    "layout": {
+      "paper_bgcolor": "rgba(0,0,0,0)",
+      "plot_bgcolor": "rgba(0,0,0,0)",
+      "xaxis": hidden,
+      "yaxis": hidden,
+      "margin": dict(l=0, r=0, t=0, b=0),
+      "annotations": [dict(
+        text="Loading the chart…", showarrow=False, xref="paper", yref="paper", x=0.5, y=0.5,
+        font=dict(size=14, color="#8a8f98"),
+      )],
+    },
+  }
+
+
 def explorer_shell(kind):
   if kind in ("overview", "table"):
     area_id = "xp-overview-area" if kind == "overview" else "xp-table-area"
@@ -72,7 +100,7 @@ def explorer_shell(kind):
         # Never shown: the single-figure callback (callbacks/figure.py) listens
         # to the same controls as these pages, and its output must exist on
         # every page it can fire on (it then does nothing, see update_figure).
-        dcc.Graph(id="xp-graph", figure={}, config=components.graph_config(), style={"display": "none"}),
+        dcc.Graph(id="xp-graph", figure=placeholder_figure(), config=components.graph_config(), style={"display": "none"}),
       ],
       className="xp-area-wrapper",
       style={"display": "contents"},
@@ -81,7 +109,7 @@ def explorer_shell(kind):
     graph_area = dcc.Graph(
       id="xp-graph",
       className="xp-graph",
-      figure={},
+      figure=placeholder_figure(),
       config=components.graph_config(),
       style={"height": "100%"},
     )
@@ -92,7 +120,9 @@ def explorer_shell(kind):
       # chart pages: without it their ALL-patterns match on every page of the app.
       anchor("explorer_shell"),
       dcc.Store(id="xp-chart-kind", data=kind),
-      dcc.Store(id="xp-data-version", data=-1),
+      # The version of the data the page is built on: the first poll then
+      # finds nothing new, instead of drawing every chart a second time.
+      dcc.Store(id="xp-data-version", data=STORE.version if STORE.result_path else -1),
       dcc.Interval(id="xp-poll", interval=POLL_INTERVAL_MS),
       dcc.Download(id="xp-download"),
       # Navigation target of the saved-view restore (view of another chart kind).
@@ -105,6 +135,16 @@ def explorer_shell(kind):
       html.Div(
         [
           html.Div(id="xp-error"),
+          # Shown by explorer_tabs.js when the chart could not be drawn
+          # after a few automatic retries: one click asks for it again.
+          html.Div(
+            [
+              html.Span("The chart could not be drawn: the server did not answer in time."),
+              html.Button("Retry", id="xp-redraw", n_clicks=0, className="xp-button xp-redraw-button"),
+            ],
+            id="xp-redraw-bar",
+            className="xp-redraw-bar",
+          ),
           html.Div(graph_area, id="xp-graph-area", className="xp-graph-area"),
         ],
         className="xp-content",

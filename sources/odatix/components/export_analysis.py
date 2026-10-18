@@ -52,7 +52,7 @@ TYPE_ANALYSIS = analysis.TYPE_ANALYSIS
 
 def analysis_results_filename(tool):
   """The results file of the analyses of a tool, in the workspace result directory."""
-  return "results_analysis_" + str(tool) + ".yml"
+  return analysis.results_filename(tool)
 
 
 def export_analysis_results(results, output_dir, quiet=False):
@@ -169,6 +169,27 @@ def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_
   return configured
 
 
+def settle_job_status(job, result):
+  """
+  Make the status of an analysis job say whether the tool ran, the same way for
+  every tool: a job whose analysis concluded something about the design
+  (passed, warnings, errors in the RTL, a language the tool does not read)
+  succeeded, whatever the exit code of the tool; one whose tool could not run or
+  did not finish failed. Tools do not agree on what an error in the RTL does to
+  their exit code (Vivado fails, a linter may not): the verdict is the analysis
+  status, not the job status.
+
+  The job handler reads ``_failed_before_export`` once the export returns to
+  settle the status of the job.
+  """
+  if job is None:
+    return
+  try:
+    job._failed_before_export = not analysis.tool_ran(result.status)
+  except Exception:
+    pass
+
+
 def export_single_analysis_job(job, export_config=None):
   """
   Export the result of one finished analysis job into the results file of its
@@ -200,6 +221,7 @@ def export_single_analysis_job(job, export_config=None):
     printc.warning('No analysis job directory "' + tmp_dir + '"', script_name=script_name)
     return False
 
+  settle_job_status(job, result)
   if not export_analysis_results([result], output_dir, quiet=True):
     return False
   printc.say(

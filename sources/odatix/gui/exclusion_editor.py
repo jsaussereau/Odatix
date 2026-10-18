@@ -32,14 +32,17 @@ are checked against the configurations the architecture has: how many
 combinations each one leaves out, and one of them as an example.
 """
 
-import math
+import difflib
+import itertools
+import random
 
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
 import odatix.gui.ui_components as ui
-from odatix.gui.utils import get_key_from_url, get_workspace
-from odatix.lib.expressions import ExpressionError, Ref, syntax_error
+from odatix.gui.utils import get_workspace
+import odatix.lib.hard_settings as hard_settings
+from odatix.lib.expressions import ExpressionError, Ref, identifier_of, names_in, syntax_error
 from odatix.workspace.exclusions import DEFAULT_APPLIED, DOMINATED, DUPLICATE, ILLEGAL, KINDS, Exclusion
 from odatix.workspace.selection import ExclusionFilter
 
@@ -58,14 +61,16 @@ CARD_KEYS = ("id", "when", "expr", "expression", "require", "kind", "message")
 #: the way it was written as long as it is not edited.
 HOLDS_KEY = "__holds__"
 
+#: Where the rest of a card notes that the rule wrote its kind, so that a rule
+#: left to the default kind is not written one by an unrelated edit.
+KIND_WRITTEN_KEY = "__kind__"
+
 #: The keys of a block written as a mapping that are not its rules.
 BLOCK_KEYS = ("apply", "ignore")
 
-#: Combinations checked at most, spread over the whole space when it has more.
+#: Combinations checked at most: a larger space is checked on that many of
+#: them, drawn at random over the whole space without listing it.
 CHECK_LIMIT = 20000
-
-#: Beyond that many combinations, listing them is already too slow for a page.
-LIST_LIMIT = 1000000
 
 #: Values shown per name in the list of what the rules can read.
 SHOWN_VALUES = 4
@@ -131,7 +136,10 @@ def card_fields(entry):
             "message": _text(entry.get("message")),
             # What the file says that the card does not show, kept so that
             # editing the card does not drop it.
-            "rest": {key: value for key, value in entry.items() if key not in CARD_KEYS},
+            "rest": dict(
+                {key: value for key, value in entry.items() if key not in CARD_KEYS},
+                **({KIND_WRITTEN_KEY: True} if "kind" in entry else {})
+            ),
         }
     # A bare expression says what has to hold: the rule leaves out the points
     # where it does not, which is how it is read (see exclusions._rule_list).
@@ -146,6 +154,7 @@ def rule_of(fields):
     """The entry one card is written as, or None when it says nothing."""
     rest = dict(fields.get("rest") or {})
     holds = rest.pop(HOLDS_KEY, None)
+    kind_written = rest.pop(KIND_WRITTEN_KEY, False)
     identifier, when, require, message = (
         _text(fields.get(key)) for key in ("id", "when", "require", "message")
     )
@@ -169,7 +178,10 @@ def rule_of(fields):
         entry["when"] = when
     if require:
         entry["require"] = require
-    entry["kind"] = kind
+    # The default kind is only written when the rule wrote it: a new rule, or
+    # one that did not, keeps the file as short as it was.
+    if kind != ILLEGAL or kind_written:
+        entry["kind"] = kind
     if message:
         entry["message"] = message
     entry.update(rest)
@@ -229,7 +241,86 @@ def cards_from_values(ids, kinds, whens, requires, messages, rests):
 # UI Components
 ######################################
 
-def exclusion_card(index, fields):
+KIND_TOOLTIP = (
+    "Illegal: the design does not work. Duplicate: the same hardware as another one, which "
+    "\"Require\" names. Both are left out of every sweep, search and selection. Dominated: the "
+    "design works but is never worth it; only a DSE campaign that asks for it leaves it out."
+)
+
+
+def kind_field(index, value):
+    """
+    The kind of a rule: three choices, all in sight. A dropdown would hide two
+    of them, open over the fields under it, and cost a card far more to draw.
+    """
+    return html.Div(
+        children=[
+            html.Div(
+                children=[html.Label("Kind"), ui.tooltip_icon(KIND_TOOLTIP)],
+                className="odx-field-label",
+            ),
+            dcc.RadioItems(
+                id={"type": "arch-exclusion-kind", "index": index},
+                options=[
+                    {"label": html.Span(option["label"], title=option["title"]), "value": option["value"]}
+                    for option in KIND_OPTIONS
+                ],
+                value=value,
+                className="odx-chips small odx-exclusion-kind",
+            ),
+        ],
+        className="odx-field",
+    )
+
+
+def readable_names(architecture):
+    """
+    A few names a rule of `architecture` can read, each with one of its values,
+    as ``("$name", "'value'")`` pairs: the parameter domains with one of their
+    configurations, or the configuration of the main domain. They make the
+    placeholders of the cards speak of this architecture rather than of another
+    one. Empty when nothing can be read.
+    """
+    if architecture is None:
+        return []
+    try:
+        domains = architecture.parameter_domains()
+    except Exception:
+        return []
+    names = []
+    for domain, configurations in domains.items():
+        if not configurations:
+            continue
+        name = "config" if domain == hard_settings.main_parameter_domain else domain
+        names.append(("$" + name, repr(str(configurations[0]))))
+    # The other domains first: telling them apart is what a rule is usually for.
+    names.sort(key=lambda pair: pair[0] == "$config")
+    return names
+
+
+def placeholders(names):
+    """The placeholders of the "When" and "Require" fields, from `readable_names`."""
+    terms = ["{0} == {1}".format(name, value) for name, value in (names or [])]
+    if not terms:
+        return "$domain == 'configuration'", "Optional, e.g. $other_domain == 'configuration'"
+    when = " and ".join(terms[:2])
+    return when, "Optional, e.g. " + terms[-1]
+
+
+def card_title(identifier, when):
+    """
+    What a card is called: its id, or else the start of what it is about, so
+    that the cards of a long block can be told apart without reading them.
+    """
+    identifier, when = _text(identifier), " ".join(_text(when).split())
+    if identifier:
+        return "Leave out: " + identifier
+    if when:
+        return "Leave out: " + (when if len(when) <= 48 else when[:47] + "\u2026")
+    return "Leave out"
+
+
+def exclusion_card(index, fields, names=None):
     """
     One rule: which combinations it is about, what kind of exclusion it is, and
     what it has found once checked.
@@ -238,10 +329,17 @@ def exclusion_card(index, fields):
         index (int): position of the card, which is what its components are
             keyed by: a rule needs no id, so the position is its identity here.
         fields (dict): what the card shows (see card_fields).
+        names (list): what a rule can read here, as ``$name`` (see
+            readable_names), for placeholders that speak of this architecture.
     """
+    when_placeholder, require_placeholder = placeholders(names)
     head = html.Div(
         children=[
-            html.Span("Leave out", className="odx-card-name odx-override-title"),
+            html.Span(
+                card_title(fields.get("id"), fields.get("when")),
+                id={"type": "arch-exclusion-title", "index": index},
+                className="odx-card-name odx-override-title",
+            ),
             ui.delete_button(
                 id={"type": "arch-delete-exclusion", "index": index},
                 tooltip="Remove this exclusion",
@@ -256,7 +354,7 @@ def exclusion_card(index, fields):
                 label="When",
                 id={"type": "arch-exclusion-when", "index": index},
                 value=fields.get("when", ""),
-                placeholder="$Overlap == 'On' and $p_rf_sp == 1",
+                placeholder=when_placeholder,
                 type="text",
                 tooltip=WHEN_TOOLTIP,
                 tooltip_options="secondary large",
@@ -266,7 +364,7 @@ def exclusion_card(index, fields):
                 label="Require",
                 id={"type": "arch-exclusion-require", "index": index},
                 value=fields.get("require", ""),
-                placeholder="Optional, e.g. $Fwd.p_fwd_pw == 1",
+                placeholder=require_placeholder,
                 type="text",
                 tooltip=REQUIRE_TOOLTIP,
                 tooltip_options="secondary large",
@@ -274,17 +372,7 @@ def exclusion_card(index, fields):
             ),
             html.Div(
                 children=[
-                    ui.form_dropdown(
-                        label="Kind",
-                        id={"type": "arch-exclusion-kind", "index": index},
-                        options=KIND_OPTIONS,
-                        value=fields.get("kind") or ILLEGAL,
-                        clearable=False,
-                        tooltip="Illegal: the design does not work. Duplicate: the same hardware "
-                                "as another one, which \"Require\" names. Both are left out of every "
-                                "sweep, search and selection. Dominated: the design works but is "
-                                "never worth it; only a DSE campaign that asks for it leaves it out.",
-                    ),
+                    kind_field(index, fields.get("kind") or ILLEGAL),
                     ui.form_field(
                         label="Id",
                         id={"type": "arch-exclusion-id", "index": index},
@@ -318,9 +406,9 @@ def exclusion_card(index, fields):
     )
 
 
-def exclusion_cards(cards):
+def exclusion_cards(cards, names=None):
     """The cards of an "exclusions" block, plus the add card."""
-    children = [exclusion_card(index, fields) for index, fields in enumerate(cards or [])]
+    children = [exclusion_card(index, fields, names) for index, fields in enumerate(cards or [])]
     if not children:
         children.append(html.Div(
             "Every combination of the parameter domains of this architecture is a design. Add an "
@@ -357,8 +445,11 @@ def block_note(extra):
     )
 
 
-def exclusions_tile(declared):
-    """The "Exclusions" tile of the architecture editor."""
+def exclusions_tile(declared, names=None):
+    """
+    The "Exclusions" tile of the architecture editor. `names` are what a rule
+    can read here (see readable_names).
+    """
     rules, extra = block_rules(declared)
     return html.Div([
         html.H3("Exclusions"),
@@ -371,11 +462,12 @@ def exclusions_tile(declared):
         ),
         block_note(extra),
         html.Div(
-            children=exclusion_cards([card_fields(rule) for rule in rules]),
+            children=exclusion_cards([card_fields(rule) for rule in rules], names),
             id="arch-exclusion-cards-row",
             className="odx-override-cards",
         ),
         dcc.Store(id="arch-exclusions-block", data=extra),
+        dcc.Store(id="arch-exclusion-names", data=[list(pair) for pair in names or []]),
         html.Div(
             children=[
                 html.Button(
@@ -400,7 +492,7 @@ def exclusions_tile(declared):
 class _Slot(object):
     """What one card has found."""
 
-    __slots__ = ("rule", "applied", "count", "example", "error")
+    __slots__ = ("rule", "applied", "count", "example", "error", "unknown")
 
     def __init__(self, rule, applied):
         self.rule = rule
@@ -408,6 +500,82 @@ class _Slot(object):
         self.count = 0
         self.example = None
         self.error = None
+        #: The names it reads that nothing defines here, each with the closest
+        #: one that is defined (or None), as (name, suggestion) pairs.
+        self.unknown = []
+
+
+def combination_axes(architecture):
+    """
+    The combinations of an architecture as axes rather than as a list: one
+    list of selector tokens per parameter domain, plus one for its variables,
+    whose product is what :meth:`Architecture.combinations` lists, in the same
+    order. Returns ``(prefix, axes)``, `prefix` being the tokens every
+    combination starts with.
+    """
+    domains = architecture.parameter_domains()
+    prefix = []
+    axes = []
+    for domain, configurations in domains.items():
+        shown = architecture.name if domain == hard_settings.main_parameter_domain else domain
+        axes.append([["{0}/{1}".format(shown, configuration)] for configuration in configurations])
+    if domains and list(domains)[0] != hard_settings.main_parameter_domain:
+        prefix = [architecture.name]
+    variables = architecture.variable_combinations()
+    if variables:
+        if not axes:
+            prefix = [architecture.name]
+        axes.append([list(tokens) for tokens in variables])
+    return prefix, axes
+
+
+def sample_combinations(architecture, limit):
+    """
+    The combinations of an architecture to check, without listing them all:
+    every one of them when there are at most `limit`, else `limit` of them
+    drawn at random over the whole space -- always the same ones, so that two
+    checks of the same rules say the same.
+
+    Returns:
+        tuple: (how many combinations there are, the ones to check, each a
+        list of selector tokens).
+    """
+    prefix, axes = combination_axes(architecture)
+    if not axes:
+        return 0, []
+    total = 1
+    for axis in axes:
+        total *= len(axis)
+    if total <= limit:
+        return total, [prefix + sum(choice, []) for choice in itertools.product(*axes)]
+    picked = sorted(random.Random(0).sample(range(total), limit))
+    found = []
+    for index in picked:
+        # The last axis varies fastest, as in itertools.product.
+        tokens = []
+        for axis in reversed(axes):
+            index, position = divmod(index, len(axis))
+            tokens = axis[position] + tokens
+        found.append(prefix + tokens)
+    return total, found
+
+
+def unknown_names(expressions, known):
+    """
+    The names `expressions` read that are not in `known`, each with the closest
+    known one (or None), as (name, suggestion) pairs.
+    """
+    identifiers = {identifier_of(name): name for name in known}
+    found = []
+    for expression in expressions:
+        for name in names_in(expression or ""):
+            if name in known or identifier_of(name) in identifiers:
+                continue
+            if any(pair[0] == name for pair in found):
+                continue
+            close = difflib.get_close_matches(name, list(known), n=1, cutoff=0.6)
+            found.append((name, close[0] if close else None))
+    return found
 
 
 def check_rules(architecture, cards, extra=None, limit=CHECK_LIMIT):
@@ -454,21 +622,10 @@ def check_rules(architecture, cards, extra=None, limit=CHECK_LIMIT):
     names = _NameSamples()
     result = {"total": 0, "checked": 0, "left_out": 0, "slots": slots, "names": names, "error": None}
 
-    total = architecture.count_combinations(exclusions=False)
+    # Drawn axis by axis rather than listed: a space of millions is checked on a
+    # sample spread over all of it, in the time a small one takes (AR-08).
+    total, combinations = sample_combinations(architecture, limit)
     result["total"] = total
-    if total > LIST_LIMIT:
-        result["error"] = (
-            "{0:,} combinations: too many to check here. A sweep says what each rule left out."
-        ).format(total)
-        return result
-
-    combinations = architecture.combinations(exclusions=False)
-    result["total"] = len(combinations)
-    if len(combinations) > limit:
-        # A spread rather than a prefix: the first combinations all share the
-        # first configurations of the first domains.
-        stride = int(math.ceil(len(combinations) / float(limit)))
-        combinations = combinations[::stride]
     result["checked"] = len(combinations)
 
     live = [slot for slot in slots if slot is not None and slot.error is None]
@@ -495,6 +652,15 @@ def check_rules(architecture, cards, extra=None, limit=CHECK_LIMIT):
                 out = out or slot.applied
         if out:
             result["left_out"] += 1
+
+    # A name nothing defines equals nothing: the rule reading it quietly never
+    # fires. Saying which name, and what it was likely meant to be, is what
+    # turns a typo into something seen (AR-07).
+    if combinations:
+        known = set(names.samples) | set(_NameSamples.SKIPPED) | {"config", "architecture"}
+        for slot in slots:
+            if slot is not None and slot.error is None:
+                slot.unknown = unknown_names((slot.rule.when, slot.rule.require), known)
     return result
 
 
@@ -573,6 +739,22 @@ def slot_status(slot, checked):
         return ui.field_error("Cannot be evaluated, so it leaves nothing out: " + slot.error)
     if not checked:
         return None
+    if slot.unknown:
+        parts = []
+        for name, close in slot.unknown:
+            parts.append(html.Code("$" + name))
+            if close:
+                parts += [" (did you mean ", html.Code("$" + close), "?)"]
+            parts.append(", ")
+        parts[-1] = ""
+        verb = "leaves out none of the {0} checked".format(_plural(checked, "combination")) if not slot.count \
+            else "leaves out {0:,} of the {1}".format(slot.count, _plural(checked, "combination"))
+        return html.Div(
+            ["Reads "] + parts + [
+                ", which nothing defines here: a name nothing defines equals nothing. It " + verb + "."
+            ],
+            className="odx-exclusion-count warning",
+        )
     if not slot.count:
         return html.Div(
             "Leaves out none of the {0} checked. Check the names it reads against the list "
@@ -609,16 +791,31 @@ def check_summary(result):
             "This architecture has no parameter domain to combine yet: there is nothing to leave out.",
             className="odx-panel-note",
         )
-    spread = "" if checked == total else " out of {0:,}, spread over the whole space".format(total)
+    spread = "" if checked == total else " out of {0:,}, drawn at random over the whole space".format(total)
     left = checked - result["left_out"]
+    # The line is only as green as its worst rule: one that cannot be read,
+    # or that leaves nothing out, is said here too, not only on its card.
+    slots = [slot for slot in result.get("slots") or [] if slot is not None]
+    unreadable = sum(1 for slot in slots if slot.error is not None)
+    unknown = sum(1 for slot in slots if slot.error is None and slot.unknown)
+    inert = sum(1 for slot in slots if slot.error is None and not slot.unknown and not slot.count)
+    problems = []
+    if unreadable:
+        problems.append("{0} cannot be read".format(_plural(unreadable, "rule")))
+    if unknown:
+        problems.append("{0} {1} a name nothing defines".format(
+            _plural(unknown, "rule"), "reads" if unknown == 1 else "read"))
+    if inert:
+        problems.append("{0} {1} nothing out".format(_plural(inert, "rule"), "leaves" if inert == 1 else "leave"))
+    level = "error" if unreadable else "warning" if problems else "success"
+    text = "{0} checked{1}: {2:,} left out, {3:,} left.".format(
+        _plural(checked, "combination"), spread, result["left_out"], left,
+    )
+    if problems:
+        text += " " + "; ".join(problems).capitalize() + ": see the cards above."
+    text += " The rules are checked as they are on the page; the configurations, as they are saved."
     return [
-        html.Div(
-            "{0} checked{1}: {2:,} left out, {3:,} left. The rules are checked as they are on the page; "
-            "the configurations, as they are saved.".format(
-                _plural(checked, "combination"), spread, result["left_out"], left,
-            ),
-            className="odx-message success",
-        ),
+        html.Div(text, className="odx-message " + level),
         names_list(result.get("names")),
     ]
 
@@ -643,9 +840,10 @@ def _fields_states(prefix="arch-exclusion-"):
     Input("arch-add-exclusion-card", "n_clicks"),
     Input({"type": "arch-delete-exclusion", "index": dash.ALL}, "n_clicks"),
     *_fields_states(),
+    State("arch-exclusion-names", "data"),
     prevent_initial_call=True,
 )
-def add_or_delete_exclusion(add_click, delete_clicks, ids, kinds, whens, requires, messages, rests):
+def add_or_delete_exclusion(add_click, delete_clicks, ids, kinds, whens, requires, messages, rests, names):
     """
     Add an empty rule, or drop the one whose delete button was hit.
 
@@ -671,12 +869,13 @@ def add_or_delete_exclusion(add_click, delete_clicks, ids, kinds, whens, require
     else:
         raise dash.exceptions.PreventUpdate
 
-    return exclusion_cards(cards)
+    return exclusion_cards(cards, names)
 
 
 @dash.callback(
     Output({"type": "arch-exclusion-status", "index": dash.ALL}, "children"),
     Output("arch-exclusions-summary", "children"),
+    Output({"type": "arch-exclusion-title", "index": dash.ALL}, "children"),
     Input("arch-exclusions-check", "n_clicks"),
     Input({"type": "arch-exclusion-when", "index": dash.ALL}, "value"),
     Input({"type": "arch-exclusion-require", "index": dash.ALL}, "value"),
@@ -685,10 +884,10 @@ def add_or_delete_exclusion(add_click, delete_clicks, ids, kinds, whens, require
     State({"type": "arch-exclusion-message", "index": dash.ALL}, "value"),
     State({"type": "arch-exclusion-rest", "index": dash.ALL}, "data"),
     State("arch-exclusions-block", "data"),
-    State("url_/arch_editor", "search"),
+    State("arch-current-name", "data"),
     State("odatix-settings", "data"),
 )
-def check_exclusions(n_clicks, whens, requires, kinds, ids, messages, rests, extra, search, odatix_settings):
+def check_exclusions(n_clicks, whens, requires, kinds, ids, messages, rests, extra, arch_name, odatix_settings):
     """
     What each rule is worth: while it is written, whether its expressions can
     be read at all; on demand, what it leaves out of the combinations of the
@@ -698,25 +897,63 @@ def check_exclusions(n_clicks, whens, requires, kinds, ids, messages, rests, ext
     its result away rather than leaving one that no longer says the truth.
     """
     cards = cards_from_values(ids, kinds, whens, requires, messages, rests)
+    titles = [card_title(fields.get("id"), fields.get("when")) for fields in cards]
 
     if ctx.triggered_id != "arch-exclusions-check":
         statuses = []
         for fields in cards:
-            reasons = [syntax_error(_text(fields.get(key))) for key in ("when", "require")]
-            reason = next((reason for reason in reasons if reason), None)
+            reason = card_syntax_error(fields)
             statuses.append(ui.field_error("Cannot be read: " + reason) if reason else None)
-        return statuses, None
+        return statuses, None, titles
 
-    arch_name = get_key_from_url(search, "arch")
     architecture = get_workspace(odatix_settings).architectures.get(arch_name) if arch_name else None
     if architecture is None:
         return [None] * len(cards), ui.error(
             "Save the architecture first: the rules are checked against the configurations it has."
-        )
+        ), titles
 
     try:
         result = check_rules(architecture, cards, extra)
     except Exception as error:
-        return [None] * len(cards), ui.error("Could not check the rules: {0}".format(error))
+        return [None] * len(cards), ui.error("Could not check the rules: {0}".format(error)), titles
 
-    return [slot_status(slot, result["checked"]) for slot in result["slots"]], check_summary(result)
+    return [slot_status(slot, result["checked"]) for slot in result["slots"]], check_summary(result), titles
+
+
+def card_syntax_error(fields):
+    """Why the expressions of a card cannot be read, or None."""
+    reasons = [syntax_error(_text(fields.get(key))) for key in ("when", "require")]
+    return next((reason for reason in reasons if reason), None)
+
+
+def save_notice(cards):
+    """
+    What saving the cards leaves to be said, or None: the rules written although
+    they cannot be read, and the cards dropped because they say nothing.
+    """
+    unreadable = []
+    dropped = []
+    for index, fields in enumerate(cards or []):
+        name = _text(fields.get("id")) or "#{0}".format(index + 1)
+        if rule_of(fields) is None:
+            if _text(fields.get("id")) or _text(fields.get("message")):
+                dropped.append(name)
+            continue
+        if card_syntax_error(fields):
+            unreadable.append(name)
+    parts = []
+    if unreadable:
+        parts.append(
+            "exclusion {0} cannot be read: a run reports it and leaves nothing out".format(", ".join(unreadable))
+            if len(unreadable) == 1 else
+            "exclusions {0} cannot be read: a run reports them and leaves nothing out".format(", ".join(unreadable))
+        )
+    if dropped:
+        parts.append(
+            "exclusion {0} has neither \"When\" nor \"Require\" and was not written".format(", ".join(dropped))
+            if len(dropped) == 1 else
+            "exclusions {0} have neither \"When\" nor \"Require\" and were not written".format(", ".join(dropped))
+        )
+    if not parts:
+        return None
+    return "Saved, but " + "; ".join(parts) + "."

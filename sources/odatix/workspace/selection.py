@@ -44,6 +44,7 @@ Nothing here prints: what a user should be told about a selection comes back as
 script each report it their own way.
 """
 
+import difflib
 import fnmatch
 import itertools
 import os
@@ -52,7 +53,7 @@ import re
 from natsort import natsorted
 
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.expressions import Ref
+from odatix.lib.expressions import Ref, identifier_of, names_in
 from odatix.workspace.attributes import parse_attributes, read_value
 from odatix.workspace.configs import CONFIG_EXTENSION, configuration_names
 from odatix.workspace.exclusions import expose as expose_exclusion_context, parse_exclusions
@@ -381,8 +382,10 @@ def _expand_request(request, root, messages, filters, expanded):
 
     for message in excluder.take_errors():
         messages.append(Message("error", message))
+    messages.extend(excluder.take_warnings())
 
-    if _has_wildcard(request) and len(expanded) == before:
+    # A missing entry already has its error: the warning would only repeat it.
+    if _has_wildcard(request) and len(expanded) == before and os.path.isdir(os.path.join(root, request.entry)):
         messages.append(
             Message("warning", 'Wildcard "{0}" did not match any configuration'.format(request.text))
         )
@@ -420,6 +423,7 @@ class ExclusionFilter(object):
         self._attributes = {}
         self._configs = {}
         self._references = {}
+        self._warnings = None
 
     @staticmethod
     def of(instance):
@@ -521,6 +525,9 @@ class ExclusionFilter(object):
         """Why one entry is not part of the space, or None when it is."""
         if self.empty:
             return None
+        if self._warnings is None:
+            # Checked once, on the first entry: the names do not change.
+            self._warnings = self.unknown_name_warnings(entry)
         return self.exclusions.check(self.context(entry))
 
     def keeps(self, entry, messages=None, strict=False):
@@ -544,11 +551,48 @@ class ExclusionFilter(object):
             messages.append(Message("error" if strict else "note", text))
         return False
 
+    def unknown_name_warnings(self, entry):
+        """
+        A warning per name an exclusion reads that nothing defines for `entry`.
+
+        Such a name equals nothing, so the rule reading it quietly never fires
+        -- a typo ($Mull for $Mul) is the usual cause. The closest known name
+        is suggested.
+        """
+        known = set(["config", "architecture"])
+        for name, value in self.context(entry).items():
+            known.add(name)
+            if isinstance(value, Ref):
+                known.update("{0}.{1}".format(name, attribute) for attribute in value.values)
+        identifiers = set(identifier_of(name) for name in known)
+        warnings = []
+        for rule in self.exclusions:
+            reported = []
+            for expression in (rule.when, rule.require):
+                for name in names_in(expression or ""):
+                    if name in known or identifier_of(name) in identifiers or name in reported:
+                        continue
+                    reported.append(name)
+                    close = difflib.get_close_matches(name, sorted(known), n=1, cutoff=0.6)
+                    text = 'exclusion "{0}" of "{1}" reads ${2}, which nothing defines here'.format(
+                        rule.id or rule.when or rule.require, self.entry, name
+                    )
+                    if close:
+                        text += " (did you mean ${0}?)".format(close[0])
+                    warnings.append(Message("warning", text))
+        return warnings
+
     def take_errors(self):
         """The exclusions that could not be evaluated, reported once each."""
         if self._exclusions is None:
             return []
         return self._exclusions.take_errors()
+
+    def take_warnings(self):
+        """The names nothing defines (see unknown_name_warnings), reported once."""
+        warnings = self._warnings or []
+        self._warnings = []
+        return warnings
 
     def __repr__(self):
         return "<ExclusionFilter {0} ({1} rules)>".format(self.entry, len(self.exclusions))
@@ -587,6 +631,8 @@ def filter_excluded(entries, root, messages=None, applied=None):
         for message in excluder.take_errors():
             if messages is not None:
                 messages.append(Message("error", message))
+        if messages is not None:
+            messages.extend(excluder.take_warnings())
     return kept
 
 
@@ -626,6 +672,32 @@ def _entries_of(root):
     ])
 
 
+#: What the entries of a directory are called, by the name of the directory.
+_ENTRY_KINDS = {"workflows": "workflow", "simulations": "simulation"}
+
+
+def _missing_entry(entry, root):
+    """
+    The error for an entry `root` does not hold, worded after what `root`
+    holds (an architecture, a workflow...) and listing the closest names.
+    """
+    kind = _ENTRY_KINDS.get(os.path.basename(os.path.normpath(root)), "architecture")
+    existing = _entries_of(root)
+    hints = []
+    close = difflib.get_close_matches(entry, existing, n=3)
+    if close:
+        hints.append("Did you mean {0}?".format(" or ".join('"{0}"'.format(name) for name in close)))
+    if existing:
+        hints.append("Available {0}s: {1}".format(kind, ", ".join(existing)))
+    else:
+        hints.append('There is no {0} in "{1}"'.format(kind, root))
+    return Message(
+        "error",
+        'The {0} directory "{1}" does not exist'.format(kind, os.path.join(root, entry)),
+        hints=hints,
+    )
+
+
 def _expand_entry(request, root):
     """
     The requests an entry written as a pattern stands for, one per entry of
@@ -658,7 +730,7 @@ def _match_configurations(request, root, messages):
 
     entry_path = os.path.join(root, request.entry)
     if not os.path.isdir(entry_path):
-        messages.append(Message("error", 'The architecture directory "{0}" does not exist'.format(entry_path)))
+        messages.append(_missing_entry(request.entry, root))
         return []
 
     names = [
@@ -702,7 +774,7 @@ def _match_domains(request, root, messages):
             continue
 
         if not os.path.isdir(entry_path):
-            messages.append(Message("error", 'The architecture directory "{0}" does not exist'.format(entry_path)))
+            messages.append(_missing_entry(request.entry, root))
             continue
 
         domain_path = os.path.join(entry_path, domain)

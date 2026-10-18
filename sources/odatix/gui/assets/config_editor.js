@@ -33,7 +33,20 @@ window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.odatix_config_editor = window.dash_clientside.odatix_config_editor || {};
 
 window.dash_clientside.odatix_config_editor.debounce_content = function(_scope, _contents) {
-    const state = window.__odatixPreviewDebounce = window.__odatixPreviewDebounce
+    return odatixDebounceDomains("__odatixPreviewDebounce", "config-content-debounce");
+};
+
+// The rule fields (name, content template, constraints) the same way: what
+// they produce is worked out over the whole domain on the server, which on a
+// domain of thousands of configurations is not something to do per keystroke.
+window.dash_clientside.odatix_config_editor.debounce_rules = function(_scope, _names, _templates, _constraints) {
+    return odatixDebounceDomains("__odatixRulesDebounce", "cfg-rules-debounce");
+};
+
+// Collect the domains the triggering fields belong to, and hand them to the
+// store `storeId` once the typing has stopped for 400 ms.
+function odatixDebounceDomains(stateName, storeId) {
+    const state = window[stateName] = window[stateName]
         || {domains: {}, all: false, timer: null};
     const context = window.dash_clientside.callback_context;
     (context.triggered || []).forEach(function(trigger) {
@@ -60,10 +73,10 @@ window.dash_clientside.odatix_config_editor.debounce_content = function(_scope, 
         state.domains = {};
         state.all = false;
         state.timer = null;
-        window.dash_clientside.set_props("config-content-debounce", {data: payload});
+        window.dash_clientside.set_props(storeId, {data: payload});
     }, 400);
     return window.dash_clientside.no_update;
-};
+}
 
 /*
  * Fill the preview config selector of each domain with its configs. Renaming a

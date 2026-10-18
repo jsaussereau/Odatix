@@ -3,26 +3,12 @@
 ##############################################
 # Extracted from "results.yml", written by the testbench of the architecture
 # (see examples/cordic_tb/tb_cordic.sv or tb_cordic.vhdl).
-# Added to the metrics of the "xsim" template: status, errors,
-# warnings, compile, elaboration and simulation times, cycles per second.
+# Added to the metrics of the "xsim" template: sim_status, errors,
+# warnings, compile, elaboration and simulation times, simulated cycles, cycles per second.
+# The configuration (width, iterations) is not repeated here: it is already
+# what each result is for.
 
 metrics:
-  # ----- Configuration ------------------------------------------------
-  width:
-    type: yaml
-    settings:
-      file: results.yml
-      key: width
-    unit: "bits"
-    format: "%.0f"
-
-  iterations:
-    type: yaml
-    settings:
-      file: results.yml
-      key: iterations
-    format: "%.0f"
-
   # ----- Accuracy -----------------------------------------------------
   max_error:
     type: yaml
@@ -105,14 +91,6 @@ metrics:
     unit: "samples/cycle"
     format: "%.3f"
 
-  cycles:
-    type: yaml
-    settings:
-      file: results.yml
-      key: cycles
-    unit: "cycles"
-    format: "%.0f"
-
   # ----- Checks -------------------------------------------------------
   vectors:
     type: yaml
@@ -150,7 +128,9 @@ metrics:
     unit: "%"
     format: "%.2f"
 
-  status:
+  # The verdict of the testbench's own checks, apart from "sim_status" (how
+  # the simulation went, from the template).
+  check_status:
     type: yaml
     settings:
       file: results.yml

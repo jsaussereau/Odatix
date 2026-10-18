@@ -27,17 +27,61 @@
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.odatix_jobs = window.dash_clientside.odatix_jobs || {};
 
-window.dash_clientside.odatix_jobs.skip_unsaved_guard = function(n_clicks) {
-    if (n_clicks) {
-        window.__odatixSkipUnsavedGuard = true;
-    }
-    return "";
+// An instance card follows its switch: its body unfolds and the card is
+// highlighted while it is selected to run (same classes as the server renders).
+window.dash_clientside.odatix_jobs.toggle_card = function(_scope, switch_value) {
+    var enabled = Array.isArray(switch_value) ? switch_value.length > 0 : !!switch_value;
+    return [
+        "jobs-arch-body animated-section" + (enabled ? "" : " hide"),
+        "jobs-arch-card" + (enabled ? " enabled" : ""),
+    ];
 };
 
-window.dash_clientside.odatix_jobs.restore_unsaved_guard = function(run_status) {
-    var status = run_status && run_status.status;
-    if (status === "error" || status === "canceled") {
-        window.__odatixSkipUnsavedGuard = false;
+// Filter the instance cards by name and, optionally, hide the ones that are not
+// selected to run.
+window.dash_clientside.odatix_jobs.filter_cards = function(search_text, filter_value, switch_values, section_ids) {
+    var needle = (search_text || "").trim().toLowerCase();
+    var only_enabled = (filter_value || []).indexOf("enabled") !== -1;
+    var enabled = {};
+    var ctx = window.dash_clientside.callback_context;
+    var switch_ids = [];
+    // The ids of the switches come with their values in the inputs list.
+    (ctx && ctx.inputs_list && ctx.inputs_list[2] || []).forEach(function(item) {
+        switch_ids.push(item.id);
+    });
+    (switch_values || []).forEach(function(value, index) {
+        var sid = switch_ids[index];
+        if (sid && sid.arch !== undefined) {
+            enabled[sid.arch] = Array.isArray(value) ? value.length > 0 : !!value;
+        }
+    });
+    return (section_ids || []).map(function(sid) {
+        var arch = String((sid && sid.arch) || "");
+        var visible = (!needle || arch.toLowerCase().indexOf(needle) !== -1)
+            && (!only_enabled || enabled[arch] === true);
+        return visible ? {} : {"display": "none"};
+    });
+};
+
+// "Select all" / "Clear" over every instance switch.
+window.dash_clientside.odatix_jobs.select_all = function(all_clicks, none_clicks, switch_values) {
+    var ctx = window.dash_clientside.callback_context;
+    var triggered = ctx && ctx.triggered && ctx.triggered.length ? ctx.triggered[0].prop_id : "";
+    var values = switch_values || [];
+    if (triggered.indexOf("jobs-select-all.") === 0) {
+        return values.map(function() { return [true]; });
     }
-    return "";
+    if (triggered.indexOf("jobs-select-none.") === 0) {
+        return values.map(function() { return []; });
+    }
+    return window.dash_clientside.no_update;
+};
+
+// The same for an architecture card nested in a simulation (or place & route) card.
+window.dash_clientside.odatix_jobs.toggle_nested_card = function(_scope, switch_value) {
+    var enabled = Array.isArray(switch_value) ? switch_value.length > 0 : !!switch_value;
+    return [
+        "jobs-arch-body animated-section" + (enabled ? "" : " hide"),
+        "jobs-arch-card nested" + (enabled ? " enabled" : ""),
+    ];
 };

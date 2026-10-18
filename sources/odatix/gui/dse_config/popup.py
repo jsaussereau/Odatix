@@ -28,9 +28,10 @@ rendered rather than parsed -- what it shows comes from the campaigns
 themselves (see :mod:`odatix.gui.dse_config.exploration`).
 """
 
-from dash import html
+from dash import dcc, html
 
 import odatix.gui.ui_components as ui
+from odatix.gui.icons import icon
 from odatix.gui.dse_config import exploration
 
 #: The severities the check reports, worst first.
@@ -53,10 +54,16 @@ def body(status):
     if status == "checking" and not exploration.plan:
         return html.Div("Working out what the exploration would do...", className="dse-plan-waiting")
 
-    children = [_totals()]
+    # The totals are what the plan adds up to: an exploration that could not
+    # be worked out has none, and three zeros would only be noise.
+    children = [_totals()] if exploration.plan else []
     messages = _messages()
     if messages is not None:
         children.append(messages)
+    if status == "error":
+        links = _campaign_links(exploration.faulty_campaigns(exploration.status.get("error")))
+        if links is not None:
+            children.append(links)
     if exploration.plan:
         children.append(html.Div(
             [_campaign_card(entry) for entry in exploration.plan],
@@ -98,6 +105,26 @@ def _messages():
     return html.Div(rows, className="dse-plan-messages")
 
 
+def _campaign_links(names):
+    """A way to the campaign an error is about, to fix it there."""
+    from odatix.gui.dse_config.common import campaign_link, editor_path
+
+    if not names:
+        return None
+    return html.Div(
+        children=[html.Span("Fix it in:", className="dse-plan-fix-label")] + [
+            dcc.Link(
+                [icon("edit", className="icon"), html.Span(name)],
+                href=campaign_link(editor_path, name),
+                className="dse-plan-fix-link",
+                title='Open campaign "{0}"'.format(name),
+            )
+            for name in names
+        ],
+        className="dse-plan-fix",
+    )
+
+
 def _badge_color(severity):
     if severity == "error":
         return "caution"
@@ -119,7 +146,7 @@ def _campaign_card(entry):
         children=[
             html.Div(
                 children=[
-                    html.Span(entry.get("name", ""), className="dse-plan-name"),
+                    html.Span(entry.get("name", ""), className="dse-plan-name", title=entry.get("name", "")),
                     ui.badge(
                         "{0}/{1} designs".format(entry.get("budget", 0), entry.get("space", 0)),
                         color="success",

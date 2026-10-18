@@ -31,6 +31,7 @@ from dash import Input, Output, State, ALL, MATCH
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.rules as rules
+import odatix.explorer.core.schema as schema
 from odatix.explorer.charts.spec import NONE_VALUE
 import odatix.explorer.ui.filters as ui_filters
 import odatix.explorer.ui.rules as ui_rules
@@ -46,6 +47,33 @@ def build_filters_dict(values, ids):
   filters = {}
   for value, id in zip(values or [], ids or []):
     filters[id["dim"]] = value or []
+  return filters
+
+
+def effective_filters(store, sources, values, ids, filter_state=None):
+  """
+  The {dimension: allowed values} a chart must apply.
+
+  The checklists of the filter panel say it, once the panel is there. Until
+  then (a chart page computes its first figure while the panel is still being
+  built), the panel's own defaults apply: the values remembered in
+  ``filter_state``, and the values unchecked by default (the intermediate
+  steps of a job). Without them, the first figure drew every step of every
+  job, doubling the curves.
+  """
+  if ids:
+    return build_filters_dict(values, ids)
+  df = query.select_dataframe(store, sources=sources)
+  if df.empty:
+    return {}
+  dimensions, _metrics = query.discover(df, store, sources)
+  state = filter_state or {}
+  filters = {}
+  for dimension, dimension_values in dimensions.items():
+    remembered = state.get(dimension) or {}
+    kept = [value for value in dimension_values if remembered.get(value, schema.default_selected(dimension, value))]
+    if len(kept) != len(dimension_values):
+      filters[dimension] = kept
   return filters
 
 

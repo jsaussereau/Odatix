@@ -24,6 +24,7 @@ import re
 import sys
 import yaml
 import copy
+import difflib
 
 from os.path import isfile
 from os.path import isdir
@@ -34,7 +35,7 @@ from odatix.lib.utils import *
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
 import odatix.lib.printc as printc
-from odatix.lib.run_report import JobPlan, Category
+from odatix.lib.run_report import JobPlan, Category, step_details
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
 import odatix.lib.virtual_param_domain as virtual_param_domain
@@ -163,8 +164,9 @@ class Architecture:
             'file_copy_dest': arch.file_copy_dest,
             'script_copy_enable': arch.script_copy_enable,
             'script_copy_source': arch.script_copy_source,
-            'fmax_lower_bound': arch.fmax_lower_bound,
-            'fmax_upper_bound': arch.fmax_upper_bound,
+            # A bound left out is null, not the string "None".
+            'fmax_lower_bound': None if str(arch.fmax_lower_bound) == "None" else arch.fmax_lower_bound,
+            'fmax_upper_bound': None if str(arch.fmax_upper_bound) == "None" else arch.fmax_upper_bound,
             'range_list': arch.range_list,
             'target_frequency': arch.target_frequency,
             'param_target_filename': arch.param_target_filename,
@@ -172,6 +174,9 @@ class Architecture:
             'generate_command': arch.generate_command,
             'constraint_filename': arch.constraint_filename,
             'constraint_files': arch.constraint_files,
+            # "tool_install_path", as targets and command variables call it;
+            # "install_path" is kept for the scripts that read it.
+            'tool_install_path': arch.install_path,
             'install_path': arch.install_path,
             'param_domains': domain_list,
             'virtual_param_domains': arch.virtual_param_domains,
@@ -477,7 +482,9 @@ class ArchitectureHandler:
                     sys.exit(-1)
 
             try:
-                script_copy_enable = read_from_list('script_copy_enable', settings_data, self.eda_target_filename, type=bool, optional=True, script_name=script_name)
+                # Optional, and off when left out: only a wrong value is worth a note.
+                script_copy_enable = read_from_list('script_copy_enable', settings_data, self.eda_target_filename, type=bool, optional=True,
+                                                    print_error=isinstance(settings_data, dict) and 'script_copy_enable' in settings_data, script_name=script_name)
                 if script_copy_enable:
                     script_copy_source = read_from_list('script_copy_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)
                     script_copy_source = replace_variables(script_copy_source, variables) # Replace variables in command
@@ -608,10 +615,12 @@ class ArchitectureHandler:
                                     self.plan.add(unformatted_display_name + formatted_freq, Category.OVERWRITE)
                                 elif local_state == "incomplete":
                                     self.plan.add(freq_arch.arch_display_name, Category.INCOMPLETE)
-                                elif local_state == "resume":
-                                    self.plan.add(unformatted_display_name + formatted_freq, Category.RESUME)
-                                elif local_state == "rerun":
-                                    self.plan.add(unformatted_display_name + formatted_freq, Category.RERUN)
+                                elif local_state in ("resume", "rerun"):
+                                    self.plan.add(
+                                        unformatted_display_name + formatted_freq,
+                                        Category.RESUME if local_state == "resume" else Category.RERUN,
+                                        **step_details(freq_arch.tmp_dir, self.requested_steps, self.rerun_step_index)
+                                    )
                                 else:
                                     self.plan.add(unformatted_display_name + formatted_freq, Category.NEW)
 
@@ -800,6 +809,7 @@ class ArchitectureHandler:
         arch_param = os.path.join(self.arch_path, arch_param_dir)
         if not isdir(arch_param):
             printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + self.arch_path + "\"", script_name)
+            ArchitectureHandler._suggest(arch_param_dir, selection._entries_of(self.arch_path), "architectures")
             self.banned_arch_param.append(arch_param_dir)
             self.plan.add(arch_display_name, Category.ERROR)
             return None
@@ -1054,10 +1064,8 @@ class ArchitectureHandler:
                 if steps_decision is not None:
                     if steps_decision == "cached":
                         if self.overwrite:
-                            printc.warning("Every requested step is already done for \"" + arch + "\" with target \"" + target + "\".", script_name)
                             local_state = "overwrite"
                         else:
-                            printc.note("Every requested step is already done for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
                             self.plan.add(arch_display_name, Category.CACHED)
                             return None
                     elif steps_decision in ("resume", "rerun") and not self.overwrite:
@@ -1069,10 +1077,8 @@ class ArchitectureHandler:
                         ff = open(frequency_search_file, "r")
                         if self.valid_frequency_search in ff.read():
                             if self.overwrite:
-                                printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
                                 local_state = "overwrite"
                             else:
-                                printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
                                 self.plan.add(arch_display_name, Category.CACHED)
                                 return None
                         else:
@@ -1086,43 +1092,22 @@ class ArchitectureHandler:
 
                 daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir, steps_decision)
                 if daemon_decision == "skip":
-                    daemon_status = str(daemon_entry.get("status", "unknown"))
-                    daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
-                    printc.note(
-                        "Found existing daemon job for \""
-                        + arch
-                        + "\" with target \""
-                        + target
-                        + "\" (session \""
-                        + daemon_session
-                        + "\", status \""
-                        + daemon_status
-                        + "\"). Skipping.",
-                        script_name,
-                    )
+                    printc.note(JobPlanner.skipped_message("\"" + arch + "\" with target \"" + target + "\"", daemon_entry), script_name)
                     self.plan.add(arch_display_name + formatted_bound + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
                     return None
                 elif daemon_decision == "replace":
-                    daemon_status = str(daemon_entry.get("status", "unknown"))
-                    printc.warning(
-                        "Found previously failed/canceled daemon job for \""
-                        + arch
-                        + "\" with target \""
-                        + target
-                        + "\" (status \""
-                        + daemon_status
-                        + "\"). Re-enqueueing.",
-                        script_name,
-                    )
+                    printc.warning(JobPlanner.requeued_message("\"" + arch + "\" with target \"" + target + "\"", daemon_entry), script_name)
 
                 if local_state == "overwrite":
                     self.plan.add(arch_display_name + formatted_bound, Category.OVERWRITE)
                 elif local_state == "incomplete":
                     self.plan.add(arch_display_name + formatted_bound, Category.INCOMPLETE)
-                elif local_state == "resume":
-                    self.plan.add(arch_display_name + formatted_bound, Category.RESUME)
-                elif local_state == "rerun":
-                    self.plan.add(arch_display_name + formatted_bound, Category.RERUN)
+                elif local_state in ("resume", "rerun"):
+                    self.plan.add(
+                        arch_display_name + formatted_bound,
+                        Category.RESUME if local_state == "resume" else Category.RERUN,
+                        **step_details(tmp_dir, self.requested_steps, self.rerun_step_index)
+                    )
                 else:
                     self.plan.add(arch_display_name + formatted_bound, Category.NEW)
 
@@ -1323,12 +1308,30 @@ class ArchitectureHandler:
                 # the rules of the domain describe (resolved on the way).
                 param_file = space.selected_config_file(self.arch_path, arch)
                 if not isfile(param_file):
-                    printc.error("There is no parameter file \"" + param_file + "\", while \"use_parameters\" is true", script_name)
+                    arch_dir, _, config_name = arch.replace(os.sep, "/").rpartition("/")
+                    printc.error(
+                        "Configuration \"" + config_name + "\" of \"" + arch_dir + "\" does not exist (no file \"" + param_file + "\")",
+                        script_name,
+                    )
+                    try:
+                        known = space.resolved_names(os.path.dirname(param_file))
+                    except Exception:
+                        known = []
+                    ArchitectureHandler._suggest(config_name, known, "configurations")
                     if add_to_error_list:
                         self.plan.add(arch_display_name, Category.ERROR)
                     return None, None, None, None
 
         return use_parameters, start_delimiter, stop_delimiter, param_target_filename
+
+    @staticmethod
+    def _suggest(name, known, what):
+        """Print the closest of the `known` names to a missing `name`, then all of them."""
+        close = difflib.get_close_matches(name, list(known), n=3)
+        if close:
+            printc.note("Did you mean " + " or ".join("\"" + c + "\"" for c in close) + "?", script_name)
+        if known:
+            printc.note("Available " + what + ": " + ", ".join(known), script_name)
 
     @staticmethod
     def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode, fallback_custom_freq_list=None, tool="", flow=""):

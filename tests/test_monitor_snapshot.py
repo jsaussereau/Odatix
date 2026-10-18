@@ -108,7 +108,7 @@ class TestSnapshotAggregates:
 
         assert len(snap["jobs"]) == 3
         assert snap["handler"]["counts"] == {
-            "total": 5, "running": 1, "queued": 2, "done": 1, "failed": 1,
+            "total": 5, "running": 1, "queued": 2, "done": 1, "failed": 1, "paused": 0,
         }
 
     def test_overall_progress_averages_every_job(self, handler):
@@ -123,6 +123,7 @@ class TestSnapshotAggregates:
         snap = handler.snapshot(logs_job_id=-1)
         handler_state = snap["handler"]
 
-        assert handler_state["status_buckets"]["running"] == ["running", "starting", "export"]
+        # A job exporting its results is not over yet.
+        assert handler_state["status_buckets"]["running"] == ["running", "starting", "exporting", "export"]
         assert handler_state["status_sort_priority"]["running"] == 0
         assert handler_state["first_job_id"] == 0

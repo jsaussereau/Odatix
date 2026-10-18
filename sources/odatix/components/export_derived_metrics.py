@@ -112,10 +112,14 @@ def load_pool(result_path):
   return files, records, origins
 
 
-def apply_derived_metrics(result_path, derived_metrics_file):
+def apply_derived_metrics(result_path, derived_metrics_file, announce_unchanged=True):
   """
   Compute the derived metrics of a workspace and write back the files that
   changed.
+
+  Args:
+      announce_unchanged (bool): say so when no derived metric changed. An
+          export applying them again after its own work has nothing to say then.
 
   Returns:
       bool: False when the definitions could not be applied at all.
@@ -146,7 +150,7 @@ def apply_derived_metrics(result_path, derived_metrics_file):
   changed_indices = derived_metrics_lib.apply_derived_metrics(config, records, pooled_units)
 
   if len(changed_indices) == 0:
-    if config:
+    if config and announce_unchanged:
       printc.note("No derived metric to update", script_name)
     return True
 
@@ -214,7 +218,7 @@ def configure_post_batch_derivation(parallel_jobs, result_path, derived_metrics_
   return True
 
 
-def run(settings=None, result_path=None, derived_metrics_file=None, config_file=None):
+def run(settings=None, result_path=None, derived_metrics_file=None, config_file=None, announce_unchanged=True):
   """
   Entry point for the callers that already know the workspace (the run commands
   and "odatix results"), so that deriving is one call with no argparse detour.
@@ -231,7 +235,7 @@ def run(settings=None, result_path=None, derived_metrics_file=None, config_file=
   if not os.path.isfile(derived_metrics_file):
     return True
 
-  return apply_derived_metrics(result_path, derived_metrics_file)
+  return apply_derived_metrics(result_path, derived_metrics_file, announce_unchanged=announce_unchanged)
 
 
 def main(args, settings=None):
@@ -250,14 +254,17 @@ def main(args, settings=None):
     derived_metrics_file = derived_metrics_lib.default_derived_metrics_file(settings)
 
   if not os.path.isfile(derived_metrics_file):
+    if args.derived is not None:
+      # Named on purpose: deriving nothing would hide a typo in the path.
+      printc.error('Derived metrics file "' + derived_metrics_file + '" does not exist', script_name)
+      return False
     printc.note(
       'No derived metrics file "' + derived_metrics_file + '", nothing to derive',
       script_name,
     )
-    return
+    return True
 
-  if not apply_derived_metrics(result_path, derived_metrics_file):
-    sys.exit(-1)
+  return apply_derived_metrics(result_path, derived_metrics_file)
 
 
 if __name__ == "__main__":

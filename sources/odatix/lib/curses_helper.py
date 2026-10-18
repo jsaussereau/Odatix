@@ -43,17 +43,29 @@ _MOUSE_HOVER_MODE = "1003"
 # a previous version or by the shell.
 _MOUSE_DISABLE_MODES = ("1000", "1002", "1003", "1006", "1015")
 
+# Whether this process turned mouse tracking on: only then is there anything to
+# turn off. A monitor that could not even start (TERM=dumb, no terminal) has
+# nothing to undo, and the reset sequences would only be noise in its output.
+_tracking_set = [False]
+
 def _write_terminal_sequence(sequence):
+    # Straight to the terminal: sys.stdout may be a stream that drops escape
+    # sequences (see printc.plain_unless_terminal, NO_COLOR).
+    stream = getattr(sys, "__stdout__", None) or sys.stdout
     try:
-        sys.stdout.write(sequence)
-        sys.stdout.flush()
-    except (IOError, ValueError):
+        stream.write(sequence)
+        stream.flush()
+    except (IOError, ValueError, AttributeError):
         pass
 
 def _set_mouse_tracking(enabled, track_motion=False):
     if not enabled:
+        if not _tracking_set[0]:
+            return
+        _tracking_set[0] = False
         _write_terminal_sequence("".join("\033[?" + mode + "l" for mode in _MOUSE_DISABLE_MODES))
         return
+    _tracking_set[0] = True
     # Switching between the two motion modes means turning the other one off
     # explicitly: leaving both set makes the terminal keep the more verbose one.
     if track_motion:

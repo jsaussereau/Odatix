@@ -71,27 +71,25 @@
     --theme-background-color: var(--sol-base3);
     --theme-element-background-color: #fffaf0;
     --theme-action-color: var(--sol-base2);
-    --theme-primary-color: var(--sol-blue);
-    --theme-secondary-color: var(--sol-cyan);
+    --theme-primary-color: color-mix(in oklab, var(--sol-blue) 78%, var(--sol-base03));
+    --theme-secondary-color: color-mix(in oklab, var(--sol-cyan) 66%, var(--sol-base03));
     --theme-tertiary-color: var(--sol-base2);
     --theme-tertiary-color-light: #eee8d590;
     --theme-disabled-color: #93a1a1cc;
     --theme-disabled-background-color: #eee8d5;
-    --theme-success-color: var(--sol-green);
-    --theme-warning-color: var(--sol-orange);
-    --theme-caution-color: var(--sol-red);
-    --theme-pending-color: var(--sol-cyan);
-    --theme-text-color: var(--sol-base01);
-    --theme-subtle-text-color: var(--sol-base1);
+    --theme-success-color: color-mix(in oklab, var(--sol-green) 66%, var(--sol-base03));
+    --theme-warning-color: color-mix(in oklab, var(--sol-orange) 82%, var(--sol-base03));
+    --theme-caution-color: color-mix(in oklab, var(--sol-red) 80%, var(--sol-base03));
+    --theme-pending-color: var(--theme-secondary-color);
+    --theme-text-color: var(--sol-base02);
     --theme-border-color: #ded7c2;
-    --theme-border-color-hover: var(--sol-base01);
+    --theme-border-color-hover: var(--sol-base02);
     --theme-contrast-background-color: var(--sol-base02);
     --theme-contrast-text-color: var(--sol-base2);
     --theme-contrast-text-shadow: none;
     --theme-shadow-color: rgba(88, 110, 117, 0.12);
     --theme-overlay-background-color: #0736423d;
     --theme-badge-background-color: #268bd21a;
-    --theme-badge-text-color: var(--sol-blue);
 
     /* cards and tiles */
     --card-border: 1px solid #e3dcc7;
@@ -99,15 +97,22 @@
     --add-card-background-hover: #268bd214;
 
     /* buttons */
-    --back-button-color: var(--sol-base1);
+    --back-button-color: var(--theme-secondary-text-color);
 
     /* switch */
     --switch-on-background: #268bd214;
 
     /* highlights */
     --primary-highlight-color: #f5df9b;
-    --primary-highlight-text-color: var(--sol-base01);
+    --primary-highlight-text-color: var(--sol-base02);
     --primary-highlight-text-shadow: none;
-    --secondary-highlight-color: var(--sol-blue);
+    --secondary-highlight-color: var(--theme-primary-color);
     --secondary-highlight-text-shadow: none;
+
+    /* contrast (WCAG AA) */
+    --theme-pause-color: var(--sol-base01);
+    --theme-secondary-text-color: var(--sol-base01);
+
+    /* contrast (WCAG AA) */
+    --theme-placeholder-color: color-mix(in oklab, var(--sol-base01) 80%, var(--sol-base02));
 }

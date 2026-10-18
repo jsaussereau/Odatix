@@ -91,6 +91,21 @@ STATUS_DESCRIPTIONS = {
 }
 
 # How the statuses of records written before this module existed are read.
+#: The statuses of an analysis whose tool ran to a verdict about the design.
+#: Its job succeeded, whatever the verdict: an error in the RTL is a result, not
+#: a job that failed (see tool_ran).
+VERDICT_STATUSES = (STATUS_FAILED, STATUS_WARNING, STATUS_UNSUPPORTED, STATUS_PASSED)
+
+
+def tool_ran(status):
+  """
+  Whether an analysis of this status ran: the tool concluded something about the
+  design. False when it could not run or did not finish ("tool_failure",
+  "incomplete"), which is what makes its job fail, the same way for every tool.
+  """
+  return status in VERDICT_STATUSES
+
+
 _LEGACY_STATUSES = {
   "FAILED": STATUS_FAILED,
   "WARNING": STATUS_WARNING,
@@ -103,9 +118,11 @@ _LEGACY_STATUSES = {
 #: design reporting a thousand warnings needs the first of them, not all.
 MAX_FINDINGS = 100
 
-#: How many lines following a message are kept with it (the source excerpt a
-#: tool prints under an error).
-MAX_DETAIL_LINES = 4
+#: How many lines following a message are kept with it: the source excerpt a
+#: tool prints under an error, and what it says next (where it looked for a
+#: missing module...). A longer detail ends with a line saying how many more
+#: the log holds.
+MAX_DETAIL_LINES = 16
 
 # The markup the Odatix scripts write around their messages ("<bold><red>"),
 # which the logs keep, and terminal escape sequences.
@@ -509,6 +526,8 @@ class Finding(object):
     self.reason = str(reason) if reason else None
     #: Whether it only follows from other messages (see MessageRule.secondary).
     self.secondary = False
+    #: Detail lines left out while the log is read (see MAX_DETAIL_LINES).
+    self.detail_omitted = 0
 
   @property
   def location(self):
@@ -551,6 +570,11 @@ class Finding(object):
 
   def __repr__(self):
     return "<Finding {0} {1}: {2}>".format(self.severity, self.category, self.message)
+
+
+def omitted_detail_line(count):
+  """The last line of a detail cut short: how many more lines the log holds."""
+  return "[{0} more line{1} in the log]".format(count, "" if count == 1 else "s")
 
 
 _BIT_INDEX = re.compile(r"\[\d+(?:(?::|\.\.)\d+)?\]")
@@ -694,6 +718,8 @@ class LogReader(object):
       if current is not None and continuation is not None and continuation.search(line):
         if len(current.detail) < MAX_DETAIL_LINES:
           current.detail.append(line.rstrip())
+        else:
+          current.detail_omitted += 1
         continue
 
       current = None
@@ -716,6 +742,10 @@ class LogReader(object):
 
   def results(self):
     """The distinct findings, in the order they were first reported."""
+    for finding in self.raw:
+      if finding.detail_omitted:
+        finding.detail.append(omitted_detail_line(finding.detail_omitted))
+        finding.detail_omitted = 0
     merged = {}
     bits = {}
     findings = []
@@ -958,6 +988,79 @@ class AnalysisResult(object):
 
 #: Result type of analysis records in a results file.
 TYPE_ANALYSIS = "analysis"
+
+#: The results file of the analyses of a tool is "results_analysis_<tool>.yml".
+RESULTS_FILE_PREFIX = "results_analysis_"
+
+
+def results_filename(tool):
+  """The results file of the analyses of a tool, in the result directory of a workspace."""
+  return RESULTS_FILE_PREFIX + str(tool) + ".yml"
+
+
+def read_results(result_path, tools=None, designs=None):
+  """
+  The analyses recorded in the result directory of a workspace: what
+  "odatix results analysis" and the RTL analysis page of Odatix Explorer show.
+
+  Args:
+      result_path (str): the result directory ("result_path" of odatix.yml,
+          ``workspace.paths.result_path``).
+      tools (list): only the analyses of these tools (default: every tool).
+      designs (list): only these designs, as "Architecture" or
+          "Architecture/configuration", shell-style wildcards allowed
+          ("Counter/*").
+
+  Returns:
+      list: :class:`AnalysisResult` objects, by tool then design. Each has a
+      ``status`` (see STATUSES and STATUS_LABELS), a one-line ``summary``, its
+      ``findings`` and ``counts`` by severity.
+
+  Example::
+
+      import odatix.lib.analysis as analysis
+      for result in analysis.read_results(ws.paths.result_path):
+          print(result.tool, result.name, result.status, result.summary)
+  """
+  import odatix.lib.results_cache as results_cache
+
+  if not result_path or not os.path.isdir(str(result_path)):
+    return []
+  if tools is not None:
+    tools = [tools] if isinstance(tools, str) else list(tools)
+  patterns = None
+  if designs is not None:
+    patterns = [designs] if isinstance(designs, str) else [str(design) for design in designs]
+
+  results = []
+  for path in sorted(glob.glob(os.path.join(str(result_path), RESULTS_FILE_PREFIX + "*.yml"))):
+    tool = os.path.basename(path)[len(RESULTS_FILE_PREFIX):-len(".yml")]
+    if tools is not None and tool not in tools:
+      continue
+    _units, records = results_cache.load(path)
+    for record in records:
+      meta = record.get("meta", {}) if isinstance(record, dict) else {}
+      if str(meta.get("type", "")).lower() != TYPE_ANALYSIS:
+        continue
+      result = AnalysisResult.from_record(record)
+      if patterns is not None and not any(
+        fnmatch.fnmatchcase(result.name, pattern)
+        or fnmatch.fnmatchcase(result.architecture + "/" + result.configuration, pattern)
+        or fnmatch.fnmatchcase(result.architecture, pattern)
+        for pattern in patterns
+      ):
+        continue
+      results.append(result)
+  results.sort(key=lambda result: (result.tool, result.name.lower(), result.flow or ""))
+  return results
+
+
+def count_by_status(results):
+  """{status: how many results have it}, every status included."""
+  counts = {status: 0 for status in STATUSES}
+  for result in results:
+    counts[result.status] = counts.get(result.status, 0) + 1
+  return counts
 
 
 def severity_metric(severity):

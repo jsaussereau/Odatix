@@ -4,7 +4,7 @@
 [![PyPi Package](https://img.shields.io/pypi/v/odatix)](https://pypi.org/project/odatix/)
 [![cite](https://img.shields.io/badge/cite-DOI%3A10.1016/j.softx.2024.101970-green)](https://www.sciencedirect.com/science/article/pii/S2352711024003406)
 [![GitHub License](https://img.shields.io/github/license/jsaussereau/Odatix)](https://github.com/jsaussereau/Odatix/blob/main/LICENSE)
-[![Documentation Status](https://readthedocs.org/projects/odatix/badge/?version=latest)](https://odatix.readthedocs.io/docs/)
+[![Documentation Status](https://readthedocs.org/projects/odatix/badge/?version=latest)](https://odatix.readthedocs.io/en/latest/docs/)
 
 **Odatix** is a toolbox designed to facilitate logical synthesis of configurable designs on various FPGA and ASIC tools such as Vivado and Design Compiler. 
 It allows to easily find the maximum operating frequency of any digital architecture described with an HDL (VHDL, Verilog, SystemVerilog, Chisel).
@@ -47,18 +47,18 @@ Odatix also enables parallel simulations of different configurations of the same
 
 ### Simulation
 
-Virtually any simulator! Check out the section [Simulate your own RTL](https://odatix.readthedocs.io/tutorials/own_designs/simulations/) for more information.
+Virtually any simulator! Check out the section [Simulate your own RTL](https://odatix.readthedocs.io/en/latest/tutorials/own_designs/simulations/) for more information.
 
 Odatix includes examples for Verilator and GHDL.
 
 ## Contents
 
-- [Installation](https://odatix.readthedocs.io/install/)
-- [Getting started](https://odatix.readthedocs.io/docs/getting-started/)
-- [Add your own design](https://odatix.readthedocs.io/tutorials/own_designs/architecture/)
-- [Add your own simulation](https://odatix.readthedocs.io/tutorials/own_designs/simulations/)
-- [Commands](https://odatix.readthedocs.io/docs/commands/)
-- [Settings reference](https://odatix.readthedocs.io/docs/reference/)
+- [Installation](https://odatix.readthedocs.io/en/latest/install/)
+- [Getting started](https://odatix.readthedocs.io/en/latest/docs/getting-started/)
+- [Add your own design](https://odatix.readthedocs.io/en/latest/tutorials/own_designs/architecture/)
+- [Add your own simulation](https://odatix.readthedocs.io/en/latest/tutorials/own_designs/simulations/)
+- [Commands](https://odatix.readthedocs.io/en/latest/docs/commands/)
+- [Settings reference](https://odatix.readthedocs.io/en/latest/docs/reference/)
 
   
 ## Contact

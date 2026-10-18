@@ -802,12 +802,10 @@ class SimulationHandler:
     # stopped, is run again
     category = job_category(tmp_dir, self.overwrite, resume=self.resume)
     if category == Category.CACHED:
-      printc.note("Found cached results for \"" + sim_display_name + "\". Skipping.", script_name)
       self.plan.add(sim_display_name, Category.CACHED)
       return None
-    if category == Category.OVERWRITE:
-      printc.warning("Found cached results for \"" + sim_display_name +"\".", script_name)
-    elif category in (Category.INCOMPLETE, Category.RESUME):
+    # A simulation already done is not announced here: the checklist lists it.
+    if category in (Category.INCOMPLETE, Category.RESUME):
       printc.warning("The previous simulation of \"" + sim_display_name + "\" failed or did not finish.", script_name)
     self.plan.add(sim_display_name, category, tasks=max(len(tasks), 1))
 

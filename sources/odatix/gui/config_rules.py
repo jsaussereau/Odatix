@@ -40,6 +40,7 @@ odatix.gui.variable_editor), so several domains edit their rules side by side on
 the same page.
 """
 
+import copy
 import re
 
 import dash
@@ -57,6 +58,7 @@ from odatix.lib.config_generator import parse_constraints, parse_rule_sets
 import odatix.workspace.selectors as selectors
 from odatix.workspace.configs import CONFIGURATIONS_KEY
 from odatix.workspace.configs import CONFIG_EXTENSION
+from odatix.workspace.yaml_io import ABSENT, merge, same_value
 from odatix.workspace.space import (
     ORIGIN_BLACKLISTED, ORIGIN_EDITED, ORIGIN_GENERATED, config_set_rules, implicit_config_name,
     implicit_template,
@@ -276,7 +278,7 @@ def match_form(domain_uuid, match, visible=True):
                         width="150px",
                         id={"type": "cfg-save-match", "domain_uuid": domain_uuid},
                         tooltip="Nothing to save",
-                        tooltip_options="bottom auto caution",
+                        tooltip_options="bottom auto",
                     ),
                     className="inline-flex-buttons",
                     style={"marginLeft": "auto"},
@@ -461,6 +463,41 @@ def form_rules_settings(blocks, variables, domain_name, saved=None, match=None):
             for key, name, template, constraints in blocks
         ]
     return rule_sets_settings(written, variables, match=match)
+
+
+def rules_changes(held, form, saved):
+    """
+    What saving the rules of a domain writes: only what the form changed since
+    the panel was opened, carried over onto what the file holds.
+
+    The form writes every rule its own way (a "step" spelled out, a block
+    always holding all its fields); comparing it with the file directly would
+    rewrite rules nobody touched. It is compared with ``saved`` -- what the
+    panel was opened on, in the very form the fields hand back -- and only the
+    values that differ are changed in ``held``, the settings as the file says
+    them (see :func:`odatix.workspace.yaml_io.merge`).
+
+    Args:
+        held (dict): the settings of the domain, as read from its file.
+        form (dict): what the form holds (:func:`form_rules_settings`).
+        saved (dict): what the panel was opened on, None when unknown.
+
+    Returns:
+        dict: the settings to update the domain with.
+    """
+    changes = {}
+    for key, value in form.items():
+        base = saved.get(key, ABSENT) if isinstance(saved, dict) else ABSENT
+        if base is not ABSENT and same_value(base, value):
+            continue
+        current = held.get(key, ABSENT) if isinstance(held, dict) else ABSENT
+        if current is ABSENT and same_value(value, None):
+            continue  # an empty block ("match: {}") the file does not hold
+        if base is ABSENT or current is ABSENT:
+            changes[key] = value
+            continue
+        changes[key] = merge(copy.deepcopy(current), value, base)
+    return changes
 
 
 def stored_rules_settings(settings, blocks, variables, domain_name=None):
@@ -848,7 +885,7 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
                         width="120px",
                         id={"type": "cfg-save-rules", "domain_uuid": domain_uuid},
                         tooltip="Nothing to save",
-                        tooltip_options="bottom auto caution",
+                        tooltip_options="bottom auto",
                     ),
                 ],
                 className="inline-flex-buttons",
@@ -1264,9 +1301,12 @@ def _card_name(card):
     # variables: a domain of a single variable needs neither template.
     Output({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "placeholder"),
     Output({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "placeholder"),
-    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    # The typed fields are read once the typing stops ("cfg-rules-debounce",
+    # last below): working the rules out over thousands of configurations per
+    # keystroke froze the page.
+    State({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     # The preview cards follow the configuration cards below them, layout
     # included: they are the same list, one part of it not written yet.
@@ -1281,6 +1321,7 @@ def _card_name(card):
     # about it rather than listing everything they produce.
     State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    Input("cfg-rules-debounce", "data"),
 )
 def update_rules_preview(names, templates, constraint_texts, stores, layout, *rest):
     """
@@ -1614,7 +1655,7 @@ def update_save_rules_button(names, templates, constraint_texts, match_texts, st
     field_values = rest[:len(FIELD_PATTERNS)]
     domain_metadata = rest[len(FIELD_PATTERNS)]
 
-    disabled = "color-button disabled icon-button tooltip bottom auto caution"
+    disabled = "color-button disabled icon-button tooltip bottom auto"
     enabled = "color-button warning icon-button tooltip bottom auto caution"
 
     uuids = domain_uuids_of(domain_metadata)
@@ -1719,7 +1760,15 @@ def save_rules(n_clicks, match_clicks, save_all_clicks, names, templates, constr
         if settings == saved:
             continue
         domain_name = names_by_uuid.get(domain_uuid, hard_settings.main_parameter_domain)
-        ParameterDomain(instances.entry(instance_name), domain_name).update(settings)
+        domain = ParameterDomain(instances.entry(instance_name), domain_name)
+        changes = rules_changes(domain.settings.to_dict(), settings, saved)
+        for key in list(changes):
+            # A block emptied in the editor that the settings do not declare
+            # ("match" at the root of an architecture) leaves the file.
+            if same_value(changes[key], None) and key in domain.settings.extra:
+                del domain.settings[key]
+                del changes[key]
+        domain.update(changes)
         counter = (saved_counters[index] or 0) if index < len(saved_counters) else 0
         new_stores[index] = settings
         bumps[index] = counter + 1

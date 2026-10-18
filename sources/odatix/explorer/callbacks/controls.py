@@ -30,6 +30,7 @@ from dash import ALL, Input, Output, State
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.schema as schema
+import odatix.explorer.charts.app_theme_bridge as app_theme_bridge
 from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, normalize_dims, normalize_metrics, resolve_defaults, x_is_symbolic
 from odatix.gui.page_scope import page_callback
 
@@ -95,6 +96,29 @@ def register_callbacks():
     [Output("xp-tab-btn-" + key, "className") for key in _TAB_KEYS],
     Input("xp-active-tab", "data"),
   )
+
+  dash.clientside_callback(
+    dash.ClientsideFunction(namespace="xp_export", function_name="download_image"),
+    Output("xp-download-image-done", "data"),
+    Input("xp-download-image", "n_clicks"),
+    prevent_initial_call=True,
+  )
+
+  @dash.callback(
+    Output("xp-export-hint", "children"),
+    Input("xp-dl-background", "value"),
+    Input("theme-dropdown", "value"),
+  )
+  def update_export_hint(background, app_theme):
+    """Say what the image background means with the current app theme."""
+    if background == "white":
+      return "Dark text on a white background, whatever the app theme: ready for a document or a slide."
+    if background == "theme":
+      return "The background of the current theme, painted in: the image looks like the chart on screen."
+    if app_theme_bridge.is_dark(app_theme):
+      return ("This dark theme draws light text, kept on a transparent background: "
+              "on a white page or slide, pick the White background.")
+    return "No background: the image takes the color of the page it is put on."
 
   @dash.callback(
     Output("xp-axis-x", "options"),

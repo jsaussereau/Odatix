@@ -49,6 +49,16 @@ def _sq_dist(a, b):
     )
 
 
+#: Centre and spread of the prior on ``log(length scale)``, inputs being on
+#: ``[0, 1]``: centred on a surface that varies over a fair fraction of an
+#: axis, loose enough to let the data say otherwise.
+_LENGTH_SCALE_PRIOR_MEAN = np.log(0.3)
+_LENGTH_SCALE_PRIOR_SPREAD = 1.0
+#: Same for ``log(noise variance)``, the target being standardized.
+_NOISE_PRIOR_MEAN = np.log(1e-3)
+_NOISE_PRIOR_SPREAD = 2.0
+
+
 class GaussianProcess(object):
     """
     A zero-mean GP over inputs already scaled to ``[0, 1]`` per axis, with an
@@ -67,7 +77,7 @@ class GaussianProcess(object):
             a seed still runs the same way twice.
     """
 
-    def __init__(self, restarts=3, seed=None):
+    def __init__(self, restarts=5, seed=None):
         self.restarts = max(1, int(restarts))
         self.rng = np.random.RandomState(seed)
         self.X = None
@@ -175,7 +185,17 @@ class GaussianProcess(object):
         alpha = np.linalg.solve(L.T, np.linalg.solve(L, target))
         fit_term = 0.5 * target.dot(alpha)
         complexity_term = np.sum(np.log(np.diagonal(L)))
-        return float(fit_term + complexity_term + 0.5 * count * np.log(2 * np.pi))
+        # A weak log-normal prior on each length scale. On a few points the
+        # likelihood alone barely tells a smooth surface from one spike per
+        # measured design, and the spikes predict nothing but the mean
+        # between them -- which, for a feasibility model, is a candidate
+        # sitting among feasible designs scored as likely infeasible.
+        # The same goes for the noise at the other end: a few points can be
+        # read as pure noise around their mean just as cheaply, and the
+        # syntheses a campaign measures are close to deterministic.
+        prior_term = 0.5 * np.sum(((theta[:dims] - _LENGTH_SCALE_PRIOR_MEAN) / _LENGTH_SCALE_PRIOR_SPREAD) ** 2)
+        prior_term += 0.5 * ((theta[dims + 1] - _NOISE_PRIOR_MEAN) / _NOISE_PRIOR_SPREAD) ** 2
+        return float(fit_term + complexity_term + prior_term + 0.5 * count * np.log(2 * np.pi))
 
     def _prepare(self, target):
         """The Cholesky factor and weights a prediction is read off of."""

@@ -26,6 +26,7 @@ import itertools
 import os
 import socket
 import threading
+import time
 from html import escape as html_escape
 from dash.exceptions import PreventUpdate
 from dash import no_update
@@ -61,6 +62,15 @@ dash.register_page(
 
 DEFAULT_HOST = hard_settings.daemon_default_host
 DEFAULT_PORT = hard_settings.daemon_default_port
+
+# What the page says when the GUI's workspace has no session to monitor.
+NO_SESSION_MESSAGE = "No session in this workspace"
+NO_SESSION_HINT = "Start jobs from Run jobs, or choose a session of another workspace in the list above."
+ERROR_HINT = "Choose another session in the list above, or start new jobs."
+
+# Value of the (disabled) heading that separates the sessions of other
+# workspaces in the session list. Never a session id: those are "<pid>.<name>".
+OTHER_WORKSPACES_HEADING = "__other_workspaces__"
 
 def _normalize_optional_str(value: Optional[str]) -> Optional[str]:
     if value is None:
@@ -184,6 +194,10 @@ def _pick_session_value(daemons, selector: Optional[str], workspace_root: Option
     return None
 
 
+class SessionNotListedError(daemon_control.DaemonControlError):
+    """The session the URL names is not (or not yet) among the running ones."""
+
+
 # Session endpoints (and the tokens they carry) stay in the server process:
 # the browser store only ever holds the query key that names one. A token in a
 # dcc.Store would be a token in the page, readable by anything running there.
@@ -196,6 +210,78 @@ def _remember_endpoint(key: str, state: dict):
     with _ENDPOINTS_LOCK:
         _ENDPOINTS[str(key)] = endpoint
     return endpoint
+
+
+# Sessions the session list has just found, by the query key a selection in it
+# resolves to. Resolving a session means listing every session of the machine
+# (a /proc scan plus a ping to each one): the list has just done that, so the
+# first poll of the session it selects starts from what it found instead of
+# doing it all over again. Forgotten as soon as the session cannot be reached.
+_LISTED_STATES = {}
+
+
+def _selection_key(session_value) -> str:
+    return _query_key({"host": None, "port": None, "session": session_value})
+
+
+def _remember_listed_session(session_value, daemon):
+    if session_value is None or not isinstance(daemon, dict):
+        return
+    with _ENDPOINTS_LOCK:
+        _LISTED_STATES[_selection_key(session_value)] = daemon
+
+
+# The sessions of the machine, listed once for every callback that needs them.
+# A listing costs a /proc scan and a ping to every session -- seconds, on a
+# machine with dozens of them, or with a session too busy to answer at once --
+# and several callbacks need it at page load: done each on its own, they went
+# one after the other, and the ones their interval triggered again meanwhile
+# threw away what they had waited for, so the page stayed on "loading".
+#
+# So: one listing at a time; a listing younger than _LISTING_TTL is reused as
+# is; an older one, up to _LISTING_STALE, is reused while a fresh one is made
+# in the background (the session list catches up on its next refresh). Only a
+# first listing, or one too old, is waited for.
+_LISTING_TTL = 2.0
+_LISTING_STALE = 30.0
+_LISTING_LOCK = threading.Lock()
+_LISTING = {"time": 0.0, "daemons": None, "source": None, "refreshing": False}
+
+
+def _refresh_listing(source):
+    try:
+        daemons = list(source() or [])
+    except Exception:
+        daemons = None
+    with _LISTING_LOCK:
+        _LISTING["refreshing"] = False
+        if daemons is not None and _LISTING["source"] is source:
+            _LISTING.update(time=time.time(), daemons=daemons)
+
+
+def _list_sessions(fresh: bool = False):
+    """Every session of the machine (daemon_control.list_daemons), shared for a moment."""
+    source = daemon_control.list_daemons
+    with _LISTING_LOCK:
+        cached = _LISTING["daemons"]
+        age = time.time() - _LISTING["time"]
+        if not fresh and cached is not None and _LISTING["source"] is source:
+            if age < _LISTING_TTL:
+                return list(cached)
+            if age < _LISTING_STALE:
+                if not _LISTING["refreshing"]:
+                    _LISTING["refreshing"] = True
+                    threading.Thread(target=_refresh_listing, args=(source,), daemon=True).start()
+                return list(cached)
+        daemons = list(source() or [])
+        _LISTING.update(time=time.time(), daemons=daemons, source=source)
+        return list(daemons)
+
+
+def _forget_session(key):
+    with _ENDPOINTS_LOCK:
+        _LISTED_STATES.pop(str(key), None)
+        _ENDPOINTS.pop(str(key), None)
 
 
 def _endpoint(daemon_state) -> Endpoint:
@@ -266,35 +352,54 @@ def _resolve_daemon_target(
     # runs. A selector from the URL is looked up in the GUI's workspace first,
     # as the command line does, and only then in the other ones.
     no_selector = query.get("session") is None and query.get("host") is None and query.get("port") is None
-    try:
-        state = daemon_control._resolve_state_for_attach_or_stop(
-            host=query.get("host"),
-            port=query.get("port"),
-            session=query.get("session"),
-            any_workspace=session_override is not None,
-        )
-    except daemon_control.MultipleDaemonsError:
-        # Default monitor behavior in GUI: when several sessions exist and no
-        # explicit selector is provided, attach to the latest one of the GUI's
-        # workspace, or else to the latest one at all (as the session list does).
-        if no_selector:
-            daemons = _sort_sessions(daemon_control.list_daemons(), _gui_workspace_root())
-            if len(daemons) == 0:
+    with _ENDPOINTS_LOCK:
+        listed = _LISTED_STATES.get(key) if session_override is not None else None
+    if listed is None and session_override is None and query.get("session") is not None \
+            and query.get("host") is None and query.get("port") is None:
+        # A session the URL names: looked up in the listing the session list
+        # shares, rather than in a listing of its own on every poll.
+        daemons = [daemon for daemon in _list_sessions() if isinstance(daemon, dict)]
+        value = _pick_session_value(daemons, query.get("session"), _gui_workspace_root())
+        if value is None:
+            raise SessionNotListedError("No session matches '{}'".format(query.get("session")))
+        for daemon in daemons:
+            if value in (_normalize_optional_str(daemon.get("session_id")), _normalize_optional_str(daemon.get("session_name"))):
+                listed = daemon
+                break
+    if listed is not None:
+        state = listed
+    else:
+        try:
+            state = daemon_control._resolve_state_for_attach_or_stop(
+                host=query.get("host"),
+                port=query.get("port"),
+                session=query.get("session"),
+                any_workspace=session_override is not None,
+            )
+        except daemon_control.MultipleDaemonsError:
+            # Default monitor behavior in GUI: when several sessions exist and
+            # no explicit selector is provided, attach to the latest one of the
+            # GUI's workspace (as the session list does).
+            if no_selector:
+                workspace_root = _gui_workspace_root()
+                daemons = [
+                    daemon for daemon in _sort_sessions(daemon_control.list_daemons(only_workspace=workspace_root), workspace_root)
+                    if _in_workspace(daemon, workspace_root)
+                ]
+                if len(daemons) == 0:
+                    raise
+                state = daemons[0]
+            else:
                 raise
-            state = daemons[0]
-        else:
-            raise
-    except daemon_control.DaemonControlError:
-        # Nothing in this workspace: the sessions of the other ones are still
-        # in reach, the way the session list shows them.
-        if session_override is not None or query.get("host") is not None or query.get("port") is not None:
-            raise
-        if no_selector:
-            daemons = _sort_sessions(daemon_control.list_daemons(), _gui_workspace_root())
-            if len(daemons) == 0:
+        except daemon_control.DaemonControlError:
+            # A session of another workspace is only reached when something
+            # names it (the URL, the session list), the way the command line
+            # needs --any-workspace: never as a default, or the page would
+            # offer to pause and kill somebody else's jobs.
+            if session_override is not None or query.get("host") is not None or query.get("port") is not None:
                 raise
-            state = daemons[0]
-        else:
+            if no_selector:
+                raise daemon_control.DaemonControlError(NO_SESSION_MESSAGE)
             state = daemon_control._resolve_state_for_attach_or_stop(
                 session=query.get("session"), any_workspace=True,
             )
@@ -432,13 +537,25 @@ def _sort_sessions(daemons, workspace_root: Optional[str]):
 
 
 def _short_workspace(path: str, max_length: int = 32) -> str:
-    """A workspace path short enough for the session list: "~/..." or ".../<name>"."""
+    """A workspace path short enough for the session list.
+
+    "~/..." when it fits, or else its last folders, as many as fit: the last
+    one alone ("ws2") is often the same for two workspaces, so it is kept only
+    when nothing else fits. The full path is in the option's hover text.
+    """
     home = os.path.expanduser("~")
     if home and home != "/" and (path == home or path.startswith(home + os.sep)):
         path = "~" + path[len(home):]
-    if len(path) > max_length:
-        path = "…/" + os.path.basename(path.rstrip(os.sep))
-    return path
+    if len(path) <= max_length:
+        return path
+    parts = [part for part in path.rstrip(os.sep).split(os.sep) if part]
+    short = "…/" + parts[-1] if parts else path
+    for count in range(2, len(parts)):
+        candidate = "…/" + "/".join(parts[-count:])
+        if len(candidate) > max_length:
+            break
+        short = candidate
+    return short
 
 
 def _session_option(daemon, workspace_root: Optional[str] = None):
@@ -456,9 +573,9 @@ def _session_option(daemon, workspace_root: Optional[str] = None):
 
     value = session_id or session_name or address
     label = session_id or address
-    hover_text = address
+    hover_text = "\n".join(part for part in (session_id, address) if part)
     if session_root is not None:
-        hover_text = "\n".join(part for part in (address, "Workspace: " + session_root) if part)
+        hover_text = "\n".join(part for part in (session_id, address, "Workspace: " + session_root) if part)
         if not _in_workspace(daemon, workspace_root):
             label = "{0} — {1}".format(label, _short_workspace(session_root))
     search = " ".join(part for part in (label, session_name, session_root or "") if part)
@@ -657,7 +774,18 @@ def monitor_task_template():
                 **{"data-role": "row"},
                 children=[
                     html.Div(className="monitor-task-dot"),
-                    html.Div(className="monitor-task-name", **{"data-role": "name"}),
+                    # The name in two parts: what comes before the
+                    # configuration (the architecture, or the workflow) gives
+                    # way first, so that what tells the jobs apart -- the
+                    # configuration, the frequency, the values -- stays in sight.
+                    html.Div(
+                        className="monitor-task-name",
+                        **{"data-role": "name"},
+                        children=[
+                            html.Span(className="monitor-task-name-head", **{"data-role": "name-head"}),
+                            html.Span(className="monitor-task-name-tail", **{"data-role": "name-tail"}),
+                        ],
+                    ),
                     html.Div(
                         className="monitor-task-progress",
                         children=[
@@ -690,10 +818,11 @@ MONITOR_TASK_TEMPLATE_HTML = _component_to_html(monitor_task_template())
 
 
 def _stat(value_id: str, label: str, kind: str):
+    # "–" until the session answers: a "0" there reads as "no job at all".
     return html.Div(
         className=f"monitor-stat {kind}",
         children=[
-            html.Span("0", id=value_id, className="monitor-stat-value"),
+            html.Span("–", id=value_id, className="monitor-stat-value"),
             html.Span(label, className="monitor-stat-label"),
         ],
     )
@@ -704,7 +833,7 @@ def _mode_button(id, label, tooltip):
         label,
         id=id,
         n_clicks=0,
-        className="monitor-mode-button tooltip top small",
+        className="monitor-mode-button tooltip bottom small",
         **{"data-tooltip": tooltip},
     )
 
@@ -713,23 +842,9 @@ def _mode_button(id, label, tooltip):
 # Callbacks
 ######################################
 
-@dash.callback(
-    Output("session-dropdown", "options"),
-    Output("session-dropdown", "value"),
-    Output("monitor-stopped-search", "data"),
-    Input("monitor-session-refresh", "n_intervals"),
-    Input("session-dropdown-open", "data"),
-    Input("monitor-last-action", "data"),
-    State(f"url_{page_path}", "search"),
-    State("session-dropdown", "value"),
-    State("monitor-daemon", "data"),
-    State("session-dropdown-open", "data"),
-    State("session-dropdown", "options"),
-    State("monitor-error", "data"),
-    State("monitor-stopped-search", "data"),
-)
 def _update_session_dropdown(_n, _open, last_action, search, current_value, daemon_state, dropdown_open, current_options,
                              monitor_error=None, stopped_search=None):
+    """The session list and the session it selects (see _refresh_session_list)."""
     if _is_dummy(search):
         # A simulated session is the only one a dummy monitor can attach to:
         # listing real daemons here would let the dropdown steal the page away
@@ -748,12 +863,7 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
     # so gate on the trigger, not on the value.
     # The refresh tick often fires along with it: look at every trigger, not
     # only the first one (ctx.triggered_id), or the shutdown goes unnoticed.
-    session_stopped = (
-        "monitor-last-action.data" in (ctx.triggered_prop_ids or {})
-        and isinstance(last_action, dict)
-        and last_action.get("action") == "shutdown"
-        and last_action.get("ok")
-    )
+    session_stopped = _session_just_stopped(last_action)
 
     # Rescanning daemons is expensive (scans /proc and HTTP-pings each candidate).
     # Only do it while the user has the dropdown open, except keep trying at startup
@@ -764,7 +874,7 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
         raise PreventUpdate
 
     try:
-        daemons = daemon_control.list_daemons()
+        daemons = _list_sessions()
     except Exception:
         daemons = []
 
@@ -781,12 +891,15 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
         ]
 
     # The list holds every session of the machine: the ones of the GUI's own
-    # workspace come first, so that the default selection below lands on one of
-    # them, and the others say which workspace they belong to.
+    # workspace come first, then, under a heading, the others, which say which
+    # workspace they belong to.
     workspace_root = _gui_workspace_root()
     daemons = _sort_sessions(daemons, workspace_root)
-    options = [_session_option(daemon, workspace_root) for daemon in daemons]
-    values = {option.get("value") for option in options}
+    options = _session_options(daemons, workspace_root)
+    daemon_by_value = {}
+    for daemon, option in zip(daemons, [_session_option(daemon, workspace_root) for daemon in daemons]):
+        daemon_by_value[option.get("value")] = daemon
+    values = set(daemon_by_value)
 
     selected = _normalize_optional_str(current_value)
     if selected not in values:
@@ -794,8 +907,8 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
 
     query_session = _monitor_query(search).get("session")
     # After a shutdown, the URL still points at the (now dead) session. Do not
-    # keep preferring it: fall back to any other available session below, so the
-    # monitor lands on a live session instead of "No session matches".
+    # keep preferring it: fall back to another session of the workspace below,
+    # so the monitor lands on a live session instead of "No session matches".
     # Nor afterwards: the URL keeps naming it until the user goes elsewhere.
     if session_stopped or (stopped_search is not None and stopped_search == search):
         query_session = None
@@ -819,9 +932,19 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
         if state_session in values:
             selected = state_session
 
-    # The latest session of this workspace, or else the latest one at all.
-    if selected is None and len(options) > 0:
-        selected = options[0].get("value")
+    # The latest session of this workspace. Never one of another workspace:
+    # the page would then offer to pause and kill somebody else's jobs, and
+    # the command line does not reach them either without --any-workspace.
+    # Those stay in the list, to be picked explicitly.
+    if selected is None:
+        for daemon in daemons:
+            if _in_workspace(daemon, workspace_root):
+                selected = _session_option(daemon, workspace_root).get("value")
+                break
+
+    # The first poll of the selected session starts from what the list found.
+    if selected is not None:
+        _remember_listed_session(selected, daemon_by_value.get(selected))
 
     # Prevent update if neither the selection nor the available sessions changed:
     # rewriting the props while the user has the menu open would close it under
@@ -830,6 +953,104 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
     if not session_stopped and selected == current_value and _options_signature(options) == _options_signature(current_options):
         raise PreventUpdate
     return options, selected, (search if session_stopped else no_update)
+
+
+def _session_just_stopped(last_action) -> bool:
+    """Whether this callback runs because the page has just closed its session."""
+    return bool(
+        "monitor-last-action.data" in (ctx.triggered_prop_ids or {})
+        and isinstance(last_action, dict)
+        and last_action.get("action") == "shutdown"
+        and last_action.get("ok")
+    )
+
+
+def _session_options(daemons, workspace_root: Optional[str]):
+    """The entries of the session list: this workspace's, then the others' under a heading."""
+    options = []
+    heading = False
+    for daemon in daemons:
+        if not heading and not _in_workspace(daemon, workspace_root):
+            options.append({
+                "label": "Other workspaces",
+                "value": OTHER_WORKSPACES_HEADING,
+                "disabled": True,
+                "title": "Sessions started from another workspace than this one",
+            })
+            heading = True
+        options.append(_session_option(daemon, workspace_root))
+    return options
+
+
+def _session_status(selected, search, stopped_search) -> dict:
+    """What the page has to monitor, for the parts of it the session list drives.
+
+    "selected": a session of the list. "url": none of the list, but the URL
+    names one (a session still starting, or an explicit host/port), which the
+    poll looks for. "empty": nothing to monitor -- this workspace has no session
+    -- which the page says instead of showing empty counters.
+    """
+    if _normalize_optional_str(selected) is not None:
+        return {"state": "selected", "session": selected}
+    try:
+        query = _monitor_query(search)
+    except ValueError:
+        return {"state": "url", "session": ""}
+    stopped = stopped_search is not None and stopped_search == search
+    if not stopped and (query.get("session") or query.get("host") or query.get("port")):
+        return {"state": "url", "session": query.get("session") or ""}
+    return {"state": "empty", "session": ""}
+
+
+@dash.callback(
+    Output("session-dropdown", "options"),
+    Output("session-dropdown", "value"),
+    Output("monitor-stopped-search", "data"),
+    Output("monitor-session-status", "data"),
+    Output("session-dropdown", "placeholder"),
+    Input("monitor-session-refresh", "n_intervals"),
+    Input("session-dropdown-open", "data"),
+    Input("monitor-last-action", "data"),
+    State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
+    State("monitor-daemon", "data"),
+    State("session-dropdown-open", "data"),
+    State("session-dropdown", "options"),
+    State("monitor-error", "data"),
+    State("monitor-stopped-search", "data"),
+    State("monitor-session-status", "data"),
+)
+def _refresh_session_list(_n, _open, last_action, search, current_value, daemon_state, dropdown_open, current_options,
+                          monitor_error, stopped_search, session_status):
+    """Session list, selection, and whether there is anything to monitor at all.
+
+    The page shows "Looking for sessions..." until the first listing is done,
+    then the selected session, or the "no session in this workspace" card.
+    """
+    try:
+        options, selected, stopped = _update_session_dropdown(
+            _n, _open, last_action, search, current_value, daemon_state, dropdown_open, current_options,
+            monitor_error, stopped_search,
+        )
+    except PreventUpdate:
+        # Nothing changed in the list. The first listing must still say that
+        # it is done, or the page would keep saying it is looking.
+        if isinstance(session_status, dict):
+            raise
+        options, selected, stopped = no_update, current_value, no_update
+
+    status = _session_status(selected, search, search if stopped is not no_update else stopped_search)
+    if _is_dummy(search):
+        status = {"state": "selected", "session": dummy_session.DUMMY_SESSION_ID}
+    # Writing the same value again would fire what follows a session change
+    # (the log pane is cleared, the job list reloaded) for nothing.
+    value = no_update if selected == current_value else selected
+    if status == session_status:
+        if options is no_update and stopped is no_update and value is no_update:
+            raise PreventUpdate
+        status = no_update
+    return options, value, stopped, status, "Select a session"
+
 
 @dash.callback(
     Output("monitor-snapshot", "data"),
@@ -840,19 +1061,36 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
     Output("monitor-error", "data"),
     Output("monitor-daemon", "data"),
     Input("monitor-refresh", "n_intervals"),
+    # A session just selected is polled at once, not on the next tick: the
+    # page shows "Loading session..." until then.
+    Input("session-dropdown", "value"),
     State("monitor-sync", "data"),
     State("monitor-selected-job", "data"),
     State("monitor-log-cursor", "data"),
     State("monitor-format", "data"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
-    State("session-dropdown", "value"),
+    State("monitor-stopped-search", "data"),
     prevent_initial_call=True,
 )
-def _poll_status(_n, sync_state, selected_job_id, cursor_state, format_yaml,
-                 daemon_state, search, selected_session):
+def _poll_status(_n, selected_session, sync_state, selected_job_id, cursor_state, format_yaml,
+                 daemon_state, search, stopped_search=None):
+    if not _has_session_to_poll(search, selected_session, stopped_search):
+        # Nothing selected, nothing named by the URL: the session list says
+        # "no session in this workspace". Polling here would only go looking
+        # for one, at the cost of a scan of every session of the machine.
+        raise PreventUpdate
+
+    if ctx.triggered_id == "session-dropdown":
+        # The job selected (and the log offset) belong to the session left:
+        # the new one gets the job list first, its log right after.
+        selected_job_id = None
+        sync_state = None
+
+    key = None
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
+        key = resolved_daemon.get("query_key")
 
         # 1 request per tick: changed jobs + optional log deltas for the
         # selected job. `since`/`epoch` come from the last snapshot we merged,
@@ -934,12 +1172,40 @@ def _poll_status(_n, sync_state, selected_job_id, cursor_state, format_yaml,
             new_sync = {"revision": snap.get("revision"), "epoch": snap.get("epoch")}
 
         return snap, new_format, new_sync, new_chunk, new_cursor, "", resolved_daemon
+    except SessionNotListedError as e:
+        # A session just started (Run jobs > Start opens the page on it) takes
+        # a moment to answer the listing: the page says it is waiting for it
+        # (see pageState), and only calls it gone after a while.
+        if not isinstance(daemon_state, dict) and int(_n or 0) < _WAIT_FOR_URL_SESSION_TICKS:
+            raise PreventUpdate
+        return no_update, no_update, no_update, no_update, no_update, _format_monitor_error(e, daemon_state), None
     except Exception as e:
         # Keep the last known state so the UI does not flicker. The snapshot is
         # not rewritten: the browser already holds the merged job list, and a
         # dropped tick must not make it re-render or lose its revision.
         err = _format_monitor_error(e, daemon_state)
+        # What the session list found may be what no longer answers: the
+        # next tick resolves the session again.
+        _forget_session(key if key is not None else _selection_key(selected_session))
         return no_update, no_update, no_update, no_update, no_update, err, None
+
+
+# How many poll ticks (about one a second) the page waits for a session the
+# URL names to show up before it says the session is not running.
+_WAIT_FOR_URL_SESSION_TICKS = 15
+
+
+def _has_session_to_poll(search, selected_session, stopped_search=None) -> bool:
+    """Whether the page has a session to poll: one selected, or one the URL names."""
+    if _is_dummy(search) or _normalize_optional_str(selected_session) is not None:
+        return True
+    if stopped_search is not None and stopped_search == search:
+        return False
+    try:
+        query = _monitor_query(search)
+    except ValueError:
+        return True  # an invalid URL: the poll says what is wrong with it
+    return bool(query.get("session") or query.get("host") or query.get("port"))
 
 
 @dash.callback(
@@ -1026,6 +1292,7 @@ def _toggle_resource_guard(n_clicks, current_value, daemon_state, search, select
     Output("monitor-log-chunk", "data", allow_duplicate=True),
     Output("monitor-log-cursor", "data", allow_duplicate=True),
     Output("monitor-sync", "data", allow_duplicate=True),
+    Output("monitor-snapshot", "data", allow_duplicate=True),
     Input("session-dropdown", "value"),
     prevent_initial_call=True,
 )
@@ -1035,7 +1302,10 @@ def _reset_selection_on_session_change(_selected_session):
     # the client-side initSelection pick a job of the new session on the next
     # snapshot. Clearing the sync state asks the new session for a full
     # snapshot rather than a delta against revisions that are not its own.
-    return None, _log_chunk(None, [], None, mode="replace"), None, None
+    # Clearing the snapshot empties the job list and puts the page back to
+    # "Loading session..." until the new session answers, rather than showing
+    # the jobs and the counts of the one left.
+    return None, _log_chunk(None, [], None, mode="replace"), None, None, None
 
 
 @dash.callback(
@@ -1137,7 +1407,7 @@ def _compose_split_class(layout):
         classes.append("split")
 
     def _btn(mode):
-        return "monitor-mode-button tooltip top small" + (" active" if layout == mode else "")
+        return "monitor-mode-button tooltip bottom small" + (" active" if layout == mode else "")
 
     return (
         " ".join(classes),
@@ -1211,10 +1481,15 @@ def _log_chunk(job_id, lines, format_yaml, mode="append", leading_newline=False)
     Output("monitor-main-container", "className"),
     Output("monitor-error-container", "className"),
     Input("monitor-error", "data"),
+    Input("monitor-session-status", "data"),
 )
-def _render_error(error_message):
+def _render_error(error_message, session_status=None):
     # The toolbar stays on screen, session list included: it is how one goes
     # from a session that is gone to another one (see .monitor-dashboard.failed).
+    if isinstance(session_status, dict) and session_status.get("state") == "empty":
+        # Not an error: there is nothing to monitor here. The card says so,
+        # instead of zeros and buttons acting on a session of somebody else.
+        return NO_SESSION_MESSAGE, "monitor-dashboard visible failed empty", "monitor-error-card empty"
     if error_message:
         return str(error_message), "monitor-dashboard visible failed", "monitor-error-card"
     return "", "monitor-dashboard visible", "monitor-error-card hidden"
@@ -1261,8 +1536,8 @@ def _stop_all_message(running, queued, session: str, session_root: Optional[str]
 
 
 @dash.callback(
-    Output("monitor-stop-all-confirm", "displayed"),
-    Output("monitor-stop-all-confirm", "message"),
+    Output("monitor-stop-all-displayed", "data"),
+    Output("monitor-stop-all-message", "children"),
     Input("monitor-stop-all", "n_clicks"),
     State("kpi-running", "children"),
     State("kpi-queued", "children"),
@@ -1298,7 +1573,7 @@ _ROW_ACTION_ENDPOINTS = {
     Output("monitor-last-action", "data"),
     Input("monitor-task-command", "data"),
     # Reached once the confirmation (_confirm_stop_all) is accepted.
-    Input("monitor-stop-all-confirm", "submit_n_clicks"),
+    Input("monitor-stop-all-confirm", "n_clicks"),
     Input("monitor-open-path", "n_clicks"),
     State("monitor-selected-job", "data"),
     State("monitor-daemon", "data"),
@@ -1310,17 +1585,21 @@ def _task_action(task_command, stop_all_clicks, open_clicks,
                  selected_job, daemon_state, search, selected_session):
     if not ctx.triggered:
         raise PreventUpdate
+    triggered = ctx.triggered_id
+    # Only an actual click acts: a button rendered with n_clicks 0 (or None)
+    # is no request, and must not even resolve the session.
+    if triggered == "monitor-task-command":
+        if not isinstance(task_command, dict):
+            raise PreventUpdate
+    elif not ctx.triggered[0].get("value"):
+        raise PreventUpdate
 
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
     except Exception as e:
         return {"ok": False, "error": _format_monitor_error(e, daemon_state)}
 
-    triggered = ctx.triggered_id
-
     if triggered == "monitor-task-command":
-        if not isinstance(task_command, dict):
-            raise PreventUpdate
         action_type = str(task_command.get("action") or "")
         endpoint = _ROW_ACTION_ENDPOINTS.get(action_type)
         if endpoint is None:
@@ -1339,11 +1618,6 @@ def _task_action(task_command, stop_all_clicks, open_clicks,
                 "job_id": job_id,
                 "error": _format_monitor_error(e, daemon_state),
             }
-
-    # The remaining inputs are plain buttons: ignore the initial render, where
-    # n_clicks is 0 rather than an actual click.
-    if not ctx.triggered[0].get("value"):
-        raise PreventUpdate
 
     if triggered == "monitor-stop-all-confirm":
         try:
@@ -1370,6 +1644,28 @@ def _task_action(task_command, stop_all_clicks, open_clicks,
 
 
 @dash.callback(
+    Output("monitor-feedback", "children"),
+    Input("monitor-last-action", "data"),
+    prevent_initial_call=True,
+)
+def _action_feedback(last_action):
+    """How the last action of the page went (see ui.feedback).
+
+    A kill-all says which session it closed: the page moves on to another
+    session of the workspace, or to the "no session" card, and without this
+    line nothing would tell that the session is gone rather than switched.
+    """
+    if not isinstance(last_action, dict):
+        raise PreventUpdate
+    if not last_action.get("ok"):
+        return ui.error(str(last_action.get("error") or "The action failed"))
+    if last_action.get("action") == "shutdown":
+        session = _normalize_optional_str(last_action.get("session"))
+        return ui.success("Session {0} closed.".format(session) if session else "Session closed.")
+    return ""
+
+
+@dash.callback(
     Output("monitor-open-path", "disabled"),
     Output("monitor-open-path", "data-tooltip"),
     # Driven by the session, not by the poll tick: what this answers only
@@ -1380,6 +1676,10 @@ def _task_action(task_command, stop_all_clicks, open_clicks,
     State("monitor-daemon", "data"),
 )
 def _toggle_open_path(selected_session, search, daemon_state):
+    if not _has_session_to_poll(search, selected_session):
+        # No session: nothing to resolve (resolving one means listing every
+        # session of the machine), and no directory to open.
+        return True, "Open task directory"
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
     except Exception:
@@ -1408,6 +1708,92 @@ def _format_hms(seconds: int) -> str:
     return "{:d}:{:02d}:{:02d}".format(seconds // 3600, (seconds % 3600) // 60, seconds % 60)
 
 
+def _plural(count: int, word: str) -> str:
+    return "{0} {1}{2}".format(count, word, "" if count == 1 else "s")
+
+
+def _analysis_verdicts(designs):
+    """How the analyses of `designs` concluded, as {status: count}, or None.
+
+    Read from what the session recorded in the results of the workspace (what
+    the RTL analysis dashboard shows): the job statuses only say whether the
+    tool ran, never whether it found errors in the design. None when nothing
+    can be read, so the dialog says no verdict rather than a wrong one.
+    """
+    designs = [str(design) for design in (designs or []) if str(design or "").strip()]
+    if not designs:
+        return None
+    try:
+        import odatix.lib.analysis as analysis
+        from odatix.gui.utils import get_workspace
+        results = analysis.read_results(get_workspace().paths.result_path, designs=designs)
+    except Exception:
+        return None
+    if not results:
+        return None
+    verdicts = {}
+    for result in results:
+        verdicts[result.status] = verdicts.get(result.status, 0) + 1
+    return verdicts
+
+
+def _analysis_finished(total, failed, longest, verdicts):
+    """Title, badge, glyph, message and stats of the dialog that ends an analysis.
+
+    An analysis job succeeds when its tool ran, whatever it found: "completed
+    successfully" would read as "the design is fine". The dialog gives the
+    verdicts instead, or else says where to read them.
+    """
+    import odatix.lib.analysis as analysis
+
+    title = "Analysis finished"
+    if verdicts:
+        attention = sum(
+            verdicts.get(status, 0)
+            for status in (analysis.STATUS_FAILED, analysis.STATUS_TOOL_FAILURE, analysis.STATUS_INCOMPLETE)
+        )
+        if attention:
+            badge, glyph = "monitor-finished-badge failed", icon("cross", className="icon", width="30px", height="30px")
+        elif verdicts.get(analysis.STATUS_WARNING, 0):
+            badge, glyph = "monitor-finished-badge warning", icon("analysis", className="icon", width="30px", height="30px")
+        else:
+            badge, glyph = "monitor-finished-badge success", icon("check", className="icon", width="30px", height="30px")
+        analyzed = sum(verdicts.values())
+        parts = [
+            "{0} {1}".format(verdicts[status], analysis.STATUS_LABELS.get(status, status).lower())
+            for status in analysis.STATUSES if verdicts.get(status)
+        ]
+        message = "{0} analyzed: {1}. The details are in the RTL analysis dashboard.".format(
+            _plural(analyzed, "design"), ", ".join(parts))
+        stats = [
+            _finished_stat(verdicts[status], analysis.STATUS_LABELS.get(status, status), _VERDICT_STAT_KINDS.get(status, "total"))
+            for status in analysis.STATUSES if verdicts.get(status)
+        ][:3]
+    else:
+        badge, glyph = "monitor-finished-badge", icon("analysis", className="icon", width="30px", height="30px")
+        if failed:
+            message = "{0} ran, {1} of them could not finish. What the tools found is in the RTL analysis dashboard.".format(
+                _plural(total, "analysis job"), failed)
+        else:
+            message = "{0} ran. What the tools found is in the RTL analysis dashboard.".format(_plural(total, "analysis job"))
+        stats = [_finished_stat(total, "Jobs", "total")]
+        if failed:
+            stats.append(_finished_stat(failed, "Not finished", "failed"))
+    stats.append(_finished_stat(_format_hms(longest), "Longest", "time"))
+    return title, badge, glyph, message, stats
+
+
+# Color of the dialog's figure for each analysis verdict (see style.css).
+_VERDICT_STAT_KINDS = {
+    "failed": "failed",
+    "tool_failure": "failed",
+    "incomplete": "failed",
+    "warning": "warning",
+    "passed": "done",
+    "unsupported": "total",
+}
+
+
 @dash.callback(
     Output("monitor-finished-popup", "className"),
     Output("monitor-finished-title", "children"),
@@ -1416,13 +1802,17 @@ def _format_hms(seconds: int) -> str:
     Output("monitor-finished-message", "children"),
     Output("monitor-finished-stats", "children"),
     Output("monitor-finished-announced", "data"),
+    Output("monitor-finished-explorer", "data"),
+    Output("monitor-finished-close-label", "children"),
+    Output("monitor-finished-keep-label", "children"),
     Input("monitor-finished-summary", "data"),
     State("monitor-finished-announced", "data"),
     State("session-dropdown", "value"),
     State("monitor-daemon", "data"),
+    State(f"url_{page_path}", "search"),
     prevent_initial_call=True,
 )
-def _announce_finished(counts, announced, selected_session, daemon_state):
+def _announce_finished(counts, announced, selected_session, daemon_state, search=None):
     """Pop the completion dialog once per session, when every job is done.
 
     Reads the daemon's aggregates rather than walking the job list: the
@@ -1437,7 +1827,7 @@ def _announce_finished(counts, announced, selected_session, daemon_state):
     total = int(counts.get("total") or 0)
     if total <= 0:
         raise PreventUpdate
-    if int(counts.get("running") or 0) > 0 or int(counts.get("queued") or 0) > 0:
+    if int(counts.get("running") or 0) > 0 or int(counts.get("queued") or 0) > 0 or int(counts.get("paused") or 0) > 0:
         raise PreventUpdate
 
     done = int(counts.get("done") or 0)
@@ -1454,12 +1844,22 @@ def _announce_finished(counts, announced, selected_session, daemon_state):
     if announced == key:
         raise PreventUpdate
 
+    # An analysis run (every job of the session is one, or the run that
+    # opened the page says so) ends on its verdicts and opens the analysis
+    # dashboard rather than the charts.
+    is_analysis = bool(counts.get("analysis")) or get_key_from_url(search, "explorer") == "analysis"
+    if is_analysis:
+        title, badge, glyph, message, stats = _analysis_finished(
+            total, failed, longest, _analysis_verdicts(counts.get("designs")))
+        return ("overlay-odatix visible", title, badge, glyph, message, stats, key,
+                "/explorer/analysis", "Close session and open RTL analysis", "open RTL analysis")
+
     if failed > 0:
         title = "All jobs finished"
         badge = "monitor-finished-badge failed"
         glyph = icon("cross", className="icon", width="30px", height="30px")
         if total == 1:
-            message = "The task finished with an error!"
+            message = "The job finished with an error."
         elif failed == total:
             message = f"All {total} jobs finished with an error!"
         else:
@@ -1469,7 +1869,7 @@ def _announce_finished(counts, announced, selected_session, daemon_state):
         badge = "monitor-finished-badge success"
         glyph = icon("check", className="icon", width="30px", height="30px")
         if total == 1:
-            message = "The task completed successfully."
+            message = "The job completed successfully."
         elif total == 2:
             message = "Both jobs completed successfully."
         else:
@@ -1481,7 +1881,8 @@ def _announce_finished(counts, announced, selected_session, daemon_state):
         _finished_stat(failed, "Failed", "failed"),
         _finished_stat(_format_hms(longest), "Longest", "time"),
     ]
-    return "overlay-odatix visible", title, badge, glyph, message, stats, key
+    return ("overlay-odatix visible", title, badge, glyph, message, stats, key,
+            "/explorer", "Close session and open Explorer", "open Explorer")
 
 
 @dash.callback(
@@ -1506,9 +1907,11 @@ def _close_finished_popup(_stay_clicks, _backdrop_clicks):
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
+    State("monitor-finished-explorer", "data"),
     prevent_initial_call=True,
 )
-def _quit_to_explorer(_keep_clicks, _close_clicks, _close_only_clicks, daemon_state, search, selected_session):
+def _quit_to_explorer(_keep_clicks, _close_clicks, _close_only_clicks, daemon_state, search, selected_session,
+                      explorer_page=None):
     triggered = ctx.triggered_id
     if triggered not in ("monitor-finished-keep", "monitor-finished-close", "monitor-finished-close-only"):
         raise PreventUpdate
@@ -1525,8 +1928,10 @@ def _quit_to_explorer(_keep_clicks, _close_clicks, _close_only_clicks, daemon_st
     if triggered == "monitor-finished-close-only":
         return {"href": "/", "id": page_path}, "overlay-odatix", ""
 
-    # An analysis run opens the analysis dashboard rather than the charts.
-    explorer_page = "/explorer/analysis" if get_key_from_url(search, "explorer") == "analysis" else "/explorer"
+    # An analysis run opens the analysis dashboard rather than the charts
+    # (decided with the dialog, see _announce_finished).
+    if explorer_page not in ("/explorer", "/explorer/analysis"):
+        explorer_page = "/explorer/analysis" if get_key_from_url(search, "explorer") == "analysis" else "/explorer"
     return {"href": explorer_page, "id": page_path}, "overlay-odatix", ""
 
 
@@ -1552,7 +1957,7 @@ monitor_toolbar = html.Div(
                 dcc.Dropdown(
                     id="session-dropdown",
                     options=[],
-                    placeholder="Select a session",
+                    placeholder="Looking for sessions…",
                     value=None,
                     clearable=False,
                     className="monitor-session-dropdown",
@@ -1623,6 +2028,7 @@ monitor_header = html.Div(
                     children=[
                         _stat("kpi-total", "Total", "total"),
                         _stat("kpi-running", "Running", "running"),
+                        _stat("kpi-paused", "Paused", "paused"),
                         _stat("kpi-queued", "Queued", "queued"),
                         _stat("kpi-done", "Done", "done"),
                         _stat("kpi-failed", "Failed", "failed"),
@@ -1638,11 +2044,14 @@ monitor_header = html.Div(
                                 html.Div(id="monitor-overall-bar", className="monitor-overall-bar", style={"width": "0%"}),
                             ],
                         ),
-                        html.Span("0%", id="monitor-overall-text", className="monitor-overall-value"),
+                        html.Span("–", id="monitor-overall-text", className="monitor-overall-value"),
                     ],
                 ),
             ],
         ),
+        # How the last action went: a session closed, a job that could not be
+        # paused... (see _action_feedback).
+        ui.feedback("monitor-feedback", className="monitor-feedback"),
     ],
 )
 
@@ -1664,6 +2073,7 @@ list_panel = html.Div(
                             options=[
                                 {"label": "All", "value": "all"},
                                 {"label": "Running", "value": "running"},
+                                {"label": "Paused", "value": "paused"},
                                 {"label": "Queued", "value": "queued"},
                                 {"label": "Done", "value": "done"},
                                 {"label": "Failed", "value": "failed"},
@@ -1707,6 +2117,14 @@ list_panel = html.Div(
             # move the selection (assets/monitor_tasks.js).
             tabIndex="0",
             children=[
+                # Shown until the session answers (see .monitor-page.loading).
+                html.Div(
+                    className="monitor-loading",
+                    children=[
+                        html.Span(className="monitor-spinner"),
+                        html.Span("Looking for sessions…", id="monitor-loading-text"),
+                    ],
+                ),
                 html.Div(children=[], id="monitor-container", className="monitor-container"),
             ],
         ),
@@ -1725,7 +2143,7 @@ log_panel = html.Div(
                     id="monitor-log-title",
                     className="monitor-log-title",
                     children=[
-                        html.Span("No task selected", id="monitor-log-title-name",
+                        html.Span("", id="monitor-log-title-name",
                                   className="monitor-log-title-name"),
                         html.Span("", id="monitor-log-title-status",
                                   className="monitor-log-title-status"),
@@ -1787,10 +2205,9 @@ layout = html.Div(
                     className="monitor-error-card hidden",
                     children=[
                         html.Div(id="monitor-status", className="monitor-error-message"),
-                        html.Div(
-                            "Choose another session in the list above, or start new jobs.",
-                            className="monitor-error-hint",
-                        ),
+                        # One hint or the other, after the card's class.
+                        html.Div(ERROR_HINT, className="monitor-error-hint for-error"),
+                        html.Div(NO_SESSION_HINT, className="monitor-error-hint for-empty"),
                         html.Div(
                             className="monitor-error-actions",
                             children=[
@@ -1803,7 +2220,42 @@ layout = html.Div(
                 split_view,
             ],
         ),
-        dcc.ConfirmDialog(id="monitor-stop-all-confirm", message=""),
+        # Kill-all confirmation (see _confirm_stop_all).
+        html.Div(
+            id="monitor-stop-all-popup",
+            className="overlay-odatix",
+            children=[
+                html.Div(id="monitor-stop-all-backdrop", className="popup-backdrop", n_clicks=0),
+                html.Div(
+                    className="popup-odatix monitor-stop-popup",
+                    children=[
+                        html.Div(
+                            icon("cross_solid", className="icon solid", width="26px", height="26px"),
+                            className="monitor-finished-badge failed",
+                        ),
+                        html.H2("Kill all jobs?"),
+                        html.Div(id="monitor-stop-all-message", className="monitor-stop-message"),
+                        html.Div("This cannot be undone.", className="monitor-stop-warning"),
+                        html.Div(
+                            className="monitor-stop-actions",
+                            children=[
+                                html.Button("Cancel", id="monitor-stop-all-cancel", n_clicks=0,
+                                            className="monitor-finished-ghost"),
+                                ui.icon_button(
+                                    id="monitor-stop-all-confirm",
+                                    icon=icon("cross_solid", className="icon solid"),
+                                    color="caution",
+                                    text=html.Span("Kill and close the session", className="monitor-stop-confirm-label"),
+                                    width="0px",
+                                    center=True,
+                                ),
+                            ],
+                        ),
+                        html.Div("Closing the session…", className="monitor-stop-busy"),
+                    ],
+                ),
+            ],
+        ),
         html.Div(
             id="monitor-finished-popup",
             className="overlay-odatix",
@@ -1837,7 +2289,7 @@ layout = html.Div(
                                 ui.icon_button(
                                     icon=icon("metrics", className="icon"),
                                     color="primary",
-                                    text="Close session and open Explorer",
+                                    text=html.Span("Close session and open Explorer", id="monitor-finished-close-label"),
                                     width="100%",
                                     id="monitor-finished-close",
                                     center=True,
@@ -1849,7 +2301,8 @@ layout = html.Div(
                                             [
                                                 "Keep session",
                                                 html.Br(),
-                                                "and open Explorer",
+                                                "and ",
+                                                html.Span("open Explorer", id="monitor-finished-keep-label"),
                                             ],
                                             id="monitor-finished-keep",
                                             n_clicks=0,
@@ -1879,6 +2332,13 @@ layout = html.Div(
         ),
         dcc.Store(id={"type": "update_url", "id": page_path}),
         dcc.Store(id="monitor-finished-announced", data=None),
+        # Where the dialog's Explorer buttons lead (the analysis dashboard after an analysis).
+        dcc.Store(id="monitor-finished-explorer", data=None),
+        # Whether the kill-all confirmation is open (see _confirm_stop_all).
+        dcc.Store(id="monitor-stop-all-displayed", data=False),
+        # What the session list found to monitor: {"state": "selected" | "url"
+        # | "empty", "session": ...}; None until its first listing.
+        dcc.Store(id="monitor-session-status", data=None),
         dcc.Interval(id="monitor-refresh", interval=1000, n_intervals=0),
         # Listing sessions scans /proc and pings every candidate, so it gets a
         # slower beat of its own instead of riding the job poll. Opening the
@@ -1891,7 +2351,9 @@ layout = html.Div(
         # URL still names it, but the session list must stop waiting for it.
         dcc.Store(id="monitor-stopped-search", data=None),
         dcc.Store(id="monitor-daemon", data=None),
-        dcc.Store(id="monitor-selected-job", data=0),
+        # None until the session answers: job ids are the session's, and a
+        # default of 0 showed "job0" and its raw log before anything was known.
+        dcc.Store(id="monitor-selected-job", data=None),
         # Log pane transport: `monitor-log-chunk` carries one batch of
         # already-formatted lines (append or replace) that assets/monitor_log.js
         # splices into <pre id="monitor-log">, and `monitor-log-cursor` holds
@@ -1923,7 +2385,8 @@ layout = html.Div(
         dcc.Store(id="session-dropdown-open", data=False),
         dcc.Store(id="monitor-layout", data="split"),
     ],
-    className="page-content monitor-page",
+    id="monitor-page",
+    className="page-content monitor-page loading",
     style={
         "display": "flex",
         "flexDirection": "column",
@@ -1962,6 +2425,7 @@ dash.clientside_callback(
     ClientsideFunction(namespace="odatixMonitor", function_name="kpis"),
     Output("kpi-total", "children"),
     Output("kpi-running", "children"),
+    Output("kpi-paused", "children"),
     Output("kpi-queued", "children"),
     Output("kpi-done", "children"),
     Output("kpi-failed", "children"),
@@ -1992,6 +2456,7 @@ dash.clientside_callback(
 dash.clientside_callback(
     ClientsideFunction(namespace="odatixMonitor", function_name="logTitle"),
     Output("monitor-log-title-name", "children"),
+    Output("monitor-log-title-name", "title"),
     Output("monitor-log-title-status", "children"),
     Output("monitor-log-title-status", "className"),
     Input("monitor-selected-job", "data"),
@@ -2024,6 +2489,29 @@ dash.clientside_callback(
     ClientsideFunction(namespace="odatixMonitor", function_name="appendLog"),
     Output("monitor-log-sink", "data"),
     Input("monitor-log-chunk", "data"),
+)
+
+# "Loading session..." until the session answers, so that nothing on the page
+# (zero counts, an empty list, a job of nowhere) passes for the session's state.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="pageState"),
+    Output("monitor-page", "className"),
+    Output("monitor-loading-text", "children"),
+    Input("monitor-snapshot", "data"),
+    Input("monitor-session-status", "data"),
+    Input("monitor-error", "data"),
+)
+
+# Kill-all confirmation: open, cancelled, being carried out, done.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="stopAllPopup"),
+    Output("monitor-stop-all-popup", "className"),
+    Input("monitor-stop-all-displayed", "data"),
+    Input("monitor-stop-all-cancel", "n_clicks"),
+    Input("monitor-stop-all-backdrop", "n_clicks"),
+    Input("monitor-stop-all-confirm", "n_clicks"),
+    Input("monitor-last-action", "data"),
+    prevent_initial_call=True,
 )
 
 # Polling cadence: stop entirely while the tab is hidden, and slow down on

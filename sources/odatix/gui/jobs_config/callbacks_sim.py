@@ -36,7 +36,7 @@ from odatix.gui.jobs_config.callbacks_config import (
 )
 from odatix.gui.jobs_config.common import _simulation_badge_text
 from odatix.gui.jobs_config.simulation import _sim_arch_card, _sim_entry_from_combo, compatible_architectures
-from odatix.gui.page_scope import page_callback
+from odatix.gui.page_scope import page_callback, page_clientside_callback
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -162,24 +162,22 @@ def update_listed_architectures(
     return listed, styles, switches, options, None, metadata, new_children, note_style
 
 
-@page_callback(PAGE_SCOPE,
+# Collapse/expand an architecture inside a simulation card with its switch,
+# in the browser (see toggle_card in callbacks_config).
+page_clientside_callback(PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_jobs", function_name="toggle_nested_card"),
     Output({"type": "sim-arch-body", "sim": dash.MATCH, "arch": dash.MATCH}, "className"),
     Output({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.MATCH}, "className"),
     Input({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
+    prevent_initial_call=True,
 )
-def toggle_sim_arch(switch_value):
-    """Collapse/expand an architecture inside a simulation card with its switch."""
-    enabled = bool(switch_value)
-    return (
-        "jobs-arch-body animated-section" + ("" if enabled else " hide"),
-        "jobs-arch-card nested" + (" enabled" if enabled else ""),
-    )
 
 
 @page_callback(PAGE_SCOPE,
     Output({"type": "domain-selections", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
     Input({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "id"),
+    prevent_initial_call=True,
 )
 def sim_update_domain_selections(selected_per_domain, domain_ids):
     return update_domain_selections(selected_per_domain, domain_ids)
@@ -212,6 +210,7 @@ def sim_preview_select_all(n_clicks, options):
     State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
     State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
     State({"type": "domain-selections", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
 )
 def sim_sync_preview_values(selected_per_domain, domain_ids, current_preview_values, arch_metadata, prev_selections):
     return sync_preview_values(
@@ -258,6 +257,7 @@ def sim_update_preview_title(preview_value, arch_metadata):
     State({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
     State({"type": "arch-count", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
     State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.ALL}, "data"),
+    prevent_initial_call=True,
 )
 def sim_update_arch_count(preview_values, switch_values, preview_ids, switch_ids, count_ids, metadatas):
     """The "selected/total configs" badge of an architecture inside a simulation.
@@ -279,6 +279,9 @@ def sim_update_arch_count(preview_values, switch_values, preview_ids, switch_ids
     State({"type": "sim-arch-extra", "sim": dash.MATCH, "arch": dash.ALL}, "data"),
     State({"type": "sim-arch-extra", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
     State({"type": "sim-orphan-entries", "sim": dash.MATCH}, "data"),
+    # Rendered with what the nested cards hold (see _simulation_job_sections):
+    # recomputing it on load held the summary back until every card answered.
+    prevent_initial_call=True,
 )
 def sync_simulation_selection(
     preview_values, switch_values, preview_ids, switch_ids, extra_values, extra_ids, orphan_entries
@@ -317,6 +320,7 @@ def sync_simulation_selection(
     State({"type": "sim-selection", "sim": dash.ALL}, "id"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "sim-count", "sim": dash.ALL}, "id"),
+    prevent_initial_call=True,
 )
 def update_simulation_counts(selection_values, switch_values, metadatas, selection_ids, switch_ids, count_ids):
     """

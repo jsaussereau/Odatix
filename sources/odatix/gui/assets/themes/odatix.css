@@ -57,22 +57,21 @@
         radial-gradient(1000px 560px at 100% -8%, #efe2fd 0%, #efe2fd00 58%);
     --theme-element-background-color: #ffffff;
     --theme-action-color: var(--docs-gray-100);
-    --theme-primary-color: var(--docs-primary-500);
+    --theme-primary-color: var(--docs-primary-600);
     --theme-secondary-color: var(--docs-primary-600);
     --theme-tertiary-color: #f7f8fc;
     --theme-tertiary-color-light: #f7f8fc90;
     --theme-disabled-color: #aab4c4;
-    --theme-success-color: #26af59;
-    --theme-warning-color: #f59e0b;
-    --theme-caution-color: #ef4444;
-    --theme-pending-color: #0ea5e9;
+    --theme-success-color: #15803d;
+    --theme-warning-color: #b45309;
+    --theme-caution-color: #dc2626;
+    --theme-pending-color: #0e7490;
     --theme-text-color: var(--docs-slate-900);
-    --theme-subtle-text-color: var(--docs-gray-500);
     --theme-subtle-text-font-size: var(--theme-small-font-size);
     --theme-text-shadow: none;
     --theme-shadow-color: rgba(30, 41, 99, 0.09);
     --theme-border-color: #e6e9f2;
-    --theme-border-color-hover: var(--docs-primary-500);
+    --theme-border-color-hover: var(--docs-primary-600);
     --theme-contrast-background-color: var(--docs-slate-900);
     --theme-contrast-text-shadow: none;
     --theme-overlay-background-color: rgba(15, 23, 42, 0.32);
@@ -116,7 +115,7 @@
     --success-button-box-shadow: 0 6px 16px -6px rgba(22, 163, 74, 0.5);
     --warning-button-box-shadow: 0 6px 16px -6px rgba(245, 158, 11, 0.55);
     --warning-button-box-shadow-hover: 0 8px 20px -8px rgba(245, 158, 11, 0.6);
-    --back-button-color: var(--docs-gray-400);
+    --back-button-color: var(--theme-secondary-text-color);
     --back-button-filter: none;
     --back-button-filter-hover: none;
 

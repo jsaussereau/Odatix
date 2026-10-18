@@ -68,16 +68,19 @@ def add_arguments(parser):
     parser.add_argument("-m", "--mode", choices=["batch", "async"],
                         help="batch: decide once a whole batch is back (designs that take about as long as each other); "
                              "async: start a design as soon as a slot frees (some designs take far longer than others)")
-    parser.add_argument("-b", "--budget", type=int, help="how many design points to evaluate at most")
-    parser.add_argument("-B", "--batch", type=int, help="how many design points to evaluate together")
+    parser.add_argument("-b", "--budget", type=int, help="how many design points to evaluate at most, at least 1 "
+                                                         "(default: \"budget\" of the campaign file)")
+    parser.add_argument("-B", "--batch", type=int, help="how many design points to evaluate together "
+                                                        "(default: \"batch\" of the campaign file)")
     parser.add_argument("--seed", type=int, help="make the search reproducible")
-    add_options(parser, "nb_jobs", nb_jobs={"help": "maximum number of parallel jobs"})
+    add_options(parser, "nb_jobs", nb_jobs={"help": 'maximum number of parallel jobs, "auto" for the number of CPUs minus one (default: "nb_jobs" of the exploration settings file)'})
     parser.add_argument("--no-reuse", dest="no_reuse", action="store_true",
                         help="search from nothing but what this exploration runs itself, "
                              "instead of starting from the designs of the space that are "
                              "already measured")
     add_options(parser, "overwrite", "noask", "daemon_options", "exit_when_done", "log_size_limit",
-                overwrite={"help": "evaluate again what is already done"},
+                overwrite={"help": 'evaluate again what is already done (default: "overwrite" of the exploration settings file)'},
+                noask={"help": 'do not ask to continue (default: "ask_continue" of the exploration settings file)'},
                 exit_when_done={"help": 'exit the monitor when the exploration is done (default: "exit_when_done" of the exploration settings file)'},
                 log_size_limit={"help": 'size of the log history per job in the monitor, the exploration\'s own log included (default: "log_size_limit" of the exploration settings file)'},
                 detach={"help": "let the exploration run without attaching the monitor to it"})
@@ -242,6 +245,14 @@ def main(args, settings=None):
         # What the exploration is about to spend is worth showing before it
         # spends it, and this is the last moment the terminal is free: from
         # here on, everything the search says is the log of its own job.
+        if not any(campaign.remaining for campaign in campaigns):
+            # Every budget is spent: the line of each campaign above already
+            # says so, and a session, a driver and a monitor would only show
+            # a job that has nothing to do.
+            for campaign in campaigns:
+                printc.say(campaign.describe(), script_name)
+            printc.note("Nothing to run: no session is started.", script_name)
+            return EXIT_SUCCESS
         exploration.confirm(campaigns)
     except CampaignError as error:
         printc.error(str(error), script_name)
@@ -255,5 +266,6 @@ def main(args, settings=None):
         detach=getattr(args, "detach", False),
         architectures=list(dict.fromkeys(campaign.name for campaign in campaigns)),
         campaigns=selected,
+        checked=campaigns,
     )
     return EXIT_SUCCESS

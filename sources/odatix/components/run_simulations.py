@@ -195,11 +195,12 @@ def domain_values(architecture):
     return values
 
 
-def write_design_info(sim_instance):
+def write_design_info(sim_instance, parallel_jobs=None):
     """
     Tell the simulation about the design under test: write "odatix_sim.yml" and
     "odatix_sim.f" into its work directory (see odatix.sim.design_info), and
-    keep what they say for the placeholders of its commands.
+    keep what they say for the placeholders of its commands. `parallel_jobs`,
+    how many jobs run at once, lets a template share the cores among them.
     """
     architecture = sim_instance.architecture
     # The values of the testbench parameters may use the placeholders of the
@@ -226,6 +227,7 @@ def write_design_info(sim_instance):
             rtl_generated=bool(architecture.generate_rtl),
             rtl_dir=hard_settings.work_rtl_path,
             reset_active_low=reset_active_low(architecture),
+            parallel_jobs=parallel_jobs,
         )
         design_info.write_info(sim_instance.tmp_dir, info)
     except Exception as e:
@@ -461,7 +463,7 @@ def check_settings(
     if simulations is None:
         printc.error('The "simulations" section of "' + run_config_settings_filename + '" is empty.', script_name)
         printc.note('You must define your simulations in "' + run_config_settings_filename + '" before using this command.', script_name)
-        printc.note("Check out examples Odatix's documentation for more information.", script_name)
+        printc.note("See the Odatix documentation for more information.", script_name)
         sys.exit(-1)
 
     overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs = normalize_run_settings(
@@ -530,7 +532,8 @@ def check_settings(
     # print checklist summary
     sim_handler.print_summary()
 
-    confirm_valid_jobs(valid_count, ask_continue, ask_to_continue, script_name=script_name, plan=sim_handler.plan)
+    confirm_valid_jobs(valid_count, ask_continue, ask_to_continue, script_name=script_name, plan=sim_handler.plan,
+        overview=dict(nb_jobs=nb_jobs))
 
     print()
 
@@ -629,7 +632,7 @@ def check_settings(
             )
 
         # what the simulation is told about the design under test
-        write_design_info(sim_instance)
+        write_design_info(sim_instance, parallel_jobs=nb_jobs)
 
         command = build_simulation_command(sim_instance)
         if command is None:

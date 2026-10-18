@@ -122,7 +122,9 @@ class JobOutputFormatter:
             input_dict=yaml_data,
             filename=self.filename,
             type=dict,
-            default_value={}
+            default_value={},
+            # Optional: a tool without one shows its log as it is.
+            silent="format" not in yaml_data,
         )
 
         # Extract format configuration

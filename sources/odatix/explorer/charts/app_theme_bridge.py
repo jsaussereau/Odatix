@@ -34,6 +34,9 @@ according to its `dark:` field, so a user theme needs nothing more than that
 line to get readable figures.
 """
 
+import os
+import re
+
 import odatix.gui.themes as themes
 
 # Re-exported: the defaults a theme's header overrides, and what an unknown
@@ -57,3 +60,58 @@ def is_dark(app_theme):
 def dark_themes():
   """The names of every dark theme, builtin or user-defined."""
   return {name for name, theme in themes.discover().items() if theme.dark}
+
+
+######################################
+# Page background (opaque exports)
+######################################
+
+_DECLARATION_RE = re.compile(r"(--[A-Za-z0-9_-]+)\s*:\s*([^;{}]+);")
+_VAR_RE = re.compile(r"^var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*(.+))?\)$")
+_PLAIN_COLOR_RE = re.compile(r"^(#[0-9A-Fa-f]{3,8}|rgba?\([^()]*\)|hsla?\([^()]*\))$")
+_declarations_cache = {}
+
+
+def _declarations(path):
+  """The custom properties a CSS file declares, {name: value} (first wins)."""
+  try:
+    key = (path, os.path.getmtime(path))
+  except (OSError, TypeError):
+    return {}
+  if key not in _declarations_cache:
+    declared = {}
+    try:
+      with open(path, "r") as f:
+        for name, value in _DECLARATION_RE.findall(f.read()):
+          declared.setdefault(name, value.strip())
+    except OSError:
+      pass
+    _declarations_cache[key] = declared
+  return _declarations_cache[key]
+
+
+def background_color(app_theme):
+  """
+  The page background color of an app theme, as one opaque color.
+
+  What an export with the "Theme" background is painted with, so the image
+  looks like the chart on screen. Read from the theme's CSS file (following
+  ``var()`` references); a theme whose background is not one plain color (a
+  gradient) gets the usual dark or light page color instead.
+  """
+  theme = themes.get(str(app_theme))
+  dark = bool(theme and theme.dark)
+  fallback = "#24292e" if dark else "#ffffff"
+  if theme is None:
+    return fallback
+  base = _declarations(os.path.join(os.path.dirname(themes.__file__), "assets", "themes", themes.BASE_FILE))
+  own = _declarations(theme.path)
+
+  value = own.get("--theme-background-color") or base.get("--theme-background-color")
+  for _depth in range(5):
+    match = _VAR_RE.match(str(value or "").strip())
+    if not match:
+      break
+    value = own.get(match.group(1)) or base.get(match.group(1)) or match.group(2)
+  value = str(value or "").strip()
+  return value if _PLAIN_COLOR_RE.match(value) else fallback

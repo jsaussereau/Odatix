@@ -315,7 +315,7 @@ def render(results, categories=None, width=None, hints=True):
 
   if hints:
     lines.append("")
-    lines.append(" " + colors.GREY + "Every finding of every design: odatix-explorer, RTL Analysis page." + colors.ENDC)
+    lines.append(" " + colors.GREY + "Every finding of every design: odatix-explorer, RTL analysis page." + colors.ENDC)
   return lines
 
 
@@ -402,3 +402,27 @@ def collect_results(jobs, expected=None):
     if result is not None:
       results.append(result)
   return results
+
+
+def run_results(run):
+  """
+  What the analyses a run launched found: the results of its jobs, read from
+  their directories with what its settings file says is expected. The jobs it
+  left alone (already done) are not in it: "analysis.read_results" reads every
+  recorded analysis.
+
+  Args:
+      run: an analysis :class:`odatix.run.Run`, once started (its jobs are known).
+
+  Returns:
+      list: AnalysisResult objects.
+  """
+  from odatix.components.run_analysis import read_run_expectations
+
+  job_dirs = {os.path.realpath(instance.tmp_dir) for _build_job, instance in (run.jobs or [])}
+  jobs = {
+    job_dir: tool_flow
+    for job_dir, tool_flow in job_directories(run.work_path).items()
+    if os.path.realpath(job_dir) in job_dirs
+  }
+  return collect_results(jobs, expected=analysis.read_expectations(read_run_expectations(run.settings_file)))

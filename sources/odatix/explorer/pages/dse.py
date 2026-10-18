@@ -108,10 +108,18 @@ def _key_str(key):
 # Layout
 ######################################
 
-def layout(**kwargs):
+def layout(campaign=None, **kwargs):
+  # "?campaign=<name>" opens the page on that campaign: what the campaign
+  # cards of the app link to (see odatix.gui.pages.dse).
+  campaign = str(campaign).strip() if campaign else None
   return html.Div(
     [
       dcc.Interval(id="xp-dse-poll", interval=POLL_INTERVAL_MS),
+      # What the archives looked like when the page last drew them: the poll
+      # only changes it when an archive did (see poll_archives), so that a page
+      # left open on a finished campaign does not rebuild every chart every
+      # three seconds -- and a running one redraws as soon as a batch lands.
+      dcc.Store(id="xp-dse-version", data=_initial_version()),
       # The design under the pointer, shared across the trade-off curve, the
       # parallel-coordinates plot and the front table: hovering or clicking any
       # one of them sets this, and the other two redraw to point it out.
@@ -129,7 +137,7 @@ def layout(**kwargs):
             className="xp-dse-heading",
           ),
           html.Div(
-            dcc.Dropdown(id="xp-dse-campaign", options=[], value=None, clearable=False,
+            dcc.Dropdown(id="xp-dse-campaign", options=[], value=campaign or None, clearable=False,
                          placeholder="Campaign"),
             className="xp-dse-picker",
           ),
@@ -253,6 +261,7 @@ def layout(**kwargs):
               html.Div(_graph({}, _GRAPH_CONFIG, id="xp-dse-parcoords-graph"), id="xp-dse-parcoords-slot", className="xp-dse-slot"),
             ],
             className="xp-dse-card",
+            id="xp-dse-parcoords-card",
           ),
           # The answer of the campaign, before the analysis of the space it came
           # out of; what never built at all closes the page.
@@ -276,6 +285,14 @@ dash.register_page(
 ######################################
 # Pieces of the page
 ######################################
+
+def _initial_version():
+  """The archives as they are when the page is built: drawn once, not twice."""
+  try:
+    return repr(CAMPAIGNS.signature(STORE.result_path))
+  except Exception:
+    return None
+
 
 def _result_path(settings):
   if isinstance(settings, dict) and settings.get("result_path"):
@@ -568,6 +585,15 @@ def _translucent(color, alpha):
     if len(parts) == 4:
       return "rgba(" + ",".join(part.strip() for part in parts[:3]) + ",{0})".format(alpha)
   return color
+
+
+def _other_opacity(chrome):
+  """
+  How opaque the designs that are not the answer are drawn: set back from the
+  front, but still readable on a dark page, where the same translucent red
+  that reads on white sinks into the background.
+  """
+  return 0.8 if chrome.get("dark") else 0.5
 
 
 def _base_layout(chrome, title=None):
@@ -895,7 +921,7 @@ def _front_figure(campaign, chrome, palette, x_metric=None, y_metric=None, z_met
   if points[False]:
     keys = [_key_str(_key_of(point[1])) for point in points[False]]
     marker = {"size": 4 if z_metric else 8,
-              "color": palettes.get_color(OTHER_COLOR_INDEX, palette), "opacity": 0.45}
+              "color": palettes.get_color(OTHER_COLOR_INDEX, palette), "opacity": _other_opacity(chrome)}
     figure.add_trace(scatter(
       mode="markers",
       name="evaluated",
@@ -1066,12 +1092,22 @@ def _progress_figure(campaign, chrome, palette):
   layout = _base_layout(chrome)
   layout["xaxis"].update({"title": {"text": "batch"}, "dtick": 1 if len(batches) < 20 else None})
   layout["yaxis"].update({"title": {"text": "hypervolume"}, "rangemode": "tozero"})
+  # The front size counts designs: whole ticks only, from zero, about five of
+  # them -- left to itself the axis lines its ticks up with the hypervolume's
+  # and labels a number of designs "1.88".
+  largest = max([entry.get("front") or 0 for entry in history] or [0])
+  step = max(1, int(math.ceil(largest / 5.0)))
   layout["yaxis2"] = {
     "title": {"text": "front size"},
     "overlaying": "y",
     "side": "right",
     "showgrid": False,
     "rangemode": "tozero",
+    "range": [0, max(1, int(math.ceil(largest * 1.05 / step)) * step)],
+    "tickmode": "linear",
+    "tick0": 0,
+    "dtick": step,
+    "tickformat": "d",
     "color": palettes.get_color(OTHER_COLOR_INDEX, palette),
   }
   figure.update_layout(**layout)
@@ -1183,6 +1219,12 @@ def _parcoords_figure(campaign, chrome, palette, highlight_key=None, filters=(),
 ######################################
 
 MAX_IMPACT_BARS = 18
+
+#: What the "share of the front" column of the value-by-value table means.
+SHARE_OF_THE_FRONT = (
+  "how much more common the value is on the front than among all the designs measured. "
+  "1.0x: as common; above 1, the answers favor it; 0.0x: no design of the front has it."
+)
 
 
 def _impact_records(campaign, scope):
@@ -1310,7 +1352,7 @@ def _factor_figure(campaign, chrome, palette, factor, metric, records, front_key
         x=[point[0] for point in others], y=[point[1] for point in others],
         mode="markers", name="evaluated",
         marker={"size": 7, "color": palettes.get_color(OTHER_COLOR_INDEX, palette),
-                "opacity": 0.45},
+                "opacity": _other_opacity(chrome)},
         hovertemplate=factor.label + ": %{x}<br>" + metric + ": %{y}<extra></extra>",
       ))
     means = {}
@@ -1431,6 +1473,12 @@ def _levels_table(campaign, factor, metric, records, front_keys):
 
   header = ["value", "designs", "failed", "on the front", "share of the front",
             "best " + metric, "average " + metric, "worst " + metric]
+  header_titles = {
+    "designs": "How many designs measured had this value.",
+    "failed": "How many of them produced no metric at all.",
+    "on the front": "How many of them are on the front.",
+    "share of the front": SHARE_OF_THE_FRONT,
+  }
   body = []
   for row in rows:
     enrichment = row["enrichment"]
@@ -1456,11 +1504,17 @@ def _levels_table(campaign, factor, metric, records, front_keys):
     body.append(html.Tr(cells))
 
   return html.Div(
-    html.Table(
-      [html.Thead(html.Tr([html.Th(name) for name in header])), html.Tbody(body)],
-      className="xp-dse-levels-table",
-    ),
-    className="xp-dse-table",
+    [
+      html.Div(
+        html.Table(
+          [html.Thead(html.Tr([html.Th(name, title=header_titles.get(name)) for name in header])),
+           html.Tbody(body)],
+          className="xp-dse-levels-table",
+        ),
+        className="xp-dse-table",
+      ),
+      html.Div("Share of the front: " + SHARE_OF_THE_FRONT, className="xp-dse-table-note"),
+    ]
   )
 
 
@@ -1719,7 +1773,7 @@ def highlight_from_table(active_cell, table_rows):
   Output("xp-dse-color", "options"),
   Output("xp-dse-color", "value"),
   Input("xp-dse-campaign", "value"),
-  Input("xp-dse-poll", "n_intervals"),
+  Input("xp-dse-version", "data"),
   Input("odatix-settings", "data"),
   State("xp-dse-color", "value"),
 )
@@ -1746,7 +1800,7 @@ def update_color_options(name, _intervals, settings, color_by):
   Output("xp-dse-factor", "value"),
   Output("xp-dse-impact", "style"),
   Input("xp-dse-campaign", "value"),
-  Input("xp-dse-poll", "n_intervals"),
+  Input("xp-dse-version", "data"),
   Input("odatix-settings", "data"),
   State("xp-dse-impact-metric", "value"),
   State("xp-dse-factor", "value"),
@@ -1872,7 +1926,7 @@ def select_factor_from_bar(click):
   Input("xp-dse-impact-scope", "value"),
   Input("xp-dse-factor", "value"),
   Input("xp-dse-factor-whiskers", "value"),
-  Input("xp-dse-poll", "n_intervals"),
+  Input("xp-dse-version", "data"),
   Input("theme-dropdown", "value"),
   Input("odatix-settings", "data"),
 )
@@ -1919,9 +1973,22 @@ def update_impact(name, metric, kinds, scope, factor_id, whiskers, _intervals, a
 
 
 @dash.callback(
+  Output("xp-dse-version", "data"),
+  Input("xp-dse-poll", "n_intervals"),
+  Input("odatix-settings", "data"),
+  State("xp-dse-version", "data"),
+)
+def poll_archives(_intervals, settings, version):
+  current = repr(CAMPAIGNS.signature(_result_path(settings)))
+  if current == version:
+    raise dash.exceptions.PreventUpdate
+  return current
+
+
+@dash.callback(
   Output("xp-dse-campaign", "options"),
   Output("xp-dse-campaign", "value"),
-  Input("xp-dse-poll", "n_intervals"),
+  Input("xp-dse-version", "data"),
   Input("odatix-settings", "data"),
   State("xp-dse-campaign", "value"),
 )
@@ -1994,7 +2061,7 @@ def update_axes(name, settings, x_metric, y_metric, z_metric):
   Output("xp-dse-front-caption", "children"),
   Output("xp-dse-progress-slot", "children"),
   Output("xp-dse-parcoords-graph", "figure"),
-  Output("xp-dse-parcoords-slot", "style"),
+  Output("xp-dse-parcoords-card", "style"),
   Output("xp-dse-parcoords-subtitle", "children"),
   Output("xp-dse-front-table-slot", "children"),
   Output("xp-dse-body", "children"),
@@ -2006,7 +2073,7 @@ def update_axes(name, settings, x_metric, y_metric, z_metric):
   Input("xp-dse-color", "value"),
   Input("xp-dse-scales", "value"),
   Input("xp-dse-parcoords-scales", "value"),
-  Input("xp-dse-poll", "n_intervals"),
+  Input("xp-dse-version", "data"),
   Input("theme-dropdown", "value"),
   Input("odatix-settings", "data"),
   Input("xp-dse-highlight", "data"),
@@ -2041,11 +2108,24 @@ def update_body(name, x_metric, y_metric, z_metric, filters, color_by, scales, p
                                         filters=filters,
                                         from_zero="zero" in (parcoords_scales or []),
                                         natural=natural_axes)
-  parcoords_subtitle = (
+  parcoords_subtitle = [
     "every design across every objective at once -- low values at the bottom of every axis"
     if natural_axes else
-    "every design across every objective at once -- top is always better"
-  )
+    "every design across every objective at once -- top is always better",
+    # The lines carry no legend of their own (a parallel coordinates plot has
+    # none): which color is which is said here, in the colors drawn.
+    html.Span(
+      [
+        html.Span(className="xp-dse-swatch",
+                  style={"backgroundColor": palettes.get_color(FRONT_COLOR_INDEX, palette)}),
+        "on the front",
+        html.Span(className="xp-dse-swatch",
+                  style={"backgroundColor": palettes.get_color(OTHER_COLOR_INDEX, palette)}),
+        "the other designs measured",
+      ],
+      className="xp-dse-line-legend",
+    ),
+  ]
 
   front_table = html.Div([_section("The front", len(campaign.front)),
                           _front_table(campaign, highlight_key, filters=filters)],

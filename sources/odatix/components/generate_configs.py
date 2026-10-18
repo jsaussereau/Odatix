@@ -44,7 +44,7 @@ script_name = os.path.basename(__file__)
 def add_arguments(parser):
   parser.add_argument("-o", "--overwrite", action="store_true", help="take configurations edited by hand back to what their rules say")
   parser.add_argument("-C", "--clean", action="store_true", help="delete the configurations an earlier generation wrote and the rules no longer describe")
-  add_options(parser, "noask")
+  add_options(parser, "noask", noask={"help": "do not ask to continue before writing the configurations"})
   # "-a" is still the deprecated alias of "--archpath" here (see below).
   parser.add_argument(
     "--architecture", "--arch",
@@ -347,9 +347,9 @@ def main(args, settings=None):
       if explicit_target:
         printc.error(f"{path_kind.capitalize()} path '{selected_path}' does not exist or is not a directory.", script_name)
         sys.exit(-1)
-      else:
-        printc.warning(f"Skipping missing {path_kind} path '{selected_path}'.", script_name)
-        continue
+      # A directory nobody named and that does not exist (no workflows
+      # yet, for instance) holds nothing to generate: nothing to say.
+      continue
 
     if entries is not None:
       names = [name for name in os.listdir(selected_path) if os.path.isdir(os.path.join(selected_path, name))]

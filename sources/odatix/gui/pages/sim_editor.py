@@ -22,6 +22,7 @@
 import copy as copy_module
 import fnmatch
 import json
+import os
 
 import dash
 from dash import html, dcc, Input, Output, State, ctx
@@ -284,14 +285,76 @@ def template_settings(template, sim_path):
         return {}
 
 
+def template_installed(name):
+    """
+    Whether the simulator of an Odatix template is in the PATH: the quick check
+    a run does (see sim_templates.missing_executable), which runs nothing, so
+    the page does not wait on a simulator to answer. None for a name that is not
+    one of Odatix's templates.
+    """
+    directory = sim_templates.list_templates().get(name)
+    if directory is None:
+        return None
+    try:
+        return sim_templates.missing_executable(sim_templates.read_settings(directory)) is None
+    except sim_templates.TemplateError:
+        return None
+
+
+# The template a new simulation starts from, the first of these whose simulator
+# is installed: the free simulators first, as in the tutorials.
+PREFERRED_TEMPLATES = ("verilator", "icarus", "ghdl", "xsim", "questa")
+
+
+def default_template():
+    """
+    What a new simulation starts from: a template whose simulator is installed,
+    so that a simulation saved without touching anything runs. "" (no template)
+    when none is.
+    """
+    names = list(sim_templates.list_templates())
+    ordered = [name for name in PREFERRED_TEMPLATES if name in names]
+    ordered += [name for name in names if name not in ordered]
+    return next((name for name in ordered if template_installed(name)), "")
+
+
 def template_options(current_sim="", current_template=""):
-    """The templates a simulation can start from: Odatix's, and the one it names."""
+    """
+    The templates a simulation can start from: Odatix's, and the one it names.
+    A template whose simulator is not in the PATH stays selectable (it may be
+    installed later, or on the machine running the jobs) but says so.
+    """
     options = [{"label": "None: this simulation says what it runs", "value": ""}]
     for name in sim_templates.list_templates():
-        options.append({"label": name + " (" + sim_templates.description(name) + ")", "value": name})
+        label = name + " (" + sim_templates.description(name) + ")"
+        if template_installed(name) is False:
+            label += " - not installed"
+        options.append({"label": label, "value": name})
     if current_template and current_template not in sim_templates.list_templates():
         options.append({"label": current_template, "value": current_template})
     return options
+
+
+def accepted_template_languages(template, sim_path):
+    """The languages the template compiles, None when it does not say (or there is none)."""
+    if not template:
+        return None
+    return sim_templates.accepted_languages(template_settings(template, sim_path))
+
+
+def run_warning(template, task_names, sim_dir):
+    """
+    Why the simulation, as the page holds it, cannot run: no template, no task
+    and no Makefile leave it nothing to run. "" when it can.
+    """
+    if template or any(str(name or "").strip() for name in task_names or []):
+        return ""
+    if sim_dir and os.path.isfile(os.path.join(sim_dir, "Makefile")):
+        return ""
+    return (
+        "Nothing to run: no template, no task and no Makefile. Choose a template above, "
+        "or add a task below."
+    )
 
 
 def normalize_simulation_settings(settings):
@@ -410,6 +473,9 @@ def simulation_title(sim_name):
                                 )
                             ],
                             id="sim-title-container",
+                            # The name takes the room the buttons leave, so a
+                            # long one is shown whole rather than cut.
+                            style={"flex": "1 1 auto", "minWidth": "0", "marginRight": "16px"},
                         ),
                         html.Div([title_buttons]),
                     ],
@@ -470,7 +536,7 @@ def testbench_placeholders(inherited):
     )
 
 
-def template_tiles(settings, inherited, current_sim=""):
+def template_tiles(settings, inherited, current_sim="", warning=""):
     """The "Template" and "Testbench" tiles of the form."""
     template = settings.get("template", "")
     testbench = settings.get("testbench") or {}
@@ -497,6 +563,8 @@ def template_tiles(settings, inherited, current_sim=""):
                     style={"marginBottom": "12px"},
                 ),
                 html.Div(template_note(template, inherited), id="sim-template-note", className="odx-panel-note"),
+                # Says when nothing would run (see run_warning).
+                html.Div(warning, id="sim-run-warning", className="odx-feedback"),
             ],
             className="tile config",
         ),
@@ -540,23 +608,39 @@ def template_tiles(settings, inherited, current_sim=""):
                     ],
                     style={"marginBottom": "12px"},
                 ),
+                # Only read when Odatix generates the testbench: grouped under a
+                # caption of their own so they are not taken for settings of a
+                # testbench given above.
+                ui.caption(
+                    "Generated testbench",
+                    tooltip=(
+                        "Used only when there is no testbench at all: none given above, none in the "
+                        "architecture and no tb/ directory. Odatix then generates a minimal one, which "
+                        "drives the inputs and fails on an unknown output. These fields have no effect "
+                        "otherwise."
+                    ),
+                ),
                 html.Div(
                     children=[
                         html.Div(
                             [
-                                html.Label("Generated: cycles"),
-                                ui.tooltip_icon("Cycles the generated testbench runs, when there is no testbench."),
+                                html.Label("Cycles"),
+                                ui.tooltip_icon("Clock cycles the generated testbench runs."),
                                 dcc.Input(
                                     id="sim-testbench-cycles", type="number", min=1,
                                     value=testbench.get("cycles"), placeholder=cycles_placeholder,
                                     style={"width": "100%"},
                                 ),
                             ],
-                            style={"flex": "1"},
+                            style={"flex": "1", "minWidth": "0"},
                         ),
                         html.Div(
                             [
                                 html.Label("Inputs"),
+                                ui.tooltip_icon(
+                                    "What the generated testbench drives the inputs of the design with: "
+                                    "random values, or zeros."
+                                ),
                                 dcc.Dropdown(
                                     id="sim-testbench-stimulus",
                                     options=[
@@ -567,11 +651,15 @@ def template_tiles(settings, inherited, current_sim=""):
                                     value=testbench.get("stimulus", ""), clearable=False,
                                 ),
                             ],
-                            style={"flex": "1"},
+                            style={"flex": "1", "minWidth": "0"},
                         ),
                         html.Div(
                             [
-                                html.Label("VCD"),
+                                html.Label("Waveforms"),
+                                ui.tooltip_icon(
+                                    "Whether the generated testbench dumps the signals of the design "
+                                    "into a VCD file, odatix_sim.vcd in the work directory of the job."
+                                ),
                                 dcc.Dropdown(
                                     id="sim-testbench-waves",
                                     options=[
@@ -582,7 +670,7 @@ def template_tiles(settings, inherited, current_sim=""):
                                     value="" if waves is None else ("yes" if waves else "no"), clearable=False,
                                 ),
                             ],
-                            style={"flex": "1"},
+                            style={"flex": "1", "minWidth": "0"},
                         ),
                     ],
                     style={"display": "flex", "gap": "8px"},
@@ -593,7 +681,7 @@ def template_tiles(settings, inherited, current_sim=""):
     ]
 
 
-def sim_form(settings, inherited=None, current_sim=""):
+def sim_form(settings, inherited=None, current_sim="", warning=""):
     defval = lambda k, v=None: settings.get(k, v)
 
     progress = defval("progress", {}) or {}
@@ -602,8 +690,8 @@ def sim_form(settings, inherited=None, current_sim=""):
 
     legacy_style = {} if uses_legacy_parameters(settings) else Style.hidden
 
-    return html.Div(
-        children=template_tiles(settings, inherited or {}, current_sim) + [
+    # The tiles beside the template and the testbench, in the second column.
+    other_tiles = [
             html.Div(
                 [
                     html.H3("Parameters replacement (deprecated)"),
@@ -759,26 +847,83 @@ def sim_form(settings, inherited=None, current_sim=""):
                 ],
                 className="tile config",
             ),
+    ]
+
+    # Two columns of their own rather than the CSS columns of the other
+    # editors: a dropdown menu opened at the bottom of a CSS column is cut off
+    # and carried over to the top of the next one.
+    return html.Div(
+        children=[
+            html.Div(template_tiles(settings, inherited or {}, current_sim, warning), className="sim-form-column"),
+            html.Div(other_tiles, className="sim-form-column"),
         ],
-        className="tiles-container config",
+        className="tiles-container config sim-form",
         style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
-def architecture_options(odatix_settings=None, current=""):
+def architecture_options(odatix_settings=None, current="", accepted=None):
     """
     Options of the architecture dropdown of an architecture card: every
     architecture of the workspace, with "All architectures" ("*") on top.
+
+    An architecture written in a language the simulation does not compile
+    (`accepted`, the languages of its template, None for any) is listed but
+    cannot be picked, and says why: Run jobs does not offer it either.
 
     A value the file already held (a wildcard, or an architecture that no longer
     exists) is kept as an option of its own so opening the page does not silently
     drop it.
     """
     options = [{"label": "All architectures", "value": "*"}]
-    options.extend(
-        {"label": name, "value": name}
-        for name in workspace_architecture_names(odatix_settings)
-    )
+    workspace = _workspace_or_none(odatix_settings) if accepted is not None else None
+    for name in workspace_architecture_names(odatix_settings):
+        option = {"label": name, "value": name}
+        if workspace is not None:
+            languages = architecture_languages(workspace, name)
+            if not sim_templates.compatible(accepted, languages):
+                refused = [language for language in languages if language not in accepted]
+                # Short enough for one line of the menu; the reason is its title.
+                option["label"] = name + " (" + ", ".join(refused) + ")"
+                option["title"] = "The template does not compile " + ", ".join(refused)
+                option["disabled"] = True
+        options.append(option)
     return with_architecture_option(options, current)
+
+
+def _workspace_or_none(odatix_settings):
+    try:
+        return get_workspace(odatix_settings)
+    except Exception:
+        return None
+
+
+def architecture_languages(workspace, arch_name):
+    """
+    The languages of an architecture's RTL, [] when they are not known (a
+    generated RTL, or an architecture that cannot be read): such a design is
+    never refused.
+    """
+    try:
+        settings = workspace.architectures.entry(arch_name).settings
+        if settings.generate_rtl or not settings.rtl_path:
+            return []
+        return design_info.source_languages(workspace.paths.resolve(settings.rtl_path))
+    except Exception:
+        return []
+
+
+def compatible_architecture_names(odatix_settings, accepted):
+    """The architectures of the workspace the simulation can be run on."""
+    names = workspace_architecture_names(odatix_settings)
+    if accepted is None:
+        return names
+    workspace = _workspace_or_none(odatix_settings)
+    if workspace is None:
+        return names
+    return [
+        name for name in names
+        if sim_templates.compatible(accepted, architecture_languages(workspace, name))
+    ]
 
 
 def workspace_architecture_names(odatix_settings=None):
@@ -952,13 +1097,17 @@ def arch_no_entry_note():
                 className="odx-panel-note",
             ),
         ],
-        className="odx-panel padded odx-empty",
+        # Shaped like the cards it stands in for, so it lines up with the "add" card.
+        className="tile config sim-arch-empty",
     )
 
 
-def arch_cards(cards, odatix_settings=None):
-    """The whole Architectures section: one card per entry, plus the "add" card."""
-    options = architecture_options(odatix_settings)
+def arch_cards(cards, odatix_settings=None, accepted=None):
+    """
+    The whole Architectures section: one card per entry, plus the "add" card.
+    `accepted` is what the simulation compiles (see architecture_options).
+    """
+    options = architecture_options(odatix_settings, accepted=accepted)
     children = [
         arch_card(_uid("a", index), card, arch_options=options, odatix_settings=odatix_settings)
         for index, card in enumerate(cards or [])
@@ -1164,13 +1313,14 @@ dash.clientside_callback(
     Input({"type": "sim-arch-duplicate", "arch": dash.ALL}, "n_clicks"),
     Input({"type": "sim-arch-delete", "arch": dash.ALL}, "n_clicks"),
     *arch_dependencies(State),
+    State("sim-template", "value"),
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
 def update_architectures(
     new_click, duplicate_clicks, delete_clicks,
     arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
-    odatix_settings,
+    template, odatix_settings,
 ):
     """
     Apply a structural change (an architecture added, duplicated or deleted) and
@@ -1190,10 +1340,12 @@ def update_architectures(
         arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
     )
     index = _arch_index(cards, arch_uid) if arch_uid is not None else None
+    accepted = accepted_template_languages(template, get_workspace(odatix_settings).simulations.path)
 
     if action == "sim-arch-new":
+        # A new card starts on an architecture the simulation can run.
         cards.append(new_arch_card(
-            [card["name"] for card in cards], workspace_architecture_names(odatix_settings),
+            [card["name"] for card in cards], compatible_architecture_names(odatix_settings, accepted),
         ))
 
     elif action == "sim-arch-duplicate" and index is not None:
@@ -1207,7 +1359,7 @@ def update_architectures(
         cards.pop(index)
 
     return (
-        arch_cards(cards, odatix_settings),
+        arch_cards(cards, odatix_settings, accepted=accepted),
         "color-button warning icon-button tooltip bottom small",
         "Unsaved changes!",
     )
@@ -1314,6 +1466,48 @@ def update_default_task_text(template):
     return default_task_text(template)
 
 
+@page_callback(PAGE_SCOPE,
+    Output({"type": "sim-arch-name", "arch": dash.ALL}, "options"),
+    Input("sim-template", "value"),
+    State({"type": "sim-arch-name", "arch": dash.ALL}, "value"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def update_arch_options(template, arch_names, odatix_settings):
+    """Offer the architectures the template chosen compiles, as Run jobs does."""
+    accepted = accepted_template_languages(template, get_workspace(odatix_settings).simulations.path)
+    options = architecture_options(odatix_settings, accepted=accepted)
+    return [with_architecture_option(options, name) for name in arch_names or []]
+
+
+# The warning is first rendered with the form (see init_form), then follows the
+# template and the tasks.
+@page_callback(PAGE_SCOPE,
+    Output("sim-run-warning", "children"),
+    Input("sim-template", "value"),
+    Input({"type": "sim-task-field-name", "name": dash.ALL}, "value"),
+    State(f"url_{page_path}", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def update_run_warning(template, task_names, search, odatix_settings):
+    return run_warning_message(template, task_names, simulation_dir(odatix_settings, search))
+
+
+def simulation_dir(odatix_settings, search):
+    """The directory of the simulation the page edits, "" for one not named yet."""
+    sim_name = get_key_from_url(search, "sim")
+    if not sim_name:
+        return ""
+    return os.path.join(get_workspace(odatix_settings).simulations.path, sim_name)
+
+
+def run_warning_message(template, task_names, sim_dir):
+    """The children of the run warning line: empty when the simulation can run."""
+    message = run_warning(template, task_names, sim_dir)
+    return ui.error(message) if message else ""
+
+
 @dash.callback(
     Output("sim-form-container", "children"),
     Output("sim-initial-settings", "data"),
@@ -1329,19 +1523,55 @@ def init_form(search, page, odatix_settings):
 
     sim_name = get_key_from_url(search, "sim")
     simulations = get_workspace(odatix_settings).simulations
-    if not sim_name:
-        # "?template=questa": a new simulation starting from a template
-        settings = normalize_simulation_settings({"template": get_key_from_url(search, "template") or ""})
+    if not sim_name or sim_name not in simulations:
+        # A new simulation: "?template=questa" says what it starts from, else
+        # it starts from a template whose simulator is installed, so that it
+        # runs as soon as it lists an architecture.
+        template = get_key_from_url(search, "template")
+        settings = normalize_simulation_settings({"template": default_template() if template is None else template})
     else:
         settings = normalize_simulation_settings(settings_as_written(simulations.entry(sim_name).settings))
-    inherited = template_settings(settings.get("template"), simulations.path)
+    template = settings.get("template", "")
+    inherited = template_settings(template, simulations.path)
+    accepted = accepted_template_languages(template, simulations.path)
+    task_names = [task.get("name") for task in settings.get("tasks", []) if isinstance(task, dict)]
 
     return (
-        sim_form(settings, inherited, sim_name or ""),
+        sim_form(
+            settings, inherited, sim_name or "",
+            warning=run_warning_message(template, task_names, simulation_dir(odatix_settings, search)),
+        ),
         settings,
-        sim_cards_from_tasks(settings.get("tasks", []), settings.get("template", "")),
-        arch_cards(arch_cards_from_settings(settings.get("architectures")), odatix_settings),
+        sim_cards_from_tasks(settings.get("tasks", []), template),
+        arch_cards(arch_cards_from_settings(settings.get("architectures")), odatix_settings, accepted=accepted),
     )
+
+
+# The blocks of the settings this page writes as a whole.
+NESTED_BLOCKS = ("testbench", "progress")
+
+
+def save_simulation(simulation, settings):
+    """
+    Write what the page holds into the simulation's settings file.
+
+    "testbench" and "progress" are blocks of their own: each is cleared, then
+    filled with what the page holds, rather than set from a mapping. A block
+    set from a mapping takes that mapping for what its file already says, and
+    a key the file already held would then never be written with its new value
+    (odatix.workspace.settings.apply); cleared first, it holds nothing the file
+    says, so every key it is given is written.
+    """
+    values = dict(settings, architectures=architectures_to_yaml(settings.get("architectures")))
+    for key in NESTED_BLOCKS:
+        if key not in values:
+            continue
+        block = values.pop(key) or {}
+        if simulation.settings[key].to_dict() == simulation.settings[key].__class__.from_dict(block).to_dict():
+            continue
+        del simulation.settings[key]
+        simulation.settings[key].update(block)
+    simulation.update(values)
 
 
 @dash.callback(
@@ -1519,9 +1749,7 @@ def save_and_status(
             simulation = simulations.create(sim_name)
 
         try:
-            simulation.update(
-                dict(current_settings, architectures=architectures_to_yaml(current_settings.get("architectures")))
-            )
+            save_simulation(simulation, current_settings)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
@@ -1538,7 +1766,10 @@ def save_and_status(
                 ui.error(f"Not saved: {e}"),
             )
 
-    if current_settings != reference_settings or sim_title_value != (sim_name or ""):
+    # A simulation the page opened on but that is not written yet (a name the
+    # "Create new simulation" card picked) always has something to save.
+    unsaved = bool(sim_name) and sim_name not in simulations
+    if current_settings != reference_settings or sim_title_value != (sim_name or "") or unsaved:
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
@@ -1575,9 +1806,37 @@ def toggle_override_fields(override_parameters):
 @dash.callback(
     Output({"page": page_path, "type": "sim-title-div"}, "children"),
     Input(f"url_{page_path}", "search"),
+    State("odatix-settings", "data"),
 )
-def update_sim_title(search):
-    return simulation_title(get_key_from_url(search, "sim") or "")
+def update_sim_title(search, odatix_settings):
+    sim_name = get_key_from_url(search, "sim")
+    if not sim_name:
+        # A new simulation opened with "?template=...": it gets a free name to
+        # start with, the way the "Create new simulation" card names one.
+        sim_name = free_simulation_name(odatix_settings)
+    return simulation_title(sim_name)
+
+
+def free_simulation_name(odatix_settings, base="New_Simulation"):
+    """The first "New_Simulation<n>" no simulation of the workspace is called."""
+    try:
+        simulations = get_workspace(odatix_settings).simulations
+    except Exception:
+        return base + "1"
+    index = 1
+    while base + str(index) in simulations:
+        index += 1
+    return base + str(index)
+
+
+# A new simulation is often created from the bottom of a long page: the editor
+# opens on its top, where the name and the template are, not where the
+# previous page was scrolled to.
+dash.clientside_callback(
+    dash.ClientsideFunction(namespace="odatix_sim", function_name="scrollToTop"),
+    Output("sim-scroll-top", "data"),
+    Input(f"url_{page_path}", "pathname"),
+)
 
 
 # Folding the extra fields away is done on the client, on the document, by the
@@ -1607,7 +1866,11 @@ dash.clientside_callback(
 
 layout = html.Div(
     children=[
-        dcc.Location(id=f"url_{page_path}"),
+        # Saving a new or renamed simulation rewrites the query string: that is
+        # a change of address, not a page load, so what the page says about the
+        # save ("Saved.") stays on screen.
+        dcc.Location(id=f"url_{page_path}", refresh=False),
+        dcc.Store(id="sim-scroll-top", data=None),
         html.Div(id={"page": page_path, "type": "sim-title-div"}, style={"marginTop": "20px"}),
         html.Div(ui.feedback("sim-save-feedback"), className="card-matrix config"),
         # The form is in the layout from the start, replaced once the simulation
@@ -1621,15 +1884,8 @@ layout = html.Div(
                     id="sim-arch-title",
                     tooltip=(
                         "The architectures this testbench is written for, and what the simulation "
-                        "changes for each of them: how their parameter domains are substituted (where "
-                        "the values are written, whether they are written at all, or where they come "
-                        "from) and which metrics file its results are exported through. An architecture "
-                        "listed with nothing under it is simply one the simulation runs on. Listing "
-                        "them is an indication, not a restriction: running the simulation on an "
-                        "architecture it does not list works, and only warns. \"All architectures\" "
-                        "(\"*\") applies to every one of them, and the entries matching a design apply "
-                        "in the order they are written, so an architecture placed after a wildcard "
-                        "refines it."
+                        "changes for each of them (parameter domains, metrics file). Only an "
+                        "indication: running it on another architecture works, and only warns."
                     ),
                 ),
                 html.Div(

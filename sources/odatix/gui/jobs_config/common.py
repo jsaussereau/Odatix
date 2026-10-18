@@ -106,16 +106,24 @@ def _normalize_session_selector(value: Optional[str]) -> Optional[str]:
 
 
 def _session_option(daemon: dict) -> dict:
+    """
+    One entry of the session list: the name the session was given (what "-S"
+    takes), and for how long it has been running, which tells two sessions of
+    the workspace apart. The full id and the address are in the hover text.
+    """
     address = daemon_control._state_address(daemon)
     session_id = str(daemon.get("session_id", "")).strip()
     session_name = str(daemon.get("session_name", "")).strip()
+    uptime = str(daemon.get("uptime_s", "") or "").strip()
 
     value = session_id or session_name or address
-    label = session_id or session_name or address
+    label = session_name or session_id or address
+    if uptime:
+        label += " · up " + uptime
     return {
         "label": label,
         "value": value,
-        "title": address,
+        "title": "\n".join(part for part in (session_id, address) if part),
     }
 
 def _checklist_enabled(value) -> bool:

@@ -30,8 +30,15 @@ filters with them, and the browser receives them verbatim as
 disagreeing about what "running" means.
 """
 
-RUNNING_STATUSES = ("running", "starting", "export")
+# A job exporting its results is not over: what waits for a job to be done
+# (the "-E" option, a script, an exploration reading its results back) must
+# not see it done before its record is written. "export" is a former spelling.
+RUNNING_STATUSES = ("running", "starting", "exporting", "export")
+# A paused job counts as queued: it will run again, and holds no slot. The
+# monitors also count it on its own (PAUSED_STATUSES), so that nobody takes it
+# for a job that simply has not started yet.
 QUEUED_STATUSES = ("queued", "paused")
+PAUSED_STATUSES = ("paused",)
 DONE_STATUSES = ("success",)
 FAILED_STATUSES = ("failed", "killed", "canceled")
 
@@ -46,6 +53,7 @@ STATUS_BUCKETS = {
 STATUS_SORT_PRIORITY = {
     "running": 0,
     "starting": 1,
+    "exporting": 2,
     "export": 2,
     "paused": 3,
     "queued": 4,

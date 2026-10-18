@@ -182,7 +182,12 @@ def explore(workspace=None, session=None, **overrides):
     try:
         # Checked before a session is started for it: an exploration that
         # cannot run should not leave a daemon behind.
-        Exploration(workspace, settings, campaigns=campaigns).check()
+        checked = Exploration(workspace, settings, campaigns=campaigns).check()
+        if not any(campaign.remaining for campaign in checked):
+            # Every budget is spent: nothing will be enqueued, so no session
+            # is started for it. The archives are still read and returned, and
+            # each campaign says it had nothing left to run.
+            return Exploration(workspace, settings, session=session, campaigns=campaigns).run(confirm=False)
         session, started = open_session(workspace, settings, session)
         try:
             printc.note(

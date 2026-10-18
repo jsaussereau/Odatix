@@ -26,6 +26,7 @@ the architecture sub-cards nested in a simulation card."""
 
 import itertools
 
+import natsort
 from dash import dcc, html
 
 import odatix.gui.ui_components as ui
@@ -109,7 +110,8 @@ def _virtual_variant_tokens(instances, name, mode):
         for token in tokens:
             domain, _, value = token.partition("/")
             domain_values.setdefault(domain, set()).add(value)
-    domain_values = {domain: sorted(values) for domain, values in domain_values.items()}
+    # Natural order: "500, 1000, 2000" and "1km, 10km", not the order of text.
+    domain_values = {domain: natsort.natsorted(values) for domain, values in domain_values.items()}
     return token_lists, domain_values, None
 
 def _extract_domain_values(arch_name: str, selections) -> dict:
@@ -181,21 +183,13 @@ def _arch_domains_configs(instances, arch_name) -> dict:
     """The configurations of every parameter domain of an architecture that
     actually uses parameters, keyed by domain (main domain included)."""
     instance = instances.get(arch_name)
-    return instance.parameter_domains() if instance is not None else {}
-
-
-def _bare_entry_lacks_values(instance):
-    """
-    Whether the entry without any configuration ("<name>" alone) runs commands
-    missing the values of what is swept: a workflow whose commands take their
-    values from its domains and variables ("${domain}") rather than from files.
-    """
-    if instance is None or not getattr(instance, "substitutes_in_commands", False):
-        return False
-    try:
-        return not instance.settings.use_parameters
-    except Exception:
-        return False
+    if instance is None:
+        return {}
+    # Natural order, so that "8bits" comes before "16bits" whatever the names.
+    return {
+        domain: natsort.natsorted(configurations)
+        for domain, configurations in instance.parameter_domains().items()
+    }
 
 
 def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mode, id_extra=None):
@@ -364,13 +358,15 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
             expanded_selected.extend(_expand_wildcard_selection(entry, wildcard_domains, arch_name))
         filtered_selected = [val for val in expanded_selected if val in available_values]
         unmatched = [val for val in expanded_selected if val not in available_values]
-        # Select all combinations for disabled architectures
+        # Select all combinations for disabled architectures, so that turning
+        # one on is a single click. The default configuration is left out when
+        # there is anything else to run, the way "<arch>/*" leaves it out: it
+        # added a job per frequency nobody asked for. Its commands may also
+        # take their values from what is swept, and get none when run bare.
         if not arch_enabled:
             filtered_selected = [" + ".join(comb) for comb in all_combinations]
             unmatched = []
-            if non_default_combos and _bare_entry_lacks_values(instances.get(arch_name)):
-                # Its commands take their values from what is swept: run bare,
-                # they would get none. Offered, not checked.
+            if non_default_combos:
                 filtered_selected = [value for value in filtered_selected if value != arch_name]
         default_selected = arch_name in filtered_selected
         n_selected = len([v for v in filtered_selected if v != arch_name])

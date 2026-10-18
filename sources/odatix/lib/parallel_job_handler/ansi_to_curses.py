@@ -20,6 +20,7 @@
 #
 
 import curses
+import os
 import re
 
 A_NORMAL = 0
@@ -58,13 +59,23 @@ class AnsiToCursesConverter:
         Initialize color pairs in curses.
         """
         if not self.initialized:
-            curses.start_color()
-            curses.use_default_colors()
+            self.initialized = True
+            self.current_color = curses.color_pair(0)
+            try:
+                if not curses.has_colors():
+                    return  # vt100 and the like: the logs show without colors
+                curses.start_color()
+                curses.use_default_colors()
+            except curses.error:
+                return
+            # NO_COLOR (https://no-color.org): the pairs exist, without colors.
+            plain = os.environ.get("NO_COLOR", "") != ""
             for code, color in AnsiToCursesConverter.ANSI_COLORS.items():
                 if color != -1:
-                    curses.init_pair(int(code), color, -1)
-            self.current_color = curses.color_pair(0)
-            self.initialized = True
+                    try:
+                        curses.init_pair(int(code), -1 if plain else color, -1)
+                    except (curses.error, ValueError):
+                        pass
 
     def reset_format(self):
         """

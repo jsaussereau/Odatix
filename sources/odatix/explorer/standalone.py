@@ -26,6 +26,7 @@ served directly, so both share assets/themes/ / explorer.css / style.css).
 """
 
 import os
+import warnings
 
 import dash
 from dash import dcc, html
@@ -44,6 +45,11 @@ from odatix.explorer.ui.shell import explorer_state_stores
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.views as explorer_views
 
+# dash_table.DataTable warns at every render of the Table page that it will
+# leave Dash some day: hundreds of identical lines in the terminal.
+warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"dash\..*")
+warnings.filterwarnings("ignore", message=r".*dash_table\.DataTable will be removed.*")
+
 script_name = os.path.basename(__file__)
 error_logfile = "odatix-explorer_error.log"
 
@@ -54,7 +60,9 @@ class ExplorerStandaloneApp:
   def __init__(self, result_path="results", old_settings=None, safe_mode=False, theme=None, read_only=False):
     if theme is not None and not gui_themes.exists(theme):
       printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.', script_name=script_name)
-    self.start_theme = gui_themes.resolve(theme)
+    # Theme of a visitor without a saved choice (`--theme`, or the default
+    # one). Never overwritten: each request resolves its own (see setup_layout).
+    self.default_theme = gui_themes.resolve(theme)
     self.result_path = result_path
     self.old_settings = old_settings
     self.safe_mode = safe_mode
@@ -96,7 +104,7 @@ class ExplorerStandaloneApp:
     if not self.safe_mode:
       os._exit(-1)
 
-  def top_bar(self):
+  def top_bar(self, theme=None):
     version = motd.read_version()
     pages = [page for page in dash.page_registry.values() if str(page.get("path", "")).startswith("/explorer/")]
     pages.sort(key=lambda page: page.get("order", 0))
@@ -134,7 +142,7 @@ class ExplorerStandaloneApp:
                 dcc.Dropdown(
                   id="theme-dropdown",
                   options=gui_themes.options(),
-                  value=self.start_theme,
+                  value=theme or self.default_theme,
                   className="theme-dropdown",
                   clearable=False,
                   style={"width": "150px", "marginRight": "20px", "marginTop": "3px"},
@@ -157,11 +165,12 @@ class ExplorerStandaloneApp:
     def serve_layout():
       # Resolve the theme for this request from the odatix_theme cookie (set
       # client-side when the user picks a theme) so it survives page
-      # refreshes and app restarts.
-      self.start_theme = gui_themes.theme_from_cookie(default=self.start_theme)
+      # refreshes and app restarts. A local: a visitor's choice must never
+      # become another browser's default.
+      theme = gui_themes.theme_from_cookie(default=self.default_theme)
       return html.Div(
         children=[
-          self.top_bar(),
+          self.top_bar(theme),
           dcc.Location(id="url-global"),
           dcc.Store(id="odatix-settings", data={"result_path": self.result_path}),
           dcc.Store(id="theme-cookie-sync"),
@@ -170,7 +179,7 @@ class ExplorerStandaloneApp:
           html.Div([dash.page_container], id="content", className="content", style={"height": "100%"}),
         ],
         id="theme",
-        className="theme " + self.start_theme,
+        className="theme " + theme,
         style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "column"},
       )
     self.app.layout = serve_layout

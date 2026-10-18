@@ -114,7 +114,7 @@ FIELDS = {
         "tooltip": "The settings file of \"odatix synth\".",
     },
     "pnr_settings_file": {
-        "label": "Place and route settings",
+        "label": "Place & route settings",
         "tooltip": "The settings file of \"odatix pnr\".",
     },
     "analyze_settings_file": {
@@ -154,8 +154,8 @@ FIELDS = {
         "tooltip": "Where fixed-frequency synthesis runs, relative to the main work path.",
     },
     "pnr_work_path": {
-        "label": "Place and route work path",
-        "tooltip": "Where place and route runs, relative to the main work path.",
+        "label": "Place & route work path",
+        "tooltip": "Where place & route runs, relative to the main work path.",
     },
     "analysis_work_path": {
         "label": "Analysis work path",

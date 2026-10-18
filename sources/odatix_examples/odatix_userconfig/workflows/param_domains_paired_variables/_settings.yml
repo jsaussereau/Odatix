@@ -1,4 +1,4 @@
-# Design sources (that will be coppied into each work directory)
+# Design sources (copied into each work directory)
 sources:
   path: examples/workflow_param_domains_cli
   blacklist:

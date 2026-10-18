@@ -26,9 +26,7 @@ from dash import dcc, html, Input, Output
 from odatix.components import home_shared
 from odatix.gui.icons import pictogram
 import odatix.gui.navigation as navigation
-
-#: Where the words of Odatix are defined (see the glossary of the documentation).
-GLOSSARY_URL = "https://odatix.readthedocs.io/docs/glossary/"
+from odatix.lib.doc_links import DOCS_URL, GETTING_STARTED_URL, GLOSSARY_URL
 from odatix.lib.settings import OdatixSettings
 
 page_path = "/"
@@ -48,24 +46,14 @@ padding = 20
 
 # Home page
 
+# In the order a first run goes through them: describe a design, run it,
+# follow its jobs, look at the results. What is set once comes after.
 home_cards = [
-    {
-        "name": "Workflows",
-        "link": "/workflows",
-        "icon": "workflow",
-        "description": "Configure your workflows",
-    },
     {
         "name": "RTL architectures",
         "link": "/architectures",
         "icon": "architecture",
         "description": "Configure your RTL architectures and simulations",
-    },
-    {
-        "name": "Tools",
-        "link": "/tools",
-        "icon": "tool",
-        "description": "Add and configure your tools",
     },
     {
         "name": "Run jobs",
@@ -86,6 +74,18 @@ home_cards = [
         "description": "Explore results in an interactive interface",
     },
     {
+        "name": "Tools",
+        "link": "/tools",
+        "icon": "tool",
+        "description": "Add and configure your tools",
+    },
+    {
+        "name": "Workflows",
+        "link": "/workflows",
+        "icon": "workflow",
+        "description": "Configure your workflows",
+    },
+    {
         "name": "Workspace settings",
         "link": "/workspace",
         "icon": "workspace",
@@ -93,7 +93,7 @@ home_cards = [
     },
     {
         "name": "Documentation",
-        "link": "https://odatix.readthedocs.io",
+        "link": DOCS_URL,
         "icon": "documentation",
         "description": "Access Odatix online documentation",
     },
@@ -104,21 +104,49 @@ def _card_visual(card):
     icon_name = card.get("icon", "explorer")
     return pictogram(icon_name, size="48px", className="xp-card-pictogram")
 
-home_layout = html.Div(
-    [
-        home_shared.home_header("Odatix", "Configure, run and explore your design space exploration."),
-        home_shared.home_card_grid(home_cards, _card_visual),
-        html.Div(
-            [
-                "New to the words Odatix uses? Each one is defined in the ",
-                html.A("glossary", href=GLOSSARY_URL, target="_blank", rel="noopener"),
-                ".",
-            ],
-            className="xp-home-note",
-        ),
-    ],
-    className="xp-home",
-)
+def _external_link(text, href):
+    return html.A(text, href=href, target="_blank", rel="noopener")
+
+
+def home_layout():
+    """The home page of a workspace (built on each visit: it names the workspace)."""
+    return html.Div(
+        [
+            home_shared.home_header("Odatix", "Configure, run and explore your design space exploration."),
+            html.Div(
+                [
+                    html.Span("Workspace", className="odx-home-workspace-label"),
+                    # Left-to-right marks: the path is cut on its left (see the CSS), and
+                    # its slashes stay where they are.
+                    html.Span("\u200e" + os.getcwd() + "\u200e", className="odx-home-workspace-path", title=os.getcwd()),
+                ],
+                className="odx-home-workspace",
+            ),
+            html.Div(
+                [
+                    pictogram("documentation", size="36px", className="odx-home-start-pictogram"),
+                    html.Div(
+                        [
+                            html.Div("New to Odatix?", className="odx-home-start-title"),
+                            html.Div(
+                                [
+                                    "The ",
+                                    _external_link("getting started guide", GETTING_STARTED_URL),
+                                    " takes you to a first result in five steps, and the ",
+                                    _external_link("glossary", GLOSSARY_URL),
+                                    " defines each word Odatix uses.",
+                                ],
+                                className="odx-home-start-text",
+                            ),
+                        ],
+                    ),
+                ],
+                className="odx-home-start",
+            ),
+            home_shared.home_card_grid(home_cards, _card_visual),
+        ],
+        className="xp-home",
+    )
 
 
 # New workspace page
@@ -170,7 +198,7 @@ def redirect_to_new_workspace(search, odatix_settings):
     if odatix_settings == {}:
         return new_workspace_layout
     else:
-        return home_layout
+        return home_layout()
 
 @dash.callback(
     Output("odatix-settings", "data", allow_duplicate=True),
@@ -182,10 +210,10 @@ def create_empty_workspace(n_clicks_empty, n_clicks_examples):
     triggered_id = dash.ctx.triggered_id
     success = False
     if triggered_id == "create-empty-workspace" and n_clicks_empty:
-        success = OdatixSettings.init_directory_nodialog(include_examples=False, silent=True),
+        success = OdatixSettings.init_directory_nodialog(include_examples=False, silent=True)
     elif triggered_id == "create-workspace-with-examples" and n_clicks_examples:
-        success = OdatixSettings.init_directory_nodialog(include_examples=True, silent=True),
-    if success: 
+        success = OdatixSettings.init_directory_nodialog(include_examples=True, silent=True)
+    if success:
         odatix_settings = OdatixSettings()
         return odatix_settings.to_dict()
     return dash.no_update

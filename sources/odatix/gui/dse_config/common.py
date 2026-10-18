@@ -109,7 +109,13 @@ def save_campaign(workspace, name, settings):
     """Write one campaign to its own file of the campaign directory."""
     directory = workspace.paths.dse_campaign_path
     os.makedirs(directory, exist_ok=True)
-    return save_settings(settings, campaign_path(workspace, name))
+    # Written like the commented campaign "odatix init" writes (DS-09).
+    from odatix.lib.settings import OdatixSettings
+    template = os.path.join(
+        OdatixSettings.odatix_init_path, "odatix_userconfig", "dse_campaigns", "campaign_template.yml",
+    )
+    return save_settings(settings, campaign_path(workspace, name),
+                         template=template if os.path.isfile(template) else None)
 
 
 def delete_campaign(workspace, name):
@@ -255,6 +261,60 @@ def metric_names(workspace):
     return sorted(names, key=lambda name: name.lower())
 
 
+def campaign_metric_names(workspace, campaign):
+    """
+    The metrics a campaign can name: what what it runs measures, exactly as
+    "odatix dse -C" checks the objectives against (see
+    :func:`odatix.dse.metric_names.known_metric_names`).
+
+    Returns:
+        set: the names, or None when they cannot be known -- no tool named
+        yet, a workflow that does not declare its metrics.
+    """
+    from odatix.dse.metric_names import known_metric_names
+
+    try:
+        toolchains = None if campaign.runs_workflow() else campaign.toolchains(workspace)
+    except Exception:
+        toolchains = None
+    try:
+        return known_metric_names(workspace, campaign, toolchains)
+    except Exception:
+        return None
+
+
+def unknown_metric_warning(workspace, campaign):
+    """
+    What is wrong with the metrics a campaign names, said the way the check
+    of "odatix dse" says it, or None when nothing is -- or when what the
+    campaign runs does not say what it measures.
+    """
+    from odatix.dse.metric_names import unknown_metrics
+    import difflib
+
+    names = campaign_metric_names(workspace, campaign)
+    if not names:
+        return None
+    try:
+        metrics = campaign.objective_list().measured_metrics
+    except Exception:
+        return None
+    unknown = unknown_metrics(metrics, names)
+    if not unknown:
+        return None
+    hints = []
+    for metric in unknown:
+        close = difflib.get_close_matches(metric, sorted(names), n=1, cutoff=0.6)
+        hints.append('"{0}"{1}'.format(metric, ' (did you mean "{0}"?)'.format(close[0]) if close else ""))
+    return (
+        "{0} {1} not measured by what this campaign runs: the exploration will refuse to "
+        "start until {2} fixed. The metrics it can name are suggested in the fields.".format(
+            ", ".join(hints), "is" if len(unknown) == 1 else "are",
+            "it is" if len(unknown) == 1 else "they are",
+        )
+    )
+
+
 ######################################
 # Widgets and settings
 ######################################
@@ -396,6 +456,91 @@ def architecture_entry_text(name, selection):
     if selection.startswith("/"):
         return "{0}{1}".format(name, selection)
     return "{0} {1}".format(name, selection)
+
+
+#: Archives already read, by path: (modification time, what was read).
+_ARCHIVE_CACHE = {}
+
+
+def _read_archive(path):
+    """The few numbers of an archive the cards show, read once per change."""
+    import odatix.lib.yaml_loader as yaml_loader
+
+    try:
+        modified = os.path.getmtime(path)
+    except OSError:
+        return None
+    cached = _ARCHIVE_CACHE.get(path)
+    if cached is not None and cached[0] == modified:
+        return cached[1]
+    try:
+        with open(path, "r") as f:
+            content = yaml_loader.safe_load(f) or {}
+    except Exception:
+        return None
+    if not isinstance(content, dict):
+        return None
+    numbers = {
+        "evaluated": to_int(content.get("evaluated"), 0) or 0,
+        "reused": to_int(content.get("reused"), 0) or 0,
+        "measured": to_int(content.get("measured"), 0) or 0,
+        "front": len(content.get("front") or []),
+        "space": to_int(content.get("designs_in_space")),
+        "modified": modified,
+    }
+    _ARCHIVE_CACHE[path] = (modified, numbers)
+    return numbers
+
+
+def campaign_progress(workspace, name, campaign=None):
+    """
+    Where a campaign is: what its archives say it already evaluated, how many
+    designs are on its front, and when it last ran.
+
+    A campaign naming several architectures has one archive per architecture,
+    named "<campaign>_<what the entry selects>": they are added up.
+
+    Returns:
+        dict: ``evaluated``, ``reused``, ``measured``, ``front``, ``space``
+        (None when not known), ``modified`` (a timestamp, or None) and
+        ``archives`` (how many were read) -- all zero when it never ran.
+    """
+    directory = os.path.join(workspace.paths.result_path, "dse")
+    paths = [os.path.join(directory, "{0}.yml".format(name))]
+    several = campaign is not None and len(campaign.architecture_entries()) > 1
+    if several and os.path.isdir(directory):
+        prefix = "{0}_".format(name)
+        paths = [
+            os.path.join(directory, entry) for entry in sorted(os.listdir(directory))
+            if entry.startswith(prefix) and entry.endswith(".yml")
+        ]
+    total = {"evaluated": 0, "reused": 0, "measured": 0, "front": 0, "space": None,
+             "modified": None, "archives": 0}
+    for path in paths:
+        numbers = _read_archive(path)
+        if numbers is None:
+            continue
+        total["archives"] += 1
+        for key in ("evaluated", "reused", "measured", "front"):
+            total[key] += numbers[key]
+        if numbers["space"] is not None and not several:
+            total["space"] = numbers["space"]
+        total["modified"] = max(total["modified"] or 0, numbers["modified"])
+    return total
+
+
+def designs_left(workspace, name, campaign):
+    """
+    How many designs the next run of a campaign evaluates at most: its budget
+    -- never more than its space, when an archive says how large that is --
+    less what it already evaluated.
+    """
+    badges = campaign_badges(campaign)
+    progress = campaign_progress(workspace, name, campaign)
+    budget = badges["budget"] * max(len(badges["architectures"]), 1)
+    if progress["space"] is not None:
+        budget = min(budget, progress["space"])
+    return max(0, budget - progress["evaluated"])
 
 
 def campaign_badges(campaign):

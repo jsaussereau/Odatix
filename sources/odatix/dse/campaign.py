@@ -55,6 +55,9 @@ script_name = os.path.basename(__file__)
 #: worth, and a search that large never enumerates it anyway.
 EXCLUSION_COUNT_LIMIT = 5000
 
+#: The heading of what an exploration found, at the end of its log.
+SUMMARY_MARKER = "What the exploration found:"
+
 
 def _number(value):
     """A metric as a log shows it: readable, and not fifteen decimals long."""
@@ -75,6 +78,14 @@ def _duration(seconds):
     if seconds < 3600:
         return "{0}m{1:02d}s".format(seconds // 60, seconds % 60)
     return "{0}h{1:02d}m".format(seconds // 3600, (seconds % 3600) // 60)
+
+
+def _int_or_none(value):
+    """A setting that should be a whole number, or None when it is not one."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class CampaignError(RuntimeError):
@@ -118,8 +129,10 @@ class Campaign(object):
         except ValueError as error:
             # A malformed objective or constraint is a settings file to fix, not
             # a traceback: it is caught here so that every entry point into an
-            # exploration reports it the same way.
-            raise CampaignError(str(error))
+            # exploration reports it the same way, naming the file to fix.
+            raise CampaignError("{0} Check \"objectives\" and \"constraints\" in \"{1}\".".format(
+                error, self.source
+            ))
         self.cancel_event = cancel_event
         self.on_progress = on_progress
 
@@ -254,6 +267,17 @@ class Campaign(object):
             raise CampaignError(
                 "Unknown search mode \"{0}\": it is either \"batch\" or \"async\".".format(self.search.mode)
             )
+        # A budget or a batch of nothing is a typo, not a request: running
+        # nothing and calling it done would hide it.
+        for key in ("budget", "batch"):
+            value = _int_or_none(getattr(self.search, key, None))
+            if value is None or value < 1:
+                raise CampaignError(
+                    "The {0} must be at least 1 design, not \"{1}\". Check \"search: {0}\" in \"{2}\"{3}.".format(
+                        key, getattr(self.search, key, None), self.source,
+                        " or -b/--budget" if key == "budget" else " or -B/--batch",
+                    )
+                )
         try:
             self.space.require_choice()
         except EmptySpaceError as error:
@@ -465,6 +489,7 @@ class Campaign(object):
         self.started_at = time.time()
         evaluated = self.resume()
         first_batch = self.batch_index
+        first_evaluated = evaluated
         idle = 0
         self.progress(evaluated)
 
@@ -503,10 +528,13 @@ class Campaign(object):
             self.batch_index += 1
             if not asynchronous:
                 self.announce(designs, evaluated)
+                self.follow_batch(designs, evaluated)
                 try:
                     evaluations = self.evaluator.evaluate(designs)
                 except EvaluationError as error:
                     raise CampaignError(str(error))
+                finally:
+                    self.follow_batch(None, evaluated)
 
             for evaluation in evaluations:
                 # Which batch found a design is what makes the search readable
@@ -547,8 +575,14 @@ class Campaign(object):
                 ), script_name)
 
         if self.started_at is not None and self.batch_index > first_batch:
-            printc.say("Campaign \"{0}\" ran for {1} over {2} batch(es).".format(
-                self.name, _duration(time.time() - self.started_at), self.batch_index - first_batch
+            if asynchronous:
+                # Rounds of an async campaign are whatever finished together:
+                # how many designs it ran is what says how far it went.
+                spent = "{0} design(s)".format(evaluated - first_evaluated)
+            else:
+                spent = "{0} batch(es)".format(self.batch_index - first_batch)
+            printc.say("Campaign \"{0}\" ran for {1} over {2}.".format(
+                self.name, _duration(time.time() - self.started_at), spent
             ), script_name)
         elif evaluated >= self.budget:
             printc.note(
@@ -749,6 +783,29 @@ class Campaign(object):
         if self.on_progress is not None:
             self.on_progress(self, evaluated)
 
+    def follow_batch(self, designs, evaluated):
+        """
+        Have the progress move while a batch runs, job by job.
+
+        A batch is the whole run of an exploration that fits in one: reported
+        only once it is back, the progress would sit at 0% until the very end.
+        The evaluator says how many of the batch's jobs are over (see
+        :attr:`~odatix.dse.evaluation.Evaluator.on_jobs_done`), and that share
+        of the batch's designs counts as done. ``designs`` None stops it.
+        """
+        if not hasattr(self.evaluator, "on_jobs_done"):
+            return
+        if designs is None or self.on_progress is None:
+            self.evaluator.on_jobs_done = None
+            return
+        count = len(designs)
+
+        def jobs_done(done, total):
+            if total > 0:
+                self.progress(evaluated + count * min(1.0, float(done) / total))
+
+        self.evaluator.on_jobs_done = jobs_done
+
     def next_batch(self, count):
         """
         The next designs to evaluate: what the strategy proposes, minus what has
@@ -880,15 +937,22 @@ class Campaign(object):
         front = self.archive.front()
         on_front = set(id(evaluation) for evaluation in front)
 
-        printc.bold("[batch {0}] done{1}.".format(
-            self.batch_index, "" if elapsed is None else " in " + _duration(elapsed)
-        ))
+        asynchronous = self.search.mode == "async"
+        if asynchronous:
+            # Nothing is a batch in async mode: what finished together is only
+            # what happened to finish together.
+            printc.bold("{0} design(s) finished.".format(len(evaluations)))
+        else:
+            printc.bold("[batch {0}] done{1}.".format(
+                self.batch_index, "" if elapsed is None else " in " + _duration(elapsed)
+            ))
         for evaluation in evaluations:
             self.report_design(evaluation, id(evaluation) in on_front)
 
         printc.say(
-            "{0}/{1} designs evaluated, {2}/{3} measured in this batch, {4} on the front{5}.".format(
-                evaluated, self.budget, len(measured), len(evaluations), len(front),
+            "{0}/{1} designs evaluated, {2}/{3} measured {4}, {5} on the front{6}.".format(
+                evaluated, self.budget, len(measured), len(evaluations),
+                "among them" if asynchronous else "in this batch", len(front),
                 " (further out{0})".format(self.describe_growth(volume_before))
                 if improved else " (no further out)",
             ),
@@ -977,6 +1041,12 @@ class Campaign(object):
         if not left:
             return
         message = "{0} design(s) left in this campaign".format(left)
+        if self.search.mode == "async":
+            # Designs finish one by one there: a batch's pace means nothing.
+            if self._pending:
+                message += ", {0} of them running".format(len(self._pending))
+            printc.say(message + ".", script_name)
+            return
         if elapsed and self.search.batch:
             batches = (left + int(self.search.batch) - 1) // int(self.search.batch)
             message += ", about {0} more batch(es) (~{1} at this batch's pace)".format(
@@ -1067,10 +1137,13 @@ class Exploration(object):
         for campaign_settings in self.campaign_settings():
             settings = RunSettings(campaign_settings, self.settings)
             for selection in settings.architecture_selections():
+                designs = settings.designs(self.workspace)
                 try:
-                    architecture = settings.designs(self.workspace)[selection.entry]
+                    architecture = designs[selection.entry]
                 except NotFoundError as error:
-                    raise CampaignError(str(error))
+                    raise CampaignError(self.describe_missing(
+                        selection.entry, designs, settings, error,
+                    ))
                 campaigns.append(
                     Campaign(
                         self.workspace, architecture, settings,
@@ -1079,6 +1152,33 @@ class Exploration(object):
                     )
                 )
         return campaigns
+
+    def describe_missing(self, name, designs, settings, error):
+        """
+        Why a campaign names an architecture (or a workflow) the workspace
+        does not have, with the closest name and every name that would do --
+        the way an unknown metric or campaign is reported.
+        """
+        import difflib
+
+        from odatix.dse.campaigns import campaign_path
+
+        kind = "workflow" if settings.runs_workflow() else "architecture"
+        try:
+            names = list(designs.names())
+        except Exception:
+            return str(error)
+        close = difflib.get_close_matches(name, names, n=1, cutoff=0.6)
+        source = campaign_path(self.workspace, settings.name) if getattr(settings, "name", "") \
+            else self.workspace.paths.dse_settings_file
+        return (
+            "No {0} \"{1}\" in the workspace{2}. Check \"architectures\" in \"{3}\"{4}. "
+            "The {0}s it has are: {5}.".format(
+                kind, name, ' (did you mean "{0}"?)'.format(close[0]) if close else "",
+                source, " or -a/--architecture",
+                ", ".join(sorted(names, key=lambda entry: entry.lower())) or "none",
+            )
+        )
 
     def check(self):
         """
@@ -1150,8 +1250,13 @@ class Exploration(object):
         for campaign in campaigns:
             self.archives.append(campaign.run())
             self._evaluated_before += campaign.budget
+        # The marker the command that started the exploration looks for to
+        # print the summaries again once the monitor is closed (see
+        # odatix.dse.driver.SUMMARY_MARKER).
+        printc.bold("\n" + SUMMARY_MARKER)
+        for campaign in campaigns:
             self.summarize(campaign.archive)
-        self.report_progress(self._total)
+        self.report_progress(self._total, final=True)
         return self.archives
 
     def progress(self, campaign, evaluated):
@@ -1166,11 +1271,18 @@ class Exploration(object):
         """
         self.report_progress(self._evaluated_before + evaluated)
 
-    def report_progress(self, evaluated):
-        """Write where the exploration is, for whoever is showing it."""
+    def report_progress(self, evaluated, final=False):
+        """
+        Write where the exploration is, for whoever is showing it.
+
+        100% is only ever written once every campaign is over: the command
+        that started the exploration reads it as "it finished" (see
+        :func:`odatix.dse.driver.report_outcome`), and the last batch being
+        back is not yet the campaign being summed up.
+        """
         if not self.progress_file or self._total <= 0:
             return
-        percentage = max(0, min(100, int(100.0 * evaluated / self._total)))
+        percentage = max(0, min(100 if final else 99, int(100.0 * evaluated / self._total)))
         try:
             directory = os.path.dirname(self.progress_file)
             if directory:
@@ -1181,15 +1293,21 @@ class Exploration(object):
             # How far along it is, is not worth stopping an exploration for.
             pass
 
-    def summarize(self, archive):
+    @staticmethod
+    def summarize(archive):
         """What one campaign found, once it is over."""
         front = archive.front()
         constraints = archive.objectives.constraints
         infeasible = [e for e in front if not archive.objectives.feasible(e.costs)]
         failed = len(archive) - len(archive.measured)
-        printc.bold("\n{0}: {1} design(s) on the front, out of {2} evaluated{3}.".format(
-            archive.architecture, len(front), len(archive),
-            " ({0} unmeasured)".format(failed) if failed else "",
+        reused = len([e for e in archive.evaluations if getattr(e, "reused", False)])
+        # The words of the archive and of the explorer: "evaluated" is what
+        # the campaign ran itself, "reused" what it was given, "measured" what
+        # produced a number -- the front is drawn from that last one.
+        printc.bold("\n{0}: {1} design(s) on the front, out of {2} measured ({3} evaluated by this campaign{4}){5}.".format(
+            archive.architecture, len(front), len(archive.measured), len(archive) - reused,
+            ", {0} reused".format(reused) if reused else "",
+            ", {0} unmeasured".format(failed) if failed else "",
         ))
         if len(constraints) and infeasible:
             printc.warning(

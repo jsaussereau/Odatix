@@ -30,7 +30,7 @@ import odatix.lib.printc as printc
 from odatix.run.errors import NOTHING_TO_RUN, NothingToRun, RunCancelled, RunError
 from odatix.run.flows import flow_for
 from odatix.run.options import RunOptions
-from odatix.run.reporter import Reporter
+from odatix.run.reporter import CollectingReporter, Reporter
 
 __all__ = ["Run", "run_job"]
 
@@ -63,6 +63,9 @@ class Run(object):
         options (RunOptions): what this run does differently from what its
             settings file says. Built from the keyword arguments when not given.
         reporter (Reporter): where what the run says is collected.
+        quiet (bool): print nothing (the control list, the progress bars):
+            what the run says is only collected, in a
+            :class:`CollectingReporter`. Ignored when ``reporter`` is given.
         cancel_event (threading.Event): asking the run to stop. Checking and
             preparing look at it between jobs, and raise :class:`RunCancelled`.
         **overrides: any :class:`RunOptions` setting, e.g. ``overwrite=True``.
@@ -73,7 +76,7 @@ class Run(object):
             settings file says instead.
     """
 
-    def __init__(self, workspace, mode, options=None, reporter=None, cancel_event=None, **overrides):
+    def __init__(self, workspace, mode, options=None, reporter=None, cancel_event=None, quiet=False, **overrides):
         from odatix.workspace.jobs import resolve_mode
 
         self.workspace = workspace
@@ -84,7 +87,9 @@ class Run(object):
         Run._check_option_names(overrides)
         self.options = options if isinstance(options, RunOptions) else RunOptions(**(options or {}))
         self.options.update(overrides)
-        self.reporter = reporter if reporter is not None else Reporter()
+        if reporter is None:
+            reporter = CollectingReporter() if quiet else Reporter()
+        self.reporter = reporter
         self.cancel_event = cancel_event
 
         #: Eda tool checks handed over instead of being waited for. Left None so
@@ -124,10 +129,12 @@ class Run(object):
 
     @property
     def settings_file(self):
+        """The run settings file this run reads (``options.settings_file``, or the workspace's)."""
         return self.options.settings_file or self.flow.settings_file(self.workspace)
 
     @property
     def work_path(self):
+        """The directory the jobs of this run work in."""
         return self.options.work_path or self.flow.work_path(self.workspace)
 
     def path(self, name):
@@ -167,6 +174,16 @@ class Run(object):
             RunError: the run cannot be started at all.
             RunCancelled: it was asked to stop.
         """
+        settings_file = os.path.join(self.workspace.root, self.settings_file)
+        if not self.workspace.exists and not os.path.isfile(settings_file):
+            # Said here, since what the flow would say ("Settings file ... does
+            # not exist") hides that the whole directory is not a workspace
+            raise RunError(
+                "'{0}' is not an Odatix workspace: it holds no '{1}'. Open the workspace the run belongs to "
+                "(Workspace.open(path, required=True)), or create one with Workspace.init().".format(
+                    self.workspace.root, self.workspace.SETTINGS_FILENAME
+                )
+            )
         self._checked = self._step("check", self._check)
         return self._checked.plan
 
@@ -361,6 +378,17 @@ class Run(object):
         wanted = set(self._job_dirs)
         session._wait_for(lambda job: job["tmp_dir"] in wanted, timeout, poll_interval)
         return self.status()
+
+    def analysis_results(self):
+        """
+        What the analyses of this run found, once its jobs are over (see :meth:`wait`).
+
+        Returns:
+            list: AnalysisResult objects, one per job the run launched.
+            ``odatix.lib.analysis.count_by_status`` counts them by verdict.
+        """
+        from odatix.components import analysis_report
+        return analysis_report.run_results(self)
 
     def execute(self):
         """Check, prepare and start, in one call."""

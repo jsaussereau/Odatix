@@ -1,0 +1,49 @@
+/* odatix-theme
+ * name: Example Theme
+ * dark: true
+ * plot-text-color: #d7e4e2
+ * plot-grid-color: rgba(215, 228, 226, 0.16)
+ * plot-zeroline-color: rgba(78, 205, 196, 0.5)
+ */
+
+/*
+ * A starting point for your own theme: rename this file (the name of the file
+ * is the name of the theme, and must match the class below) and adjust the
+ * colors. Every token you do not override keeps its default value, so this
+ * file can stay as short as you want.
+ *
+ * The full list of tokens is in `00_base.css`, inside Odatix's
+ * `odatix/gui/assets/themes/` directory.
+ */
+
+.theme.example_theme {
+    /* page and surfaces */
+    --theme-background-color: #10201f;
+    --theme-element-background-color: #172c2b;
+    --theme-tertiary-color: #1e3735;         /* background of input fields */
+    --theme-tertiary-color-light: #1e373590;
+    --theme-contrast-background-color: #0a1615;
+    --theme-overlay-background-color: #0a16153d;
+
+    /* accents */
+    --theme-primary-color: #4ecdc4;          /* tooltips, switches */
+    --theme-secondary-color: #4ecdc4;        /* important buttons */
+    --theme-action-color: #2b4d4a;
+
+    /* text */
+    --theme-text-color: #d7e4e2;
+    --theme-subtle-text-color: #6f8b88;
+    --theme-disabled-color: #4a6764;
+
+    /* status colors */
+    --theme-success-color: #6ee7a8;
+    --theme-warning-color: #ffb454;
+    --theme-caution-color: #ff6b6b;
+
+    /* borders */
+    --theme-border-color: #24413f;
+    --theme-border-color-hover: #4ecdc4;
+
+    /* cards and tiles */
+    --card-box-shadow: rgba(0, 0, 0, 0.35) 0px 4px 24px 0px;
+}

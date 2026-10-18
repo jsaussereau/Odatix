@@ -462,7 +462,13 @@ def validate(settings, path=""):
     messages = []
 
     def missing(key, because=""):
-        messages.append(Message("error", 'Cannot find key "{0}" in "{1}"{2}.'.format(key, path, because)))
+        if data.get(key) is not None:
+            # Written, but empty ("reset_signal: ''"): saying the key cannot be
+            # found would send the user looking for a line that is there
+            text = 'Key "{0}" is empty in "{1}"{2}: a value is required.'
+        else:
+            text = 'Cannot find key "{0}" in "{1}"{2}.'
+        messages.append(Message("error", text.format(key, path, because)))
 
     for key in REQUIRED_SETTINGS:
         if not data.get(key):
@@ -869,6 +875,14 @@ class Architecture(Entry):
         """
         import odatix.lib.virtual_param_domain as virtual_param_domain
 
+        settings = self.settings.to_dict()
+        if not self.substitutes_in_commands:
+            # An architecture only sweeps the variables its generation command
+            # uses, as a run does: anything else substitutes into nothing.
+            names = virtual_param_domain.get_virtual_domain_names(settings)
+            command = settings.get("generate_command", "") if settings.get("generate_rtl", False) else ""
+            if not (virtual_param_domain.referenced_variable_names(command) & names):
+                return []
         variants = virtual_param_domain.build_variants(
             settings=self.settings.to_dict(), settings_file=self.settings_path,
         )
@@ -894,7 +908,7 @@ class Architecture(Entry):
         if variables:
             found = [base + tokens for base in (found or [[self.name]]) for tokens in variables]
         if exclusions and found:
-            excluder = ExclusionFilter.of(self)
+            excluder = self._exclusion_filter()
             if not excluder.empty:
                 found = [tokens for tokens in found if excluder.check("+".join(tokens)) is None]
         return found
@@ -905,13 +919,30 @@ class Architecture(Entry):
         length of :meth:`combinations`, i.e. how many jobs the full sweep runs
         per target and frequency.
         """
-        if exclusions and len(self.exclusions()):
-            return len(self.combinations())
-        count = count_combinations(self.parameter_domains())
-        variables = len(self.variable_combinations())
-        if not variables:
-            return count
-        return max(count, 1) * variables
+        domains = self.parameter_domains()
+        variables = self.variable_combinations()
+        count = count_combinations(domains)
+        total = max(count, 1) * len(variables) if variables else count
+        if not exclusions or not total:
+            return total
+        excluder = self._exclusion_filter()
+        if excluder.empty:
+            return total
+        return _count_kept(self.name, domains, variables, excluder)
+
+    def _exclusion_filter(self):
+        """
+        The exclusion filter of this architecture, reading its rules from the
+        settings in memory -- what :meth:`preview_configurations` shows --
+        rather than from the file, which may not be saved yet.
+        """
+        from odatix.workspace.attributes import parse_attributes
+        from odatix.workspace.selection import MAIN_DOMAIN
+
+        excluder = ExclusionFilter.of(self)
+        excluder._exclusions = self.exclusions()
+        excluder._attributes[MAIN_DOMAIN] = parse_attributes(self.settings.to_dict())
+        return excluder
 
     def preview_configurations(self):
         """
@@ -953,6 +984,59 @@ class Architecture(Entry):
             if names:
                 written[domain.name] = names
         return written
+
+
+def _count_kept(name, domains, variables, excluder):
+    """
+    How many combinations the exclusions keep, without listing them all.
+
+    Only the axes the rules read (a domain, the variables, the main domain)
+    decide whether a combination is out; the others multiply. So only the
+    product of the axes they read is walked: the full sweep of a big space
+    with one rule about two domains costs as many checks as those two domains
+    have combinations.
+    """
+    from itertools import product
+
+    from odatix.lib.expressions import names_in
+
+    main = hard_settings.main_parameter_domain
+    variable_names = set(token.partition("/")[0] for tokens in variables for token in tokens)
+    read = set()
+    for rule in excluder.exclusions.active():
+        for expression in (rule.when, rule.require):
+            for written in names_in(expression or ""):
+                root = str(written).split(".")[0]
+                if root == "architecture":
+                    continue
+                if root in domains and root != main:
+                    read.add(root)
+                elif root in variable_names:
+                    read.add("__variables__")
+                else:
+                    read.add(main)
+    axes = [(domain, names) for domain, names in domains.items() if names]
+    if variables:
+        axes.append(("__variables__", variables))
+    walked = [(axis, values) for axis, values in axes if axis in read]
+    multiplier = 1
+    for axis, values in axes:
+        if axis not in read:
+            multiplier *= len(values)
+    kept = 0
+    for choice in product(*[values for _axis, values in walked]):
+        tokens = [name]
+        picked = dict(zip([axis for axis, _values in walked], choice))
+        if main in picked:
+            tokens = ["{0}/{1}".format(name, picked[main])]
+        for axis, value in picked.items():
+            if axis == "__variables__":
+                tokens += list(value)
+            elif axis != main:
+                tokens.append("{0}/{1}".format(axis, value))
+        if excluder.check("+".join(tokens)) is None:
+            kept += 1
+    return kept * multiplier
 
 
 class ArchitectureCollection(Collection):

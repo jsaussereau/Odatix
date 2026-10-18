@@ -22,6 +22,7 @@
 import yaml
 import dash
 from dash import html, dcc, Input, Output, State, ctx
+from dash.exceptions import PreventUpdate
 from typing import Optional
 
 from odatix.gui.icons import icon
@@ -34,7 +35,8 @@ import odatix.lib.hard_settings as hard_settings
 import odatix.gui.variable_editor as ve
 import odatix.gui.task_editor as te
 from odatix.lib.config_generator import get_variables
-from odatix.gui.page_scope import page_callback, scoped
+from odatix.gui.page_scope import page_callback, page_clientside_callback, scoped
+from odatix.workspace.settings import Settings
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -42,6 +44,13 @@ PAGE_SCOPE = "workflow_editor"
 
 # Variable-editor id namespace for this page.
 VE_PREFIX = "wf-"
+#: Merged into the id of every component of a variable card. The ids of the
+#: variable cards and those of the task cards would otherwise have the same
+#: keys, and Dash compares every id of an updated part of the page with every
+#: other id of the same keys (computePaths): filling the form of a big workflow
+#: compared its hundreds of task ids with its thousand variable ids, seconds of
+#: work before the page showed anything.
+VE_SCOPE = {"row": "variable"}
 
 page_path = "/workflow_editor"
 
@@ -107,6 +116,7 @@ def normalize_workflow_settings(settings):
             v_type = vcfg.get("type")
             v_format = vcfg.get("format") if "format" in vcfg else None
             v_group = vcfg.get("group") if "group" in vcfg else None
+            v_unit = vcfg.get("unit") if "unit" in vcfg else None
             vsettings = vcfg.get("settings", {}) if isinstance(vcfg.get("settings", {}), dict) else {}
 
             # Normalize list elements to strings when present
@@ -119,6 +129,8 @@ def normalize_workflow_settings(settings):
                 new_vcfg["format"] = v_format
             if v_group:
                 new_vcfg["group"] = v_group
+            if v_unit is not None and str(v_unit).strip():
+                new_vcfg["unit"] = str(v_unit).strip()
 
             vars_copy[vname] = new_vcfg
 
@@ -140,7 +152,12 @@ def normalize_workflow_settings(settings):
             "file": progress.get("file", ""),
             "regex": progress.get("regex", ""),
         },
-        "tasks": tasks,
+        # Only what the cards edit: a key they do not show ("phony" before
+        # the switch, or any other) must not make the form look edited.
+        "tasks": [
+            {k: v for k, v in task.items() if k in te.TASK_FIELDS + ("phony",)} if isinstance(task, dict) else task
+            for task in tasks
+        ],
         "variables": variables,
     }
 
@@ -149,11 +166,16 @@ def format_tasks(tasks):
         return ""
     return yaml.safe_dump(tasks, sort_keys=False, default_flow_style=False).strip()
 
-def keep_unmanaged_task_keys(tasks, stored_tasks):
+#: The keys of a task the cards of this page edit (the shared fields, and
+#: the "Always run" switch).
+TASK_MANAGED_KEYS = te.TASK_FIELDS + ("phony",)
+
+def keep_unmanaged_task_keys(tasks, stored_tasks, managed=te.TASK_FIELDS):
     """
-    The tasks the cards describe, with what the cards do not edit ("phony",
-    ...) kept as the file has it. A task is matched to the stored one of the
-    same name, implementations sharing a name being matched in order.
+    The tasks the cards describe, with what the cards do not edit (not in
+    ``managed``) kept as the file has it, each key where the file had it. A
+    task is matched to the stored one of the same name, implementations
+    sharing a name being matched in order.
     """
     stored_by_name = {}
     for task in stored_tasks if isinstance(stored_tasks, list) else []:
@@ -163,26 +185,60 @@ def keep_unmanaged_task_keys(tasks, stored_tasks):
     for task in tasks:
         candidates = stored_by_name.get(str(task.get("name")), [])
         if candidates and isinstance(task, dict):
-            stored = candidates.pop(0)
-            extra = {key: value for key, value in stored.items() if key not in te.TASK_FIELDS}
-            if extra:
-                task = dict(task)
-                task.update(extra)
+            task = ve.merge_in_file_order(task, candidates.pop(0), managed)
         kept.append(task)
     return kept
 
-def wf_build_tasks_list(*field_values):
+def _plain(value):
+    """A settings value with its scalars as text, to compare a file and a form."""
+    if isinstance(value, dict):
+        return {str(key): _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    if isinstance(value, bool) or value is None:
+        return value
+    return str(value)
+
+def same_tasks(tasks, stored_tasks):
+    """Whether saving these tasks would write what the file already says."""
+    def one(task):
+        task = dict(task) if isinstance(task, dict) else {}
+        if not isinstance(task.get("platforms", []), list):
+            task["platforms"] = [task["platforms"]]
+        if task.get("phony", True) is True:
+            task.pop("phony", None)
+        return _plain(task)
+    stored_tasks = stored_tasks if isinstance(stored_tasks, list) else []
+    return [one(task) for task in tasks] == [one(task) for task in stored_tasks]
+
+def same_variables(variables, stored_variables):
+    """
+    Whether saving these variables (as the cards build them) would write what
+    the file already says: the file goes through the cards first, a file and
+    a form not spelling the same thing identically (see
+    variable_editor.normalized_variables).
+    """
+    stored_variables = stored_variables if isinstance(stored_variables, dict) else {}
+    reference = ve.normalized_variables(stored_variables)
+    for name, definition in stored_variables.items():
+        unit = definition.get("unit") if isinstance(definition, dict) else None
+        if name in reference and unit is not None and str(unit).strip():
+            reference[name]["unit"] = str(unit).strip()
+    return list(_plain(reference).items()) == list(_plain(variables or {}).items())
+
+def wf_build_tasks_list(*field_values, phony=None):
     """
     Build the workflow tasks list from the task card field values (one list per
-    field of task_editor.TASK_FIELDS). A workflow always has its "main" task.
+    field of task_editor.TASK_FIELDS), and the "Always run" switches by task
+    name (see task_editor.phony_by_name). A workflow always has its "main" task.
     """
-    tasks = te.build_tasks_list(*field_values)
+    tasks = te.apply_phony(te.build_tasks_list(*field_values), phony or {})
     if not any(task["name"] == "main" for task in tasks):
         tasks.insert(0, {"name": "main", "commands": []})
     return tasks
 
 def wf_build_variables_dict(
-    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals
+    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals, unit_vals=None
 ):
     """
     Build a "variables" dict from the variable card field values.
@@ -190,7 +246,7 @@ def wf_build_variables_dict(
     return ve.build_variables_dict(
         titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals,
         from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
-        format_vals, group_vals,
+        format_vals, group_vals, unit_vals=unit_vals,
     )
 
 
@@ -215,13 +271,13 @@ def workflow_title(workflow_name):
             ui.icon_button(
                 id=f"button-open-config-editor",
                 icon=icon("edit", className="icon blue"),
-                text="Edit configs",
+                text="Edit configurations",
                 tooltip="Open the configuration editor for this workflow",
                 tooltip_options="bottom delay",
                 color="default",
                 link=f"/config_editor?workflow={workflow_name}",
                 multiline=False,
-                width="135px",
+                width="175px",
             ),
             ui.save_button(
                 id={"page": page_path, "action": "save-all"},
@@ -249,6 +305,8 @@ def workflow_title(workflow_name):
                                 )
                             ],
                             id="workflow-title-container",
+                            # The name takes all the room the buttons leave.
+                            style={"flex": "1 1 auto", "minWidth": "0"},
                         ),
                         html.Div([title_buttons]),
                     ],
@@ -293,8 +351,7 @@ def workflow_form(settings):
     progress = defval("progress", {})
     use_parameters = True if defval("use_parameters", True) else False
 
-    return html.Div(
-        children=[
+    tiles = [
             html.Div(
                 [
                     html.H3("Workflow sources"),
@@ -383,13 +440,20 @@ def workflow_form(settings):
                 ],
                 className="tile config",
             ),
+    ]
+    # Two flex columns, not CSS columns: a multicol container is laid out
+    # again as a whole at every change, and fragments the dropdown menus.
+    return html.Div(
+        children=[
+            html.Div([tiles[0], tiles[2]], className="flex-form-column"),
+            html.Div([tiles[1]], className="flex-form-column"),
         ],
-        className="tiles-container config",
+        className="tiles-container config flex-form",
         style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
 def wf_task_card(name="main", **values):
-    return te.task_card("wf", name=name, values=values)
+    return te.task_card("wf", name=name, values=values, with_phony=True)
 
 def wf_add_card(prefix: str = "wf-variable", text: str = "Add new variable", mode="variable"):
     return html.Div(
@@ -418,122 +482,194 @@ def wf_add_card(prefix: str = "wf-variable", text: str = "Add new variable", mod
     )
 
 def wf_cards_from_tasks(tasks):
-    cards = te.cards_from_tasks("wf", tasks)
+    cards = te.cards_from_tasks("wf", tasks, with_phony=True)
     if not any(card.id.get("name") == "main" for card in cards):
         cards.insert(0, wf_task_card(name="main"))
     cards.append(wf_add_card(prefix="wf-task", text="Add new task", mode="task"))
     return cards
 
+def wf_variable_card(name, **values):
+    """A variable card of this page: with the "Unit" field."""
+    values.setdefault("unit_value", "")
+    return ve.variable_card(VE_PREFIX, name, scope=VE_SCOPE, **values)
+
 def wf_cards_from_variables(variables):
-    cards = ve.variable_cards_from_dict(VE_PREFIX, variables)
+    cards = ve.variable_cards_from_dict(VE_PREFIX, variables, scope=VE_SCOPE, with_unit=True)
     cards.append(wf_add_card(prefix="wf-variable", text="Add new variable"))
     return cards
 
-@dash.callback(
-    Output("wf-task-cards-row", "children", allow_duplicate=True),
-    Input("wf-task-new", "n_clicks"),
-    Input({"type": "wf-duplicate-task", "name": dash.ALL}, "n_clicks"),
-    Input({"type": "wf-delete-task", "name": dash.ALL}, "n_clicks"),
-    State("wf-task-cards-row", "children"),
-    *te.task_field_dependencies("wf", State),
-    prevent_initial_call=True,
-)
-def update_wf_task_cards(new_click, duplicate_clicks, delete_clicks, cards, *task_fields):
-    trigger_id = ctx.triggered_id
+def _free_name(base, existing):
+    """`base`1, `base`2... the first one no card holds yet."""
+    idx = 1
+    while f"{base}{idx}" in existing:
+        idx += 1
+    return f"{base}{idx}"
 
-    if cards is None:
-        cards = []
+######################################
+# Card slots
+######################################
+# Every card lives in a "slot" of its own (a <div> with display: contents, so
+# the row lays the cards out as if it were not there), and the add card in the
+# last one. Adding a card fills that last slot with the new card and a new last
+# slot; deleting one empties its slot. The row itself is never sent back: Dash
+# works out where every id of an updated subtree sits by comparing it with every
+# id of the page that has the same keys (computePaths), and the row of a big
+# workflow holds hundreds of them -- adding a card to it took 4 to 11 seconds.
 
-    if cards and isinstance(cards[-1], dict) and cards[-1].get("props", {}).get("id") == "wf-task-add-card":
-        cards = cards[:-1]
+def _slot(kind, serial, children):
+    return html.Div(children, id={"type": f"wf-{kind}-slot", "slot": serial}, style={"display": "contents"})
 
-    if trigger_id == "wf-task-new" and new_click:
-        existing_names = [
-            card.get("props", {}).get("id", {}).get("name", "")
-            for card in cards
-            if isinstance(card.get("props", {}).get("id", {}), dict)
-        ]
-        idx = 1
-        while f"task{idx}" in existing_names:
-            idx += 1
-        cards.append(wf_task_card(name=f"task{idx}"))
+def _slotted(kind, cards):
+    """
+    The children of a row, from its cards (the add card last), and where each
+    card is: what the add, duplicate and delete callbacks need to find it again.
+    """
+    cards = list(cards)
+    add_card = cards.pop()
+    children = []
+    serials = {}
+    for serial, card in enumerate(cards):
+        serials[card.id.get("name")] = serial
+        children.append(_slot(kind, serial, [card]))
+    children.append(_slot(kind, len(cards), [add_card]))
+    return children, {"cards": serials, "add": len(cards), "next": len(cards) + 1}
 
-    if isinstance(trigger_id, dict):
-        trig_type = trigger_id.get("type")
-        trig_name = trigger_id.get("name")
+def _slot_update(kind, slot_ids, slots, add_card, new_card=None, new_name=None, deleted=None):
+    """
+    What the slots of a row become: the new card added before the add card,
+    or the card `deleted` taken out. Every other slot is left as it is.
+    """
+    slots = {
+        "cards": dict((slots or {}).get("cards") or {}),
+        "add": (slots or {}).get("add", 0),
+        "next": (slots or {}).get("next", 1),
+    }
+    serials = [slot_id.get("slot") for slot_id in slot_ids or [] if isinstance(slot_id, dict)]
+    children = [dash.no_update for _ in serials]
+    if new_card is not None:
+        if slots["add"] not in serials:
+            raise PreventUpdate
+        serial = slots["next"]
+        children[serials.index(slots["add"])] = [_slot(kind, serial, [new_card]), _slot(kind, serial + 1, [add_card])]
+        slots["cards"][new_name] = serial
+        slots["add"] = serial + 1
+        slots["next"] = serial + 2
+    elif deleted is not None:
+        serial = slots["cards"].pop(deleted, None)
+        if serial not in serials:
+            raise PreventUpdate
+        children[serials.index(serial)] = []
+    return children, slots
 
-        idx = None
-        for i, card in enumerate(cards):
-            card_id = card.get("props", {}).get("id", {})
-            if isinstance(card_id, dict) and card_id.get("type") == "wf-task-card" and card_id.get("name") == trig_name:
-                idx = i
-                break
+def _taken_names(names, slots):
+    """
+    The names a new card cannot take: those of the cards, and those of the
+    slots, which keep the ids of their cards (a name taken again would give two
+    components the same id).
+    """
+    return set(names) | set(((slots or {}).get("cards") or {}).keys())
 
-        if trig_type == "wf-delete-task" and idx is not None:
-            if trig_name == "main":
-                cards.append(wf_add_card(prefix="wf-task", text="Add new task", mode="task"))
-                return cards
-            cards = [
-                card for card in cards
-                if not (
-                    isinstance(card.get("props", {}).get("id", {}), dict)
-                    and card.get("props", {}).get("id", {}).get("type") == "wf-task-card"
-                    and card.get("props", {}).get("id", {}).get("name") == trig_name
-                )
-            ]
-        elif trig_type == "wf-duplicate-task" and idx is not None and idx < len(duplicate_clicks) and duplicate_clicks[idx]:
-            existing_names = [
-                card.get("props", {}).get("id", {}).get("name", "")
-                for card in cards
-                if isinstance(card.get("props", {}).get("id", {}), dict)
-            ]
-            copy_idx = 1
-            while f"{trig_name}_copy{copy_idx}" in existing_names:
-                copy_idx += 1
-            new_name = f"{trig_name}_copy{copy_idx}"
-
-            cards.append(wf_task_card(name=new_name, **te.card_values(task_fields, idx)))
-
-    # Enforce mandatory main task card.
-    has_main = False
-    for card in cards:
-        card_id = card.get("props", {}).get("id", {}) if isinstance(card, dict) else {}
-        if isinstance(card_id, dict) and card_id.get("type") == "wf-task-card" and card_id.get("name") == "main":
-            has_main = True
-            break
-    if not has_main:
-        cards.insert(0, wf_task_card(name="main"))
-
-    cards.append(wf_add_card(prefix="wf-task", text="Add new task", mode="task"))
-    return cards
+def _clicked():
+    """
+    Whether the callback answers an actual click. Dash also calls it when a
+    card holding one of its buttons is added to the page: the button is new,
+    and has never been clicked.
+    """
+    return bool(ctx.triggered and ctx.triggered[0].get("value"))
 
 
 ######################################
 # Callbacks
 ######################################
 
+# Adding, duplicating or deleting a card updates one slot of the row, never the
+# row itself (see _slotted): on a workflow of forty tasks the row is half a
+# megabyte, and even a Patch of it took seconds to land in the browser.
+
+@dash.callback(
+    Output({"type": "wf-task-slot", "slot": dash.ALL}, "children"),
+    Output("wf-task-slots", "data", allow_duplicate=True),
+    Input("wf-task-new", "n_clicks"),
+    Input({"type": "wf-duplicate-task", "name": dash.ALL}, "n_clicks"),
+    Input({"type": "wf-delete-task", "name": dash.ALL}, "n_clicks"),
+    State({"type": "wf-task-card", "name": dash.ALL}, "id"),
+    State({"type": "wf-task-slot", "slot": dash.ALL}, "id"),
+    State("wf-task-slots", "data"),
+    *te.task_field_dependencies("wf", State),
+    State({"type": "wf-task-field-phony", "name": dash.ALL}, "id"),
+    State({"type": "wf-task-field-phony", "name": dash.ALL}, "value"),
+    prevent_initial_call=True,
+)
+def update_wf_task_cards(new_click, duplicate_clicks, delete_clicks, card_ids, slot_ids, slots, *task_fields):
+    trigger_id = ctx.triggered_id
+    if not _clicked():
+        raise PreventUpdate
+    field_values = task_fields[:len(te.TASK_FIELDS)]
+    phony_ids, phony_values = task_fields[len(te.TASK_FIELDS):] or ([], [])
+    names = [card_id.get("name") for card_id in card_ids or [] if isinstance(card_id, dict)]
+    add_card = wf_add_card(prefix="wf-task", text="Add new task", mode="task")
+
+    if trigger_id == "wf-task-new":
+        name = _free_name("task", _taken_names(names, slots))
+        return _slot_update("task", slot_ids, slots, add_card, new_card=wf_task_card(name=name), new_name=name)
+
+    if not isinstance(trigger_id, dict) or trigger_id.get("name") not in names:
+        raise PreventUpdate
+    trig_name = trigger_id.get("name")
+    idx = names.index(trig_name)
+
+    if trigger_id.get("type") == "wf-delete-task":
+        if trig_name == "main":
+            # A workflow always has its "main" task.
+            raise PreventUpdate
+        return _slot_update("task", slot_ids, slots, add_card, deleted=trig_name)
+
+    taken = _taken_names(names, slots)
+    copy_idx = 1
+    while f"{trig_name}_copy{copy_idx}" in taken:
+        copy_idx += 1
+    values = te.card_values(field_values, idx)
+    values["phony"] = te.phony_by_name(phony_ids, phony_values).get(trig_name, True)
+    name = f"{trig_name}_copy{copy_idx}"
+    return _slot_update("task", slot_ids, slots, add_card, new_card=wf_task_card(name=name, **values), new_name=name)
+
 @dash.callback(
     Output("workflow-form-container", "children"),
     Output("workflow-initial-settings", "data"),
     Output("wf-task-cards-row", "children"),
     Output("wf-variable-cards-row", "children"),
+    Output("workflow-form-token", "data"),
+    Output("workflow-loaded-name", "data"),
+    Output("wf-task-slots", "data"),
+    Output("wf-variable-slots", "data"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
+    State("workflow-loaded-name", "data"),
+    State("workflow-form-token", "data"),
     State("odatix-settings", "data"),
 )
-def init_form(search, page, odatix_settings):
+def init_form(search, page, loaded_name, token, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        raise PreventUpdate
 
     workflow_name = get_key_from_url(search, "workflow")
-    if not workflow_name:
-        return workflow_form({}), {}, wf_cards_from_tasks([]), wf_cards_from_variables({})
+    # The address names the workflow the form already shows: it is the one just
+    # saved under a new name. The form says what was saved, and the message
+    # saying so stays.
+    if workflow_name and workflow_name == loaded_name:
+        raise PreventUpdate
 
-    workflows = get_workspace(odatix_settings).workflows
-    settings = normalize_workflow_settings(workflows.entry(workflow_name).settings.to_dict())
-    variables = settings.get("variables", {})
-    tasks = settings.get("tasks", [])
-    return workflow_form(settings), settings, wf_cards_from_tasks(tasks), wf_cards_from_variables(variables)
+    token = (token or 0) + 1
+    settings = {}
+    if workflow_name:
+        workflows = get_workspace(odatix_settings).workflows
+        settings = normalize_workflow_settings(workflows.entry(workflow_name).settings.to_dict())
+    task_row, task_slots = _slotted("task", wf_cards_from_tasks(settings.get("tasks", [])))
+    variable_row, variable_slots = _slotted("variable", wf_cards_from_variables(settings.get("variables", {})))
+    return (
+        workflow_form(settings), settings, task_row, variable_row,
+        token, workflow_name or "", task_slots, variable_slots,
+    )
 
 @dash.callback(
     Output("wf-hl-param-domains", "data"),
@@ -566,13 +702,8 @@ dash.clientside_callback(
 )
 
 
-@page_callback(PAGE_SCOPE,
-    Output({"page": page_path, "action": "save-all"}, "className"),
-    Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
-    Output(f"url_{page_path}", "search"),
-    Output("workflow-saved-settings", "data"),
-    Output("workflow-save-feedback", "children"),
-    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+#: What the form holds, in the order the save callback receives it.
+_FORM_FIELDS = [
     Input("workflow-title", "value"),
     Input("wf-source-path", "value"),
     Input("wf-source-whitelist", "value"),
@@ -584,30 +715,91 @@ dash.clientside_callback(
     Input("wf-progress-file", "value"),
     Input("wf-progress-regex", "value"),
     *te.task_field_dependencies("wf", Input),
-    Input({"type": "wf-variable-title", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-type", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-base", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-from", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-to", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-from_2_pow", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-to_2_pow", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-from_type", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-to_type", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-step", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-op", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-list", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-source", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-sources", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-format", "name": dash.ALL}, "value"),
-    Input({"type": "wf-variable-field-group", "name": dash.ALL}, "value"),
+    Input({"type": "wf-task-field-phony", "name": dash.ALL}, "value"),
+] + [
+    Input({"type": "wf-variable-" + kind, "name": dash.ALL, **VE_SCOPE}, "value")
+    for kind in (
+        "title", "type", "field-base", "field-from", "field-to", "field-from_2_pow", "field-to_2_pow",
+        "field-from_type", "field-to_type", "field-step", "field-op", "field-list", "field-source",
+        "field-sources", "field-format", "field-group", "field-unit",
+    )
+]
+
+def _as_states(dependencies):
+    return [State(dependency.component_id, dependency.component_property) for dependency in dependencies]
+
+
+# Whether there is anything to save is answered on the client, at each
+# keystroke: it compares what the form holds with what it held when it was
+# filled or last saved (assets/workflow_editor.js). Sending the whole form to
+# the server at each keystroke is what made a big workflow take seconds to
+# answer a key.
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_workflow_editor", function_name="save_status"),
+    Output({"page": page_path, "action": "save-all"}, "className"),
+    Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
+    Output("workflow-snapshot", "data"),
+    Input("workflow-form-token", "data"),
+    Input("workflow-save-request", "data"),
+    Input("workflow-save-result", "data"),
+    *_FORM_FIELDS,
+    State("workflow-snapshot", "data"),
+    State("workflow-loaded-name", "data"),
+    State("workflow-invalid-chars", "data"),
+)
+
+# Saving can take a moment on a big workflow: save_status says so on the
+# button at once. It is the only callback writing the state of the button
+# (Dash refuses two writers of a pattern id), so the click and the answer of
+# the server reach it through stores.
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_workflow_editor", function_name="save_request"),
+    Output("workflow-save-request", "data"),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    prevent_initial_call=True,
+)
+
+def _same_value(value, other):
+    """Whether two settings values say the same, an absent value being empty."""
+    def empty_as_none(item):
+        item = _plain(item)
+        return None if item in ("", [], {}) else item
+    return empty_as_none(value) == empty_as_none(other)
+
+def _differences(written, reread):
+    """The settings written that the file does not say, by name."""
+    keys = []
+    for key in ("sources", "progress"):
+        for sub in written.get(key, {}):
+            if not _same_value(written[key][sub], (reread.get(key) or {}).get(sub)):
+                keys.append(f"{key}.{sub}")
+    for key in ("use_parameters", "param_target_file", "start_delimiter", "stop_delimiter"):
+        if key in written and not _same_value(written[key], reread.get(key)):
+            keys.append(key)
+    if "tasks" in written and not same_tasks(written["tasks"], reread.get("tasks", [])):
+        keys.append("tasks")
+    if "variables" in written and not _same_value(written["variables"], reread.get("variables", {})):
+        keys.append("variables")
+    return keys
+
+@page_callback(PAGE_SCOPE,
+    Output("workflow-save-result", "data"),
+    Output(f"url_{page_path}", "search"),
+    Output("workflow-form-token", "data", allow_duplicate=True),
+    Output("workflow-loaded-name", "data", allow_duplicate=True),
+    Output("workflow-save-feedback", "children"),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    *_as_states(_FORM_FIELDS),
+    # Which task each switch belongs to: "main" has none.
+    State({"type": "wf-task-field-phony", "name": dash.ALL}, "id"),
     State(f"url_{page_path}", "search"),
-    State(f"url_{page_path}", "pathname"),
-    State("workflow-initial-settings", "data"),
-    State("workflow-saved-settings", "data"),
+    State("workflow-form-token", "data"),
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
-def save_and_status(
+def save_workflow(
     n_clicks,
     workflow_title_value,
     source_path,
@@ -625,6 +817,7 @@ def save_and_status(
     task_on_failure_commands,
     task_paths,
     task_platforms,
+    task_phony_values,
     variable_titles,
     variable_types,
     variable_base_vals,
@@ -641,95 +834,55 @@ def save_and_status(
     variable_sources_vals,
     variable_format_vals,
     variable_group_vals,
+    variable_unit_vals,
+    task_phony_ids,
     search,
-    page,
-    initial_settings,
-    saved_settings,
+    token,
     odatix_settings,
 ):
-    triggered_id = ctx.triggered_id
     # The button is part of the title, which a callback renders: a new button
     # triggers this too, without anyone clicking it. Only a click saves.
-    saving = triggered_id == {"page": page_path, "action": "save-all"} and bool(n_clicks)
-    if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    if not n_clicks:
+        raise PreventUpdate
 
-    if saved_settings is None:
-        reference_settings = normalize_workflow_settings(initial_settings)
-    else:
-        reference_settings = normalize_workflow_settings(saved_settings)
+    def failed(message):
+        return (
+            {"error": message, "clicks": n_clicks},
+            dash.no_update, dash.no_update, dash.no_update, ui.error(f"Not saved: {message}"),
+        )
+
+    if not workflow_title_value:
+        return failed("Workflow name cannot be empty")
+    for character in hard_settings.invalid_filename_characters:
+        if character in workflow_title_value:
+            label = "' ' (space)" if character == " " else f"'{character}'"
+            return failed(f"Unauthorized character in workflow name: {label}")
+    names = [str(title).strip() for title in variable_titles or []]
+    if any(name == "" for name in names):
+        return failed("A variable has no name")
+    duplicates = sorted(set(name for name in names if names.count(name) > 1))
+    if duplicates:
+        return failed(f"Duplicate variable name: '{duplicates[0]}'")
 
     parsed_tasks = wf_build_tasks_list(
-        task_names,
-        task_dependencies,
-        task_commands,
-        task_on_failure_commands,
-        task_paths,
-        task_platforms,
+        task_names, task_dependencies, task_commands, task_on_failure_commands, task_paths, task_platforms,
+        phony=te.phony_by_name(task_phony_ids, task_phony_values),
     )
-
     variables = wf_build_variables_dict(
         variable_titles, variable_types, variable_base_vals, variable_from_vals, variable_to_vals,
         variable_from_2_pow_vals, variable_to_2_pow_vals, variable_from_type_vals, variable_to_type_vals,
         variable_step_vals, variable_op_vals, variable_list_vals, variable_source_vals, variable_sources_vals,
-        variable_format_vals, variable_group_vals,
-    )
-
-    current_settings = normalize_workflow_settings(
-        {
-            "sources": {
-                "path": source_path or "",
-                "whitelist": _normalize_list(source_whitelist),
-                "blacklist": _normalize_list(source_blacklist),
-            },
-            "use_parameters": True if use_parameters else False,
-            "param_target_file": param_target_file or "",
-            "start_delimiter": start_delimiter or "",
-            "stop_delimiter": stop_delimiter or "",
-            "progress": {
-                "file": progress_file or "",
-                "regex": progress_regex or "",
-            },
-            "variables": variables,
-            "tasks": parsed_tasks,
-        }
+        variable_format_vals, variable_group_vals, unit_vals=variable_unit_vals,
     )
 
     workflow_name = get_key_from_url(search, "workflow")
     workflows = get_workspace(odatix_settings).workflows
+    new_search = dash.no_update
 
-    if not workflow_title_value:
-        return (
-            "color-button error-status icon-button tooltip bottom",
-            "Workflow name cannot be empty",
-            dash.no_update,
-            saved_settings,
-            (ui.error("Not saved: Workflow name cannot be empty") if saving else dash.no_update),
-        )
-
-    for character in hard_settings.invalid_filename_characters:
-        if character in workflow_title_value:
-            label = "' ' (space)" if character == " " else f"'{character}'"
-            return (
-                "color-button error-status icon-button tooltip bottom",
-                f"Unauthorized character in workflow name: {label}",
-                dash.no_update,
-                saved_settings,
-                (ui.error(f"Not saved: Unauthorized character in workflow name: {label}") if saving else dash.no_update),
-            )
-
-    if saving:
-        new_search = dash.no_update
-
+    try:
         if workflow_name and workflow_title_value != workflow_name:
             if workflow_title_value in workflows:
-                return (
-                    "color-button error-status icon-button tooltip bottom",
-                    f"'{workflow_title_value}' already exists",
-                    dash.no_update,
-                    saved_settings,
-                    (ui.error(f"Not saved: '{workflow_title_value}' already exists") if saving else dash.no_update),
-                )
+                return failed(f"'{workflow_title_value}' already exists")
             if workflow_name in workflows:
                 workflows.rename(workflow_name, workflow_title_value)
             workflow_name = workflow_title_value
@@ -744,47 +897,64 @@ def save_and_status(
 
         # What is written is what the cards say, not its normalized form (which
         # spells every list entry as text, for comparing only), with what the
-        # cards do not edit kept as the file has it: the "unit" of a variable,
-        # the "phony" of a task...
+        # cards do not edit kept as the file has it, where the file has it. A
+        # list the form did not change is not written at all: the file keeps
+        # its own layout ("dependencies: [a, b]").
         stored = workflow.settings.to_dict()
         stored_variables, _legacy = get_variables(stored)
-        to_write = dict(current_settings)
-        to_write["variables"] = ve.keep_unmanaged_keys(variables, stored_variables)
-        to_write["tasks"] = keep_unmanaged_task_keys(parsed_tasks, stored.get("tasks"))
+        to_write = {
+            "use_parameters": True if use_parameters else False,
+            "param_target_file": param_target_file or "",
+            "start_delimiter": start_delimiter or "",
+            "stop_delimiter": stop_delimiter or "",
+        }
+        blocks = {
+            "sources": {
+                "path": source_path or "",
+                "whitelist": _normalize_list(source_whitelist),
+                "blacklist": _normalize_list(source_blacklist),
+            },
+            "progress": {
+                "file": progress_file or "",
+                "regex": progress_regex or "",
+            },
+        }
+        tasks = keep_unmanaged_task_keys(parsed_tasks, stored.get("tasks"), managed=TASK_MANAGED_KEYS)
+        if not same_tasks(tasks, stored.get("tasks")):
+            to_write["tasks"] = tasks
+        if not same_variables(variables, stored_variables):
+            to_write["variables"] = ve.keep_unmanaged_keys(variables, stored_variables, managed=ve.MANAGED_KEYS_WITH_UNIT)
 
-        try:
-            workflow.update(to_write)
-            return (
-                "color-button disabled icon-button tooltip delay bottom small",
-                "Nothing to save",
-                new_search,
-                current_settings,
-                ui.success(),
-            )
-        except Exception as e:
-            return (
-                "color-button error-status icon-button tooltip bottom small",
-                "Failed to save...",
-                dash.no_update,
-                saved_settings,
-                ui.error(f"Not saved: {e}"),
-            )
+        settings = workflow.settings
+        for key, values in blocks.items():
+            block = getattr(settings, key, None)
+            if isinstance(block, Settings):
+                # Field by field: the block keeps what the file says around it.
+                for sub, value in values.items():
+                    setattr(block, sub, value)
+            else:
+                to_write[key] = values
+        settings.update(to_write)
+        workflow.save()
 
-    if current_settings != reference_settings or workflow_title_value != (workflow_name or ""):
-        return (
-            "color-button warning icon-button tooltip bottom small tooltip",
-            "Unsaved changes!",
-            dash.no_update,
-            dash.no_update,
-            dash.no_update,
-        )
+        # "Saved." only once the file says so.
+        written = dict(to_write, **blocks)
+        reread = get_workspace(odatix_settings).workflows.entry(workflow_name).settings.to_dict()
+        reread_variables, _legacy = get_variables(reread)
+        reread["variables"] = reread_variables
+        missing = _differences(written, reread)
+        if missing:
+            return failed("the file does not say what was saved (" + ", ".join(missing) + ")")
+    except Exception as e:
+        return failed(str(e))
 
     return (
-        "color-button disabled icon-button tooltip delay bottom small",
-        "Nothing to save",
-        dash.no_update,
-        saved_settings,
-        dash.no_update,
+        {"error": None, "clicks": n_clicks},
+        new_search,
+        # A new snapshot of the form: what it holds now is what is saved.
+        (token or 0) + 1,
+        workflow_name,
+        ui.success(),
     )
 
 @dash.callback(
@@ -804,143 +974,75 @@ def update_workflow_title(search):
         workflow_name = ""
     return workflow_title(workflow_name)
 
-@page_callback(PAGE_SCOPE,
-    [
-        Output({"type": "wf-variable-field-from-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-to-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-from_2_pow-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-to_2_pow-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-from_type-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-to_type-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-base-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-step-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-op-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-list-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-source-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-sources-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-format-div", "name": dash.ALL}, "style"),
-        Output({"type": "wf-variable-field-group-div", "name": dash.ALL}, "style"),
-    ],
-    Input({"type": "wf-variable-type", "name": dash.ALL}, "value"),
+# Which fields of a variable card its type uses is answered on the client too
+# (assets/workflow_editor.js), from ve.FIELD_VISIBILITY handed over in a store.
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_workflow_editor", function_name="field_visibility"),
+    [Output({"type": f"wf-variable-field-{field}-div", "name": dash.ALL, **VE_SCOPE}, "style") for field in ve.VARIABLE_FIELDS],
+    Input({"type": "wf-variable-type", "name": dash.ALL, **VE_SCOPE}, "value"),
+    State("wf-variable-field-visibility", "data"),
+    [State({"type": f"wf-variable-field-{field}-div", "name": dash.ALL, **VE_SCOPE}, "style") for field in ve.VARIABLE_FIELDS],
 )
-def update_wf_variable_fields_visibility(types):
-    styles_by_field = ve.field_styles_for_types(types)
-    return (
-        styles_by_field["from"],
-        styles_by_field["to"],
-        styles_by_field["from_2_pow"],
-        styles_by_field["to_2_pow"],
-        styles_by_field["from_type"],
-        styles_by_field["to_type"],
-        styles_by_field["base"],
-        styles_by_field["step"],
-        styles_by_field["op"],
-        styles_by_field["list"],
-        styles_by_field["source"],
-        styles_by_field["sources"],
-        styles_by_field["format"],
-        styles_by_field["group"],
-    )
 
 # Folding the extra fields away is done on the client, on the document, by the
 # handler in assets/folds.js: nothing outside the browser reads whether a fold
 # is open, and a fold answered by Dash costs a walk over every pattern-matched
 # component of the page.
 
+#: The fields of a variable card a duplicate copies, as the arguments of
+#: variable_editor.variable_card.
+_VARIABLE_COPY_FIELDS = (
+    ("type", "type_value"), ("field-base", "base_value"), ("field-from", "from_value"),
+    ("field-to", "to_value"), ("field-from_2_pow", "from_2_pow_value"), ("field-to_2_pow", "to_2_pow_value"),
+    ("field-from_type", "from_type_value"), ("field-to_type", "to_type_value"), ("field-step", "step_value"),
+    ("field-op", "op_value"), ("field-list", "list_value"), ("field-source", "source_value"),
+    ("field-sources", "sources_value"), ("field-format", "format_value"), ("field-group", "group_value"),
+    ("field-unit", "unit_value"),
+)
+
 @dash.callback(
-    Output("wf-variable-cards-row", "children", allow_duplicate=True),
+    Output({"type": "wf-variable-slot", "slot": dash.ALL}, "children"),
+    Output("wf-variable-slots", "data", allow_duplicate=True),
     Input("wf-variable-new", "n_clicks"),
-    Input({"type": "wf-duplicate-var", "name": dash.ALL}, "n_clicks"),
-    Input({"type": "wf-delete-var", "name": dash.ALL}, "n_clicks"),
-    State("wf-variable-cards-row", "children"),
-    State({"type": "wf-variable-type", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-base", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-from", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-to", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-from_2_pow", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-to_2_pow", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-from_type", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-to_type", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-step", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-op", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-list", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-source", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-sources", "name": dash.ALL}, "value"),
-    State({"type": "wf-variable-field-group", "name": dash.ALL}, "value"),
+    Input({"type": "wf-duplicate-var", "name": dash.ALL, **VE_SCOPE}, "n_clicks"),
+    Input({"type": "wf-delete-var", "name": dash.ALL, **VE_SCOPE}, "n_clicks"),
+    State({"type": "wf-variable-card", "name": dash.ALL, **VE_SCOPE}, "id"),
+    State({"type": "wf-variable-slot", "slot": dash.ALL}, "id"),
+    State("wf-variable-slots", "data"),
+    *[State({"type": f"wf-variable-{kind}", "name": dash.ALL, **VE_SCOPE}, "value") for kind, _arg in _VARIABLE_COPY_FIELDS],
     prevent_initial_call=True,
 )
-def update_wf_variable_cards(
-    new_click, duplicate_clicks, delete_clicks, cards,
-    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, group_vals,
-):
+def update_wf_variable_cards(new_click, duplicate_clicks, delete_clicks, card_ids, slot_ids, slots, *field_values):
     trigger_id = ctx.triggered_id
+    if not _clicked():
+        raise PreventUpdate
+    names = [card_id.get("name") for card_id in card_ids or [] if isinstance(card_id, dict)]
+    add_card = wf_add_card(prefix="wf-variable", text="Add new variable")
 
-    if cards is None:
-        cards = []
+    if trigger_id == "wf-variable-new":
+        name = _free_name("var", _taken_names(names, slots))
+        return _slot_update("variable", slot_ids, slots, add_card, new_card=wf_variable_card(name), new_name=name)
 
-    # Remove the Add card if present
-    if cards and isinstance(cards[-1], dict) and cards[-1].get('props', {}).get('id') == "wf-variable-add-card":
-        cards = cards[:-1]
+    if not isinstance(trigger_id, dict) or trigger_id.get("name") not in names:
+        raise PreventUpdate
+    trig_name = trigger_id.get("name")
+    idx = names.index(trig_name)
 
-    # Add new variable
-    if trigger_id == "wf-variable-new" and new_click:
-        existing_names = [card.get('props', {}).get('id', {}).get('name', '') for card in cards if isinstance(card.get('props', {}).get('id', {}), dict)]
-        var_idx = 1
-        while f"var{var_idx}" in existing_names:
-            var_idx += 1
-        new_name = f"var{var_idx}"
-        cards.append(ve.variable_card(VE_PREFIX, new_name))
+    if trigger_id.get("type") == "wf-delete-var":
+        return _slot_update("variable", slot_ids, slots, add_card, deleted=trig_name)
 
-    if isinstance(trigger_id, dict):
-        trig_type = trigger_id.get("type")
-        trig_name = trigger_id.get("name")
-
-        idx = None
-        for i, card in enumerate(cards):
-            card_id = card.get('props', {}).get('id', {})
-            if isinstance(card_id, dict) and card_id.get("type") == "wf-variable-card" and card_id.get("name") == trig_name:
-                idx = i
-                break
-
-        # Delete (guard against spurious firing when cards are (re)mounted, e.g. on page load)
-        if trig_type == "wf-delete-var" and idx is not None and idx < len(delete_clicks) and delete_clicks[idx]:
-            cards = [
-                card for card in cards
-                if not (
-                    isinstance(card.get('props', {}).get('id', {}), dict)
-                    and card.get('props', {}).get('id', {}).get("type") == "wf-variable-card"
-                    and card.get('props', {}).get('id', {}).get("name") == trig_name
-                )
-            ]
-        # Duplicate (same guard)
-        elif trig_type == "wf-duplicate-var" and idx is not None and idx < len(duplicate_clicks) and duplicate_clicks[idx]:
-            existing_names = [card.get('props', {}).get('id', {}).get('name', '') for card in cards if isinstance(card.get('props', {}).get('id', {}), dict)]
-            copy_idx = 1
-            while f"{trig_name}_copy{copy_idx}" in existing_names:
-                copy_idx += 1
-            new_name = f"{trig_name}_copy{copy_idx}"
-
-            cards.append(ve.variable_card(
-                        VE_PREFIX,
-                        name=new_name,
-                        type_value=types[idx],
-                        base_value=base_vals[idx],
-                        from_value=from_vals[idx],
-                        to_value=to_vals[idx],
-                        from_2_pow_value=from_2_pow_vals[idx],
-                        to_2_pow_value=to_2_pow_vals[idx],
-                        from_type_value=from_vals[idx],
-                        to_type_value=to_vals[idx],
-                        step_value=step_vals[idx],
-                        op_value=op_vals[idx],
-                        list_value=list_vals[idx],
-                        source_value=sources_vals[idx],
-                        sources_value=sources_vals[idx],
-                        group_value=group_vals[idx],
-                    ))
-
-    cards.append(wf_add_card())
-    return cards
+    taken = _taken_names(names, slots)
+    copy_idx = 1
+    while f"{trig_name}_copy{copy_idx}" in taken:
+        copy_idx += 1
+    values = {}
+    for (_kind, argument), column in zip(_VARIABLE_COPY_FIELDS, field_values):
+        column = column or []
+        value = column[idx] if idx < len(column) else None
+        values[argument] = "" if value is None else value
+    name = f"{trig_name}_copy{copy_idx}"
+    return _slot_update("variable", slot_ids, slots, add_card, new_card=wf_variable_card(name, **values), new_name=name)
 
 
 ######################################
@@ -949,11 +1051,13 @@ def update_wf_variable_cards(
 
 layout = html.Div(
     children=[
-        dcc.Location(id=f"url_{page_path}"),
+        # The address changes when a workflow is saved under a new name: the
+        # page stays, with what it holds.
+        dcc.Location(id=f"url_{page_path}", refresh=False),
         html.Div(id={"page": page_path, "type": "workflow-title-div"}, style={"marginTop": "20px"}),
         html.Div(ui.feedback("workflow-save-feedback"), className="card-matrix config"),
         # Rendered empty from the start, then filled by init_form: the fields
-        # are inputs of save_and_status, which must find them on load.
+        # are inputs of save_status, which must find them on load.
         html.Div(workflow_form({}), id="workflow-form-container"),
         html.Div(
             children=[
@@ -982,7 +1086,23 @@ layout = html.Div(
             ],
         ),
         dcc.Store(id="workflow-initial-settings", data=None),
-        dcc.Store(id="workflow-saved-settings", data=None),
+        # The form as it was filled or last saved, which save_status compares
+        # the fields with; renewed each time the token changes.
+        dcc.Store(id="workflow-form-token", data=None),
+        dcc.Store(id="workflow-snapshot", data=None),
+        # Where each card of the two rows is (see _slotted).
+        dcc.Store(id="wf-task-slots", data=None),
+        dcc.Store(id="wf-variable-slots", data=None),
+        # A click on the save button, and how the save went (see save_status).
+        dcc.Store(id="workflow-save-request", data=None),
+        dcc.Store(id="workflow-save-result", data=None),
+        # The workflow the form shows, as saved (None before it is filled).
+        dcc.Store(id="workflow-loaded-name", data=None),
+        dcc.Store(id="workflow-invalid-chars", data=hard_settings.invalid_filename_characters),
+        dcc.Store(
+            id="wf-variable-field-visibility",
+            data={"fields": ve.VARIABLE_FIELDS, "types": {key: sorted(value) for key, value in ve.FIELD_VISIBILITY.items()}},
+        ),
         # Physical parameter domains of the workflow (directory names), pushed to
         # the client so the command highlighter can tell them apart from defined
         # variables (which it reads live from the variable cards).
@@ -992,7 +1112,7 @@ layout = html.Div(
         # list keeps a stale one from another editor out of this page.
         builtin_variables.highlight_data("workflow", id="wf-hl-builtins", declares_variables=True),
     ],
-    className="page-content",
+    className="page-content workflow-editor-page",
     style={
         "display": "flex",
         "flexDirection": "column",

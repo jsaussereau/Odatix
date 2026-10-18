@@ -113,7 +113,7 @@ def status_text(store):
     path = store.result_path or "?"
     return "No result file found in " + str(path)
   records = sum(source.record_count for source in sources)
-  parts = [str(len(sources)) + " source" + ("s" if len(sources) > 1 else ""), str(records) + " records"]
+  parts = [str(len(sources)) + " source" + ("s" if len(sources) > 1 else ""), str(records) + (" record" if records == 1 else " records")]
   if store.last_load_time:
     parts.append("loaded " + time.strftime("%H:%M:%S", time.localtime(store.last_load_time)))
   errors = [source.name for source in sources if source.error]

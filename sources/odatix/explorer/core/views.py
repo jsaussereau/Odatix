@@ -139,6 +139,8 @@ def list_views(result_path):
       if not isinstance(view, dict) or VIEW_SCHEMA_KEY not in view:
         continue
       view["name"] = os.path.splitext(entry.name)[0]
+      # What to call it: the name as it was typed, not the file name made of it.
+      view["title"] = view_title(view)
       view["mtime"] = entry.stat().st_mtime
       views.append(view)
     except (OSError, ValueError):
@@ -164,6 +166,13 @@ def free_name(result_path, name):
   return candidate
 
 
+def view_title(view):
+  """The name a view is shown under: as typed when saved, else its file name."""
+  title = view.get("title") if isinstance(view, dict) else None
+  if isinstance(title, str) and title.strip():
+    return title.strip()
+  return str((view or {}).get("name") or "?")
+
 def save_view(result_path, name, view, overwrite=False):
   """
   Write a view file; returns the slugged view name.
@@ -183,6 +192,8 @@ def save_view(result_path, name, view, overwrite=False):
   if not overwrite and view_exists(result_path, slug):
     raise ViewExistsError(slug)
   view = dict(view)
+  view.pop("name", None)
+  view["title"] = str(view.get("title") or name).strip()
   view[VIEW_SCHEMA_KEY] = VIEW_SCHEMA_VERSION
   view["created"] = datetime.datetime.now().isoformat(timespec="seconds")
   # Atomic: the home page and the restore dropdown poll this directory

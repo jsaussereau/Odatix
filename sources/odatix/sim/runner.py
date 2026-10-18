@@ -45,6 +45,7 @@ A command exiting with an error code stops the simulation, which is then
 failed; so does an error message in what the simulation printed.
 """
 
+import multiprocessing
 import os
 import re
 import subprocess
@@ -111,9 +112,12 @@ class SimRunner(object):
       "message": "",
       "errors": 0,
       "warnings": 0,
-      "compile_time": 0.0,
-      "elaboration_time": 0.0,
-      "simulation_time": 0.0,
+      # None until the stage is run: a simulator elaborating while it compiles
+      # (Verilator, Icarus) has no elaboration time of its own, and a stage a
+      # failure stopped before was not measured. Neither is a time of 0.
+      "compile_time": None,
+      "elaboration_time": None,
+      "simulation_time": None,
       "total_time": 0.0,
       "cycles": None,
       "cycles_per_second": None,
@@ -185,6 +189,24 @@ class SimRunner(object):
     if testbench.get("generated") and testbench.get("waves"):
       return "odatix_sim.vcd"
     return None
+
+  @property
+  def build_jobs(self):
+    """
+    How many processes one job may build with: the cores of the machine shared
+    among the jobs Odatix runs at once ("parallel_jobs" in odatix_sim.yml), at
+    least one. A build taking every core in each of several jobs at once runs
+    them all slower than one after the other.
+    """
+    try:
+      cores = multiprocessing.cpu_count()
+    except NotImplementedError:
+      cores = 1
+    try:
+      jobs = int(self.info.get("parallel_jobs") or 1)
+    except (TypeError, ValueError):
+      jobs = 1
+    return max(1, cores // max(1, jobs))
 
   @property
   def tb_languages(self):
@@ -317,7 +339,7 @@ class SimRunner(object):
     self.report["errors"] += errors
     self.report["warnings"] += warnings
     key = {"compile": "compile_time", "elaborate": "elaboration_time", "simulate": "simulation_time"}[stage]
-    self.report[key] = round(self.report[key] + elapsed, 3)
+    self.report[key] = round((self.report[key] or 0.0) + elapsed, 3)
     if stage == "simulate":
       cycles = CYCLES_PATTERN.findall(output)
       if cycles:
@@ -402,7 +424,7 @@ class SimRunner(object):
   def _write_report(self):
     self.report["total_time"] = round(time.time() - self._start, 3)
     cycles = self.report.get("cycles")
-    if cycles and self.report["simulation_time"] > 0:
+    if cycles and (self.report["simulation_time"] or 0) > 0:
       self.report["cycles_per_second"] = round(cycles / self.report["simulation_time"], 1)
     with open(os.path.join(self.work_dir, REPORT_FILENAME), "w") as f:
       yaml.dump(self.report, f, default_flow_style=False, sort_keys=False)

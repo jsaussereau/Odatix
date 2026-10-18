@@ -452,7 +452,9 @@ class TestExplorerAndGuiParsers:
     @pytest.mark.parametrize("add_arguments", [odatix_explorer.add_arguments, odatix_gui.add_arguments])
     def test_defaults(self, add_arguments):
         args = self.build_parser(add_arguments).parse_args([])
-        assert args.input == "results"
+        # The explorer takes its result directory from the workspace settings
+        # file ("-c") when "-i" does not give one.
+        assert args.input == (None if add_arguments is odatix_explorer.add_arguments else "results")
         assert args.network is False
         assert args.nobrowser is False
         assert args.safe_mode is False
@@ -614,13 +616,18 @@ class TestExitCodes:
 
     @pytest.mark.parametrize("command", ["res_workflow", "res_simulation"])
     def test_a_results_file_that_cannot_be_written_fails(self, example_workspace, command):
-        (example_workspace / "empty_work").mkdir()
+        # A run to export: with none, nothing is written at all
+        (example_workspace / "empty_work" / "a" / "b" / "c").mkdir(parents=True)
         (example_workspace / "a_file").write_text("")
         result = run_cli(command, "-Q", "-w", "empty_work", "-r", "a_file/out", cwd=str(example_workspace))
         assert result.returncode != 0
 
     def test_res_derived_without_definitions_succeeds(self, example_workspace):
-        assert run_cli("res_derived", "-Q", "-r", "out", "-d", "none.yml", cwd=str(example_workspace)).returncode == 0
+        (example_workspace / "odatix_userconfig" / "derived_metrics.yml").unlink()
+        assert run_cli("res_derived", "-Q", "-r", "out", cwd=str(example_workspace)).returncode == 0
+
+    def test_res_derived_fails_on_a_named_file_that_does_not_exist(self, example_workspace):
+        assert run_cli("res_derived", "-Q", "-r", "out", "-d", "none.yml", cwd=str(example_workspace)).returncode != 0
 
     def test_res_derived_fails_on_an_invalid_file(self, example_workspace):
         (example_workspace / "bad.yml").write_text("derived_metrics: [\n")
@@ -790,8 +797,11 @@ class TestNoExport:
 
     def test_fmax_exports_by_default(self, example_workspace, monkeypatch):
         exports = self._run_fmax(monkeypatch)
-        assert exports["job"]["output_dir"] == "results"
-        assert exports["batch"] == ("jobs", "results")
+        # The workspace root is absolute (a run changes directory), so is its result path.
+        results = os.path.join(os.path.realpath(str(example_workspace)), "results")
+        assert os.path.realpath(exports["job"]["output_dir"]) == results
+        jobs, output_dir = exports["batch"]
+        assert jobs == "jobs" and os.path.realpath(output_dir) == results
 
     def test_fmax_noexport_exports_nothing(self, example_workspace, monkeypatch):
         assert self._run_fmax(monkeypatch, "-e") == {}

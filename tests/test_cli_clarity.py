@@ -82,9 +82,12 @@ class TestPrefix:
         out = capsys.readouterr().out
         assert "[odatix fmax]" in out and "run_fmax_synthesis.py" not in out
 
-    def test_without_a_command_the_module_is_named(self, capsys):
+    def test_without_a_command_odatix_is_named_rather_than_the_module(self, capsys):
+        # A script using the Python API, a session writing a job log: the
+        # name of a module means nothing to whoever reads it (U-04, GS-20).
         printc.note("hello", "module.py")
-        assert "[module.py]" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "[odatix]" in out and "module.py" not in out
 
     def test_an_unexpected_error_is_a_short_message_and_a_log(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)

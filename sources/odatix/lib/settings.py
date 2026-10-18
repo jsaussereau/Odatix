@@ -45,6 +45,7 @@ import yaml
 import odatix.lib.printc as printc
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 from odatix.lib.utils import ask_yes_no, YAML_BOOL, copytree
+from odatix.lib.doc_links import GETTING_STARTED_URL, OWN_DESIGNS_URL
 import odatix.lib.yaml_loader as yaml_loader
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -417,6 +418,10 @@ class OdatixSettings:
             src_path = OdatixSettings.odatix_init_path
             dst_path = os.getcwd()
             copytree(src_path, dst_path, dirs_exist_ok=True)
+            # Where the designs, simulations and workflows of the user go: there
+            # from the start, so that a new workspace shows where to add them.
+            for path in (OdatixSettings.DEFAULT_ARCH_PATH, OdatixSettings.DEFAULT_SIM_PATH, OdatixSettings.DEFAULT_WORKFLOW_PATH):
+                os.makedirs(os.path.join(dst_path, path), exist_ok=True)
         except Exception as e:
             printc.error("Could not initialize directory: " + str(e), script_name=script_name)
             return False
@@ -435,7 +440,8 @@ class OdatixSettings:
             bool: True if initialization is successful, False otherwise.
         """
         printc.note("This command will create all the configuration files needed by Odatix in the current directory.", script_name=script_name)
-        printc.warning("This will overwrite any existing configuration files.", script_name=script_name)
+        if OdatixSettings.workspace_here():
+            printc.warning("This directory already holds an Odatix workspace: its configuration files will be replaced by the default ones.", script_name=script_name)
         printc.say("Would you like to continue? ", end="", script_name=script_name)
         answer = ask_yes_no()
         if answer == False:
@@ -450,7 +456,7 @@ class OdatixSettings:
             success = OdatixSettings.init_examples()
             if not success:
                 return False
-        OdatixSettings.init_success(prog)
+        OdatixSettings.init_success(prog, examples=include_examples)
         return True
 
     @staticmethod
@@ -473,22 +479,44 @@ class OdatixSettings:
             if not success:
                 return False
         if not silent:
-            OdatixSettings.init_success(prog)
+            OdatixSettings.init_success(prog, examples=include_examples)
         return True
 
     @staticmethod
-    def init_success(prog=""):
+    def workspace_here():
         """
-        Display a success message after directory initialization.
+        Whether the current directory already holds an Odatix workspace, whose
+        files "odatix init" would replace.
+        """
+        return os.path.exists(DEFAULT_SETTINGS_FILE) or os.path.isdir(OdatixSettings.DEFAULT_USERCONFIG_PATH)
+
+    #: The first run "odatix init --examples" suggests: one configuration, up
+    #: to synthesis, so that it ends in minutes (the same as the getting started
+    #: page of the documentation).
+    FIRST_RUN_COMMAND = 'fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis'
+
+    @staticmethod
+    def init_success(prog="", examples=False):
+        """
+        Display a success message after directory initialization, and what to
+        do next.
 
         Args:
             prog (str): Program name for the message.
+            examples (bool): Whether the examples were added.
         """
+        prog = prog or "odatix"
         printc.green("Your directory can now be used by Odatix!", script_name=script_name)
+        if examples:
+            printc.say("Try a first run (with your tool in place of vivado): ", end="", script_name=script_name)
+            printc.bold(prog + " " + OdatixSettings.FIRST_RUN_COMMAND)
+        else:
+            printc.say("Next, add your design (" + OWN_DESIGNS_URL + "), or start from the examples: ", end="", script_name=script_name)
+            printc.bold(prog + " init --examples")
         printc.say("Run ", end="", script_name=script_name)
         printc.bold(prog + " -h", end="")
         print(" to get a list of useful commands")
-        printc.say("New to Odatix? Follow https://odatix.readthedocs.io/docs/getting-started/", script_name=script_name)
+        printc.say("New to Odatix? Follow " + GETTING_STARTED_URL, script_name=script_name)
 
     def to_dict(self):
         """

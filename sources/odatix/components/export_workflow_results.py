@@ -154,6 +154,8 @@ def _extract_direct_value(run_dir, name, content, error_prefix=""):
     Returns a scalar, or a list of values when the field is "multiple: true".
     Returns None when the field is not extractable.
     """
+    # Every message names the metric, as the synthesis export does (TF-04)
+    error_prefix = error_prefix + 'metric "' + str(name) + '": '
     metric_type = content.get("type")
     settings = content.get("settings", {})
     error_if_missing = bool(content.get("error_if_missing", True))
@@ -300,7 +302,8 @@ def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix="
         for name, content, field_role in op_fields:
             op = content.get("settings", {}).get("op")
             error_if_missing = bool(content.get("error_if_missing", True))
-            value = calculate_operation(op, row_values, error_if_missing, error_prefix) if op is not None else None
+            metric_prefix = error_prefix + 'metric "' + str(name) + '": '
+            value = calculate_operation(op, row_values, error_if_missing, metric_prefix) if op is not None else None
             row_values[name] = value
             value = _finalize_value(value, content, numeric=(field_role == "meta"))
             (meta_extra if field_role == "meta" else metrics)[name] = value

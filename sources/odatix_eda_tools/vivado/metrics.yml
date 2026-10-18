@@ -43,6 +43,7 @@ metrics:
       pattern: "\\| (?:Slice|CLB) LUTs\\*?[ \\t]*\\|.*\\|[ \\t]*<?([0-9.]+)[ \\t]*\\|[ \\t]*$"
       group_id: 1
     format: "%.2f"
+    unit: "%"
 
   Reg_count:
     type: regex
@@ -59,6 +60,7 @@ metrics:
       pattern: "\\| (?:Slice|CLB) Registers\\*?[ \\t]*\\|.*\\|[ \\t]*<?([0-9.]+)[ \\t]*\\|[ \\t]*$"
       group_id: 1
     format: "%.2f"
+    unit: "%"
 
   LUT+Reg_count:
     type: operation

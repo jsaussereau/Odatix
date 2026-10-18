@@ -578,6 +578,7 @@ def build_info(
   rtl_generated=False,
   rtl_dir="rtl",
   reset_active_low=None,
+  parallel_jobs=None,
 ):
   """
   Everything a simulation is told about the design under test (the content of
@@ -590,9 +591,11 @@ def build_info(
       sources are only known once it has run (see refresh_command).
     reset_active_low (bool): the polarity of the reset, guessed from its name
       when None.
+    parallel_jobs (int): how many jobs Odatix runs at once, which share the
+      cores of the machine (see SimRunner.build_jobs).
   """
   sources = collect_sources(work_dir, rtl_dir)
-  return {
+  info = {
     "simulation": str(simulation),
     "architecture": str(architecture),
     "configuration": str(configuration),
@@ -610,6 +613,9 @@ def build_info(
     "testbench": collect_testbench(work_dir, testbench, top),
     "param_domains": {str(name): str(value) for name, value in (param_domains or {}).items()},
   }
+  if parallel_jobs:
+    info["parallel_jobs"] = int(parallel_jobs)
+  return info
 
 
 def filelist_lines(info):

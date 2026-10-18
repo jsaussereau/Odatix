@@ -274,6 +274,9 @@ def _extract_merged_records(run_dir, identity):
             return None, None
         metrics_def.update(file_metrics)
         metadata_def.update(file_metadata)
+    # A simulation removes a metric of its template by defining it as nothing.
+    metrics_def = dict((name, value) for name, value in metrics_def.items() if value is not None)
+    metadata_def = dict((name, value) for name, value in metadata_def.items() if value is not None)
     if len(metrics_def) == 0 and len(metadata_def) == 0:
         return [], {}
 
@@ -399,12 +402,28 @@ def export_single_simulation_job(job, export_config=None):
 
 
 def export_simulation_results(work_root, sim_path, output_dir, output_filename=DEFAULT_OUTPUT_FILENAME):
+    """
+    Export every simulation run of a work directory into one results file.
+
+    Returns:
+        bool: False when the work directory does not exist, as for every other
+        kind of result. A work directory holding no run has nothing to export,
+        which is not a failure. Nothing is written in either case: an empty
+        results file would show up in Odatix Explorer as a source with no
+        record, and would replace the results of runs since cleaned up.
+    """
     all_units = {}
     records = []
 
+    if not os.path.isdir(work_root):
+        printc.error('No simulation work directory "' + work_root + '": nothing written', script_name)
+        printc.tip('Run simulations with "odatix sim" first', script_name)
+        return False
+
     runs = _discover_runs(work_root)
     if len(runs) == 0:
-        printc.warning('No simulation run found in "' + work_root + '"', script_name)
+        printc.note('No simulation run found in "' + work_root + '": nothing to export', script_name)
+        return True
 
     for run_dir in runs:
         run_records, run_units = _extract_records_for_run(run_dir, work_root, sim_path)
@@ -417,6 +436,7 @@ def export_simulation_results(work_root, sim_path, output_dir, output_filename=D
     results_cache.store(output_file, all_units, records)
 
     printc.say('Simulation results written to "' + output_file + '"', script_name=script_name)
+    return True
 
 
 def main(args, settings=None):
@@ -446,7 +466,7 @@ def main(args, settings=None):
     else:
         sim_path = OdatixSettings.DEFAULT_SIM_PATH
 
-    export_simulation_results(
+    return export_simulation_results(
         work_root=work_root,
         sim_path=sim_path,
         output_dir=output_dir,

@@ -70,26 +70,24 @@
     --theme-background-color: var(--sol-base03);
     --theme-element-background-color: var(--sol-base02);
     --theme-action-color: #0a4a5a;
-    --theme-primary-color: var(--sol-blue);
-    --theme-secondary-color: var(--sol-cyan);
+    --theme-primary-color: color-mix(in oklab, var(--sol-blue) 72%, var(--sol-base3));
+    --theme-secondary-color: color-mix(in oklab, var(--sol-cyan) 80%, var(--sol-base3));
     --theme-tertiary-color: #0a4553;
     --theme-tertiary-color-light: #0a455390;
     --theme-disabled-color: #586e75ac;
     --theme-disabled-background-color: #586e754f;
-    --theme-success-color: var(--sol-green);
-    --theme-warning-color: var(--sol-orange);
-    --theme-caution-color: var(--sol-red);
-    --theme-pending-color: var(--sol-cyan);
-    --theme-text-color: var(--sol-base1);
-    --theme-subtle-text-color: var(--sol-base00);
+    --theme-success-color: color-mix(in oklab, var(--sol-green) 80%, var(--sol-base3));
+    --theme-warning-color: color-mix(in oklab, var(--sol-orange) 66%, var(--sol-base3));
+    --theme-caution-color: color-mix(in oklab, var(--sol-red) 64%, var(--sol-base3));
+    --theme-pending-color: var(--theme-secondary-color);
+    --theme-text-color: var(--sol-base2);
     --theme-text-shadow: 0 1px 2px #00000080;
     --theme-border-color: #0d4b5c;
-    --theme-border-color-hover: var(--sol-base1);
+    --theme-border-color-hover: var(--sol-base2);
     --theme-overlay-background-color: #002b363d;
     --theme-contrast-background-color: #001f27;
     --theme-shadow-color: rgba(0, 15, 20, 0.4);
     --theme-badge-background-color: #268bd21a;
-    --theme-badge-text-color: var(--sol-blue);
 
     /* cards and tiles */
     --card-box-shadow: var(--theme-shadow-color) 0px 4px 20px -6px;
@@ -97,11 +95,7 @@
     --add-card-background-hover: #268bd21a;
 
     /* buttons */
-    --primary-button-icon-color: var(--sol-base3);
-    --primary-button-text-color: var(--sol-base3);
-    --warning-button-icon-color: var(--sol-base3);
-    --warning-button-text-color: var(--sol-base3);
-    --back-button-color: var(--sol-base01);
+    --back-button-color: var(--theme-secondary-text-color);
 
     /* switch */
     --switch-on-background: #268bd214;
@@ -110,10 +104,14 @@
     --primary-highlight-color: var(--sol-yellow);
     --primary-highlight-text-color: var(--sol-base03);
     --primary-highlight-text-shadow: none;
-    --secondary-highlight-color: var(--sol-cyan);
+    --secondary-highlight-color: var(--theme-secondary-color);
     --secondary-highlight-text-shadow: none;
 
     /* progress bars */
     --progress-bar-background-color-hover: var(--theme-background-color);
     --progress-bar-background-color-selected: var(--theme-background-color);
+
+    /* contrast (WCAG AA) */
+    --theme-secondary-text-color: var(--sol-base1);
+    --theme-pause-color: var(--sol-base1);
 }

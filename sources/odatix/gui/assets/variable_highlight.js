@@ -316,6 +316,114 @@
     return field.tagName === "INPUT";
   }
 
+  /*
+   * Layout. Reading a computed style or an offset right after a write makes the
+   * browser resolve the styles of the whole page again, which costs tens of
+   * milliseconds with every theme stylesheet loaded (UG-01). So every pass
+   * below reads what it needs from all its fields first, and only then writes;
+   * a field whose text did not change is not touched at all; and the font of a
+   * field, the costly read, is copied when it first shows, when it is resized
+   * and when the theme changes -- never per keystroke.
+   */
+
+  // Bumped when the theme changes: every mirror copies its field's font again.
+  var styleEpoch = 0;
+
+  function readStyles(field) {
+    var computed = window.getComputedStyle(field);
+    return COPIED_STYLES.map(function (prop) {
+      return computed[prop];
+    });
+  }
+
+  function writeStyles(mirror, values) {
+    COPIED_STYLES.forEach(function (prop, index) {
+      mirror.style[prop] = values[index];
+    });
+  }
+
+  // The mirror covers the field itself, not the wrapper around it: a field
+  // narrower than its wrapper (or offset inside it) would otherwise leave the
+  // mirror sticking out of it on every side it does not fill.
+  function readBox(field) {
+    return {
+      left: field.offsetLeft,
+      top: field.offsetTop,
+      width: field.offsetWidth,
+      height: field.offsetHeight,
+      scrollTop: field.scrollTop,
+      scrollLeft: field.scrollLeft,
+    };
+  }
+
+  // Only what changed is written: a style written, even to the value it holds,
+  // and a scroll position set make the next read lay the page out again.
+  function writeBox(mirror, box) {
+    var last = mirror.__wfHlBox || {};
+    if (!mirror.__wfHlBox) {
+      mirror.style.boxSizing = "border-box";
+    }
+    ["left", "top", "width", "height"].forEach(function (prop) {
+      if (last[prop] !== box[prop]) {
+        mirror.style[prop] = box[prop] + "px";
+      }
+    });
+    if (last.scrollTop !== box.scrollTop) {
+      mirror.scrollTop = box.scrollTop;
+    }
+    if (last.scrollLeft !== box.scrollLeft) {
+      mirror.scrollLeft = box.scrollLeft;
+    }
+    mirror.__wfHlBox = box;
+  }
+
+  function isShown(field) {
+    return field.offsetParent !== null;
+  }
+
+  // Lays out the mirrors of `fields`: reads, then writes. The font is copied
+  // when the field never had it for the current theme. `shown` tells, when the
+  // caller knows, which fields are shown (a hidden one has no box to copy).
+  function layoutFields(fields, shown) {
+    var reads = fields.map(function (field, index) {
+      if (!field.__wfHlMirror || !(shown ? shown[index] : isShown(field))) {
+        return null;
+      }
+      var stale = field.__wfHlStyleEpoch !== styleEpoch;
+      return { styles: stale ? readStyles(field) : null, box: readBox(field) };
+    });
+    fields.forEach(function (field, index) {
+      var read = reads[index];
+      if (!read) {
+        return;
+      }
+      if (read.styles) {
+        writeStyles(field.__wfHlMirror, read.styles);
+        field.__wfHlStyleEpoch = styleEpoch;
+      }
+      // The field's own size has the last word over the copied box.
+      writeBox(field.__wfHlMirror, read.box);
+    });
+  }
+
+  // One observer for every field: a field resized (the handle, the auto-resize
+  // on input, the panel around it unfolding or the window) or shown for the
+  // first time is laid out again, all of them in one pass.
+  // It is called once when a field is first observed, which lays out the
+  // mirror of a new field, and its entries say whether a field is shown at all.
+  var resizeObserver = typeof ResizeObserver !== "undefined"
+    ? new ResizeObserver(function (entries) {
+        layoutFields(
+          entries.map(function (entry) {
+            return entry.target;
+          }),
+          entries.map(function (entry) {
+            return entry.contentRect.width > 0 || entry.contentRect.height > 0;
+          })
+        );
+      })
+    : null;
+
   function ensureMirror(textarea) {
     if (textarea.__wfHlMirror) {
       return textarea.__wfHlMirror;
@@ -336,24 +444,9 @@
     textarea.classList.add("wf-hl-input");
     textarea.__wfHlMirror = mirror;
 
-    // The mirror covers the field itself, not the wrapper around it: a field
-    // narrower than its wrapper (or offset inside it) would otherwise leave the
-    // mirror sticking out of it on every side it does not fill.
-    function syncBox() {
-      mirror.style.boxSizing = "border-box";
-      mirror.style.left = textarea.offsetLeft + "px";
-      mirror.style.top = textarea.offsetTop + "px";
-      mirror.style.width = textarea.offsetWidth + "px";
-      mirror.style.height = textarea.offsetHeight + "px";
-    }
-
     function syncScroll() {
-      syncBox();
-      mirror.scrollTop = textarea.scrollTop;
-      mirror.scrollLeft = textarea.scrollLeft;
+      layoutFields([textarea]);
     }
-
-    textarea.__wfHlSyncBox = syncBox;
 
     textarea.addEventListener("scroll", syncScroll);
     // A single-line input scrolls itself as the caret moves, without firing a
@@ -364,19 +457,15 @@
       });
     });
 
-    // The mirror follows every resize of the field: the handle, the auto-resize
-    // on input, and the panel around it growing or shrinking.
-    if (typeof ResizeObserver !== "undefined") {
-      new ResizeObserver(syncScroll).observe(textarea);
+    if (resizeObserver) {
+      resizeObserver.observe(textarea);
     }
-    window.addEventListener("resize", syncScroll);
-    syncBox();
 
     return mirror;
   }
 
-  function refreshTextarea(textarea, variables, domains, builtins, unknownTip) {
-    var mirror = ensureMirror(textarea);
+  // What the mirror of a field shows.
+  function mirrorHtml(textarea, variables, domains, builtins, unknownTip) {
     var text = textarea.value || "";
     // An empty field would show nothing at all: the mirror covers the real one,
     // whose native placeholder is hidden with the rest of its text. Draw it
@@ -387,22 +476,7 @@
     var html = isSelectorField(textarea)
       ? buildSelectorsHtml(shown)
       : buildHtml(shown, variables, domains, builtins, unknownTip);
-    mirror.innerHTML = text ? html : '<span class="wf-hl-placeholder">' + html + "</span>";
-
-    var computed = window.getComputedStyle(textarea);
-    COPIED_STYLES.forEach(function (prop) {
-      mirror.style[prop] = computed[prop];
-    });
-    // ...and then over the copied box: the field's own size has the last word.
-    if (textarea.__wfHlSyncBox) {
-      textarea.__wfHlSyncBox();
-    }
-    // The textarea auto-resizes its height on input; the mirror follows it
-    // through the wrapper, but its scroll position only settles a frame later.
-    window.requestAnimationFrame(function () {
-      mirror.scrollTop = textarea.scrollTop;
-      mirror.scrollLeft = textarea.scrollLeft;
-    });
+    return text ? html : '<span class="wf-hl-placeholder">' + html + "</span>";
   }
 
   function refreshAll() {
@@ -415,6 +489,7 @@
     // The unscoped names are shared by every field of the page; a scope is
     // read once and reused by the fields belonging to it.
     var byRoot = new Map();
+    var restyled = [];
     textareas.forEach(function (textarea) {
       var root = scopeRoot(textarea);
       if (!byRoot.has(root)) {
@@ -425,7 +500,37 @@
         ]);
       }
       var names = byRoot.get(root);
-      refreshTextarea(textarea, names[0], names[1], builtins, names[2]);
+      var html = mirrorHtml(textarea, names[0], names[1], builtins, names[2]);
+      var isNew = !textarea.__wfHlMirror;
+      var mirror = ensureMirror(textarea);
+      // Nothing to do for a field showing what it already shows: most passes
+      // are caused by something else on the page. A new field is laid out by
+      // the resize observer, which is called once as it starts observing it.
+      if (html !== textarea.__wfHlHtml) {
+        mirror.innerHTML = html;
+        textarea.__wfHlHtml = html;
+      }
+      if (!isNew && textarea.__wfHlStyleEpoch !== styleEpoch && textarea.__wfHlStyleEpoch !== undefined) {
+        restyled.push(textarea);
+      }
+    });
+    // After a change of theme, the fields that had a font copy it again.
+    if (restyled.length) {
+      layoutFields(restyled);
+    }
+  }
+
+  // Coalesced to one pass per frame, whatever asked for it.
+  var scheduled = false;
+
+  function scheduleRefresh() {
+    if (scheduled) {
+      return;
+    }
+    scheduled = true;
+    window.requestAnimationFrame(function () {
+      scheduled = false;
+      refreshAll();
     });
   }
 
@@ -436,53 +541,61 @@
       return;
     }
     if (isField(target)) {
+      // The field typed in is redrawn at once, so its colors never lag behind
+      // the caret; the others, which may read the same names, a frame later.
       refreshAll();
     } else if (target.id && String(target.id).indexOf("variable-title") !== -1) {
-      refreshAll();
+      scheduleRefresh();
     } else if (target.closest && target.closest("[data-odatix-hl-declares]")) {
-      refreshAll();
+      scheduleRefresh();
     }
   });
 
-  // Cards are added/removed and values set programmatically by Dash (no input
-  // event): re-highlight whenever the DOM changes, coalesced to one pass.
-  var scheduled = false;
-  var observer = new MutationObserver(function (records) {
-    if (scheduled) {
-      return;
-    }
-    // Ignore the mutations caused by our own mirror rewrites, or refreshing
-    // (which rewrites the mirrors) would retrigger this observer forever.
-    var relevant = records.some(function (record) {
-      var node = record.target;
-      while (node && node !== document.body) {
-        if (node.classList && node.classList.contains("wf-hl-mirror")) {
-          return false;
-        }
-        node = node.parentNode;
+  function insideMirror(node) {
+    while (node && node !== document.body) {
+      if (node.classList && node.classList.contains("wf-hl-mirror")) {
+        return true;
       }
-      return true;
-    });
-    if (!relevant) {
-      return;
+      node = node.parentNode;
     }
-    scheduled = true;
-    window.requestAnimationFrame(function () {
-      scheduled = false;
-      refreshAll();
+    return false;
+  }
+
+  // Cards are added/removed and values set programmatically by Dash (no input
+  // event): re-highlight whenever the DOM changes, coalesced to one pass, which
+  // only touches the fields whose text changed.
+  var observer = new MutationObserver(function (records) {
+    var relevant = false;
+    records.forEach(function (record) {
+      if (record.type === "attributes" && record.attributeName === "class") {
+        // The theme is a class of the page's root: every font may have changed.
+        if (record.target && record.target.id === "theme") {
+          styleEpoch += 1;
+          relevant = true;
+        }
+        return;
+      }
+      // Ignore the mutations caused by our own mirror rewrites, or refreshing
+      // (which rewrites the mirrors) would retrigger this observer forever.
+      if (!relevant && !insideMirror(record.target)) {
+        relevant = true;
+      }
     });
+    if (relevant) {
+      scheduleRefresh();
+    }
   });
   // A placeholder is an attribute, and Dash rewrites it as the variables of a
   // domain change: it has to be watched too, or the mirror would keep drawing
   // the previous one.
   observer.observe(document.body, {
-    childList: true, subtree: true, attributes: true, attributeFilter: ["placeholder"],
+    childList: true, subtree: true, attributes: true, attributeFilter: ["placeholder", "class"],
   });
 
   // Fired by the clientside callback when the parameter domains change.
-  document.addEventListener("odatix:refresh-var-highlight", refreshAll);
+  document.addEventListener("odatix:refresh-var-highlight", scheduleRefresh);
 
-  window.addEventListener("DOMContentLoaded", refreshAll);
+  window.addEventListener("DOMContentLoaded", scheduleRefresh);
 
   /*
    * Hover tooltip. The mirror (and its tokens) sits under the transparent

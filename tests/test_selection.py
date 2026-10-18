@@ -130,7 +130,9 @@ class TestExpand:
     def test_missing_architecture_is_reported(self, architectures):
         messages = []
         assert selection.expand(["nope/*"], str(architectures), messages=messages) == []
-        assert [message.level for message in messages] == ["error", "warning"]
+        # The error alone: a "did not match" warning would only repeat it.
+        assert [message.level for message in messages] == ["error"]
+        assert "architecture directory" in messages[0].text
 
     def test_missing_domain_is_reported_with_the_ones_that_exist(self, architectures):
         messages = []

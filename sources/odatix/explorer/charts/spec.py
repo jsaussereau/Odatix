@@ -58,7 +58,7 @@ KIND_LABELS = {
   "scatter": "Scatter",
   "scatter3d": "Scatter 3D",
   "radar": "Radar",
-  "parcoords": "Parallel Coordinates",
+  "parcoords": "Parallel coordinates",
   "overview": "Overview",
   "table": "Table",
 }
@@ -181,6 +181,14 @@ def normalize_metrics(value, metrics=None):
   return tuple(dict.fromkeys(values))
 
 
+# Dimensions "Color by" picks from by default, the first one varying in the
+# selection: what a design is, then the conditions it was run in.
+_COLOR_CANDIDATES = (
+  schema.COL_ARCHITECTURE, schema.COL_WORKFLOW, schema.COL_SOURCE,
+  schema.COL_FREQUENCY, schema.COL_TARGET, schema.COL_TYPE,
+)
+
+
 def resolve_defaults(spec, dimensions, metrics):
   """
   Fill unset spec fields with sensible defaults based on the discovered
@@ -226,7 +234,21 @@ def resolve_defaults(spec, dimensions, metrics):
     default = default() if callable(default) else default
     return () if default in (None, NONE_VALUE) else (default,)
 
-  spec.color_by = resolve_multi(spec.color_by, lambda: pick([schema.COL_ARCHITECTURE, schema.COL_WORKFLOW, schema.COL_SOURCE], pick(multi)))
+  def default_color():
+    """The first of these dimensions that actually varies: coloring by an
+    architecture when there is only one gave every trace the same color, the
+    two frequencies of a design included. Never the x axis, nor (outside a
+    scatter, where it labels the points) the configuration, which would make
+    one trace per point."""
+    excluded = {spec.x}
+    if spec.kind not in ("scatter", "scatter3d"):
+      excluded.add(schema.COL_CONFIGURATION)
+    for candidate in _COLOR_CANDIDATES:
+      if candidate in multi and candidate not in excluded:
+        return candidate
+    return pick([schema.COL_ARCHITECTURE, schema.COL_WORKFLOW, schema.COL_SOURCE], pick(multi))
+
+  spec.color_by = resolve_multi(spec.color_by, default_color)
   spec.symbol_by = resolve_multi(spec.symbol_by, lambda: pick([schema.COL_TARGET]))
   if spec.legend_group_by is None or (spec.legend_group_by != NONE_VALUE and spec.legend_group_by not in dimensions):
     spec.legend_group_by = pick([schema.COL_TARGET, schema.COL_SOURCE], NONE_VALUE)

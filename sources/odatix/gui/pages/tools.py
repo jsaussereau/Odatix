@@ -42,6 +42,7 @@ import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
 import odatix.lib.eda_tools as eda_tools
+import odatix.lib.check_tool as check_tool
 import odatix.sim.templates as sim_templates
 from odatix.gui.utils import get_workspace
 from odatix.lib.utils import open_path_in_explorer
@@ -87,13 +88,33 @@ def tool_icon_image(meta):
     # "icon_filter" recolors the logo to the theme, for the monochrome ones that
     # would otherwise vanish on a background of the same shade.
     filtered = bool(meta.get("icon_filter")) if tool_icon else False
+    # On the light plate of /choose_eda_tool: the logos are drawn for a light
+    # background, and some vanish on a dark card.
     return html.Div(
-        html.Img(
-            src=tool_icon or DEFAULT_TOOL_ICON,
-            className="card-img filter" if filtered else "card-img",
-            style={"maxHeight": "100%", "maxWidth": "60%"},
+        html.Div(
+            html.Img(
+                src=tool_icon or DEFAULT_TOOL_ICON,
+                className="card-img filter" if filtered else "card-img",
+                style={"maxHeight": "48px", "maxWidth": "100%", "display": "block"},
+            ),
+            className="odx-tool-logo",
         ),
         className="card-pictogram-wrap",
+    )
+
+
+def installed_badge(name):
+    """
+    Badge saying whether a tool can be launched here, filled in by
+    check_tool_installed once the page shows (its "tool_test_command", the check
+    a run makes), like the badges of the simulators.
+    """
+    return html.Div(
+        [
+            html.Span("checking...", id={"type": "tools-page-installed", "name": name}, className="odx-badge"),
+            dcc.Store(id={"type": "tools-page-check", "name": name}, data=name),
+        ],
+        style={"display": "flex", "justifyContent": "center", "marginTop": "8px"},
     )
 
 def flows_line(name):
@@ -159,6 +180,7 @@ def workspace_tool_card(tool):
                        "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"},
             )] if description else []),
             *([flows] if flows is not None else []),
+            installed_badge(name),
             html.Div(
                 [
                     html.Div(
@@ -235,6 +257,7 @@ def builtin_tool_card(tool):
                 style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px"},
             ),
             *([flows] if flows is not None else []),
+            installed_badge(name),
             html.Div(
                 [
                     ui.icon_button(
@@ -373,6 +396,32 @@ def add_card(text: str):
 def update_cards(_, odatix_settings):
     tools = get_workspace(odatix_settings).tools
     return build_tool_cards(tools), build_builtin_cards(tools)
+
+
+@page_callback(PAGE_SCOPE,
+    Output({"type": "tools-page-installed", "name": dash.MATCH}, "children"),
+    Output({"type": "tools-page-installed", "name": dash.MATCH}, "className"),
+    Output({"type": "tools-page-installed", "name": dash.MATCH}, "title"),
+    Input({"type": "tools-page-check", "name": dash.MATCH}, "data"),
+    State("odatix-settings", "data"),
+)
+def check_tool_installed(name, odatix_settings):
+    """
+    Whether a tool can be launched here: its "tool_test_command" (with the
+    install path of its target file) runs and succeeds. One callback per card,
+    so a slow tool does not hold the others; a check that passed a moment ago
+    is not run again (see check_tool.probe).
+    """
+    try:
+        install_path = str(get_workspace(odatix_settings).targets[name].tool_install_path or "")
+    except Exception:
+        install_path = ""
+    installed, reason = check_tool.probe(eda_tools.tool_test_command(name, install_path))
+    if installed is None:
+        return "not checked", "odx-badge", reason
+    if installed:
+        return "installed", "odx-badge success", "The tool starts: its tool_test_command passed"
+    return "not installed", "odx-badge caution", "Could not launch it: " + reason
 
 
 @page_callback(PAGE_SCOPE,

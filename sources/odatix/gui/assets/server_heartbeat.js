@@ -3,7 +3,9 @@
 // ********************************************************************** //
 //
 // Detect when the Odatix web server (GUI or Explorer) has stopped and warn
-// the user with a modal popup. Pure vanilla JS, self-contained: it injects
+// the user with a modal popup. Only a refused connection means "stopped": a
+// server busy with a long computation answers late, but it answers, and must
+// not be reported as gone. Pure vanilla JS, self-contained: it injects
 // its own overlay into <body> and polls the server with a lightweight
 // heartbeat, so it works on every page of both apps without touching any
 // Dash layout (the assets folder is shared by the GUI and the standalone
@@ -13,10 +15,14 @@
   "use strict";
 
   var POLL_INTERVAL_MS = 2000; // heartbeat period
-  var FAIL_THRESHOLD = 3; // consecutive failures before declaring the server down
-  var REQUEST_TIMEOUT_MS = 5000; // a heartbeat slower than this counts as a failure
+  var FAIL_THRESHOLD = 3; // consecutive refused connections before declaring the server down
+  // A heartbeat still unanswered after this long is given up and sent again.
+  // It does NOT count as a failure: a slow answer means a busy server (a
+  // Python callback holding the interpreter), not a stopped one.
+  var REQUEST_TIMEOUT_MS = 30000;
 
   var failures = 0;
+  var pending = false;
   var serverDown = false;
   var overlay = null;
   var messageEl = null;
@@ -37,7 +43,7 @@
     messageEl.style.color = "var(--theme-text-color)";
     messageEl.style.margin = "12px 0 24px";
     messageEl.textContent =
-      "The Odatix server has stopped responding. It was probably closed in the terminal. Restart it, then reconnect.";
+      "The Odatix server refuses connections: it was probably closed in the terminal. Restart it, then click Try again.";
 
     buttonEl = document.createElement("button");
     buttonEl.className = "color-button primary";
@@ -70,28 +76,34 @@
   }
 
   function ping() {
+    // One heartbeat at a time: piling them up behind a busy server would only
+    // take the connections the page itself needs.
+    if (pending) return;
+    pending = true;
     var controller = new AbortController();
+    var timedOut = false;
     var timer = setTimeout(function () {
+      timedOut = true;
       controller.abort();
     }, REQUEST_TIMEOUT_MS);
 
     // HEAD on the current page: it is always served by the running server, so a
-    // network error (connection refused) means the server is gone.
+    // network error (connection refused) means the server is gone. Any HTTP
+    // answer, even an error status, means it is still there.
     fetch(window.location.href, {
       method: "HEAD",
       cache: "no-store",
       signal: controller.signal,
     })
-      .then(function (resp) {
+      .then(function () {
         clearTimeout(timer);
-        if (!resp || !resp.ok) {
-          onFailure();
-          return;
-        }
+        pending = false;
         onSuccess();
       })
       .catch(function () {
         clearTimeout(timer);
+        pending = false;
+        if (timedOut) return; // busy, not stopped: neither a success nor a failure
         onFailure();
       });
   }

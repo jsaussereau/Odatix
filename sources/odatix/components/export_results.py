@@ -232,7 +232,7 @@ def _warn_benchmark_metric(metric, metrics_file):
   printc.tip("Declare a benchmark score as a simulation metric (_metrics.yml), and combine it with synthesis results through derived metrics", script_name)
 
 
-def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type="fmax_synthesis", step=None):
+def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type="fmax_synthesis", step=None, report_shared=True):
   """
   Extract metrics from synthesis results based on tool-specific settings.
 
@@ -253,6 +253,9 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
                   flow has none. A metric declaring a step ("step:") belongs to
                   that step alone; a metric declaring none is extracted for every
                   step, "$step" in the file it reads resolving to this one.
+      report_shared (bool): report what cannot be read from a file the whole
+                  job shares (no "$step" in its path). Every step of a job reads
+                  the same one, so a job says it once rather than once per step.
 
   Returns:
       tuple:
@@ -327,6 +330,12 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
       continue
 
     error_if_missing, _ = get_from_dict("error_if_missing", content, metrics_file, parent=metric, default_value=True, type=bool, silent=True, script_name=script_name)
+    # What could not be read is said with the metric it was read for: a tool
+    # declares a dozen metrics, and the pattern or file alone does not tell
+    # which definition to fix.
+    metric_prefix = error_prefix + 'metric "' + str(metric) + '": '
+    if not report_shared and not is_step_scoped(settings.get("file") if isinstance(settings, dict) else None):
+      error_if_missing = False
 
     if type == "regex":
       try:
@@ -337,7 +346,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
         banned_metrics.append(metric)
         continue
       path = step_file(cur_path, file, step)
-      value = parse_regex(path, pattern, group_id, missing_is_an_error(file, path, error_if_missing), error_prefix)
+      value = parse_regex(path, pattern, group_id, missing_is_an_error(file, path, error_if_missing), metric_prefix)
     elif type == "csv":
       try:
         file = read_from_list( "file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -346,7 +355,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
         banned_metrics.append(metric)
         continue
       path = step_file(cur_path, file, step)
-      value = parse_csv(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
+      value = parse_csv(path, key, missing_is_an_error(file, path, error_if_missing), metric_prefix)
     elif type == "yaml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -355,7 +364,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
       path = step_file(cur_path, file, step)
-      value = parse_yaml(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
+      value = parse_yaml(path, key, missing_is_an_error(file, path, error_if_missing), metric_prefix)
     elif type == "json":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -364,7 +373,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
       path = step_file(cur_path, file, step)
-      value = parse_json(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
+      value = parse_json(path, key, missing_is_an_error(file, path, error_if_missing), metric_prefix)
     elif type == "xml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -373,14 +382,14 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
       path = step_file(cur_path, file, step)
-      value = parse_xml(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
+      value = parse_xml(path, key, missing_is_an_error(file, path, error_if_missing), metric_prefix)
     elif type == "operation":
       try:
         op = read_from_list("op", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = calculate_operation(op, exact, error_if_missing, error_prefix)
+      value = calculate_operation(op, exact, error_if_missing, metric_prefix)
     else:
       printc.error(
         # type can be None when the metric declares an empty "type:" key
@@ -674,7 +683,8 @@ def process_configuration(input, target, architecture, configuration, frequency,
   records = []
   for step in (completed_steps if completed_steps else [None]):
     metrics, cur_units, measured = extract_metrics(
-      metrics_data, metrics_file, cur_path, arch, arch_path, type, step=step
+      metrics_data, metrics_file, cur_path, arch, arch_path, type, step=step,
+      report_shared=step is None or step == completed_steps[-1],
     )
 
     param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)

@@ -147,13 +147,19 @@ class Exclusion(object):
     __slots__ = ("id", "when", "require", "kind", "message", "source", "_pins")
 
     def __init__(self, when="", require="", kind=ILLEGAL, message="", id="", source=""):
+        #: The name a campaign uses to turn the rule off ("" when unnamed).
         self.id = str(id or "").strip()
+        #: The condition that selects the points the rule is about.
         self.when = str(when or "").strip()
+        #: What those points must also satisfy ("" rejects them all).
         self.require = str(require or "").strip()
+        #: Why the points are out: ``illegal``, ``duplicate`` or ``dominated``.
         self.kind = str(kind or ILLEGAL).strip().lower()
         if self.kind not in KINDS:
             self.kind = ILLEGAL
+        #: The explanation shown when a point is rejected.
         self.message = str(message or "").strip()
+        #: Where the rule was written (a file, or a domain), for messages.
         self.source = source
         self._pins = None
 

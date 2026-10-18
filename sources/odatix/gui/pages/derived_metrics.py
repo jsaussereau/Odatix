@@ -44,6 +44,8 @@ input, a type dropdown that shows the fields of that type, and an expandable are
 for the fields most metrics do not need.
 """
 
+import os
+
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
@@ -116,8 +118,13 @@ CARD_MATCH_KEYS = ("pin", "ignore", "map", "keys", True)
 ON_MULTIPLE_OPTIONS = [{"label": choice, "value": choice} for choice in derived_metrics_lib.ON_MULTIPLE_CHOICES]
 
 PAGE_TOOLTIP = (
-    "Metrics a result gets from another result. Recomputed over the whole result set once every "
-    'job of a run is done, and by "odatix results" and "odatix results derived".'
+    "Metrics a result gets from another result. Applied to the results files when you save, and "
+    'recomputed over the whole result set once every job of a run is done, and by "odatix results".'
+)
+
+APPLY_TOOLTIP = (
+    "Compute the derived metrics again over the results files, as they are saved "
+    '("odatix results derived"). Saving already does it.'
 )
 GROUP_TOOLTIP = (
     'A named list of patterns, used as "@name" in any pattern field of this page. Groups are not '
@@ -435,6 +442,72 @@ def normalize_metrics(metrics):
     return normalized
 
 
+def definitions_to_write(current, raw):
+    """
+    What a save writes into the "derived_metrics" section.
+
+    A definition the user did not touch is written back exactly as the file
+    holds it: rebuilding it from its card would rewrite what the file left
+    implicit (a "type" inferred from "op", a pattern written as a string). An
+    edited one leaves out the "type" the file did not write, since "op" says
+    it already.
+    """
+    raw = raw if isinstance(raw, dict) else {}
+    written = {}
+    for name, definition in (current or {}).items():
+        previous = raw.get(name)
+        if isinstance(previous, dict) and normalize_metrics({name: previous}).get(name) == definition:
+            written[name] = previous
+            continue
+        definition = dict(definition)
+        if not (isinstance(previous, dict) and "type" in previous):
+            definition.pop("type", None)
+        written[name] = definition
+    return written
+
+
+def groups_to_write(current, raw):
+    """What a save writes into the "groups" section: the file's own when unchanged."""
+    raw = raw if isinstance(raw, dict) else {}
+    unchanged = build_groups_dict(list(raw.keys()), [join_patterns(value) for value in raw.values()])
+    return raw if unchanged == current else current
+
+
+def apply_feedback(workspace, saved=False):
+    """
+    Apply the derived metrics of the workspace to its results files, and say
+    how it went in the feedback line: what was updated, and every error or
+    warning (a name no result has, an expression that does not parse...).
+    """
+    from odatix.run import export_results
+
+    prefix = "Saved. " if saved else ""
+    try:
+        report = export_results(workspace, "derived", quiet=True)
+    except Exception as e:
+        return ui.error(prefix + "The derived metrics could not be applied: " + str(e))
+
+    # The paths a message names, as the workspace sees them
+    root = os.path.realpath(workspace.root or ".") + os.sep
+    short = lambda text: text.replace(root, "")
+    notes = [short(text) for level, text in report.messages if level == "note"]
+    headline = short(report.summary()) or (notes[0] if notes else "Derived metrics applied")
+    problems = [short(text) for text in report.errors() + report.warnings()]
+    if not problems:
+        return ui.success(prefix + headline + ".")
+    shown = problems[:APPLY_PROBLEMS_SHOWN]
+    if len(problems) > len(shown):
+        shown.append('... and {0} more: run "odatix results derived" to see them all.'.format(len(problems) - len(shown)))
+    return ui.error([
+        html.Div(prefix + headline + ", with " + str(len(problems)) + " problem" + ("s" if len(problems) > 1 else "") + ":"),
+        html.Ul([html.Li(text) for text in shown], style={"margin": "4px 0 0 0", "paddingLeft": "20px"}),
+    ])
+
+
+#: How many errors and warnings the feedback line lists after applying.
+APPLY_PROBLEMS_SHOWN = 5
+
+
 def build_groups_dict(names, patterns_vals):
     """Build the "groups" section from the group card field values."""
     groups = {}
@@ -465,12 +538,24 @@ def page_title():
                             ],
                         ),
                         html.Div(
-                            ui.save_button(
-                                id={"page": page_path, "action": "save-all"},
-                                tooltip="Save all changes",
-                                disabled=True,
-                            ),
+                            children=[
+                                ui.icon_button(
+                                    icon=icon("metrics", className="icon"),
+                                    color="default",
+                                    text="Apply to results",
+                                    id="dm-apply",
+                                    tooltip=APPLY_TOOLTIP,
+                                    tooltip_options="bottom auto",
+                                ),
+                                ui.save_button(
+                                    id={"page": page_path, "action": "save-all"},
+                                    tooltip="Save all changes, and apply them to the results files",
+                                    disabled=True,
+                                ),
+                            ],
                             className="inline-flex-buttons",
+                            # Two buttons: the 100px of a single save button would clip them
+                            style={"display": "flex", "gap": "8px", "alignItems": "center", "width": "auto", "flexShrink": "0"},
                         ),
                     ],
                     className="title-tile-flex",
@@ -636,11 +721,11 @@ def metric_card(
                     ),
                     card_field(
                         name, "op", "Operation", value=op_value, default_style=operation_style,
-                        placeholder="Cycles / Frequency",
+                        placeholder="Cycles / meta.frequency",
                         tooltip="Expression evaluated from the metrics the result already has, imported ones included. \"meta.<key>\" (for instance \"meta.frequency\") reads a meta field of the result.",
                     ),
                     card_field(
-                        name, "for", "For", value=for_value, placeholder="* or @cpus",
+                        name, "for", "For", value=for_value, placeholder="every result",
                         tooltip=(
                             "Which results get this metric: a pattern, a comma-separated list, or "
                             '"@group". Matched against the architecture (alone and as '
@@ -649,7 +734,7 @@ def metric_card(
                     ),
                     card_field(
                         name, "pin", "Pin", value=pin_value, default_style=import_style,
-                        placeholder="MEM: 1024I_1024D",
+                        placeholder="domain: value",
                         tooltip=(
                             "Read this exact value of a parameter domain in the source, whatever the value of "
                             "the result getting the metric. Not needed when the simulation declares the domain "
@@ -670,12 +755,12 @@ def metric_card(
                             ),
                             card_field(
                                 name, "ignore", "Ignore Domains", value=ignore_value, default_style=import_style,
-                                placeholder="Voltage, Corner",
+                                placeholder="domain, domain",
                                 tooltip="Parameter domains the match must not constrain at all.",
                             ),
                             card_field(
                                 name, "map", "Map Domains", value=map_value, default_style=import_style,
-                                placeholder="MEM: Cache",
+                                placeholder="source domain: target domain",
                                 tooltip='Domains named differently on each side, written "source: target".',
                             ),
                             card_field(
@@ -710,7 +795,7 @@ def metric_card(
                             ),
                             card_field(
                                 name, "source_where", "Source Where", value=source_where_value,
-                                default_style=import_style, placeholder="simulation: @benchmarks",
+                                default_style=import_style, placeholder="simulation: TB_*",
                                 tooltip="Same, but on the results the value is read from.",
                             ),
                             card_switch(
@@ -1122,18 +1207,35 @@ def save_and_status(
 
     if ctx.triggered_id == {"page": page_path, "action": "save-all"}:
         try:
-            derived = get_workspace(odatix_settings).derived_metrics
-            derived.groups = current["groups"]
-            derived.metrics = current["metrics"]
+            workspace = get_workspace(odatix_settings)
+            derived = workspace.derived_metrics
+            raw_groups, raw_metrics = dict(derived.groups), dict(derived.metrics)
+            derived.groups = groups_to_write(current["groups"], raw_groups)
+            derived.metrics = definitions_to_write(current["metrics"], raw_metrics)
             derived.save()
-            return disabled[0], disabled[1], current, ui.success()
         except Exception as e:
             return error, "Failed to save...", dash.no_update, ui.error(f"Not saved: {e}")
+        # Saved definitions are only useful once applied: the results files,
+        # and Odatix Explorer reading them, get the new metrics right away.
+        return disabled[0], disabled[1], current, apply_feedback(workspace, saved=True)
 
     if not isinstance(reference, dict) or current != reference:
         return warning[0], warning[1], dash.no_update, dash.no_update
 
     return disabled[0], disabled[1], dash.no_update, dash.no_update
+
+
+@dash.callback(
+    Output("dm-save-feedback", "children", allow_duplicate=True),
+    Input("dm-apply", "n_clicks"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def apply_to_results(n_clicks, odatix_settings):
+    """Apply the saved derived metrics again, e.g. after new results were exported."""
+    if not n_clicks:
+        return dash.no_update
+    return apply_feedback(get_workspace(odatix_settings))
 
 
 ######################################
@@ -1170,7 +1272,7 @@ layout = html.Div(
         html.Div(page_title(), style={"marginTop": "20px"}),
         ui.feedback("dm-save-feedback"),
         _section_block(GROUP_PREFIX, "Groups", GROUP_TOOLTIP, "Add new group"),
-        _section_block(METRIC_PREFIX, "Derived Metrics", METRIC_SECTION_TOOLTIP, "Add new derived metric"),
+        _section_block(METRIC_PREFIX, "Derived metrics", METRIC_SECTION_TOOLTIP, "Add new derived metric"),
         dcc.Store(id="dm-initial", data={"groups": {}, "metrics": {}}),
         dcc.Store(id="dm-saved", data=None),
     ],

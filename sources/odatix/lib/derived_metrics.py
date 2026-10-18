@@ -160,6 +160,8 @@ KIND_OPERATION = "operation"
 # metric ("metric: meta.frequency", "op: Cycles / meta.frequency").
 META_NAMESPACE = "meta"
 META_PREFIX = META_NAMESPACE + "."
+# What a "meta.<key>" the record does not carry raises, as a NameError.
+UNKNOWN_META_KEY = "unknown meta key"
 
 # "from"/"apply_to" accept a record type, one of these aliases, or a list of both.
 TYPE_ALIASES = {
@@ -301,7 +303,7 @@ class MetaNamespace:
 
   def __getattr__(self, key):
     if key not in self._meta:
-      raise NameError('unknown meta key "' + key + '"')
+      raise NameError(UNKNOWN_META_KEY + ' "' + key + '"')
     return meta_value(self._meta, key)
 
   def __getitem__(self, key):
@@ -460,6 +462,17 @@ class DerivedMetric:
     if self.kind == KIND_OPERATION and not isinstance(self.op, str):
       self._invalid('Derived metric "' + self.name + '" is an operation but has no "op" expression')
       return
+    if self.kind == KIND_OPERATION:
+      # An expression that cannot even be parsed is said once, here, rather
+      # than skipped in silence on every record.
+      try:
+        compile(self.op, "<derived metric " + self.name + ">", "eval")
+      except SyntaxError as e:
+        self._invalid(
+          'Derived metric "' + self.name + '": invalid operation "' + self.op + '" ('
+          + str(e.msg) + ')'
+        )
+        return
     if self.kind == KIND_IMPORT and not definition.get("from"):
       self._invalid('Derived metric "' + self.name + '" has no "from" telling which records to read')
       return
@@ -776,14 +789,36 @@ def _clear_previous(record):
   return changed
 
 
-def _evaluate_operation(op, metrics, meta, error_prefix=""):
-  from odatix.components.export_common import calculate_operation
+def _evaluate_operation(op, metrics, meta):
+  """
+  Evaluate an operation over one record.
 
+  Returns:
+      tuple: (value, error). ``error`` is None when the operation gave a value,
+      and otherwise the exception that stopped it: a NameError for a metric or
+      meta key this record does not have, which is a normal reason to skip a
+      record, anything else for an operation that cannot be computed.
+  """
   # "meta" is a reserved name in an operation: a metric named that way would
   # shadow the record's own meta, which is the more useful of the two here.
-  values = dict(metrics)
+  values = {key: value for key, value in metrics.items() if value is not None}
   values[META_NAMESPACE] = MetaNamespace(meta)
-  return calculate_operation(op, values, error_if_missing=False, error_prefix=error_prefix)
+  try:
+    return eval(op, {}, values), None
+  except Exception as e:
+    return None, e
+
+
+def _missing_name(error):
+  """The name a NameError is about ("LUT_cnt", 'meta key "x"'), or its message."""
+  message = str(error)
+  # Python: name 'LUT_cnt' is not defined
+  if message.startswith("name '") and "'" in message[6:]:
+    return message[6:message.index("'", 6)]
+  # MetaNamespace: unknown meta key "frequency"
+  if message.startswith(UNKNOWN_META_KEY + ' "') and message.endswith('"'):
+    return META_PREFIX + message[len(UNKNOWN_META_KEY) + 2:-1]
+  return message
 
 
 def _record_label(meta):
@@ -854,6 +889,12 @@ def apply_derived_metrics(config, records, units=None):
       sources = None
 
     missing = []
+    # Operations: the names no record in scope had, and the records an
+    # operation failed on for another reason (a division by zero, a metric
+    # holding text...), each said once per metric.
+    computed = 0
+    unknown_names = set()
+    failures = []
 
     for index, record in valid:
       meta = record["meta"]
@@ -894,9 +935,16 @@ def apply_derived_metrics(config, records, units=None):
         if not ok:
           continue
       else:
-        value = _evaluate_operation(metric.op, metrics, meta, _record_label(meta))
+        value, error = _evaluate_operation(metric.op, metrics, meta)
+        if error is not None:
+          if isinstance(error, NameError):
+            unknown_names.add(_missing_name(error))
+          else:
+            failures.append((_record_label(meta).rstrip(" =>"), error))
+          continue
         if value is None:
           continue
+        computed += 1
 
       metrics[metric.name] = value
       meta.setdefault(DERIVED_META_KEY, [])
@@ -915,6 +963,26 @@ def apply_derived_metrics(config, records, units=None):
         + str(len(missing)) + " record" + ("s" if len(missing) > 1 else "")
         + " (" + ", ".join(sorted(set(missing))[:3])
         + (", ..." if len(set(missing)) > 3 else "") + ")",
+        script_name,
+      )
+
+    # A name no record in scope has is a typo far more often than a metric
+    # nothing produced yet: an operation computed nowhere says which names it
+    # could not find, as an import with no source does.
+    if unknown_names and computed == 0 and not metric.optional:
+      names = sorted(unknown_names)
+      printc.warning(
+        'No record has ' + ", ".join('"' + name + '"' for name in names[:3])
+        + (", ..." if len(names) > 3 else "")
+        + ' for derived metric "' + metric.name + '" (operation "' + metric.op + '"): it is computed nowhere',
+        script_name,
+      )
+    if failures:
+      label, error = failures[0]
+      printc.warning(
+        'Derived metric "' + metric.name + '" (operation "' + metric.op + '") could not be computed on '
+        + str(len(failures)) + " record" + ("s" if len(failures) > 1 else "")
+        + ": " + type(error).__name__ + ": " + str(error) + (" (" + label + ")" if label else ""),
         script_name,
       )
 

@@ -131,9 +131,20 @@ class RawModeOutputWrapper:
   def write(self, text):
     """ 
     Replaces `\n` with `\r\n` and writes the modified text to the wrapped output
+
+    Only a terminal is ever put in raw mode: a file or a pipe (a server under
+    nohup) gets plain lines, and each one as soon as it is written.
     """
-    text = text.replace("\n", "\r\n")
+    if self.isatty():
+      text = text.replace("\n", "\r\n")
+      self.wrapped.write(text)
+      return
     self.wrapped.write(text)
+    if "\n" in text:
+      try:
+        self.wrapped.flush()
+      except (IOError, ValueError):
+        pass
 
   def flush(self):
     """
@@ -144,7 +155,10 @@ class RawModeOutputWrapper:
   def isatty(self):
     """Preserve TTY detection for callers relying on interactive output."""
     isatty = getattr(self.wrapped, "isatty", None)
-    return bool(isatty()) if callable(isatty) else False
+    try:
+      return bool(isatty()) if callable(isatty) else False
+    except ValueError:
+      return False
 
   def __getattr__(self, name):
     """Delegate unknown attributes/methods to the wrapped stream."""

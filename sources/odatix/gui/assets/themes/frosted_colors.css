@@ -43,26 +43,25 @@
     --theme-element-background-color: var(--fg-glass);
     --theme-dimmed-element-background-color: rgba(255, 255, 255, 0.28);
     --theme-action-color: rgba(255, 255, 255, 0.6);
-    --theme-primary-color: var(--fg-accent);
-    --theme-secondary-color: var(--fg-accent);
+    --theme-primary-color: #3a55e8;
+    --theme-secondary-color: var(--theme-primary-color);
     --theme-tertiary-color: rgba(255, 255, 255, 0.5);
     --theme-tertiary-color-light: rgba(255, 255, 255, 0.68);
     --theme-disabled-color: #8d95ad7a;
-    --theme-running-color: var(--fg-accent);
-    --theme-success-color: #12b48f;
-    --theme-warning-color: #ff9f43;
-    --theme-caution-color: #ff5a72;
-    --theme-pending-color: #22c3e6;
-    --theme-pause-color: #8d95ad8f;
+    --theme-running-color: var(--theme-primary-color);
+    --theme-success-color: #0b7a62;
+    --theme-warning-color: #a84b07;
+    --theme-caution-color: #c42a45;
+    --theme-pending-color: #0e7490;
+    --theme-pause-color: #5d6680;
     --theme-text-color: var(--fg-ink);
-    --theme-subtle-text-color: #6a7392;
+    --theme-subtle-text-color: #4f5873;
     --theme-text-shadow: none;
     --theme-contrast-background-color: rgba(23, 27, 48, 0.82);
     --theme-contrast-text-color: #ffffff;
     --theme-shadow-color: rgba(30, 43, 96, 0.16);
     --theme-overlay-background-color: rgba(23, 27, 48, 0.28);
     --theme-badge-background-color: rgba(79, 107, 255, 0.14);
-    --theme-badge-text-color: var(--fg-accent);
 
     /* borders & radii */
     --theme-border-color: rgba(255, 255, 255, 0.85);
@@ -90,7 +89,7 @@
     --theme-background-size: 100% 100%;
 
     /* navbar: dark glass, the app draws its navbar text in white */
-    --navbar-background: rgba(20, 25, 48, 0.35);
+    --navbar-background: rgba(20, 25, 48, 0.82);
     --navbar-text-color: #ffffff;
     --navbar-dropdown-background: rgba(30, 36, 64, 0.92);
     --navbar-dropdown-text-color: #ffffff;
@@ -132,7 +131,7 @@
     --primary-button-box-shadow: 0 6px 18px rgba(79, 107, 255, 0.35);
     --primary-button-background-hover: rgba(255, 255, 255, 0.6);
     --primary-button-box-shadow-hover: 0 8px 24px rgba(79, 107, 255, 0.45);
-    --back-button-color: #ffffffc9;
+    --back-button-color: var(--theme-secondary-text-color);
 
     /* inputs and textareas */
     --input-background: rgba(255, 255, 255, 0.72);
@@ -159,7 +158,7 @@
     /* highlights */
     --primary-highlight-color: var(--fg-accent);
     --primary-highlight-text-color: #ffffff;
-    --secondary-highlight-color: var(--fg-mint);
+    --secondary-highlight-color: var(--theme-primary-color);
 
     /* progress bars */
     --progress-bar-background-color: rgba(255, 255, 255, 0.5);
@@ -183,7 +182,7 @@
     --panel-header-box-shadow: var(--panel-box-shadow);
 
     /* uppercase section captions, tinted instead of grey */
-    --section-caption-color: #5a6488;
+    --section-caption-color: var(--theme-secondary-text-color);
     --page-title-letter-spacing: -0.01em;
 
     --input-focus-border-color: rgba(79, 107, 255, 0.6);

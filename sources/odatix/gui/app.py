@@ -48,7 +48,9 @@ class OdatixApp:
 
         if theme is not None and not themes.exists(theme):
             printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.')
-        self.start_theme = themes.resolve(theme)
+        # Theme of a visitor without a saved choice (`--theme`, or the default
+        # one). Never overwritten: see `start_theme`.
+        self.default_theme = themes.resolve(theme)
 
         self.old_settings = old_settings
         self.safe_mode = safe_mode
@@ -75,6 +77,16 @@ class OdatixApp:
         self.setup_layout()
         self.setup_callbacks()
 
+    @property
+    def start_theme(self):
+        """
+        Theme of the page being served: the visitor's saved choice (the
+        odatix_theme cookie, set client-side when they pick a theme), else
+        `default_theme`. Resolved for each request and never stored, so a
+        visitor's choice never becomes the default of another browser.
+        """
+        return themes.theme_from_cookie(default=self.default_theme)
+
     def handle_flask_exception(self, e):
         """
         Handle flask exceptions
@@ -90,14 +102,13 @@ class OdatixApp:
         Setup the layout of the Dash application.
         """
         def serve_layout():
-            # Resolve the theme for this request from the odatix_theme cookie
-            # (set client-side when the user picks a theme) so it survives
-            # page refreshes and app restarts.
-            self.start_theme = themes.theme_from_cookie(default=self.start_theme)
-            return self._layout()
+            # The theme comes from this request's cookie (see start_theme), so
+            # it survives page refreshes and app restarts.
+            return self._layout(self.start_theme)
         self.app.layout = serve_layout
 
-    def _layout(self):
+    def _layout(self, theme=None):
+        theme = theme or self.default_theme
         return html.Div(
             children=[
                 navigation.top_bar(self),
@@ -121,6 +132,8 @@ class OdatixApp:
                 ),
             ],
             id="theme",
+            # Themed from the first paint, before the theme callback runs.
+            className="theme " + theme,
             style={
                 "width": "100%",
                 "minHeight": "100%",

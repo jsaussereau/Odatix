@@ -217,6 +217,9 @@ class BayesianSearch(Strategy):
         #: which case every candidate is taken to be feasible, which is what
         #: an unconstrained campaign is.
         self.feasibility = []
+        #: Per feasibility model, the ``log1p(violation)`` a candidate has to
+        #: be expected below to count as feasible (see :meth:`_fit_feasibility`).
+        self._feasibility_margins = []
         #: What each constraint made of every measured design, in observation
         #: order, or ``None`` for a design whose metrics do not say. Only a
         #: campaign modelling its constraints one by one has any use for it:
@@ -361,11 +364,20 @@ class BayesianSearch(Strategy):
         have learned.
         """
         self.feasibility = []
+        self._feasibility_margins = []
         for channel in self._violation_channels():
             if np.allclose(channel, channel[0]):
                 continue
             seed = self.rng.randrange(1 << 30)
-            self.feasibility.append(GaussianProcess(seed=seed).fit(X, np.log1p(channel)))
+            target = np.log1p(channel)
+            self.feasibility.append(GaussianProcess(seed=seed).fit(X, target))
+            # Where a candidate is read as feasible: halfway between zero and
+            # the smallest miss measured, not at zero itself. Zero is the
+            # value of the whole feasible region, so a model that is right
+            # about it predicts zero there, give or take -- and a threshold
+            # set at zero would read that as a coin toss.
+            missed = target[target > 0.0]
+            self._feasibility_margins.append(0.5 * float(missed.min()) if missed.size else 0.0)
 
     def _violation_channels(self):
         """
@@ -442,8 +454,9 @@ class BayesianSearch(Strategy):
         How likely each of a pool of candidates is to meet the constraints.
 
         A model predicts a mean and a spread for ``log1p(violation)``, of
-        which what is wanted is only the mass at or below zero -- the feasible
-        side of the boundary -- read off the normal the model believes the
+        which what is wanted is only the mass on the feasible side of the
+        boundary -- below a margin halfway to the smallest miss measured (see
+        :meth:`_fit_feasibility`) -- read off the normal the model believes the
         point to be drawn from. With one model per constraint the answer is
         the product of theirs: a design counts only if it meets every one of
         them, and what the models know of two different constraints is not
@@ -456,9 +469,9 @@ class BayesianSearch(Strategy):
         if not beliefs:
             return [1.0] * len(genomes)
         probabilities = [1.0] * len(genomes)
-        for mean, deviation in beliefs:
+        for (mean, deviation), margin in zip(beliefs, self._feasibility_margins):
             for index in range(len(genomes)):
-                probabilities[index] *= _below_zero(mean[index], deviation[index])
+                probabilities[index] *= _below_zero(mean[index] - margin, deviation[index])
         return probabilities
 
     ######################################

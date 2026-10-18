@@ -144,8 +144,12 @@ class DaemonMonitorHandler(ParallelJobHandler):
         self.job_queue = self._queue_counter
 
         self._remote_running = 0
+        self._remote_paused = 0
         self._remote_queued = 0
         self._remote_retired = 0
+        # The jobs a "-E" run waits for (see watch_jobs): None watches the
+        # whole session.
+        self.watched_job_ids = None
         # Mirror of the daemon's resource guard (see _sync_snapshot). The guard
         # never runs here: pausing jobs is the daemon's business.
         self.resource_guard_enabled = False
@@ -155,6 +159,8 @@ class DaemonMonitorHandler(ParallelJobHandler):
         self._remote_format_yaml = None
         # Set once the session stops answering for good (see _sync_snapshot).
         self.session_gone = False
+        # Set once this monitor told the session to stop ("q", the end popup).
+        self.session_closed = False
         self._unreachable_since = None
 
         self._placeholder = self._new_local_job(
@@ -315,6 +321,9 @@ class DaemonMonitorHandler(ParallelJobHandler):
         self._remote_queued = int(handler_data.get("queued", 0))
         self._remote_retired = int(handler_data.get("retired", 0))
         self._remote_total_jobs = int(handler_data.get("job_count", len(remote_jobs)))
+        # A session from before "paused" was told apart counts its paused
+        # jobs as running: the mirror below says how many there are.
+        self._remote_paused = handler_data.get("paused")
 
         # Keep the local nb_jobs mirror in sync with the daemon so the curses UI
         # displays the daemon's actual parallelism cap.
@@ -387,6 +396,10 @@ class DaemonMonitorHandler(ParallelJobHandler):
             self.retired_job_list = [
                 job for job in self.job_list if job.status in ("success", "failed", "killed", "canceled")
             ]
+            if self._remote_paused is None:
+                paused = sum(1 for job in self.job_list if job.status == "paused")
+                self._remote_running = max(0, self._remote_running - paused)
+                self._remote_paused = paused
         else:
             self.job_list = [self._placeholder]
             self.job_count = 1
@@ -396,6 +409,39 @@ class DaemonMonitorHandler(ParallelJobHandler):
             self.max_title_length = len(self._placeholder.display_name)
             self.running_job_list = []
             self.retired_job_list = []
+        if self._remote_paused is None:
+            self._remote_paused = 0
+
+    def runtime_counts(self):
+        """What the session says about all of its jobs (see ParallelJobHandler.runtime_counts)."""
+        return {
+            "running": int(self._remote_running),
+            "paused": int(self._remote_paused or 0),
+            "queued": int(self._remote_queued),
+            "retired": int(self._remote_retired),
+            "total": int(self._remote_total_jobs),
+        }
+
+    def watch_jobs(self, job_ids):
+        """
+        Close the monitor once these jobs are over ("-E"), rather than once the
+        whole session is: the session may also run the jobs of other runs.
+        """
+        self.watched_job_ids = None if job_ids is None else set(int(job_id) for job_id in job_ids)
+
+    def watched_jobs_over(self):
+        if not self.watched_job_ids:
+            return None
+        seen = 0
+        for remote_id in self.watched_job_ids:
+            job = self._jobs_by_remote_id.get(remote_id)
+            if job is None:
+                continue
+            seen += 1
+            if job.status not in ("success", "failed", "killed", "canceled"):
+                return False
+        # Not one of them listed yet: the first snapshot is still to come.
+        return seen > 0
 
     def _sync_selected_logs(self):
         if not self.job_list:
@@ -722,6 +768,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     self._append_error(e)
         try:
             _api_post(self._endpoint, "/shutdown", payload={}, timeout=1.0)
+            self.session_closed = True
         except Exception as e:
             self._append_error(e)
 
@@ -733,6 +780,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
 
         all_done = (
             self._remote_running == 0
+            and not self._remote_paused
             and self._remote_queued == 0
             and self._remote_retired >= self._remote_total_jobs
         )
@@ -741,8 +789,76 @@ class DaemonMonitorHandler(ParallelJobHandler):
 
         try:
             _api_post(self._endpoint, "/shutdown", payload={}, timeout=1.0)
+            self.session_closed = True
         except Exception as e:
             self._append_error(e)
+
+
+class MonitorExit(object):
+    """
+    How a monitor was left, and what it last saw: what the command that opened
+    it says once the screen is back to the shell (see exit_messages).
+
+    Attributes:
+        reason (str): "detach" ("d", or the end popup keeping the session),
+            "close" (the end popup, or "q" once every job is over), "kill"
+            ("q", then killing every job), "auto" ("-E"), "shutdown", or None.
+        counts (dict): the job counts it last saw (see runtime_counts).
+        session_label (str): the ID of the session.
+        session_closed (bool): whether it told the session to stop.
+    """
+
+    def __init__(self, reason, counts, session_label, session_closed=False):
+        self.reason = reason
+        self.counts = dict(counts or {})
+        self.session_label = session_label
+        self.session_closed = bool(session_closed)
+
+    def __bool__(self):
+        # What run_monitor returned before: whether the jobs were left alive.
+        return self.reason != "kill"
+
+    __nonzero__ = __bool__
+
+
+def exit_messages(monitor_exit):
+    """
+    What to say once the monitor is closed, so that the terminal keeps a line
+    of what happened: which session goes on and how to get back to it, or
+    what became of the jobs.
+
+    "-E" ("auto") says it its own way, from the jobs of its run (see
+    odatix.components.run_common.close_finished_session).
+
+    Returns:
+        list: (level, text) pairs, level being "note" or "warning".
+    """
+    if not isinstance(monitor_exit, MonitorExit) or not monitor_exit.session_label:
+        return []
+    session = monitor_exit.session_label
+    counts = monitor_exit.counts
+    total = int(counts.get("total", 0))
+    retired = int(counts.get("retired", 0))
+    left = total - retired
+    reason = monitor_exit.reason
+    reattach = 're-attach with "odatix monitor -S {0}"'.format(session)
+
+    if reason == "detach":
+        if left > 0:
+            return [("note", "Detached: {0} job(s) keep running in session {1}; {2}".format(left, session, reattach))]
+        return [("note", 'Detached: session {0} stays open with its {1} finished job(s); {2}, '
+                         'close it with "odatix stop -S {0}"'.format(session, total, reattach))]
+    if reason == "kill":
+        return [("warning", "{0} job(s) killed, session {1} closed".format(left, session))]
+    if reason == "close":
+        if not monitor_exit.session_closed:
+            return [("note", "Session {0} still has jobs running; {1}".format(session, reattach))]
+        failed = int(counts.get("failed", 0))
+        summary = "{0}/{1} job(s) succeeded".format(retired - failed, total)
+        if failed:
+            return [("warning", "{0}, {1} failed; session {2} closed".format(summary, failed, session))]
+        return [("note", "{0}; session {1} closed".format(summary, session))]
+    return []
 
 
 def run_monitor(
@@ -753,7 +869,18 @@ def run_monitor(
     auto_exit=False,
     token=None,
     session_label=None,
+    job_ids=None,
 ):
+    """
+    Show the curses monitor of a session until it is left.
+
+    Args:
+        job_ids (list): with `auto_exit`, the jobs whose end closes the monitor
+            (those of the run that opened it). Every job of the session when None.
+
+    Returns:
+        MonitorExit: how it was left.
+    """
     handler = DaemonMonitorHandler(
         endpoint=endpoint,
         host=str(host),
@@ -765,13 +892,21 @@ def run_monitor(
     # Which session this is, for the header: with several sessions running,
     # nothing else on the screen tells them apart.
     handler.session_label = session_label
-    result = curses_ui.run(handler)
+    if job_ids is not None:
+        handler.watch_jobs(job_ids)
+    handler.monitor_exit = None
+    curses_ui.run(handler)
     if handler.session_gone:
         from odatix.lib.parallel_job_handler.daemon_control import SessionGoneError
 
         name = "Session {}".format(session_label) if session_label else "The session"
         raise SessionGoneError(name + " was stopped while the monitor was attached to it")
-    return result
+    counts = dict(getattr(handler, "monitor_exit_counts", None) or handler.runtime_counts())
+    counts["failed"] = sum(
+        1 for job in handler.job_list
+        if getattr(job, "_remote_id", -1) >= 0 and job.status in ("failed", "killed", "canceled")
+    )
+    return MonitorExit(handler.monitor_exit, counts, session_label, session_closed=handler.session_closed)
 
 
 def add_arguments(parser):

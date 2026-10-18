@@ -27,12 +27,10 @@ import threading
 from urllib.parse import quote
 
 import dash
-from dash import ctx, Input, Output, State
+from dash import ctx, html, Input, Output, State
 
 import odatix.lib.eda_tools as eda_tools
-import odatix.lib.hard_settings as hard_settings
 from odatix.gui.utils import get_key_from_url, get_workspace
-from odatix.lib.parallel_job_handler import daemon_control
 from odatix.lib.utils import AUTO_NB_JOBS_KEYWORD
 
 from odatix.gui.jobs_config import prepare_state
@@ -50,7 +48,16 @@ from odatix.gui.jobs_config.prepare_state import (
     _reset_prepare_state,
     _tool_check_state,
 )
-from odatix.gui.jobs_config.run_popup import _run_popup_body, _run_popup_render_key
+from odatix.gui.jobs_config.callbacks_config import run_scope_tags
+from odatix.gui.jobs_config.run_popup import (
+    TITLE_CHECKING,
+    _can_start,
+    _popup_context,
+    _popup_title,
+    _run_popup_body,
+    _run_popup_render_key,
+)
+from odatix.run.flows import flow_for
 from odatix.gui.jobs_config.settings_io import _collect_run_settings, _write_temp_run_settings
 from odatix.gui.page_scope import page_callback
 
@@ -68,24 +75,77 @@ RUNNABLE_MODES = ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analyze", "
     Output("run-popup-opened", "data"),
     Output("run-popup-title", "children"),
     Output("run-popup-render-key", "data", allow_duplicate=True),
+    Output("run-log-interval", "disabled"),
+    Output("run-popup-context", "children"),
+    Output("run-popup-body", "children", allow_duplicate=True),
+    Output("run-confirm-btn", "className", allow_duplicate=True),
     Input({"page": page_path, "action": "run-jobs"}, "n_clicks"),
+    State(f"url_{page_path}", "search"),
+    State("analysis-tools", "value"),
+    State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def show_run_popup(n_click):
+def show_run_popup(n_click, search, analysis_tools, odatix_settings):
     if not ctx.triggered_id or not isinstance(ctx.triggered_id, dict) or not n_click:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        raise dash.exceptions.PreventUpdate
 
-    return "overlay-odatix visible", True, "Checking settings...", ""
+    # The popup is polled only while it is open. What a previous run left in
+    # it is cleared rather than shown again under the new title.
+    return (
+        "overlay-odatix visible", True, TITLE_CHECKING, "", False,
+        _popup_context(run_context_tags(search, analysis_tools, odatix_settings)),
+        html.Div(html.Div("Checking settings…", className="jobs-plan-placeholder"), className="jobs-plan"),
+        "color-button disabled icon-button",
+    )
 
 # Popup close
 @dash.callback(
     Output("run-popup", "className", allow_duplicate=True),
     Output("run-popup-opened", "data", allow_duplicate=True),
+    Output("run-log-interval", "disabled", allow_duplicate=True),
     Input("run-cancel-btn", "n_clicks"),
     prevent_initial_call=True
 )
 def close_run_popup(n):
-    return "overlay-odatix", False
+    return "overlay-odatix", False, True
+
+
+def run_context_tags(search, analysis_tools=None, odatix_settings=None):
+    """
+    What the run popup says the run runs with, under its title: the eda tool,
+    its flow and the step it stops at (as the summary strip says them), the
+    targets, and the directory the jobs work in.
+    """
+    run_mode = get_key_from_url(search, "type")
+    tags = []
+    if run_mode == "analyze":
+        tools = [tool for tool in (analysis_tools or []) if tool] or [get_key_from_url(search, "tool")]
+        tags.append(", ".join(eda_tools.get_tool_label(tool) for tool in tools if tool))
+        tags.extend(run_scope_tags(search)[1:])
+    else:
+        tags.extend(run_scope_tags(search))
+    try:
+        workspace = get_workspace(odatix_settings or {})
+    except Exception:
+        return tags
+    tool = get_key_from_url(search, "tool")
+    if tool and run_mode in ("fmax_synthesis", "custom_freq_synthesis", "pnr"):
+        try:
+            targets = list(workspace.targets.get(tool).enabled_names())
+        except Exception:
+            targets = []
+        if len(targets) == 1:
+            tags.append("target " + targets[0])
+        elif targets:
+            tags.append("{0} targets".format(len(targets)))
+    try:
+        work_path = flow_for(run_mode).work_path(workspace)
+        root = getattr(workspace, "root", None) or os.getcwd()
+        relative = os.path.relpath(os.path.realpath(work_path), os.path.realpath(root))
+        tags.append("in " + (work_path if relative.startswith("..") else relative))
+    except Exception:
+        pass
+    return tags
 
 @page_callback(PAGE_SCOPE,
     Output("jobs-config-run-status", "data"),
@@ -316,19 +376,26 @@ def run_jobs(
     Output("run-popup-progress", "children"),
     Output("run-confirm-btn", "className"),
     Output("run-redirect", "href", allow_duplicate=True),
+    Output("run-popup-title", "children", allow_duplicate=True),
+    Output("run-log-interval", "disabled", allow_duplicate=True),
     Input("run-log-interval", "n_intervals"),
     State("jobs-config-run-status", "data"),
     State("run-popup-opened", "data"),
     State("run-popup-render-key", "data"),
+    State("run-popup-title", "children"),
     prevent_initial_call=True,
 )
-def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key):
+def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key, title):
     if not run_status or not run_popup_opened:
         raise dash.exceptions.PreventUpdate
 
+    def new_title(status):
+        text = _popup_title(status)
+        return dash.no_update if text == title else text
+
     current_status = run_status.get("status")
     if current_status == "canceled":
-        return run_status, "", "", "", "color-button disabled icon-button", dash.no_update
+        return run_status, "", "", "", "color-button disabled icon-button", dash.no_update, dash.no_update, dash.no_update
 
     # D-07: this click was refused, a check started earlier still running. What
     # that check reports is about another click: saying it here showed "No job
@@ -339,93 +406,50 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key):
             raise dash.exceptions.PreventUpdate
         return (
             run_status, _run_popup_body(current_status), new_key, "",
-            "color-button disabled icon-button", dash.no_update,
+            "color-button disabled icon-button", dash.no_update, new_title(current_status), dash.no_update,
         )
 
     if prepare_state._prepare_status.get("status") and prepare_state._prepare_status.get("status") != current_status:
         run_status = {**run_status, **prepare_state._prepare_status}
         current_status = run_status.get("status")
 
-    if current_status in ("checking", "checked", "preparing", "prepared", "launched", "error"):
-        # The settings are checked and the plan is displayed, but the eda tool
-        # check runs in the background: Start only lights up once it passed.
-        tool_check = _tool_check_state()
-        _report_tool_check_failures(tool_check)
-        tool_ready = tool_check is None or tool_check["status"] == "passed"
-        button_class = (
-            "color-button success icon-button"
-            if current_status == "checked" and tool_ready
-            else "color-button disabled icon-button"
-        )
-        redirect_href = dash.no_update
-        # Progress of the job-preparation phase (only meaningful once the run
-        # is confirmed; the state is reset at the start of every run).
-        progress_bar = _prepare_progress_bar() if current_status in ("preparing", "prepared", "launched", "error") else ""
-        if current_status == "prepared" and prepare_state._prepare_parallel_jobs is not None:
-            should_enqueue = False
-            with prepare_state._prepare_enqueue_lock:
-                if not prepare_state._prepare_enqueued and prepare_state._prepare_monitor_href is None:
-                    prepare_state._prepare_enqueued = True
-                    should_enqueue = True
+    if current_status not in ("checking", "checked", "nothing", "preparing", "prepared", "launched", "error"):
+        raise dash.exceptions.PreventUpdate
 
-            if should_enqueue:
-                try:
-                    session_selector = None
-                    if isinstance(prepare_state._prepare_runtime_settings, dict):
-                        session_selector = _normalize_session_selector(prepare_state._prepare_runtime_settings.get("session"))
+    # The settings are checked and the plan is displayed, but the eda tool
+    # check runs in the background: Start only lights up once it passed, and
+    # only when there is something to start.
+    _report_tool_check_failures(_tool_check_state())
+    button_class = (
+        "color-button success icon-button"
+        if _can_start(current_status)
+        else "color-button disabled icon-button"
+    )
+    # Progress of the job-preparation phase (only meaningful once the run
+    # is confirmed; the state is reset at the start of every run).
+    progress_bar = _prepare_progress_bar() if current_status in ("preparing", "prepared", "launched", "error") else ""
 
-                    state, _response = daemon_control.enqueue_parallel_jobs(
-                        prepare_state._prepare_parallel_jobs,
-                        session=session_selector,
-                    )
+    # The jobs are in a session (see checks.start_prepare): off to the
+    # monitor, and the popup stops being polled.
+    redirect_href = dash.no_update
+    stop_polling = dash.no_update
+    if current_status == "launched" and prepare_state._prepare_monitor_href is not None:
+        redirect_href = prepare_state._prepare_monitor_href
+        stop_polling = True
 
-                    session_id = str(state.get("session_id", "")).strip()
-                    session_name = str(state.get("session_name", "")).strip()
-                    if session_id:
-                        prepare_state._prepare_monitor_href = f"/monitor?session={quote(session_id, safe='')}"
-                    elif session_name:
-                        prepare_state._prepare_monitor_href = f"/monitor?session={quote(session_name, safe='')}"
-                    else:
-                        host = str(state.get("host", hard_settings.daemon_default_host))
-                        port = int(state.get("port", hard_settings.daemon_default_port))
-                        prepare_state._prepare_monitor_href = f"/monitor?host={quote(host, safe='')}&port={port}"
-                    # Where the monitor sends the results of these jobs once
-                    # they are done: an analysis has its own Explorer page.
-                    if prepare_state._prepare_synth_type == "analyze":
-                        prepare_state._prepare_monitor_href += "&explorer=analysis"
-                    run_status = {**run_status, "status": "launched"}
-                    # The jobs are built and in a session: the settings they
-                    # were built from are no longer read.
-                    prepare_state._remove_temp_settings_file()
-                except Exception as exc:
-                    with prepare_state._prepare_enqueue_lock:
-                        prepare_state._prepare_enqueued = False
-                    run_status = {"status": "error", "error": str(exc)}
-                    prepare_state._prepare_messages.add("error", f"Failed to enqueue jobs in session: {exc}")
-                    return (
-                        run_status,
-                        _run_popup_body("error"),
-                        _run_popup_render_key("error"),
-                        progress_bar,
-                        "color-button disabled icon-button",
-                        dash.no_update,
-                    )
-
-            if prepare_state._prepare_monitor_href is not None:
-                redirect_href = prepare_state._prepare_monitor_href
-
-        # The body is rebuilt only when its content changed: it is re-rendered on
-        # a timer, and replacing identical children would collapse the expanded
-        # sections under the user.
-        new_key = _run_popup_render_key(current_status)
-        if new_key == render_key:
-            body, new_key_output = dash.no_update, dash.no_update
-        else:
-            body = _run_popup_body(current_status)
-            new_key_output = new_key
-        return run_status, body, new_key_output, progress_bar, button_class, redirect_href
-
-    raise dash.exceptions.PreventUpdate
+    # The body is rebuilt only when its content changed: it is re-rendered on
+    # a timer, and replacing identical children would collapse the expanded
+    # sections under the user.
+    new_key = _run_popup_render_key(current_status)
+    if new_key == render_key:
+        body, new_key_output = dash.no_update, dash.no_update
+    else:
+        body = _run_popup_body(current_status)
+        new_key_output = new_key
+    return (
+        run_status, body, new_key_output, progress_bar, button_class, redirect_href,
+        new_title(current_status), stop_polling,
+    )
 
 @dash.callback(
     Output("jobs-config-run-status", "data", allow_duplicate=True),
@@ -458,9 +482,9 @@ def confirm_prepare_jobs(n_clicks, run_status):
         raise dash.exceptions.PreventUpdate
 
     # The Start button is only enabled once the background eda tool check
-    # passed; guard the callback too, in case it is triggered anyway.
-    tool_check = _tool_check_state()
-    if tool_check is not None and tool_check["status"] != "passed":
+    # passed, and when there is something to run; guard the callback too, in
+    # case it is triggered anyway (the keyboard reaches a disabled-looking button).
+    if not _can_start("checked"):
         raise dash.exceptions.PreventUpdate
 
     if prepare_state._prepare_exec_thread is not None and prepare_state._prepare_exec_thread.is_alive():
@@ -477,41 +501,43 @@ def confirm_prepare_jobs(n_clicks, run_status):
     return {**run_status, "status": "preparing"}, "Preparing jobs...", "color-button disabled icon-button"
 
 
-# Launching a run from the popup navigates to the monitor on purpose (with the
-# current, possibly unsaved, config): tell the unsaved-changes guard to skip its
-# "leave without saving?" prompt for that navigation.
-dash.clientside_callback(
-    dash.ClientsideFunction(namespace="odatix_jobs", function_name="skip_unsaved_guard"),
-    Output("unsaved-guard-bypass", "data"),
-    Input("run-confirm-btn", "n_clicks"),
-    prevent_initial_call=True,
-)
-
-# Restore the guard if the run does not end up navigating away (error/canceled),
-# so unsaved changes are protected again.
-dash.clientside_callback(
-    dash.ClientsideFunction(namespace="odatix_jobs", function_name="restore_unsaved_guard"),
-    Output("unsaved-guard-bypass", "data", allow_duplicate=True),
-    Input("jobs-config-run-status", "data"),
-    prevent_initial_call=True,
-)
-
-# Point the "Choose Targets" button to the current EDA tool
+# Point the "Choose Targets" button to the current EDA tool, and the back arrow
+# to the page this one was opened from.
 @dash.callback(
     Output({"page": page_path, "action": "choose-targets", "is_link": True}, "href"),
     Output({"page": page_path, "action": "choose-targets"}, "className"),
+    Output("jobs-config-back", "href"),
     Input(f"url_{page_path}", "search"),
 )
 def update_choose_targets_link(search):
     tool = get_key_from_url(search, "tool") or "vivado"
     run_mode = get_key_from_url(search, "type")
+    # The targets page leads back here, with the same job type, tool, flow
+    # and step, rather than to the choice of a job type.
+    targets_href = "/select_targets?tool={0}&back={1}".format(
+        quote(tool, safe=""), quote(page_path + (search or ""), safe="")
+    )
     if run_mode in ("fmax_synthesis", "custom_freq_synthesis", "pnr"):
         return (
-            f"/select_targets?tool={quote(tool)}",
-            "color-button default icon-button tooltip bottom small tooltip"
+            targets_href,
+            "color-button default icon-button tooltip bottom small tooltip",
+            back_href(search),
         )
     else:
         return (
-            f"/select_targets?tool={quote(tool)}",
-            "hidden"
+            targets_href,
+            "hidden",
+            back_href(search),
         )
+
+
+def back_href(search):
+    """
+    Where the back arrow of the page leads: the choice of a tool for the job
+    types that run one (where the tool, flow and step were picked), the choice
+    of a job type otherwise.
+    """
+    run_mode = get_key_from_url(search, "type")
+    if run_mode in ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analyze"):
+        return "/choose_eda_tool?type=" + quote(run_mode, safe="")
+    return "/choose_job_type"

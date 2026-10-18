@@ -426,8 +426,9 @@ class TestExamples:
         assert metrics["simulated_cycles"] > 0 and metrics["cycles_per_second"] > 0
         # ...and the testbench's, for the configuration run
         if simulation != "icarus":
-            assert metrics["status"] == "OK"
-            assert metrics["width"] == 8
+            assert metrics["check_status"] == "OK"
+            # The configuration is a dimension of the result, not a metric
+            assert "width" not in metrics
 
 
 class TestTutorial:

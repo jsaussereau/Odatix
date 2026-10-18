@@ -43,7 +43,10 @@ title_buttons = html.Div(
                     placeholder="Select a session",
                     value="__new_session__",
                     clearable=False,
-                    style={"width": "155px"},
+                    # Long session names are not cut in the middle: the menu
+                    # grows to fit them (see jobs.css).
+                    className="odx-session-dropdown",
+                    style={"width": "190px"},
                 ),
             ],
             className="odx-session",
@@ -82,15 +85,28 @@ page_header = html.Div(
             children=[
                 html.Div(
                     children=[
+                        # Back to the choice this page was opened from (the
+                        # tool, or the job type): set from the url by
+                        # update_choose_targets_link.
+                        dcc.Link(
+                            icon("back", className="icon back-button", width="26px", height="26px"),
+                            href="/choose_job_type",
+                            id="jobs-config-back",
+                            className="jobs-back",
+                            title="Back",
+                        ),
                         html.H1("Select architecture configurations to run", id="jobs-config-main-title", className="odx-title"),
                     ],
-                    className="odx-header-titles",
+                    className="odx-header-titles jobs-titles",
                 ),
                 title_buttons,
             ],
             className="odx-header-row",
         ),
         html.Div(id="jobs-summary", className="odx-summary"),
+        # Where the preselection comes from, so that the page does not read
+        # as a blank slate: the run settings file of this job type.
+        html.Div(id="jobs-selection-source", className="odx-selection-source"),
     ],
     className="odx-header",
 )
@@ -138,7 +154,15 @@ layout = html.Div(
         dcc.Store(id="job-settings-initial-settings", data=None),
         ui.section(
             "Architectures",
-            html.Div(id="job-section", className="jobs-arch-list"),
+            html.Div(
+                # Replaced by the cards once they are built (update_param_domains)
+                html.Div(
+                    [html.Span(className="jobs-spinner"), html.Span("Loading the selection…")],
+                    className="odx-panel odx-empty jobs-loading",
+                ),
+                id="job-section",
+                className="jobs-arch-list",
+            ),
             heading_id="job-section-heading",
             tools=arch_section_tools,
         ),
@@ -147,18 +171,26 @@ layout = html.Div(
         dcc.Store(id="run-popup-opened", data=False),
         dcc.Store(id="run-popup-render-key", data=""),
         dcc.Store(id="unsaved-guard-bypass", data=""),
-        dcc.Location(id="run-redirect", refresh=True),
-        # The run popup is polled fast; listing the daemon sessions is a much
-        # slower, network-bound refresh and must not share that timer, or a slow
-        # discovery delays the popup updates.
-        dcc.Interval(id="run-log-interval", interval=500, n_intervals=0),
-        dcc.Interval(id="session-list-interval", interval=3000, n_intervals=0),
+        # Navigates to the monitor once the jobs are in a session. Without a
+        # page reload: a reload cut the requests still on their way, which the
+        # browser reported as "Callback failed: the server did not respond".
+        dcc.Location(id="run-redirect", refresh="callback-nav"),
+        # The run popup is polled fast, and only while it is open (see
+        # show_run_popup): polling a closed popup kept the page busy for
+        # nothing. Listing the daemon sessions is a much slower, network-bound
+        # refresh and must not share that timer, or a slow discovery delays the
+        # popup updates.
+        dcc.Interval(id="run-log-interval", interval=500, n_intervals=0, disabled=True),
+        dcc.Interval(id="session-list-interval", interval=5000, n_intervals=0),
         html.Div(
             id="run-popup",
             className="overlay-odatix",
             children=[
                 html.Div([
                     html.H2("Checking settings...", id="run-popup-title", style={"textAlign": "center"}),
+                    # What the run runs with: tool, flow, last step, targets,
+                    # work directory (see run_popup._popup_context)
+                    html.Div(id="run-popup-context", className="jobs-plan-context"),
                     html.Div(id="run-popup-progress"),
                     html.Div(id="run-popup-body", className="jobs-plan-scroll"),
                     html.Div([

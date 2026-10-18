@@ -77,6 +77,11 @@ class DaemonControlError(RuntimeError):
 class MonitorUnavailableError(DaemonControlError):
     """The terminal cannot show the job monitor; the session itself is fine."""
 
+    def __init__(self, message, reason=None):
+        super(MonitorUnavailableError, self).__init__(message)
+        #: Why, alone, without how else to follow the jobs.
+        self.reason = reason or message
+
 class SessionGoneError(DaemonControlError):
     """The session a monitor was attached to stopped (from elsewhere) while it watched."""
 
@@ -120,12 +125,33 @@ def _normalize_session_name(session_name, default_name=DEFAULT_HOST):
     return session_name
 
 
+#: What started the runs of this process, when it is not a terminal: "gui" in
+#: odatix-gui (see set_session_origin). None in a command line process.
+_session_origin = [None]
+
+#: The first part of a default session name when there is no terminal to name
+#: it after (a script, a cron job, a CI job).
+NO_TERMINAL_ORIGIN = "script"
+
+
+def set_session_origin(origin):
+    """
+    Name the sessions this process starts after `origin` ("gui"), rather than
+    after its terminal: a graphical interface started from a terminal still
+    starts its sessions for the people using it in a browser.
+    """
+    _session_origin[0] = _session_slug(origin) if origin else None
+
+
 def _generate_default_session_name(host=DEFAULT_HOST):
     host = str(host or DEFAULT_HOST).strip() or DEFAULT_HOST
 
-    # Try to determine a controlling TTY (stdin/out/err), fallback to env or 'no_tty'.
-    tty_slug = None
+    # Try to determine a controlling TTY (stdin/out/err), fallback to env or
+    # to what runs without one ("script").
+    tty_slug = _session_origin[0]
     for fd in (0, 1, 2):
+        if tty_slug:
+            break
         try:
             tty_path = os.ttyname(fd)
             if tty_path:
@@ -146,7 +172,7 @@ def _generate_default_session_name(host=DEFAULT_HOST):
             tty_slug = _session_slug(env_tty)
 
     if not tty_slug:
-        tty_slug = "no_tty"
+        tty_slug = NO_TERMINAL_ORIGIN
 
     if host == "127.0.0.1" or host == "localhost":
         try:
@@ -164,9 +190,10 @@ def _unique_default_session_name(host=DEFAULT_HOST, active_daemons=None):
     already running.
 
     The default name is derived from the controlling tty, which distinguishes
-    concurrent CLI runs. Callers without a tty (the GUI server, a service, a
-    cron job) all get the same "no_tty" name, so without this every session they
-    launch would reuse the same state file and replace the previous one.
+    concurrent CLI runs. Callers without a tty (a service, a cron job) all get
+    the same "script" name, and the GUI server "gui", so without this every
+    session they launch would reuse the same state file and replace the
+    previous one.
     """
     base_name = _generate_default_session_name(host=host)
     taken = {_session_name_from_state(state) for state in (active_daemons or [])}
@@ -900,7 +927,34 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
         parallel_jobs.session_state = state
     except Exception:
         pass
+    # And which jobs of that session are this run's: a session shared by
+    # several runs ("-S") holds the jobs of the others too.
+    try:
+        parallel_jobs.session_job_ids = session_job_ids(response, len(job_list))
+    except Exception:
+        pass
     return state, response
+
+
+def session_job_ids(response, count):
+    """
+    The ids a session gave the jobs of an enqueue, from its reply.
+
+    A session from before the reply listed them only says how many jobs it
+    holds in all, and the batch just added is at the end of its list.
+
+    Returns:
+        list: the ids, or None when the reply says neither.
+    """
+    if not isinstance(response, dict):
+        return None
+    job_ids = response.get("job_ids")
+    if isinstance(job_ids, list):
+        return [int(job_id) for job_id in job_ids]
+    total = response.get("total_jobs")
+    if isinstance(total, int) and count > 0:
+        return list(range(max(0, total - count), total))
+    return None
 
 
 def explicit_endpoint_state(host=None, port=None, token=None):
@@ -971,8 +1025,18 @@ def _resolve_state_for_attach_or_stop(
 
 def attach_monitor(
     workspace_root=None, host=None, port=None, session=None, auto_exit=False, token=None, remote=None,
-    any_workspace=False,
+    any_workspace=False, job_ids=None,
 ):
+    """
+    Show the terminal monitor of a session.
+
+    Args:
+        job_ids (list): with `auto_exit`, the jobs whose end closes the monitor
+            (see daemon_monitor.run_monitor).
+
+    Returns:
+        daemon_monitor.MonitorExit: how the monitor was left.
+    """
     from odatix.lib.parallel_job_handler.daemon_monitor import run_monitor
 
     if remote is not None:
@@ -983,6 +1047,7 @@ def attach_monitor(
             return _run_monitor_in_terminal(
                 run_monitor, endpoint=endpoint, auto_exit=bool(auto_exit),
                 session_label=_state.get("session_id") if isinstance(_state, dict) else None,
+                job_ids=job_ids,
             )
         finally:
             tunnel.close()
@@ -996,7 +1061,21 @@ def attach_monitor(
 
     return _run_monitor_in_terminal(
         run_monitor, endpoint=endpoint_for_state(state), auto_exit=bool(auto_exit),
-        session_label=state.get("session_id") or None,
+        session_label=state.get("session_id") or None, job_ids=job_ids,
+    )
+
+
+def monitor_unavailable_reason():
+    """Why the monitor cannot show here."""
+    return "This terminal cannot show the job monitor (TERM={0})".format(os.environ.get("TERM") or "unset")
+
+
+def follow_hint(session_label=None):
+    """How else to follow the jobs of a session than with the terminal monitor."""
+    selector = " -S {}".format(session_label) if session_label else ""
+    return (
+        "follow the jobs with \"odatix monitor{0}\" from a full terminal, \"odatix ls\", "
+        "or the Monitor page of odatix-gui".format(selector)
     )
 
 
@@ -1006,11 +1085,9 @@ def _run_monitor_in_terminal(run_monitor, **kwargs):
 
     try:
         return run_monitor(**kwargs)
-    except curses.error as e:
-        term = os.environ.get("TERM") or "unset"
-        raise MonitorUnavailableError(
-            "This terminal cannot show the job monitor (TERM={}: {})".format(term, e)
-        )
+    except curses.error:
+        reason = monitor_unavailable_reason()
+        raise MonitorUnavailableError(reason + ": " + follow_hint(kwargs.get("session_label")), reason=reason)
 
 
 def _terminate_pid(pid):
@@ -1338,13 +1415,33 @@ def _filter_daemons_by_session_selector(daemons, session_selector):
     return []
 
 
-def list_daemons(workspace_root=None, host=None, port=None, session=None, token=None, remote=None):
+def _probe_alive_in_parallel(states):
+    """
+    The states whose session answers, in their order. The sessions are probed
+    all at once: one by one, a machine with several busy sessions kept a
+    listing waiting for the sum of their (patient) probes.
+    """
+    if len(states) <= 1:
+        return [state for state in states if _daemon_is_alive_for_listing(state)]
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=min(16, len(states))) as pool:
+        alive = list(pool.map(_daemon_is_alive_for_listing, states))
+    return [state for state, ok in zip(states, alive) if ok]
+
+
+def list_daemons(workspace_root=None, host=None, port=None, session=None, token=None, remote=None,
+                 only_workspace=None):
     """Return a list of active daemon descriptors.
 
     By default, this inspects running daemon processes on the system.
     If host and/or port are provided, it checks that explicit endpoint instead.
     If ``remote`` is given, the sessions of that machine are listed over SSH.
+    With ``only_workspace`` (a workspace root), only the sessions of that
+    workspace are listed: the others are left out before being probed, which
+    is what costs time.
     """
+    only_root = os.path.realpath(only_workspace) if only_workspace else None
     daemons = []
 
     if remote is not None:
@@ -1363,6 +1460,7 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
         return _filter_daemons_by_session_selector(daemons, session)
 
     seen = set()
+    candidates = []
 
     for candidate in _iter_system_daemon_candidates() or []:
         state = {}
@@ -1401,16 +1499,18 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
         else:
             state["workspace_root"] = os.path.realpath(workspace_root or os.getcwd())
 
-        state["uptime_s"] = _daemon_uptime_str(state)
-        _decorate_session_fields(state)
-
-        # Retries, not a single 0.6s probe: a session under load holds its
-        # handler lock for seconds at a time, and dropping it from the listing
-        # there makes callers -- the DSE driver above all -- conclude that no
-        # session exists at all.
-        if not _daemon_is_alive_for_listing(state):
+        if only_root is not None and state["workspace_root"] != only_root:
             continue
 
+        state["uptime_s"] = _daemon_uptime_str(state)
+        _decorate_session_fields(state)
+        candidates.append(state)
+
+    # Retries, not a single 0.6s probe: a session under load holds its
+    # handler lock for seconds at a time, and dropping it from the listing
+    # there makes callers -- the DSE driver above all -- conclude that no
+    # session exists at all.
+    for state in _probe_alive_in_parallel(candidates):
         # Deduplicate by logical daemon identity rather than candidate pid.
         # Prefer state_file/session_id when available, then endpoint fallback.
         state_file_key = str(state.get("state_file") or "")
@@ -1433,7 +1533,9 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
         return _filter_daemons_by_session_selector(daemons, session)
 
     # Fallback for environments where system process scanning is unavailable.
-    paths = get_daemon_paths(workspace_root)
+    paths = get_daemon_paths(workspace_root or only_workspace)
+    if only_root is not None and os.path.realpath(paths["workspace_root"]) != only_root:
+        return []
     for state_file in _iter_state_files(paths):
         state = _read_json_file(state_file)
         if not isinstance(state, dict):
@@ -1539,35 +1641,89 @@ def daemon_jobs_report(workspace_root=None, session=None, timeout=JOBS_QUERY_TIM
     return {"jobs": jobs, "queried": len(daemons), "unreachable": unreachable}
 
 
-def format_daemons_table(daemons, zombies=False):
+def daemon_jobs_summary(state, timeout=1.5):
+    """
+    Where the jobs of a session stand, in a few words ("3/19 done, 2 running"),
+    for "odatix ls". "?" when the session does not answer in time.
+    """
+    from odatix.lib.parallel_job_handler.job_status import (
+        DONE_STATUSES, FAILED_STATUSES, PAUSED_STATUSES, RUNNING_STATUSES,
+    )
+
+    try:
+        snapshot = _api_request(state, "GET", "/status?logs_job_id=-1&include_jobs=0", timeout=timeout)
+    except Exception:
+        return "?"
+    handler = snapshot.get("handler") if isinstance(snapshot, dict) else None
+    counts = handler.get("counts") if isinstance(handler, dict) else None
+    if not isinstance(counts, dict):
+        return "?"
+    total = int(counts.get("total") or 0)
+    if total == 0:
+        return "no jobs"
+    over = int(counts.get("done") or 0) + int(counts.get("failed") or 0)
+    text = "{}/{} done".format(over, total)
+    details = []
+    for key in ("running", "paused"):
+        count = int(counts.get(key) or 0)
+        if count:
+            details.append("{} {}".format(count, key))
+    failed = int(counts.get("failed") or 0)
+    if failed:
+        details.append("{} failed".format(failed))
+    return text + (", " + ", ".join(details) if details else "")
+
+
+def format_daemons_table(daemons, zombies=False, workspace=True, address=False, jobs=False):
     """Format the daemon list into a table with aligned columns.
 
     With ``zombies=True``, a ``status`` column is added to tell unresponsive
     daemons apart from leftover state files.
+
+    Args:
+        workspace (bool): show the workspace of each session, last since it is
+            the longest. "odatix ls" leaves it out when it lists the sessions
+            of the current workspace only.
+        address (bool): show where each session listens ("odatix ls -V").
+        jobs (bool): ask each session where its jobs stand (see
+            daemon_jobs_summary).
     """
-    columns = [
-        ("workspace", "workspace_root"),
-        ("session", "session_id"),
-        ("address", "address"),
-        ("pid", "pid"),
-        ("uptime", "uptime_s"),
-    ]
+    columns = [("session", "session_id")]
+    if jobs and not zombies:
+        columns.append(("jobs", "jobs"))
+    columns.extend([("pid", "pid"), ("uptime", "uptime_s")])
     if zombies:
         columns.append(("status", "status"))
+    if address:
+        columns.append(("address", "address"))
+    if workspace:
+        columns.append(("workspace", "workspace_root"))
 
     # Build printable rows once, then compute per-column widths from headers + values.
     rows = []
     for daemon in daemons:
-        rows.append([str(daemon.get(key, "")) for _, key in columns])
+        row = []
+        for _, key in columns:
+            if key == "jobs":
+                value = daemon_jobs_summary(daemon)
+            elif key == "workspace_root":
+                value = _home_relative(daemon.get(key, ""))
+            else:
+                value = daemon.get(key, "")
+            row.append(str(value))
+        rows.append(row)
 
     column_widths = []
     for index, (header, _) in enumerate(columns):
         max_value_width = max((len(row[index]) for row in rows), default=0)
         column_widths.append(max(len(header), max_value_width))
+    # The last column is not padded: trailing spaces would only make the lines
+    # wrap sooner in a narrow terminal.
+    column_widths[-1] = 0
 
     row_format = "  ".join(f"{{:<{width}}}" for width in column_widths)
-    table = [printc.colors.BOLD + row_format.format(*[header for header, _ in columns]) + printc.colors.BOLD_END]
-    table.extend(row_format.format(*row) for row in rows)
+    table = [printc.colors.BOLD + row_format.format(*[header for header, _ in columns]).rstrip() + printc.colors.BOLD_END]
+    table.extend(row_format.format(*row).rstrip() for row in rows)
     return "\n".join(table)
 
 

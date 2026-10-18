@@ -37,6 +37,7 @@ from odatix.gui.icons import icon
 from odatix.gui.page_scope import page_callback, scoped
 from odatix.gui.utils import get_workspace
 
+from odatix.dse.settings import CampaignSettings
 from odatix.gui.dse_config import form
 from odatix.gui.dse_config.common import (
     MODE_OPTIONS,
@@ -62,6 +63,8 @@ from odatix.gui.dse_config.common import (
     read_campaign,
     save_campaign,
     save_dse_settings,
+    campaign_exists,
+    campaign_metric_names,
     simulation_options,
     target_options,
     to_int,
@@ -69,6 +72,7 @@ from odatix.gui.dse_config.common import (
     to_names,
     tool_options,
     unique_campaign_name,
+    unknown_metric_warning,
 )
 
 PAGE_SCOPE = "dse_campaign"
@@ -88,6 +92,7 @@ def _panel_caption(text, tooltip=""):
 def _what_runs_panel(workspace, campaign):
     tools = to_names(campaign.tool)
     run_mode = campaign.run or "fmax_synthesis"
+    workflow = run_mode == "workflow"
     return html.Div([
         _panel_caption("What evaluating one design runs"),
         ui.form_dropdown(
@@ -95,6 +100,24 @@ def _what_runs_panel(workspace, campaign):
             clearable=False,
             tooltip="What each evaluation of the search runs on the design it chose.",
         ),
+        # A workflow runs its own commands: none of what follows means anything
+        # to it, so it is not shown rather than left to be filled for nothing.
+        html.Div(
+            "A workflow runs its own commands: there is no tool, flow, target or "
+            "simulation to choose. Its metrics are the ones its \"_metrics.yml\" reads.",
+            id="dse-editor-workflow-note",
+            className="dse-editor-note",
+            style={} if workflow else {"display": "none"},
+        ),
+        html.Div(_toolchain_fields(workspace, campaign, tools, run_mode),
+                 id="dse-editor-toolchain-fields",
+                 style={"display": "none"} if workflow else {}),
+    ], className="odx-panel padded", id="dse-editor-what-runs")
+
+
+def _toolchain_fields(workspace, campaign, tools, run_mode):
+    """What runs a synthesis: the tools, their flows and targets, the simulations."""
+    return [
         ui.form_dropdown(
             "Tools", "dse-editor-tools", tool_options(), value=tools, multi=True,
             placeholder="the tool the evaluations run with",
@@ -120,7 +143,7 @@ def _what_runs_panel(workspace, campaign):
             placeholder="none",
             tooltip="Simulations every design is run through before it is measured.",
         ),
-    ], className="odx-panel padded", id="dse-editor-what-runs")
+    ]
 
 
 def _frequencies_panel(campaign):
@@ -140,18 +163,25 @@ def _frequencies_panel(campaign):
             ),
             className="odx-switch-stack",
         ),
-        ui.form_field(
-            "Frequencies (MHz)", "dse-editor-freq-list",
-            value=int_list_text(frequencies.frequencies),
-            type="text", placeholder="100, 200, 300",
-            tooltip="Every design is synthesized at each of those, when the frequency "
-                    "is not searched.",
+        # Either the frequencies are listed, or they are searched in a range:
+        # only the half that applies is shown.
+        html.Div(
+            ui.form_field(
+                "Frequencies (MHz)", "dse-editor-freq-list",
+                value=int_list_text(frequencies.frequencies),
+                type="text", placeholder="100, 200, 300",
+                tooltip="Every design is synthesized at each of those, when the frequency "
+                        "is not searched.",
+            ),
+            id="dse-editor-freq-list-row",
+            style={"display": "none"} if frequencies.explore else {},
         ),
         html.Div([
             ui.form_field("From (MHz)", "dse-editor-freq-from", value=str(frequencies.range.start or ""), type="number", style={"flex": "1"}),
             ui.form_field("To (MHz)", "dse-editor-freq-to", value=str(frequencies.range.stop or ""), type="number", style={"flex": "1"}),
             ui.form_field("Step (MHz)", "dse-editor-freq-step", value=str(frequencies.range.step or ""), type="number", style={"flex": "1"}),
-        ], className="odx-field-row"),
+        ], className="odx-field-row", id="dse-editor-freq-range-row",
+            style={} if frequencies.explore else {"display": "none"}),
     ],
         className="odx-panel padded",
         id="dse-editor-frequencies",
@@ -205,6 +235,13 @@ def _search_panel(campaign):
                 ui.form_field("Samples", "dse-editor-samples", value="" if search.samples is None else str(search.samples), type="number", style={"flex": "1"},
                               tooltip="How many Monte Carlo draws value a candidate. Empty: 12."),
             ], className="odx-field-row"),
+            html.Div([
+                ui.form_field("Shortlist", "dse-editor-shortlist", value="" if search.shortlist is None else str(search.shortlist), type="number", style={"flex": "1"},
+                              tooltip="How many of the candidates, once screened, get the full and costly score. Empty: 24."),
+                ui.form_field("Front cap", "dse-editor-front-cap", value="" if search.front_cap is None else str(search.front_cap), type="number", style={"flex": "1"},
+                              tooltip="The number of front designs a candidate is scored against at most. "
+                                      "Empty: set from the number of objectives."),
+            ], className="odx-field-row"),
             html.Div(
                 ui.switch_row(
                     "One model per constraint", "dse-editor-constraint-models",
@@ -241,7 +278,7 @@ def _list_section(title, tooltip, container_id, add_id, add_text, rows):
     )
 
 
-def _header(name):
+def _header(name, exists=True):
     return html.Div(
         children=[
             html.Div(
@@ -260,13 +297,18 @@ def _header(name):
                     ),
                     html.Div(
                         children=[
-                            ui.icon_button(
-                                icon=icon("delete", className="icon"),
-                                color="caution",
-                                text="Delete",
-                                id="dse-editor-delete",
-                                tooltip="Delete this campaign",
-                                tooltip_options="bottom",
+                            # A campaign not saved yet has no file to delete.
+                            html.Div(
+                                ui.icon_button(
+                                    icon=icon("delete", className="icon"),
+                                    color="caution",
+                                    text="Delete",
+                                    id="dse-editor-delete",
+                                    tooltip="Delete this campaign",
+                                    tooltip_options="bottom",
+                                ),
+                                id="dse-editor-delete-wrap",
+                                style={} if exists else {"display": "none"},
                             ),
                             ui.save_button(id="dse-editor-save", text="Save", disabled=True),
                         ],
@@ -301,8 +343,8 @@ def layout(campaign=None, **_kwargs):
             # What is on disk, to tell an edit from a widget being rendered.
             dcc.Store(id="dse-editor-baseline", data={"name": name, "campaign": settings.to_dict()}),
             dcc.Store(id="dse-editor-known-names", data=campaign_names(workspace)),
-            form.metric_datalist(metric_names(workspace)),
-            _header(name),
+            form.metric_datalist(_initial_metric_names(workspace, settings)),
+            _header(name, exists=campaign_exists(workspace, name)),
             ui.feedback("dse-editor-feedback"),
             ui.section(
                 "Evaluation",
@@ -351,6 +393,12 @@ def layout(campaign=None, **_kwargs):
         },
     )
     return scoped(PAGE_SCOPE, body)
+
+
+def _initial_metric_names(workspace, settings):
+    """What the metric fields suggest when the page opens (see update_metric_suggestions)."""
+    names = campaign_metric_names(workspace, settings)
+    return names if names is not None else metric_names(workspace)
 
 
 def _delete_popup():
@@ -479,17 +527,57 @@ def show_frequencies(run_mode):
 
 
 @dash.callback(
-    Output("dse-editor-freq-list", "disabled"),
-    Output("dse-editor-freq-from", "disabled"),
-    Output("dse-editor-freq-to", "disabled"),
-    Output("dse-editor-freq-step", "disabled"),
+    Output("dse-editor-freq-list-row", "style"),
+    Output("dse-editor-freq-range-row", "style"),
     Input("dse-editor-freq-explore", "value"),
 )
 def toggle_frequency_fields(explore):
     """Either the frequencies are listed, or they are searched in a range: the
-    half that does not apply is greyed out rather than left to be guessed."""
+    half that does not apply is not shown, rather than left to be filled."""
     searching = checked(explore)
-    return searching, not searching, not searching, not searching
+    return ({"display": "none"} if searching else {}), ({} if searching else {"display": "none"})
+
+
+@dash.callback(
+    Output("dse-editor-toolchain-fields", "style"),
+    Output("dse-editor-workflow-note", "style"),
+    Input("dse-editor-run", "value"),
+)
+def show_toolchain_fields(run_mode):
+    """A workflow runs its own commands: tools, flows, targets and simulations say nothing to it."""
+    workflow = run_mode == "workflow"
+    return ({"display": "none"} if workflow else {}), ({} if workflow else {"display": "none"})
+
+
+@dash.callback(
+    Output(form.METRIC_DATALIST, "children"),
+    Input("dse-editor-run", "value"),
+    Input("dse-editor-tools", "value"),
+    Input("dse-editor-flows", "value"),
+    Input("dse-editor-simulations", "value"),
+    Input({"type": "dse-arch-name", "index": ALL}, "value"),
+)
+def update_metric_suggestions(run_mode, tools, flows, simulations, arch_names):
+    """
+    The metric names offered to the objectives and the constraints: the ones
+    what the campaign runs measures, as "odatix dse -C" checks them -- every
+    name of the workspace only while that cannot be known yet (no tool, no
+    workflow named).
+    """
+    settings = _what_runs(run_mode, tools, flows, simulations, arch_names)
+    names = campaign_metric_names(get_workspace(), settings)
+    return form.metric_options(names if names is not None else metric_names(get_workspace()))
+
+
+def _what_runs(run_mode, tools, flows, simulations, arch_names):
+    """A campaign holding only what decides which metrics it can name."""
+    settings = CampaignSettings()
+    settings.run = run_mode or "fmax_synthesis"
+    settings.tool = from_names(tools)
+    settings.flow = from_names(flows)
+    settings.simulations = [str(entry) for entry in (simulations or [])]
+    settings.architectures = [str(name) for name in (arch_names or []) if name]
+    return settings
 
 
 @dash.callback(
@@ -545,6 +633,8 @@ def update_toolchain_options(tools, run_mode):
     Input("dse-editor-population", "value"),
     Input("dse-editor-candidates", "value"),
     Input("dse-editor-samples", "value"),
+    Input("dse-editor-shortlist", "value"),
+    Input("dse-editor-front-cap", "value"),
     Input("dse-editor-constraint-models", "value"),
     Input({"type": "dse-obj-metric", "index": ALL}, "value"),
     Input({"type": "dse-obj-goal", "index": ALL}, "value"),
@@ -560,7 +650,7 @@ def update_toolchain_options(tools, run_mode):
 def mark_dirty(name, run_mode, tools, flows, targets, simulations,
                freq_explore, freq_list, freq_from, freq_to, freq_step, reuse,
                strategy, mode, budget, batch, patience, improvement, seed,
-               mutation, tournament, population, candidates, samples, constraint_models,
+               mutation, tournament, population, candidates, samples, shortlist, front_cap, constraint_models,
                obj_metrics, obj_goals, con_metrics, con_mins, con_maxs,
                arch_names, arch_selections, original_name, baseline):
     """
@@ -575,7 +665,7 @@ def mark_dirty(name, run_mode, tools, flows, targets, simulations,
         get_workspace(), original_name, name, run_mode, tools, flows, targets, simulations,
         freq_explore, freq_list, freq_from, freq_to, freq_step, reuse,
         strategy, mode, budget, batch, patience, improvement, seed,
-        mutation, tournament, population, candidates, samples, constraint_models,
+        mutation, tournament, population, candidates, samples, shortlist, front_cap, constraint_models,
         obj_metrics, obj_goals, con_metrics, con_mins, con_maxs,
         arch_names, arch_selections,
     )
@@ -585,7 +675,7 @@ def mark_dirty(name, run_mode, tools, flows, targets, simulations,
 def _campaign_state(workspace, original_name, name, run_mode, tools, flows, targets, simulations,
                     freq_explore, freq_list, freq_from, freq_to, freq_step, reuse,
                     strategy, mode, budget, batch, patience, improvement, seed,
-                    mutation, tournament, population, candidates, samples, constraint_models,
+                    mutation, tournament, population, candidates, samples, shortlist, front_cap, constraint_models,
                     obj_metrics, obj_goals, con_metrics, con_mins, con_maxs,
                     arch_names, arch_selections):
     """The campaign the form describes, as the file would hold it."""
@@ -593,7 +683,7 @@ def _campaign_state(workspace, original_name, name, run_mode, tools, flows, targ
         workspace, original_name, run_mode, tools, flows, targets, simulations,
         freq_explore, freq_list, freq_from, freq_to, freq_step, reuse,
         strategy, mode, budget, batch, patience, improvement, seed,
-        mutation, tournament, population, candidates, samples, constraint_models,
+        mutation, tournament, population, candidates, samples, shortlist, front_cap, constraint_models,
         obj_metrics, obj_goals, con_metrics, con_mins, con_maxs,
         arch_names, arch_selections,
     )
@@ -603,7 +693,7 @@ def _campaign_state(workspace, original_name, name, run_mode, tools, flows, targ
 def _campaign_from_form(workspace, original_name, run_mode, tools, flows, targets, simulations,
                         freq_explore, freq_list, freq_from, freq_to, freq_step, reuse,
                         strategy, mode, budget, batch, patience, improvement, seed,
-                        mutation, tournament, population, candidates, samples, constraint_models,
+                        mutation, tournament, population, candidates, samples, shortlist, front_cap, constraint_models,
                         obj_metrics, obj_goals, con_metrics, con_mins, con_maxs,
                         arch_names, arch_selections):
     """
@@ -639,6 +729,8 @@ def _campaign_from_form(workspace, original_name, run_mode, tools, flows, target
     search.population = to_int(population)
     search.candidates = to_int(candidates)
     search.samples = to_int(samples)
+    search.shortlist = to_int(shortlist)
+    search.front_cap = to_int(front_cap)
     search.constraint_models = checked(constraint_models)
 
     settings.objectives = form.collect_objectives(obj_metrics, obj_goals)
@@ -679,6 +771,8 @@ def _campaign_from_form(workspace, original_name, run_mode, tools, flows, target
     State("dse-editor-population", "value"),
     State("dse-editor-candidates", "value"),
     State("dse-editor-samples", "value"),
+    State("dse-editor-shortlist", "value"),
+    State("dse-editor-front-cap", "value"),
     State("dse-editor-constraint-models", "value"),
     State({"type": "dse-obj-metric", "index": ALL}, "value"),
     State({"type": "dse-obj-goal", "index": ALL}, "value"),
@@ -692,7 +786,7 @@ def _campaign_from_form(workspace, original_name, run_mode, tools, flows, target
 def save(n_clicks, original_name, name, run_mode, tools, flows, targets, simulations,
           freq_explore, freq_list, freq_from, freq_to, freq_step, reuse,
           strategy, mode, budget, batch, patience, improvement, seed,
-          mutation, tournament, population, candidates, samples, constraint_models,
+          mutation, tournament, population, candidates, samples, shortlist, front_cap, constraint_models,
           obj_metrics, obj_goals, con_metrics, con_mins, con_maxs,
           arch_names, arch_selections):
     """Write the campaign to its file, renaming it when the title changed."""
@@ -709,7 +803,7 @@ def save(n_clicks, original_name, name, run_mode, tools, flows, targets, simulat
         workspace, original_name, run_mode, tools, flows, targets, simulations,
         freq_explore, freq_list, freq_from, freq_to, freq_step, reuse,
         strategy, mode, budget, batch, patience, improvement, seed,
-        mutation, tournament, population, candidates, samples, constraint_models,
+        mutation, tournament, population, candidates, samples, shortlist, front_cap, constraint_models,
         obj_metrics, obj_goals, con_metrics, con_mins, con_maxs,
         arch_names, arch_selections,
     )
@@ -732,13 +826,31 @@ def save(n_clicks, original_name, name, run_mode, tools, flows, targets, simulat
     # A renamed campaign is a new file and a new url: the page follows it, so a
     # refresh lands on the campaign that was just saved.
     href = campaign_link(editor_path, name) if renamed else dash.no_update
+    # Saved all the same -- a campaign is often written before what it runs
+    # exists -- but a metric nothing it runs measures is said now, rather than
+    # when Explore refuses it.
+    warning = unknown_metric_warning(workspace, settings)
+    feedback = ui.success('Campaign "{0}" saved.'.format(name)) if warning is None else html.Div(
+        'Campaign "{0}" saved, but {1}'.format(name, warning),
+        className="odx-message warning",
+    )
     return (
         SAVE_IDLE,
-        ui.success('Campaign "{0}" saved.'.format(name)),
+        feedback,
         name,
         href,
         {"name": name, "campaign": settings.to_dict()},
     )
+
+
+@dash.callback(
+    Output("dse-editor-delete-wrap", "style"),
+    Input("dse-editor-baseline", "data"),
+)
+def show_delete(baseline):
+    """Delete is offered once the campaign has a file: after its first save."""
+    name = str((baseline or {}).get("name") or "")
+    return {} if name and campaign_exists(get_workspace(), name) else {"display": "none"}
 
 
 def _rename_in_settings(workspace, old_name, new_name):

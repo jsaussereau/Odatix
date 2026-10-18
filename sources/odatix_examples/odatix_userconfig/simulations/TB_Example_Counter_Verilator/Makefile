@@ -1,3 +1,7 @@
+# A pipe into "tee" must not hide the exit code of the simulator.
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
 # ********************************************************************** #
 #                                Odatix                                  #
 # ********************************************************************** #

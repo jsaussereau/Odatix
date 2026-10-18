@@ -24,7 +24,7 @@ Data callbacks: hot reload polling and source selection.
 """
 
 import dash
-from dash import Input, Output, State
+from dash import html, Input, Output, State
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.ui.components as components
@@ -63,11 +63,13 @@ def register_callbacks():
     Output("xp-source-select", "options"),
     Output("xp-source-select", "value"),
     Input("xp-data-version", "data"),
+    # A redraw (explorer_tabs.js) starts the whole chain again from here
+    Input("xp-redraw", "n_clicks"),
     State("xp-source-select", "value"),
     State("xp-source-select", "options"),
     State("xp-ui-state", "data"),
   )
-  def update_sources(_version, selected, previous_options, ui_state):
+  def update_sources(_version, _redraw, selected, previous_options, ui_state):
     """
     Refresh the source list, keeping the user's selection. On a fresh page the
     live value is empty, so the selection remembered in xp-ui-state (kept in
@@ -76,13 +78,28 @@ def register_callbacks():
     (e.g. a first job finishing) is selected automatically.
     """
     names = STORE.source_names()
-    errors = {source.name: source.error for source in STORE.sources()}
+    infos = STORE.sources()
+    errors = {source.name: source.error for source in infos}
     options = [{"label": name + (" ⚠" if errors.get(name) else ""), "value": name} for name in names]
+    # A file that could not be read is listed too, disabled, with the reason:
+    # leaving it out made it look as if it had never been found.
+    for source in infos:
+      if source.error and source.name not in names:
+        options.append({
+          "label": html.Span(source.name + " ⚠ unreadable", title=str(source.error), className="xp-source-unreadable"),
+          "value": source.name,
+          "disabled": True,
+        })
 
     remembered = (ui_state or {}).get("sources") or []
     kept = [name for name in selected if name in names] if selected else []
     if not kept:
       kept = [name for name in remembered if name in names]
-    value = kept if kept else names[:1]
+    if not kept and names:
+      # The most recently written file by default: the results of the last
+      # run, rather than the first name in alphabetical order.
+      mtimes = {source.name: source.mtime or 0 for source in infos}
+      kept = [max(names, key=lambda name: (mtimes.get(name, 0), name))]
+    value = kept
 
     return options, value

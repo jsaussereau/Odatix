@@ -36,7 +36,25 @@ import argparse
 
 from odatix.lib.settings import OdatixSettings
 
-__all__ = ["OPTIONS", "GROUPS", "ExtendAction", "add_options", "deprecated_option"]
+__all__ = ["OPTIONS", "GROUPS", "ExtendAction", "HelpFormatter", "add_options", "deprecated_option"]
+
+
+class HelpFormatter(argparse.HelpFormatter):
+  """
+  How every Odatix command lays out its help: options in bold, their help
+  under them. odatix-gui and odatix-explorer use it too, so that the three
+  programs read alike.
+  """
+
+  def __init__(self, prog):
+    super(HelpFormatter, self).__init__(prog=prog, max_help_position=8)
+    self._current_indent = 2
+
+  def _format_action_invocation(self, action):
+    import odatix.lib.printc as printc
+
+    parts = super(HelpFormatter, self)._format_action_invocation(action).split(", ")
+    return ", ".join(printc.colors.BOLD + part + printc.colors.ENDC for part in parts)
 
 class ExtendAction(argparse.Action):
   """
@@ -71,13 +89,15 @@ OPTIONS = {
   ######################################
   # Talking to the daemon
   ######################################
-  "detach": (("-d", "--detach"), dict(action="store_true", help="enqueue jobs to daemon and return without attaching monitor")),
-  "session": (("-S", "--session"), dict(default=None, help="session name or selector")),
-  "host": (("--host",), dict(default=None, help="daemon API host (default: current workspace daemon host)")),
-  "port": (("--port",), dict(type=int, default=None, help="daemon API port (default: current workspace daemon port)")),
+  "detach": (("-d", "--detach"), dict(action="store_true", help="hand the jobs to a session and return at once, without the monitor")),
+  "session": (("-S", "--session"), dict(default=None, help="session to hand the jobs to: added to it if it runs, else a new session of that name (default: a new session)")),
+  "host": (("--host",), dict(default=None, help="host of a session reached by hand rather than by its name, with --port (sessions listen on a unix socket otherwise)")),
+  "port": (("--port",), dict(type=int, default=None, help="port of a session reached by hand rather than by its name, with --host")),
   "token": (("--token",), dict(default=None, help="session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)")),
   "remote": (("-R", "--remote"), dict(default=None, help="reach a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace")),
   "zombies": (("-z", "--zombies"), dict(action="store_true", help="also handle zombie sessions (unresponsive daemons and leftover state files)")),
+  # "-S" of the commands that act on a session rather than hand it jobs.
+  "session_selector": (("-S", "--session"), dict(dest="session", default=None, help="session to act on: its name, its ID (12345.nightly), its PID, or the start of one of them")),
   "any_workspace": (("--any-workspace",), dict(action="store_true", help="also reach the sessions of other workspaces (default: those of the current workspace only)")),
 
   ######################################
@@ -108,7 +128,7 @@ OPTIONS = {
   "rerun_from": (("--rerun-from",), dict(dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")),
   "overwrite": (("-o", "--overwrite"), dict(action="store_true", help='overwrite existing results (default: "overwrite" ' + FROM_RUN_SETTINGS + ')')),
   "noask": (("-y", "--noask"), dict(action="store_true", help='do not ask to continue (default: "ask_continue" ' + FROM_RUN_SETTINGS + ')')),
-  "exit_when_done": (("-E", "--exit"), dict(dest="exit_when_done", action="store_true", help='exit the monitor when all jobs are done (default: "exit_when_done" ' + FROM_RUN_SETTINGS + ')')),
+  "exit_when_done": (("-E", "--exit"), dict(dest="exit_when_done", action="store_true", help='return once the jobs of this run are over: close the monitor (or wait, without a terminal), print how many succeeded, close the session (default: "exit_when_done" ' + FROM_RUN_SETTINGS + ')')),
   "nb_jobs": (("-j", "--jobs"), dict(dest="nb_jobs", help='maximum number of parallel jobs, "auto" for the number of CPUs minus one (default: "nb_jobs" ' + FROM_RUN_SETTINGS + ')')),
   "log_size_limit": (("--logsize",), dict(dest="log_size_limit", help='size of the log history per job in the monitor (default: "log_size_limit" ' + FROM_RUN_SETTINGS + ')')),
   "check_eda_tool": (("-T", "--trust"), dict(dest="check_eda_tool", action="store_false", help="do not check the tool before running jobs (saves time)")),
@@ -119,7 +139,7 @@ OPTIONS = {
   ######################################
   # Where things are
   ######################################
-  "settings_file": (("-i", "--input"), dict(dest="settings_file", default=None, help="run settings file (default: the one " + FROM_WORKSPACE + " names for this command)")),
+  "settings_file": (("-i", "--input"), dict(dest="settings_file", default=None, help="run settings file (default: the one odatix.yml names for this command)")),
   # No short form: -a is --architecture.
   "arch_path": (("--archpath",), dict(dest="arch_path", help='architecture directory (default: "arch_path" ' + FROM_WORKSPACE + ')')),
   # No short form: -s is --sim.
@@ -198,7 +218,8 @@ def deprecated_option(parser, flag, replacement, action="store", **keywords):
     def __call__(self, parser, namespace, values, option_string=None):
       import odatix.lib.printc as printc
 
-      printc.warning('"{0}" is deprecated and will be removed in a future version: use "{1}"'.format(option_string, replacement), "odatix")
+      # Said by the program reading it (odatix, odatix-gui...) once it has set its name.
+      printc.warning('"{0}" is deprecated and will be removed in a future version: use "{1}"'.format(option_string, replacement), parser.prog.split(" ")[0] or "odatix")
       super(Deprecated, self).__call__(parser, namespace, values, option_string)
 
   keywords.setdefault("default", argparse.SUPPRESS)

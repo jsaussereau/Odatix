@@ -100,16 +100,85 @@
 
   // The status buckets and their sort priority come from the daemon
   // (odatix.lib.parallel_job_handler.job_status), so counting here and counting
-  // there cannot drift apart.
+  // there cannot drift apart. A paused job is in the daemon's "queued" bucket
+  // (it holds no slot), but the page shows it apart: "queued" reads as "has
+  // not started yet", which a job the resource guard paused mid-run is not.
+  var PAUSED_STATUSES = ["paused"];
+
   function matchesFilter(status, filterValue) {
     if (!filterValue || filterValue === "all") return true;
+    if (filterValue === "paused") return PAUSED_STATUSES.indexOf(status) !== -1;
+    if (filterValue === "queued" && PAUSED_STATUSES.indexOf(status) !== -1) return false;
     var bucket = state.buckets && state.buckets[filterValue];
     return bucket ? bucket.indexOf(status) !== -1 : true;
+  }
+
+  // How many jobs are paused, and how many queued without being paused. Read
+  // from the daemon's counts when it gives them ("paused" is then a part of
+  // "queued"), or else counted on the job list the page holds.
+  function pausedAndQueued(counts) {
+    var queued = Number(counts.queued) || 0;
+    var paused;
+    if (counts.paused !== undefined && counts.paused !== null) {
+      paused = Number(counts.paused) || 0;
+    } else {
+      paused = 0;
+      state.jobs.forEach(function (job) {
+        if (PAUSED_STATUSES.indexOf(statusOf(job)) !== -1) paused += 1;
+      });
+    }
+    var bucket = state.buckets && state.buckets.queued;
+    var pausedInQueued = !bucket || bucket.indexOf("paused") !== -1;
+    if (pausedInQueued) queued = Math.max(0, queued - paused);
+    return { paused: paused, queued: queued };
+  }
+
+  // How long a paused job has been paused, when the session says it ("12 min",
+  // "1 h 05"): its run time stops with the pause, so without this a job held
+  // for half an hour by the resource guard looks like it barely ran.
+  function pausedFor(job) {
+    var seconds = Number(job && job.paused_for);
+    if (!isFinite(seconds) || job.paused_for === null || job.paused_for === undefined) {
+      var since = Number(job && job.paused_since);
+      if (!job || job.paused_since === null || job.paused_since === undefined || !isFinite(since)) return "";
+      seconds = Date.now() / 1000 - since;
+    }
+    seconds = Math.max(0, Math.floor(seconds));
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 1) return "< 1 min";
+    if (minutes < 60) return minutes + " min";
+    var rest = minutes % 60;
+    return Math.floor(minutes / 60) + " h " + (rest < 10 ? "0" : "") + rest;
+  }
+
+  // The name in two parts: what comes before the configuration (architecture,
+  // workflow) and the rest, which tells the jobs of a run apart
+  // ("/16bits @ 50 MHz", " [max_speed:30kmh, ...]"). The first part gives way
+  // first when the row is short of room.
+  function splitName(name) {
+    var cut = -1;
+    var marks = ["/", " [", " @ ", " ("];
+    for (var i = 0; i < marks.length; i++) {
+      var at = name.indexOf(marks[i]);
+      if (at > 0 && (cut < 0 || at < cut)) cut = at;
+    }
+    if (cut <= 0) return [name, ""];
+    return [name.slice(0, cut), name.slice(cut)];
   }
 
   /* ------------------------------------------------------- model + ordering */
 
   function mergeSnapshot(snapshot) {
+    if (snapshot === null) {
+      // The page let go of the session (another one was selected): its jobs
+      // must not stay on screen while the next one loads.
+      if (state.jobs.size === 0 && state.epoch === null) return false;
+      state.jobs = new Map();
+      state.epoch = null;
+      state.counts = null;
+      state.orderDirty = true;
+      return true;
+    }
     if (!snapshot || typeof snapshot !== "object") return false;
 
     var handler = snapshot.handler || {};
@@ -179,9 +248,14 @@
 
   function rebuildOrder() {
     var order = [];
+    var targets = new Set();
     state.jobs.forEach(function (job, id) {
+      if (job && job.target) targets.add(String(job.target));
       if (matchesFilter(statusOf(job), state.filter)) order.push(id);
     });
+    // The target is part of what tells the jobs apart only when they do not
+    // all share it.
+    state.showTargets = targets.size > 1;
 
     // "progress" and "runtime" rank on values that move on every tick, so their
     // order has to be recomputed even when no job changed status.
@@ -245,6 +319,8 @@
     var refs = {
       row: el.querySelector('[data-role="row"]'),
       name: el.querySelector('[data-role="name"]'),
+      nameHead: el.querySelector('[data-role="name-head"]'),
+      nameTail: el.querySelector('[data-role="name-tail"]'),
       bar: el.querySelector('[data-role="bar"]'),
       progress: el.querySelector('[data-role="progress"]'),
       runtime: el.querySelector('[data-role="runtime"]'),
@@ -269,12 +345,18 @@
     }
 
     var status = statusOf(job);
+    var paused = status === "paused" ? pausedFor(job) : "";
+    var statusText = String(job.status || "unknown") + (paused ? " " + paused : "");
+    if (last.statusText !== statusText) {
+      if (refs.status) {
+        refs.status.className = "monitor-task-status " + status + (paused ? " with-time" : "");
+        refs.status.textContent = statusText;
+        refs.status.title = paused ? "Paused for " + paused + ": the run time does not count the pause" : "";
+      }
+      last.statusText = statusText;
+    }
     if (last.status !== status) {
       if (refs.row) refs.row.className = "monitor-task " + status;
-      if (refs.status) {
-        refs.status.className = "monitor-task-status " + status;
-        refs.status.textContent = String(job.status || "unknown");
-      }
       // Which actions apply is a function of the status alone.
       if (refs.start) refs.start.style.display = (status === "queued" || status === "paused") ? "block" : "none";
       if (refs.pause) refs.pause.style.display = (status === "running" || status === "starting") ? "block" : "none";
@@ -286,10 +368,23 @@
       last.status = status;
     }
 
-    var name = String(job.display_name || ("job" + job.id));
-    if (last.name !== name) {
-      if (refs.name) refs.name.textContent = name;
+    var name = String(job.display_name || ("Job " + (Number(job.id) + 1)));
+    var target = state.showTargets && job.target ? String(job.target) : "";
+    if (last.name !== name || last.target !== target) {
+      var parts = splitName(name);
+      if (refs.nameHead && refs.nameTail) {
+        refs.nameHead.textContent = parts[0];
+        refs.nameTail.textContent = parts[1] + (target ? "  \u00b7 " + target : "");
+      } else if (refs.name) {
+        refs.name.textContent = name;
+      }
+      // The whole name, wherever the row cuts it.
+      var title = name;
+      if (job.target) title += "\nTarget: " + job.target;
+      if (job.directory) title += "\nDirectory: " + job.directory;
+      entry.el.title = title;
       last.name = name;
+      last.target = target;
     }
 
     var progress = progressOf(job);
@@ -547,15 +642,25 @@
     },
 
     kpis: function (snapshot) {
+      var dash = "\u2013";
+      if (snapshot === null) {
+        // No session yet, or the next one is loading: no figure rather than
+        // zeros, which would read as "this session has no job".
+        return [dash, dash, dash, dash, dash, dash, { width: "0%" }, dash];
+      }
       var handler = snapshot && snapshot.handler;
       var counts = (handler && handler.counts) || null;
       if (!counts) return noUpdate();
+      // The model must hold this snapshot's jobs before they are counted.
+      if (state.buckets === null) state.buckets = handler.status_buckets || null;
+      var split = pausedAndQueued(counts);
 
       var overall = Number(handler.overall_progress) || 0;
       return [
         String(counts.total || 0),
         String(counts.running || 0),
-        String(counts.queued || 0),
+        String(split.paused),
+        String(split.queued),
         String(counts.done || 0),
         String(counts.failed || 0),
         { width: overall + "%" },
@@ -596,18 +701,17 @@
 
     logTitle: function (selectedJob, snapshot) {
       if (selectedJob === null || selectedJob === undefined) {
-        return ["No task selected", "", "monitor-log-title-status"];
+        return [snapshot ? "No job selected" : "", "", "", "monitor-log-title-status"];
       }
       var jobId = Number(selectedJob);
       var job = state.jobs.get(jobId);
-      if (!job) return ["job" + jobId, "", "monitor-log-title-status"];
+      // Not in the list (yet): the session is still loading. Never a made-up
+      // name such as "job0".
+      if (!job) return ["", "", "", "monitor-log-title-status"];
 
       var status = statusOf(job);
-      return [
-        String(job.display_name || ("job" + jobId)),
-        status,
-        "monitor-log-title-status " + status,
-      ];
+      var name = String(job.display_name || ("Job " + (jobId + 1)));
+      return [name, name, status, "monitor-log-title-status " + status];
     },
 
     initSelection: function (snapshot, selectedJob) {
@@ -632,14 +736,66 @@
       var handler = snapshot && snapshot.handler;
       var counts = (handler && handler.counts) || null;
       if (!counts || !counts.total) return noUpdate();
-      if (counts.running > 0 || counts.queued > 0) return noUpdate();
+      if (counts.running > 0 || counts.queued > 0 || counts.paused > 0) return noUpdate();
+
+      // An analysis (every job of the session analyzes a design) ends on its
+      // verdicts, which the dialog reads for these designs.
+      var analysis = state.jobs.size > 0;
+      var designs = [];
+      var seen = new Set();
+      state.jobs.forEach(function (job) {
+        if (!job || String(job.target || "") !== "analysis") analysis = false;
+        var design = job && job.arch ? String(job.arch) : "";
+        if (design && !seen.has(design) && designs.length < 500) {
+          seen.add(design);
+          designs.push(design);
+        }
+      });
 
       return {
         total: counts.total,
         done: counts.done,
         failed: counts.failed,
+        paused: counts.paused || 0,
         longest_elapsed: handler.longest_elapsed || 0,
+        analysis: analysis,
+        designs: analysis ? designs : [],
       };
+    },
+
+    pageState: function (snapshot, sessionStatus, error) {
+      var base = "page-content monitor-page";
+      var status = sessionStatus && sessionStatus.state;
+      // "No session" keeps the loading state: the card that says so (drawn by
+      // a server callback, a moment later) hides the panels anyway, and the
+      // empty dashboard must not flash in between.
+      if (error || snapshot) return [base, noUpdate()];
+      if (status === "empty") return [base + " loading", noUpdate()];
+      var text = "Looking for sessions\u2026";
+      if (status === "selected") text = "Loading session " + (sessionStatus.session || "") + "\u2026";
+      if (status === "url") {
+        text = sessionStatus.session
+          ? "Waiting for session " + sessionStatus.session + "\u2026"
+          : "Connecting to the session\u2026";
+      }
+      return [base + " loading", text];
+    },
+
+    stopAllPopup: function (displayed, _cancel, _backdrop, _confirm, lastAction) {
+      var ctx = window.dash_clientside.callback_context;
+      var triggered = (ctx && ctx.triggered && ctx.triggered.length) ? ctx.triggered[0].prop_id : "";
+      if (triggered.indexOf("monitor-stop-all-confirm.") === 0) {
+        // Stopping waits for the session's processes to be gone: say so.
+        return _confirm ? "overlay-odatix visible busy" : noUpdate();
+      }
+      if (triggered.indexOf("monitor-last-action.") === 0) {
+        if (lastAction && lastAction.action === "shutdown") return "overlay-odatix";
+        return noUpdate();
+      }
+      if (triggered.indexOf("monitor-stop-all-displayed.") === 0) {
+        return displayed ? "overlay-odatix visible" : "overlay-odatix";
+      }
+      return "overlay-odatix";
     },
 
     refreshRate: function (snapshot, visible) {

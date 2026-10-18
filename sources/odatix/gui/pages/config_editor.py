@@ -133,16 +133,29 @@ def config_title_error(title, other_titles, initial_title):
         return "A configuration with this name already exists in the domain."
     return None
 
+def domain_uses_parameters(domain_settings):
+    """
+    Whether the parameter replacement switch of a domain is on. Without any
+    delimiter there is nothing to replace, whatever the settings default to: a
+    new domain, with no settings file yet, replaces nothing (AR-25).
+    """
+    domain_settings = domain_settings or {}
+    if not (domain_settings.get("start_delimiter") or domain_settings.get("stop_delimiter")):
+        return False
+    return bool(domain_settings.get("use_parameters", True))
+
 def params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings):
     """Whether the configuration parameters form differs from the saved settings."""
     if domain_settings is None:
         domain_settings = {}
     use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
     return (
-        use_parameters != domain_settings.get("use_parameters", True)
+        use_parameters != domain_uses_parameters(domain_settings)
         or param_target_file != domain_settings.get("param_target_file", "")
-        or start_delimiter != domain_settings.get("start_delimiter", "")
-        or stop_delimiter != domain_settings.get("stop_delimiter", "")
+        # A delimiter is typed with its line breaks escaped (AR-01): what is
+        # compared is the text it matches.
+        or not replace_params.same_delimiter(start_delimiter, domain_settings.get("start_delimiter", ""))
+        or not replace_params.same_delimiter(stop_delimiter, domain_settings.get("stop_delimiter", ""))
     )
 
 ######################################
@@ -342,13 +355,13 @@ def instance_title(mode:str="arch", instance_name:str="", arch:str=None):
     if mode == "workflow":
         back_link = "/workflows"
         settings_link = f"/workflow_editor?workflow={instance_name}"
-        settings_text = "Workflow Settings"
+        settings_text = "Workflow settings"
     elif mode == "simulation":
         settings_link = f"/sim_editor?sim={instance_name}"
         # Opened on one architecture, the page goes back to the card it was
         # opened from rather than to the list of designs.
         back_link = settings_link if arch else "/architectures"
-        settings_text = "Simulation Settings"
+        settings_text = "Simulation settings"
     else:
         back_link = "/architectures"
         settings_link = f"/arch_editor?arch={instance_name}"
@@ -691,7 +704,7 @@ def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None,
         style={"marginBottom": "10px"},
         className="inline-flex-buttons",
     )
-    use_parameters = defval("use_parameters", True)
+    use_parameters = domain_uses_parameters(settings)
     return html.Div(
         children=[
             sim_arch_entry_form(domain_uuid, entry) if entry is not None else html.Div(style={"display": "none"}),
@@ -712,13 +725,13 @@ def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None,
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start delimiter"),
-                        ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
-                        dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
+                        ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file. A line break is written \\n, a tab \\t and a backslash \\\\: a delimiter ending in a line comment needs its \\n."),
+                        dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=replace_params.escape_delimiter(defval("start_delimiter", "")), type="text", className="odx-delimiter-input", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Stop delimiter"),
-                        ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
-                        dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
+                        ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file. A line break is written \\n, a tab \\t and a backslash \\\\."),
+                        dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=replace_params.escape_delimiter(defval("stop_delimiter", "")), type="text", className="odx-delimiter-input", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                 ],
                 id={"type": "params-config-fields", "domain_uuid": domain_uuid}, className="animated-section" if use_parameters else "animated-section hide",
@@ -819,8 +832,15 @@ def commented_out_notice(message):
     """What the preview says above the file when the configuration lands in a comment."""
     if not message:
         return ""
+    # What the message quotes (the delimiter, the line) is shown as code, where
+    # its leading spaces stay visible: they are part of what is matched.
+    parts = message.split('"')
+    children = [
+        html.Code(part, className="odx-delimiter-code") if index % 2 else part
+        for index, part in enumerate(parts) if part or index % 2
+    ] if len(parts) % 2 else message
     return html.Div(
-        message, className="error warning",
+        children, className="error warning",
         style={"whiteSpace": "normal", "fontFamily": "var(--font-family, sans-serif)", "marginBottom": "8px"},
     )
 
@@ -885,7 +905,7 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         # Still one section per domain, hidden, so the lists of
         # `update_preview_replacement` stay aligned with the domains.
         return replacement_span(domain_uuid, "", hidden=True)
-    use_parameters = domain_settings.get("use_parameters", True)
+    use_parameters = domain_uses_parameters(domain_settings)
     if not use_parameters:
         return html.Div([
             html.Div("Parameter replacement disabled.", style={"color": "#888"}),
@@ -934,6 +954,14 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         base_text = replace_params.read_file(param_target_file)
         start_delimiter = domain_settings.get("start_delimiter", "")
         stop_delimiter = domain_settings.get("stop_delimiter", "")
+        if not start_delimiter or not stop_delimiter:
+            # Without both delimiters nothing can match: say what is missing
+            # rather than showing the whole file as unmatched.
+            return html.Div([
+                html.Div("Set the start and stop delimiters of this domain to preview the replacement.",
+                         className="error warning"),
+                replacement_span(domain_uuid, "", hidden=True),
+            ])
         new_content, match_found = replace_params.replace_content(
             base_text=base_text,
             replacement_text=replacement_text,
@@ -1461,6 +1489,16 @@ def replacement_text_for_preview(selected_config, domain_uuid, domain_contents, 
     return next(iter(domain_contents.values()), "")
 
 
+def _debounce_data(identifier, content_debounce):
+    """What a debounce store said: the contents one is handed, the rules one is read."""
+    if identifier == "config-content-debounce":
+        return content_debounce
+    try:
+        return (ctx.inputs or {}).get(identifier + ".data")
+    except MissingCallbackContextException:
+        return None
+
+
 def preview_domains_to_refresh(debounce):
     """
     The domains whose preview the current trigger made stale, or None when every
@@ -1477,8 +1515,8 @@ def preview_domains_to_refresh(debounce):
         return None
     stale = set()
     for identifier in triggered.values():
-        if identifier == "config-content-debounce":
-            domains = (debounce or {}).get("domains")
+        if identifier in ("config-content-debounce", "cfg-rules-debounce"):
+            domains = (_debounce_data(identifier, debounce) or {}).get("domains")
             if domains is None:
                 return None
             stale.update(domains)
@@ -1572,6 +1610,18 @@ page_clientside_callback(
     dash.ClientsideFunction(namespace="odatix_config_editor", function_name="debounce_content"),
     Output("config-content-debounce", "data"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    prevent_initial_call=True,
+)
+
+# The rule fields likewise: the previews they feed work over every
+# configuration of the domain, so they follow the typing once it stops.
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_config_editor", function_name="debounce_rules"),
+    Output("cfg-rules-debounce", "data"),
+    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     prevent_initial_call=True,
 )
 
@@ -1891,9 +1941,35 @@ def update_param_domains(
 
     return dash.no_update, dash.no_update, dash.no_update
 
+def confirm_config_delete(triggered_id, config_metadata, armed):
+    """
+    What a click on a delete button does to the file of a configuration.
+
+    Deleting a file cannot be undone, so it takes two clicks on the same card:
+    returns ``(go_on, armed, message)`` -- the first click arms the card and
+    says so, the second deletes; any other action disarms it. Blacklisting a
+    generated configuration is reversible and goes through at once.
+    """
+    if not isinstance(triggered_id, dict) or triggered_id.get("type") != "delete-config":
+        return True, None, None
+    config_uuid = triggered_id.get("config_uuid", "")
+    data = next((d for d in config_metadata or [] if d.get("config_uuid") == config_uuid), None)
+    if data is None or data.get("origin", ORIGIN_MANUAL) in (ORIGIN_GENERATED, ORIGIN_BLACKLISTED):
+        return True, None, None
+    if armed == config_uuid:
+        return True, None, None
+    name = config_title(data.get("config_name", ""))
+    if data.get("origin", ORIGIN_MANUAL) == ORIGIN_EDITED:
+        message = f"Click the delete button of '{name}' again to discard your edit and go back to what the rules produce."
+    else:
+        message = f"Click the delete button of '{name}' again to delete {name}.txt from the disk. This cannot be undone."
+    return False, config_uuid, html.Div(message, className="odx-message")
+
 @dash.callback(
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
     Output("config-editor-feedback", "children", allow_duplicate=True),
+    Output("config-delete-armed", "data"),
+    Output({"type": "delete-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip", allow_duplicate=True),
     State("url", "search"),
     Input("param-domains-section-initialized", "data"),
     Input("config-layout-dropdown", "value"),
@@ -1909,8 +1985,30 @@ def update_param_domains(
     State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
+    State("config-delete-armed", "data"),
     prevent_initial_call=True
 )
+def update_config_cards_confirmed(*args):
+    """Ask for a second click before deleting a file, then update the cards."""
+    config_metadata, was_armed = args[-4], args[-1]
+    go_on, armed, message = confirm_config_delete(ctx.triggered_id, config_metadata, was_armed)
+    # The armed button says what a second click does, right where the mouse is.
+    button_ids = [output["id"] for output in ctx.outputs_list[3]]
+    tooltips = [dash.no_update] * len(button_ids)
+    origins = {d.get("config_uuid"): d for d in config_metadata or []}
+    for i, button_id in enumerate(button_ids):
+        config_uuid = button_id.get("config_uuid")
+        if not go_on and config_uuid == armed:
+            tooltips[i] = "Click again to confirm"
+        elif config_uuid == was_armed and was_armed != armed and not (
+            isinstance(ctx.triggered_id, dict) and ctx.triggered_id.get("config_uuid") == was_armed
+        ):
+            data = origins.get(config_uuid, {})
+            tooltips[i] = DELETE_TOOLTIPS.get(data.get("origin", ORIGIN_MANUAL), DELETE_TOOLTIPS[ORIGIN_MANUAL])[1]
+    if not go_on:
+        return [dash.no_update] * len(args[-7] or []), message, armed, tooltips
+    return tuple(update_config_cards(*args[:-1])) + (armed, tooltips)
+
 def update_config_cards(
     search, _,
     config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, rules_saved, update_domain_uuid,
@@ -2124,6 +2222,7 @@ def update_config_cards(
                             )
                         else:
                             config_cards_row[trig_domain_idx].pop(card_idx)
+                            feedback = ui.success(f"Configuration '{config_title(trig_config_name)}' deleted.")
 
                 # Duplicate config
                 if trig_type == "duplicate-config":
@@ -2571,9 +2670,10 @@ def update_preview_all(
     Input("config-content-debounce", "data"),
     State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    # Typed rule fields are States too: "cfg-rules-debounce" says they changed.
+    State({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     *config_rules.variable_inputs(),
     # Card rows are rebuilt after a blacklist toggle. Metadata must be an input
@@ -2587,6 +2687,7 @@ def update_preview_all(
     # What the pane read from the file when it was built: the lines the block
     # spans and the comment its start delimiter ends in.
     State({"type": "preview-context", "domain_uuid": dash.ALL}, "data"),
+    Input("cfg-rules-debounce", "data"),
     prevent_initial_call=True
 )
 def update_preview_replacement(
@@ -2942,8 +3043,8 @@ def save_all(
             **settings,
             "use_parameters": True if use_parameters else False, # Convert from [True]/[] to True/False
             "param_target_file": param_target_file,
-            "start_delimiter": start_delimiter,
-            "stop_delimiter": stop_delimiter,
+            "start_delimiter": replace_params.delimiter_to_write(start_delimiter, settings.get("start_delimiter")),
+            "stop_delimiter": replace_params.delimiter_to_write(stop_delimiter, settings.get("stop_delimiter")),
         }
         domain_name = sim_arch_param_dir(
             entry_names, entry_param_dirs, i, metadata,
@@ -3059,8 +3160,8 @@ def save_config_parameters(
             # Update settings
             settings["use_parameters"] = use_parameters
             settings["param_target_file"] = param_target_file
-            settings["start_delimiter"] = start_delimiter
-            settings["stop_delimiter"] = stop_delimiter
+            settings["start_delimiter"] = replace_params.delimiter_to_write(start_delimiter, settings.get("start_delimiter"))
+            settings["stop_delimiter"] = replace_params.delimiter_to_write(stop_delimiter, settings.get("stop_delimiter"))
 
             # What this simulation substitutes for one architecture: the whole
             # mapping is written at once, since it is one mapping, and what a
@@ -3211,6 +3312,9 @@ layout = html.Div(
         # Characters a configuration name may not contain, handed to the
         # client-side name validation (see assets/config_editor.js).
         dcc.Store(id="cfg-invalid-chars", data=hard_settings.invalid_filename_characters),
+        # The card whose delete button was clicked once: a second click on it
+        # deletes the file (see confirm_config_delete).
+        dcc.Store(id="config-delete-armed", data=None),
         html.Div(id={"page": page_path, "type": "instance-title-div"}, style={"marginTop": "20px"}),
         html.Div(ui.feedback("config-editor-feedback"), className="card-matrix config"),
         # What this page does, said once, above every domain of it -- folded
@@ -3233,6 +3337,7 @@ layout = html.Div(
         # Typing in a configuration does not reach the server: this store does,
         # once the typing stops, naming the domains whose preview is now stale.
         dcc.Store(id="config-content-debounce", data=None),
+        dcc.Store(id="cfg-rules-debounce", data=None),
     ],
     className="page-content",
     style={

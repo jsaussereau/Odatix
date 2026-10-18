@@ -62,17 +62,17 @@ class TestRoundTrip:
 
         cards[0]["message"] = "too wide"
         assert editor.build_block(cards) == [
-            {"when": "not ($width < 32)", "kind": "illegal", "message": "too wide"}
+            {"when": "not ($width < 32)", "message": "too wide"}
         ]
 
     def test_what_the_card_does_not_show_is_kept(self, editor):
         block = editor.normalize_block([{"expr": "$b == 1", "custom": 3}])
-        assert block == [{"when": "$b == 1", "kind": "illegal", "custom": 3}]
+        assert block == [{"when": "$b == 1", "custom": 3}]
 
     def test_a_mapping_keeps_what_it_says_besides_its_rules(self, editor):
         declared = {"apply": ["illegal", "dominated"], "ignore": ["x"], "rules": [{"when": "$a"}]}
         assert editor.normalize_block(declared) == {
-            "apply": ["illegal", "dominated"], "ignore": ["x"], "rules": [{"when": "$a", "kind": "illegal"}],
+            "apply": ["illegal", "dominated"], "ignore": ["x"], "rules": [{"when": "$a"}],
         }
 
     def test_a_card_saying_nothing_is_not_written(self, editor):
@@ -82,7 +82,7 @@ class TestRoundTrip:
         cards = editor.cards_from_values(["a", ""], ["illegal", "duplicate"], ["$x", "$y"], ["", "$z"],
                                          ["", ""], [{}, {}])
         assert editor.build_block(cards) == [
-            {"id": "a", "when": "$x", "kind": "illegal"},
+            {"id": "a", "when": "$x"},
             {"when": "$y", "require": "$z", "kind": "duplicate"},
         ]
 
@@ -105,7 +105,7 @@ class TestCheck:
     def test_a_rule_reading_an_unknown_name_leaves_nothing_out(self, editor, tmp_path):
         result = editor.check_rules(make(tmp_path), cards_of(editor, [{"when": "$Regz == 'Off'"}]))
         assert result["slots"][0].count == 0
-        assert "Check the names" in str(editor.slot_status(result["slots"][0], result["checked"]))
+        assert "(did you mean" in str(editor.slot_status(result["slots"][0], result["checked"]))
 
     def test_a_rule_that_cannot_be_read_is_said_so(self, editor, tmp_path):
         result = editor.check_rules(make(tmp_path), cards_of(editor, [{"when": "$width >"}]))
@@ -133,7 +133,7 @@ class TestEditor:
         arch.settings["exclusions"] = ["$x > 0"]
         arch.save()
 
-        _title, form, settings = page.init_form("?arch=Example_Counter_sv", page.page_path, {})
+        _title, form, settings, _name = page.init_form("?arch=Example_Counter_sv", page.page_path, {})
         assert settings["exclusions"] == ["$x > 0"]
         assert "arch-add-exclusion-card" in str(form)
 

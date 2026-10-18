@@ -104,7 +104,7 @@ def load_synthesis_context(
     if architectures is None:
         printc.error('The "' + selection_key + '" section of "' + run_config_settings_filename + '" is empty.', script_name)
         printc.note('You must define your ' + selection_noun + ' in "' + run_config_settings_filename + '" before using this command.', script_name)
-        printc.note("Check out examples Odatix's documentation for more information.", script_name)
+        printc.note('No design is selected yet: list some under "' + selection_key + '", or run "odatix init --examples" to try the bundled ones', script_name)
         raise SystemExit(-1)
 
     if check_cancel is not None:
@@ -203,19 +203,23 @@ def load_synthesis_context(
                     + '" does not exist',
                     script_name,
                 )
-                printc.note('Please update the path in "' + eda_target_filename + '"', script_name=script_name)
                 printc.note(
-                    'if no installation path is needed by ' + tool + '\'s Makefile, simply remove "install_path" from "' + eda_target_filename + '"',
+                    'Set "tool_install_path" in "' + eda_target_filename + '" to where ' + tool + ' is installed, '
+                    'or leave it empty ("") when ' + tool + ' is on your PATH',
                     script_name=script_name,
                 )
+                hint = eda_tools.install_path_hint(tool)
+                if hint:
+                    printc.note(tool + ' expects ' + hint, script_name=script_name)
                 raise SystemExit(-1)
 
         except (KeyNotInListError, BadValueInListError):
             # Optional: the tool is on the PATH.
             install_path = ""
 
+        # Optional, and off unless asked for: nothing worth a note when absent.
         force_single_thread, _ = get_from_dict(
-            "force_single_thread", settings_data, eda_target_filename, default_value=False, script_name=script_name
+            "force_single_thread", settings_data, eda_target_filename, default_value=False, silent=True, script_name=script_name
         )
 
     if isinstance(tool_test_command, list):
@@ -244,6 +248,7 @@ def load_synthesis_context(
             supported_tools=eda_tools.get_supported_tools(),
             tool_install_path=install_path,
             debug=debug,
+            script_name=script_name,
         )
 
     if check_cancel is not None:

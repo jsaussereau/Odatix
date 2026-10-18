@@ -35,6 +35,8 @@
 .theme {
     /* theme */
     --theme-font-family: Nunito;
+    /* code, paths, delimiters, logs: anything where each character counts */
+    --theme-mono-font-family: ui-monospace, "SFMono-Regular", "DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace;
     --theme-large-font-size: 16px;
     --theme-default-font-size: 14px;
     --theme-small-font-size: 11px;
@@ -43,8 +45,11 @@
     --theme-element-background-color: #fff; /* mainly cards and tiles background */
     --theme-dimmed-element-background-color: #fff0;
     --theme-action-color: #d1d5da;
-    --theme-primary-color: #228BE6; /* accent color for tooltips and switches */
-    --theme-secondary-color: #228BE6; /* accent color for important buttons */
+    /* Accent and state colors are also used as text on the cards: the
+       defaults are pulled toward the text color, so they keep a readable
+       contrast on light and on dark themes alike. */
+    --theme-primary-color: color-mix(in oklab, #228BE6 80%, var(--theme-text-color)); /* accent color for tooltips and switches */
+    --theme-secondary-color: var(--theme-primary-color); /* accent color for important buttons */
     --theme-tertiary-color: #f5f7fa; /* background color for fields  */
     --theme-accent-color: var(--theme-primary-color); /* accent icons */
     --theme-tertiary-color-light: #f5f7fa90;
@@ -53,19 +58,35 @@
     --theme-disabled-background-color: var(--theme-tertiary-color);
     --theme-disabled-error-background-color: #FA525229;
     --theme-running-color: var(--theme-primary-color);
-    --theme-success-color: #40C057;
-    --theme-warning-color: #FF8825;
-    --theme-caution-color: #FA5252;
-    --theme-pause-color: #798ba68f;
-    --theme-pending-color: #22d9e6;
+    --theme-success-color: color-mix(in oklab, #40C057 60%, var(--theme-text-color));
+    --theme-warning-color: color-mix(in oklab, #FF8825 56%, var(--theme-text-color));
+    --theme-caution-color: color-mix(in oklab, #FA5252 75%, var(--theme-text-color));
+    --theme-pause-color: color-mix(in oklab, #798ba6 70%, var(--theme-text-color));
+    --theme-pending-color: color-mix(in oklab, #22d9e6 50%, var(--theme-text-color));
     --theme-error-color: var(--theme-caution-color);
     --theme-shadow-color: rgba(29, 37, 79, 0.075);
     --theme-text-color: #24292e;
-    --theme-subtle-text-color: #cbcfd4;
+    /* Text a step quieter than the body text (captions, hints, metadata).
+       Mixed from the text color rather than set with an opacity, so it keeps
+       a readable contrast (4.5:1) on every surface of the theme. */
+    --theme-secondary-text-color: color-mix(in srgb, var(--theme-text-color) 74%, transparent);
+    --theme-subtle-text-color: var(--theme-secondary-text-color);
+    --theme-placeholder-color: color-mix(in srgb, var(--theme-text-color) 66%, transparent);
+    /* Outline of the fields (inputs, text areas, dropdowns). */
+    --theme-field-border-color: var(--theme-border-color);
     --theme-subtle-text-font-size: var(--theme-small-font-size);
     --theme-disabled-text-color: var(--theme-disabled-color);
     --theme-contrast-background-color: #24292e;
     --theme-contrast-text-color: #fff;
+    /* Text drawn over a filled accent (buttons, active chips, tooltips):
+       white by default, and, where the browser can compute it (below), black
+       or white, whichever reads best on that very color. A theme sets them
+       when it wants a given color. */
+    --theme-on-primary-color: #fff;
+    --theme-on-secondary-color: #fff;
+    --theme-on-success-color: #fff;
+    --theme-on-warning-color: #fff;
+    --theme-on-caution-color: #fff;
     --theme-contrast-text-shadow: 0 1px 2px #000000a6, 0 0 1px #fff;
     --theme-text-shadow: none;
     --theme-background: var(--theme-background-color);
@@ -79,8 +100,8 @@
     --theme-normal-border-radius: 20px;
     --theme-small-border-radius: 15px;
     --theme-overlay-background-color: #1d254f3d;
-    --theme-badge-background-color: #228be61a;
-    --theme-badge-text-color: var(--theme-primary-color);
+    --theme-badge-background-color: color-mix(in srgb, var(--theme-primary-color) 12%, transparent);
+    --theme-badge-text-color: color-mix(in oklab, var(--theme-primary-color) 75%, var(--theme-text-color));
 
     /* spacing scale */
     --space-1: 4px;
@@ -92,7 +113,7 @@
     
     /* navbar */
     --navbar-background: var(--theme-contrast-background-color);
-    --navbar-text-color: var(--theme-background-color);
+    --navbar-text-color: #fff;
     --navbar-backdrop-filter: blur(10px);
     --navbar-border-bottom: none;
     --navbar-box-shadow: none;
@@ -111,8 +132,8 @@
     --page-title-color: inherit;
     --page-title-text-shadow: var(--theme-text-shadow);
     --page-title-letter-spacing: normal;
-    --section-caption-color: inherit;
-    --section-caption-opacity: 0.6;
+    --section-caption-color: var(--theme-secondary-text-color);
+    --section-caption-opacity: 1;
     --label-text-color: inherit;
 
     /* cards and tiles */
@@ -159,8 +180,8 @@
     --default-button-box-shadow-hover: var(--button-box-shadow);
     --primary-button-background: var(--theme-primary-color);
     --primary-button-border: var(--theme-large-border-style) #fff0;
-    --primary-button-icon-color: var(--theme-contrast-text-color);
-    --primary-button-text-color: var(--theme-contrast-text-color);
+    --primary-button-icon-color: var(--theme-on-primary-color);
+    --primary-button-text-color: var(--theme-on-primary-color);
     --primary-button-box-shadow: var(--button-box-shadow);
     --primary-button-background-hover: #fff0;
     --primary-button-border-hover: var(--theme-large-border-style) var(--theme-primary-color);
@@ -174,13 +195,13 @@
     --secondary-button-box-shadow: var(--button-box-shadow);
     --secondary-button-background-hover: var(--theme-secondary-color);
     --secondary-button-border-hover: var(--theme-large-border-style) #fff0;
-    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
-    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-icon-color-hover: var(--theme-on-secondary-color);
+    --secondary-button-text-color-hover: var(--theme-on-secondary-color);
     --secondary-button-box-shadow-hover: var(--button-box-shadow);
     --success-button-background: var(--theme-success-color);
     --success-button-border: var(--theme-large-border-style) #fff0;
-    --success-button-icon-color: var(--theme-contrast-text-color);
-    --success-button-text-color: var(--theme-contrast-text-color);
+    --success-button-icon-color: var(--theme-on-success-color);
+    --success-button-text-color: var(--theme-on-success-color);
     --success-button-box-shadow: var(--button-box-shadow);
     --success-button-background-hover: #fff0;
     --success-button-border-hover: var(--theme-large-border-style) var(--theme-success-color);
@@ -189,8 +210,8 @@
     --success-button-box-shadow-hover: var(--button-box-shadow);
     --warning-button-background: var(--theme-warning-color);
     --warning-button-border: var(--theme-large-border-style) #fff0;
-    --warning-button-icon-color: var(--theme-contrast-text-color);
-    --warning-button-text-color: var(--theme-contrast-text-color);
+    --warning-button-icon-color: var(--theme-on-warning-color);
+    --warning-button-text-color: var(--theme-on-warning-color);
     --warning-button-box-shadow: var(--theme-warning-color) 0px 0px 10px;
     --warning-button-animation: pulse 2s ease infinite both -0.5s;
     --warning-button-background-hover: #fff0;
@@ -205,8 +226,8 @@
     --caution-button-box-shadow: var(--button-box-shadow);
     --caution-button-background-hover: var(--theme-caution-color); 
     --caution-button-border-hover: var(--theme-large-border-style) var(--theme-caution-color);
-    --caution-button-icon-color-hover: var(--theme-contrast-text-color);
-    --caution-button-text-color-hover: var(--theme-contrast-text-color);
+    --caution-button-icon-color-hover: var(--theme-on-caution-color);
+    --caution-button-text-color-hover: var(--theme-on-caution-color);
     --caution-button-box-shadow-hover: var(--button-box-shadow);
     --error-button-background: var(--theme-disabled-error-background-color);
     --error-button-border: var(--theme-large-border-style) #fff0;
@@ -218,7 +239,7 @@
     --disabled-button-icon-color: var(--theme-disabled-text-color);
     --disabled-button-text-color: var(--theme-disabled-text-color);
     --disabled-button-box-shadow: none;
-    --back-button-color: var(--theme-disabled-color);
+    --back-button-color: var(--theme-secondary-text-color);
     --back-button-filter: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
     --back-button-filter-hover: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
 
@@ -226,7 +247,7 @@
     --dropdown-font-size: var(--theme-default-font-size);
     --dropdown-background: var(--theme-background-color);
     --dropdown-background-hover: var(--theme-action-color);
-    --dropdown-border: var(--theme-border);
+    --dropdown-border: var(--theme-border-style) var(--theme-field-border-color);
     --dropdown-border-radius: var(--theme-normal-border-radius);
     --dropdown-label-margin: 0px;
     --dropdown-menu-background: var(--theme-element-background-color);
@@ -243,7 +264,7 @@
     --input-font-size: var(--theme-default-font-size);
     --input-background: var(--theme-tertiary-color);
     --input-text-color: var(--theme-text-color);
-    --input-border: var(--theme-border);
+    --input-border: var(--theme-border-style) var(--theme-field-border-color);
     --input-border-radius: var(--theme-small-border-radius);
     --input-focus-border-color: var(--theme-border-color);
     --input-focus-box-shadow: none;
@@ -273,7 +294,7 @@
     --textarea-font-size: var(--theme-small-font-size);  
     --textarea-background: var(--theme-tertiary-color);
     --textarea-text-color: var(--theme-text-color);
-    --textarea-border: var(--theme-border);
+    --textarea-border: var(--theme-border-style) var(--theme-field-border-color);
     --textarea-border-radius: var(--theme-small-border-radius);
 
     /* pre */
@@ -300,19 +321,19 @@
     --default-tooltip-text-color: var(--theme-contrast-text-color);
     --default-tooltip-border: none;
     --primary-tooltip-background: var(--theme-primary-color);
-    --primary-tooltip-text-color: var(--theme-contrast-text-color);
+    --primary-tooltip-text-color: var(--theme-on-primary-color);
     --primary-tooltip-border: none;
     --secondary-tooltip-background: var(--theme-secondary-color);
-    --secondary-tooltip-text-color: var(--theme-contrast-text-color);
+    --secondary-tooltip-text-color: var(--theme-on-secondary-color);
     --secondary-tooltip-border: none;
     --caution-tooltip-background: var(--theme-caution-color);
-    --caution-tooltip-text-color: var(--theme-contrast-text-color);
+    --caution-tooltip-text-color: var(--theme-on-caution-color);
     --caution-tooltip-border: none;
     --warning-tooltip-background: var(--theme-warning-color);
-    --warning-tooltip-text-color: var(--theme-contrast-text-color);
+    --warning-tooltip-text-color: var(--theme-on-warning-color);
     --warning-tooltip-border: none;
     --error-tooltip-background: var(--theme-error-color);
-    --error-tooltip-text-color: var(--theme-contrast-text-color);
+    --error-tooltip-text-color: var(--theme-on-caution-color);
     --error-tooltip-border: none;
 
     /* popups */
@@ -337,7 +358,7 @@
     --secondary-highlight-color: var(--theme-primary-color);
     --secondary-highlight-background: none;
     --secondary-highlight-border: none;
-    --secondary-highlight-text-color: var(--secondary-highlight-color);
+    --secondary-highlight-text-color: color-mix(in oklab, var(--secondary-highlight-color) 80%, var(--theme-text-color));
     --secondary-highlight-text-shadow: var(--theme-text-shadow);
 
     /* progress bars */
@@ -370,6 +391,19 @@
     --terminal-bright-magenta: #e599f7;
     --terminal-bright-cyan: #449eaa;
     --terminal-bright-white: #ffffff;
+}
+
+/* Black or white text over each accent, whichever has the better contrast:
+   the lightness of the color decides (L 49.44 in LCH is where both have the
+   same contrast). Themes setting their own value keep it (more specific). */
+@supports (color: lch(from red l c h)) {
+    .theme {
+        --theme-on-primary-color: lch(from var(--theme-primary-color) calc((49.44 - l) * infinity) 0 0);
+        --theme-on-secondary-color: lch(from var(--theme-secondary-color) calc((49.44 - l) * infinity) 0 0);
+        --theme-on-success-color: lch(from var(--theme-success-color) calc((49.44 - l) * infinity) 0 0);
+        --theme-on-warning-color: lch(from var(--theme-warning-color) calc((49.44 - l) * infinity) 0 0);
+        --theme-on-caution-color: lch(from var(--theme-caution-color) calc((49.44 - l) * infinity) 0 0);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

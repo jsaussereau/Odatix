@@ -205,7 +205,9 @@ class TestArchitectureResolution:
         )
         assert instances == []
         assert handler.plan.names(Category.ERROR, colored=False) == ["Example_Counter_verilog/04bits"]
-        assert 'Cannot find key "start_delimiter"' in capsys.readouterr().out
+        out = capsys.readouterr().out
+        # "start_delimiter:" is a key without value, '""' an empty one
+        assert 'Cannot find key "start_delimiter"' in out or 'Key "start_delimiter" is empty' in out
 
     def test_unknown_configuration_is_rejected(self, example_workspace):
         handler = make_arch_handler()

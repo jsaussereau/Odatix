@@ -362,12 +362,11 @@ def check_settings(
 
     _check_cancel(cancel_event)
 
-    arch_handler.print_summary()
+    settle_tool_checks([context["tool_check"]], tool_check_sink, needed=arch_handler.get_valid_arch_count() > 0)
 
-    # The eda tool check was started in the background by load_synthesis_context:
-    # its outcome is only needed now, right before the confirmation.
-    settle_tool_checks([context["tool_check"]], tool_check_sink)
-    confirm_valid_jobs(arch_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name, plan=arch_handler.plan)
+    arch_handler.print_summary()
+    confirm_valid_jobs(arch_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name, plan=arch_handler.plan,
+        overview=dict(tool=tool, targets=context["targets"], flow=context.get("flow"), nb_jobs=context["nb_jobs"]))
 
     print()
 

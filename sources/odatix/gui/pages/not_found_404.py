@@ -22,6 +22,8 @@
 import dash
 from dash import html
 import odatix.gui.navigation as navigation
+import odatix.gui.ui_components as ui
+from odatix.gui.icons import icon
 
 dash.register_page(
     __name__,
@@ -37,7 +39,19 @@ layout = html.Div(
         html.Div(
             children=[
                 html.H1("404"),
-                html.H2("Oops, page not found!")
+                html.H2("Page not found"),
+                html.P("This address is not a page of Odatix GUI: the link may be out of date, or mistyped."),
+                html.Div(
+                    ui.icon_button(
+                        icon=icon("back", className="icon"),
+                        color="primary",
+                        text="Back to home",
+                        link="/",
+                        id="p404-home",
+                        width="150px",
+                    ),
+                    style={"display": "flex", "justifyContent": "center", "marginBottom": "14px"},
+                ),
             ],
             className="tile center"
         ),

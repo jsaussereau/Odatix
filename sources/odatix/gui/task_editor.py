@@ -71,16 +71,42 @@ def _join_list(value, separator):
 
 
 def task_values(task):
-    """What the fields of the card of one task show, as text."""
+    """
+    What the fields of the card of one task show, as text, and whether it is
+    phony (shown by the cards of the pages offering the switch, see
+    :func:`task_card`).
+    """
     task = task if isinstance(task, dict) else {}
     values = {
         "dependencies": _join_list(task.get("dependencies", []), ", "),
         "platforms": _join_list(task.get("platforms", ""), ", "),
         "path": str(task.get("path", "")) if task.get("path") is not None else "",
+        "phony": task.get("phony", True) is not False,
     }
     for field in _COMMAND_FIELDS:
         values[field] = _join_list(task.get(field, []), "\n")
     return values
+
+
+def phony_by_name(ids, values):
+    """
+    Whether each task is phony, by task name, from the switches of the cards
+    (their ids and values, as a pattern matching dependency gives them). A
+    task without a switch ("main") is not in it.
+    """
+    phony = {}
+    for identifier, value in zip(ids or [], values or []):
+        if isinstance(identifier, dict):
+            phony[str(identifier.get("name"))] = bool(value)
+    return phony
+
+
+def apply_phony(tasks, phony):
+    """The tasks, with "phony: No" on those whose switch is off."""
+    for task in tasks:
+        if phony.get(str(task.get("name")), True) is False:
+            task["phony"] = False
+    return tasks
 
 
 def _split(text, separator=None):
@@ -168,7 +194,7 @@ def _commands_field(prefix, field, name, value, min_height=None):
     )
 
 
-def task_card(prefix, name="main", values=None, main_is_deletable=False):
+def task_card(prefix, name="main", values=None, main_is_deletable=False, with_phony=False):
     """
     The card of one task.
 
@@ -177,11 +203,16 @@ def task_card(prefix, name="main", values=None, main_is_deletable=False):
         values (dict): what its fields show, by field (see :func:`task_values`).
         main_is_deletable (bool): whether the "main" task can be deleted. A
             workflow always has one; a simulation may have no task at all.
+        with_phony (bool): whether the card offers the "Always run" switch
+            (``phony``), on every task but "main", which always runs.
     """
     values = values or {}
     is_main = str(name).strip() == "main"
-    # A fallback is worth seeing without having to look for it.
-    extra_open = bool(str(values.get("on_failure_commands", "") or "").strip())
+    phony_switch = with_phony and not is_main
+    is_phony = values.get("phony", True) is not False
+    # A fallback, or a task that does not always run, is worth seeing without
+    # having to look for it.
+    extra_open = bool(str(values.get("on_failure_commands", "") or "").strip()) or (phony_switch and not is_phony)
     return html.Div([
         html.Div(
             children=[
@@ -241,7 +272,22 @@ def task_card(prefix, name="main", values=None, main_is_deletable=False):
                             className="value-input",
                             style=_INPUT_STYLE,
                         ),
-                    ],
+                    ] + ([
+                        html.Div([
+                            dcc.Checklist(
+                                options=[{"label": "Always run", "value": True}],
+                                value=[True] if is_phony else [],
+                                id=field_id(prefix, "phony", name),
+                                className="checklist-switch",
+                                style={"display": "inline-block"},
+                            ),
+                            ui.tooltip_icon(
+                                "On (phony): the task runs every time. Off: the task stands for the file it is "
+                                "named after, in its path, and is skipped when that file exists and none of its "
+                                "dependencies has to run."
+                            ),
+                        ], style={"display": "flex", "alignItems": "center", "gap": "4px", "marginBottom": "8px"}),
+                    ] if phony_switch else []),
                     id={"type": f"{prefix}-more-task-field-div", "name": name},
                     className="expandable-area",
                     style=Style.visible if extra_open else Style.hidden,
@@ -281,12 +327,13 @@ def task_card(prefix, name="main", values=None, main_is_deletable=False):
 )
 
 
-def cards_from_tasks(prefix, tasks, main_is_deletable=False):
+def cards_from_tasks(prefix, tasks, main_is_deletable=False, with_phony=False):
     """The cards of a task list, without the page's own "add" card."""
     cards = []
     for idx, task in enumerate(tasks if isinstance(tasks, list) else []):
         if not isinstance(task, dict):
             continue
         name = str(task.get("name", "")).strip() or f"task{idx + 1}"
-        cards.append(task_card(prefix, name=name, values=task_values(task), main_is_deletable=main_is_deletable))
+        cards.append(task_card(prefix, name=name, values=task_values(task), main_is_deletable=main_is_deletable,
+                               with_phony=with_phony))
     return cards

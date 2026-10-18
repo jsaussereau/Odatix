@@ -11,7 +11,6 @@ import pytest
 
 from odatix.gui.jobs_config import prepare_state
 from odatix.gui.jobs_config.settings_io import (
-    _edit_selection_text,
     _write_temp_run_settings,
     write_run_settings,
 )
@@ -41,40 +40,6 @@ architectures:
   # - ALU/04bits
   # - ALU/08bits # slow
 """
-
-
-class TestSelectionText:
-    def test_an_entry_no_longer_selected_is_commented_out_in_place(self):
-        text = _edit_selection_text(SETTINGS, "architectures", ["Counter/08bits"])
-        assert "  # - Counter/04bits # fails with openlane\n" in text
-        assert "  - Counter/08bits\n" in text
-
-    def test_a_commented_out_entry_selected_again_is_uncommented_in_place(self):
-        text = _edit_selection_text(SETTINGS, "architectures", ["Counter/04bits", "ALU/08bits"])
-        assert "  - ALU/08bits # slow\n" in text
-        assert "  # - ALU/04bits\n" in text
-        assert text.index("ALU/08bits") > text.index("ALU/04bits")
-
-    def test_an_entry_the_file_never_mentioned_goes_after_the_last_selected_one(self):
-        text = _edit_selection_text(SETTINGS, "architectures", ["Counter/08bits", "Mult/*"])
-        assert "  - Counter/08bits\n  - Mult/*\n" in text
-
-    def test_a_new_entry_goes_next_to_the_entries_of_its_architecture(self):
-        # What the GUI writes when every configuration of a design is selected.
-        text = _edit_selection_text(SETTINGS, "architectures", ["Counter/08bits", "ALU/*"])
-        assert "  - ALU/*\n  # - ALU/04bits\n" in text
-
-    def test_new_entries_keep_their_order(self):
-        text = _edit_selection_text(SETTINGS, "architectures", ["Counter/08bits", "Mult/a", "Mult/b"])
-        assert "  - Counter/08bits\n  - Mult/a\n  - Mult/b\n" in text
-
-    def test_the_comments_stay(self):
-        text = _edit_selection_text(SETTINGS, "architectures", [])
-        for line in ("# Add your own architectures!", "  #- Your_Design/Your_1st_Configuration", "# targeted architectures"):
-            assert line in text
-
-    def test_an_inline_list_is_left_to_the_writer(self):
-        assert _edit_selection_text("architectures: [a/b]\n", "architectures", ["c/d"]) is None
 
 
 @pytest.mark.parametrize("filename, mode", [

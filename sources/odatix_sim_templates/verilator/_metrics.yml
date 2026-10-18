@@ -34,13 +34,8 @@ metrics:
     unit: "s"
     format: "%.2f"
 
-  elaboration_time:
-    type: yaml
-    settings:
-      file: sim_report.yml
-      key: elaboration_time
-    unit: "s"
-    format: "%.2f"
+  # No elaboration_time: Verilator elaborates while it compiles (verilating and building the C++),
+  # so its time is part of compile_time.
 
   simulation_time:
     type: yaml

@@ -40,7 +40,7 @@ from odatix.explorer.charts.spec import FigureSpec, OVERVIEW_LAYOUTS, resolve_de
 import odatix.explorer.charts.builder as builder
 import odatix.explorer.charts.app_theme_bridge as app_theme_bridge
 import odatix.explorer.ui.components as components
-from odatix.explorer.callbacks.filters import build_filters_dict
+from odatix.explorer.callbacks.filters import effective_filters
 
 # Shared dependency list of the figure and overview callbacks. Order matters:
 # the callback signatures follow it.
@@ -68,11 +68,22 @@ _FIGURE_DEPS = [
   Input("xp-dl-format", "value"),
   Input("xp-dl-background", "value"),
   State("xp-chart-kind", "data"),
+  # Clicked by explorer_tabs.js when a chart never got drawn (a request
+  # lost on a busy server): draws it again.
+  Input("xp-redraw", "n_clicks"),
+  State("xp-filter-state", "data"),
 ]
 
+# What an empty chart says when there is no result at all, rather than a
+# selection that filters everything out.
+NO_RESULTS_TEXT = (
+  "No results yet.<br>Run a job (odatix synth, odatix sim...) or check the"
+  " results folder: the chart fills in as soon as results are written."
+)
 
-def _selection(sources, filter_values, filter_ids, rule_state=None):
-  filters = build_filters_dict(filter_values, filter_ids)
+
+def _selection(sources, filter_values, filter_ids, rule_state=None, filter_state=None):
+  filters = effective_filters(STORE, sources, filter_values, filter_ids, filter_state)
   df = query.select_dataframe(STORE, sources=sources, filters=filters, rule_state=rule_state)
   dimensions, metrics = query.discover(df, STORE, sources)
   full_df = STORE.dataframe()
@@ -98,12 +109,41 @@ def _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sor
   return resolve_defaults(spec, dimensions, metrics)
 
 
-def _apply_export_background(fig, dl_background):
+def _export_chrome(app_theme, dl_background):
+  """
+  The plot chrome a chart is drawn with, for an export background.
+
+  A white background gets the light-theme chrome (dark text and grid) whatever
+  the app theme: a figure exported from a dark theme otherwise kept its light
+  gray text, unreadable on the white page of a document.
+  """
   if dl_background == "white":
-    fig.update_layout(paper_bgcolor="white")
+    return app_theme_bridge.LIGHT_CHROME
+  return app_theme_bridge.get_chrome(app_theme)
+
+
+def _apply_export_background(fig, dl_background, app_theme=None):
+  """Paint the figure background as the export will (the chart on screen is
+  what the camera button saves)."""
+  if dl_background == "white":
+    color = "white"
+  elif dl_background == "theme":
+    color = app_theme_bridge.background_color(app_theme)
   elif dl_background == "transparent":
-    fig.update_layout(paper_bgcolor=builder.TRANSPARENT)
+    color = builder.TRANSPARENT
+  else:
+    return fig
+  if isinstance(fig, dict):
+    fig.setdefault("layout", {})["paper_bgcolor"] = color
+  else:
+    fig.update_layout(paper_bgcolor=color)
   return fig
+
+
+def _empty_text():
+  """NO_RESULTS_TEXT when no result file holds any record, else None (the
+  builder's own sentence about the selection)."""
+  return NO_RESULTS_TEXT if STORE.dataframe().empty else None
 
 
 def _ordered_table_columns(dimensions, metrics):
@@ -122,7 +162,19 @@ def _table_header(column, metric_set, units):
     name = schema.metric_display_name(column)
     unit = str((units or {}).get(column, "") or "")
     return name + " (" + unit + ")" if unit else name
-  return column
+  return dimension_header(column)
+
+
+def dimension_header(column):
+  """
+  Header of a dimension column, in sentence case like the reserved ones
+  ("Source", "Type"): the keys a tool or a workflow adds ("tool", "flow") and
+  the parameter domains are lower case, and "main" is the main parameter domain.
+  """
+  text = str(column)
+  if text == "main":
+    return "Main domain"
+  return text[:1].upper() + text[1:] if text[:1].islower() else text
 
 
 def build_data_table(df, selected, dimensions, metrics, units):
@@ -179,12 +231,14 @@ def build_data_table(df, selected, dimensions, metrics, units):
       "color": "var(--theme-text-color)",
     },
     style_cell={
-      "backgroundColor": "var(--theme-background-color)",
+      # A theme whose page background is no surface for text (the teal of
+      # win95) gives the table one of its own.
+      "backgroundColor": "var(--xp-table-background, var(--theme-background-color))",
       "color": "var(--theme-text-color)",
       "border": "1px solid var(--theme-border-color)",
       "textAlign": "left",
       "padding": "4px 10px",
-      "fontFamily": "var(--theme-font-family)",
+      "fontFamily": "var(--xp-table-font-family, var(--theme-font-family))",
       "fontSize": "var(--theme-small-font-size)",
       # Fixed widths: virtualization remounts rows as you scroll, and without a
       # pinned width each batch would re-measure and make columns jitter.
@@ -205,6 +259,29 @@ def build_data_table(df, selected, dimensions, metrics, units):
   return html.Div(table, className="xp-datatable")
 
 
+def csv_frame(df, units=None):
+  """
+  The selection as the CSV export writes it: the columns a reader can use,
+  named as the Explorer shows them.
+
+  The internal columns (``_step_index``, ``_last_step``, ``_derived``...) only
+  serve the Explorer itself and are left out; list values (the derived
+  metrics of a record) are joined rather than written as a Python repr;
+  metric columns carry their unit, as in the table view.
+  """
+  columns = [column for column in df.columns if not str(column).startswith("_")]
+  frame = df[columns].copy()
+  for column in columns:
+    if frame[column].map(lambda value: isinstance(value, (list, tuple))).any():
+      frame[column] = frame[column].map(lambda value: "; ".join(str(item) for item in value) if isinstance(value, (list, tuple)) else value)
+  renamed = {}
+  for column in columns:
+    unit = str((units or {}).get(column, "") or "")
+    if unit:
+      renamed[column] = str(column) + " (" + unit + ")"
+  return frame.rename(columns=renamed)
+
+
 def _graph_config(sources, kind, metric, dl_format):
   filename = "Odatix-" + "-".join((sources or ["results"])[:3] + [str(kind), str(metric)])
   return components.graph_config(
@@ -222,19 +299,22 @@ def register_callbacks():
   )
   def update_figure(version, sources, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics,
                     palette, plot_theme, toggles, filter_values, filter_ids, rule_state, app_theme,
-                    dl_format, dl_background, kind):
-    if kind in (None, "overview", "table"):
+                    dl_format, dl_background, kind, _redraw, filter_state):
+    if kind in (None, "overview", "table") or sources is None:
+      # sources is None only before update_sources ran: everything would be
+      # drawn for nothing, then drawn again with the real selection.
       raise dash.exceptions.PreventUpdate
     try:
-      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
+      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state, filter_state)
       spec = _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, toggles, dimensions, metrics)
-      chrome = app_theme_bridge.get_chrome(app_theme)
+      chrome = _export_chrome(app_theme, dl_background)
       units = STORE.units(sources)
       fig = builder.build_figure(
         df, spec, dimensions, metrics, units, chrome,
         global_dimensions=global_dimensions, palette=palette, plot_theme=plot_theme,
+        empty_text=_empty_text(), as_dict=True,
       )
-      _apply_export_background(fig, dl_background)
+      _apply_export_background(fig, dl_background, app_theme)
       return fig, _graph_config(sources, kind, spec.y, dl_format), None
     except Exception as e:
       return dash.no_update, dash.no_update, content_lib.generate_error_div(e)
@@ -247,20 +327,26 @@ def register_callbacks():
   )
   def update_overview(chart_type, layout, version, sources, x, y, z, color_by, symbol_by, legend_group_by,
                       sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, palette, plot_theme, toggles, filter_values, filter_ids, rule_state,
-                      app_theme, dl_format, dl_background, kind):
-    if kind != "overview":
+                      app_theme, dl_format, dl_background, kind, _redraw, filter_state):
+    if kind != "overview" or sources is None:
       raise dash.exceptions.PreventUpdate
     try:
-      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
+      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state, filter_state)
+      if df.empty:
+        return html.Div(
+          dcc.Markdown((_empty_text() or "Nothing to plot: no record matches the selected sources and filters.").replace("<br>", "  \n")),
+          className="xp-table-empty",
+        )
       spec = _make_spec(chart_type or "lines", x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, toggles, dimensions, metrics)
       spec = replace(spec, toggles=tuple(toggle for toggle in spec.toggles if toggle != "legend"))
-      chrome = app_theme_bridge.get_chrome(app_theme)
+      chrome = _export_chrome(app_theme, dl_background)
       units = STORE.units(sources)
 
       width, height = OVERVIEW_LAYOUTS.get(layout, OVERVIEW_LAYOUTS["default"])
       figures = builder.build_overview_figures(
         df, spec, dimensions, metrics, units, chrome,
         global_dimensions=global_dimensions, size=(width, height), palette=palette, plot_theme=plot_theme,
+        as_dict=True,
       )
 
       children = []
@@ -270,7 +356,7 @@ def register_callbacks():
 
       grid = []
       for metric, fig in figures:
-        _apply_export_background(fig, dl_background)
+        _apply_export_background(fig, dl_background, app_theme)
         grid.append(
           dcc.Graph(
             figure=fig,
@@ -318,12 +404,14 @@ def register_callbacks():
     Input("xp-rule-state", "data"),
     Input("theme-dropdown", "value"),
     State("xp-chart-kind", "data"),
+    Input("xp-redraw", "n_clicks"),
+    State("xp-filter-state", "data"),
   )
-  def update_table(columns, _version, sources, filter_values, filter_ids, rule_state, _app_theme, kind):
-    if kind != "table":
+  def update_table(columns, _version, sources, filter_values, filter_ids, rule_state, _app_theme, kind, _redraw, filter_state):
+    if kind != "table" or sources is None:
       raise dash.exceptions.PreventUpdate
     try:
-      df, dimensions, metrics, _global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
+      df, dimensions, metrics, _global_dimensions = _selection(sources, filter_values, filter_ids, rule_state, filter_state)
       return build_data_table(df, columns, dimensions, metrics, STORE.units(sources))
     except Exception as e:
       return content_lib.generate_error_div(e)
@@ -336,12 +424,13 @@ def register_callbacks():
     State({"type": "xp-filter", "dim": ALL}, "id"),
     State("xp-rule-state", "data"),
     State("xp-chart-kind", "data"),
+    State("xp-filter-state", "data"),
     prevent_initial_call=True,
   )
-  def download_csv(n_clicks, sources, filter_values, filter_ids, rule_state, kind):
+  def download_csv(n_clicks, sources, filter_values, filter_ids, rule_state, kind, filter_state):
     if not n_clicks:
       raise dash.exceptions.PreventUpdate
-    filters = build_filters_dict(filter_values, filter_ids)
+    filters = effective_filters(STORE, sources, filter_values, filter_ids, filter_state)
     df = query.select_dataframe(STORE, sources=sources, filters=filters, rule_state=rule_state)
     filename = "Odatix-" + "-".join((sources or ["results"])[:3] + [str(kind)]) + ".csv"
-    return dcc.send_data_frame(df.to_csv, filename, index=False)
+    return dcc.send_data_frame(csv_frame(df, STORE.units(sources)).to_csv, filename, index=False)

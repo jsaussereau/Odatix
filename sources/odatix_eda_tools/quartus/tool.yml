@@ -14,6 +14,8 @@
 # Display metadata (used by the GUI tool selection page)
 label: "Quartus"
 description: "Altera Quartus® Prime"
+# What tool_install_path must point to (shown by the GUI under the field)
+tool_install_path_hint: "The directory holding qinit.sh, such as /opt/altera/altera_pro/26.1.1"
 
 # Group processes
 process_group: True

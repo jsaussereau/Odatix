@@ -284,12 +284,45 @@ def normalize_run_settings(overwrite, noask, exit_when_done, log_size_limit, nb_
     return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs
 
 
-def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, script_name=None, plan=None):
+def run_overview(valid_count, tool=None, targets=None, flow=None, nb_jobs=None, session=None):
+    """
+    The line that sums up a run before it starts, e.g.
+    "Total: 2 jobs | tool: vivado | target: xc7a100t | flow: default | 2 in parallel".
+    The items left empty are left out.
+    """
+    count = int(valid_count)
+    items = ["Total: {0} job{1}".format(count, "" if count == 1 else "s")]
+    if tool:
+        items.append("tool: " + str(tool))
+    if targets:
+        targets = [str(target) for target in (targets if isinstance(targets, (list, tuple)) else [targets])]
+        items.append(("target: " if len(targets) == 1 else "targets: ") + ", ".join(targets))
+    if flow:
+        items.append("flow: " + str(flow))
+    try:
+        parallel = min(int(nb_jobs), count) if nb_jobs else None
+    except (TypeError, ValueError):
+        parallel = None
+    if parallel:
+        items.append("{0} in parallel".format(parallel))
+    if session:
+        items.append("session: " + str(session))
+    return " | ".join(items)
+
+
+def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, script_name=None, plan=None, overview=None):
+    """
+    Ask before a run starts, after its plan is printed.
+
+    Args:
+        overview (dict): what :func:`run_overview` adds to the "Total" line
+            (tool, targets, flow, nb_jobs, session).
+    """
     if valid_count > 0:
         if ask_continue:
             from odatix.lib import printc
 
-            printc.bold("\nTotal: " + str(valid_count))
+            printc.bold("\n" + run_overview(valid_count, **(overview or {})))
             ask_to_continue_callback()
         return
 
@@ -304,10 +337,12 @@ def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, scri
             # Not a failure: the jobs are done, or a session is doing them.
             from odatix.lib import printc
 
+            # "In a session" is not "running": a session keeps its jobs once
+            # they are over, until it is closed.
             if in_session and cached:
-                reason = "every selected job is already done, or already running in a session"
+                reason = "every selected job is already done, or already in a session (running or over)"
             elif in_session:
-                reason = "every selected job is already running in a session"
+                reason = "every selected job is already in a session (running or over)"
             else:
                 reason = "every selected job is already done (-o/--overwrite runs them again)"
             printc.note("Nothing to run: " + reason, script_name or "")
@@ -317,7 +352,7 @@ def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, scri
     raise SystemExit(-1)
 
 
-def settle_tool_checks(tool_checks, tool_check_sink=None):
+def settle_tool_checks(tool_checks, tool_check_sink=None, needed=True):
     """
     Close the background eda tool checks started while the settings were read.
 
@@ -325,8 +360,15 @@ def settle_tool_checks(tool_checks, tool_check_sink=None):
     reports itself and exits. With a sink (the GUI), the still-running handles
     are handed over instead, so the caller can show the run plan right away and
     report the outcome its own way.
+
+    A run with nothing to run (needed=False) does not need the tool at all: its
+    checks are stopped rather than waited for, so "Nothing to run" comes right
+    away instead of after the tool has started up (several seconds for Vivado).
     """
     for tool_check in tool_checks:
+        if tool_check is not None and not needed:
+            tool_check.cancel()
+            continue
         if tool_check is None:
             continue
         if tool_check_sink is not None:
@@ -472,11 +514,23 @@ def start_parallel_jobs(
     is itself running inside the session it enqueues into leaves it alone (see
     enqueue_parallel_jobs).
 
+    Once the monitor is closed, the terminal keeps a line of what happened (see
+    say_monitor_exit), and the summary of the driver job of the run, if it has
+    one (see replay_summaries).
+
     The `use_api` and `start_headless_on_startup` arguments are kept for
     backward compatibility with older call sites.
     """
     _state, _response = enqueue_parallel_jobs(parallel_jobs, session=session, configure=configure)
     from odatix.lib import printc
+
+    # The jobs of this run in the session: a session named with "-S" may also
+    # run the jobs of other runs, which "-E" does not wait for.
+    job_ids = getattr(parallel_jobs, "session_job_ids", None)
+    if not isinstance(job_ids, list):
+        from odatix.lib.parallel_job_handler.daemon_control import session_job_ids
+
+        job_ids = session_job_ids(_response, len(getattr(parallel_jobs, "job_list", []) or []))
 
     if detach:
         # A run that reconfigures nothing is part of a session already (an
@@ -498,38 +552,137 @@ def start_parallel_jobs(
     session_ref = str(_state.get("session_id") or _state.get("session_name") or session or "") or None
     auto_exit = bool(getattr(parallel_jobs, "auto_exit", False))
     try:
-        attach_monitor(session=session_ref, auto_exit=auto_exit)
+        monitor_exit = attach_monitor(session=session_ref, auto_exit=auto_exit, job_ids=job_ids if auto_exit else None)
     except MonitorUnavailableError as e:
         # The jobs are already in the session: they run whatever the terminal.
-        printc.warning(str(e))
+        from odatix.lib.parallel_job_handler.daemon_control import follow_hint
+
+        printc.warning(getattr(e, "reason", str(e)), "run")
         if not auto_exit:
             printc.note(
-                "The jobs keep running in session \"{}\". Follow them with "
-                "\"odatix monitor -S {}\" from another terminal, or in odatix-gui.".format(session_ref, session_ref)
+                "The jobs keep running in session {}: {}".format(session_ref, follow_hint(session_ref)), "run",
             )
             return
         # "-E" asks for the run to be over when the command returns, monitor or
         # not: without one, the jobs are waited for here instead.
-        if wait_for_session(_state):
+        if wait_for_session(_state, job_ids=job_ids):
             parallel_jobs.followed_in_monitor = True
-            close_finished_session(_state)
+            replay_summaries(parallel_jobs, _state, job_ids)
+            close_finished_session(_state, job_ids=job_ids, analyses=_only_analyses(parallel_jobs))
         return
     except SessionGoneError as e:
-        printc.warning(str(e))
+        printc.warning(str(e), "run")
         return
     parallel_jobs.followed_in_monitor = True
-    if auto_exit:
-        close_finished_session(_state)
+    replay_summaries(parallel_jobs, _state, job_ids)
+    if auto_exit and getattr(monitor_exit, "reason", "auto") in ("auto", None):
+        close_finished_session(_state, job_ids=job_ids, analyses=_only_analyses(parallel_jobs))
+    else:
+        say_monitor_exit(monitor_exit)
 
 
-def wait_for_session(state, script_name="run", poll_interval=5.0):
+def _only_analyses(parallel_jobs):
+    """Whether every job of the run is an RTL analysis (see close_finished_session)."""
+    jobs = list(getattr(parallel_jobs, "job_list", []) or [])
+    kinds = set()
+    for job in jobs:
+        export = getattr(job, "post_run_export", None)
+        kinds.add(str(export.get("kind", "")).strip().lower() if isinstance(export, dict) else "")
+    return bool(jobs) and kinds == {"analysis"}
+
+
+def say_monitor_exit(monitor_exit, script_name="run"):
+    """
+    Leave a line in the terminal once the monitor is closed: the screen goes
+    back to what it was before the monitor, and nothing would tell which
+    session goes on, how to get back to it, or what became of the jobs.
+    """
+    from odatix.lib import printc
+    from odatix.lib.parallel_job_handler.daemon_monitor import exit_messages
+
+    for level, text in exit_messages(monitor_exit):
+        (printc.warning if level == "warning" else printc.note)(text, script_name)
+
+
+def replay_summaries(parallel_jobs, state, job_ids, script_name="run"):
+    """
+    Print again, once the monitor is closed, the summary a job of the run
+    wrote to its log: what was only on the monitor's screen is gone with it.
+
+    A job asks for it with a `summary_marker` attribute: its log is printed
+    from the last line containing that text to its end. It is read from the
+    session while it is alive, else from the job's console log, if it has one.
+    Nothing is printed for a job without a marker.
+    """
+    from odatix.lib import printc
+
+    jobs = list(getattr(parallel_jobs, "job_list", []) or [])
+    for index, job in enumerate(jobs):
+        marker = getattr(job, "summary_marker", None)
+        if not marker:
+            continue
+        job_id = job_ids[index] if isinstance(job_ids, list) and index < len(job_ids) else None
+        lines = _job_log_lines(state, job_id, job)
+        start = None
+        for position, line in enumerate(lines):
+            if marker in printc.strip_colors(line):
+                start = position
+        if start is None:
+            continue
+        print()
+        for line in lines[start:]:
+            print(line + printc.colors.ENDC)
+        sys.stdout.flush()
+
+
+def _job_log_lines(state, job_id, job):
+    """The log of a job of a session, from the session, else from its console log."""
+    if job_id is not None:
+        from odatix.lib.parallel_job_handler.daemon_control import _api_request
+
+        try:
+            snapshot = _api_request(
+                state, "GET",
+                "/status?logs_job_id={}&include_jobs=0&logs_offset=0&logs_limit=-1".format(int(job_id)),
+                timeout=5.0,
+            )
+            logs = snapshot.get("logs") if isinstance(snapshot, dict) else None
+            if isinstance(logs, dict) and isinstance(logs.get("lines"), list):
+                return [str(line) for line in logs["lines"]]
+        except Exception:
+            pass
+    path = getattr(job, "console_log", None)
+    if path and os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                return handle.read().splitlines()
+        except OSError:
+            pass
+    return []
+
+
+def _run_counts(session, job_ids):
+    """How the jobs of the run are doing (every job of the session when the ids are unknown)."""
+    from odatix.run.session import count_jobs
+
+    if job_ids is None:
+        return session.counts()
+    wanted = set(int(job_id) for job_id in job_ids)
+    return count_jobs([job for job in session.jobs() if job["id"] in wanted])
+
+
+def wait_for_session(state, script_name="run", poll_interval=5.0, job_ids=None):
     """
     What "-E" does when the terminal cannot show the job monitor (a run started
-    by a script, under nohup, in a CI job): wait for every job of the session
-    to be over, saying how they are going as it changes, so that the session
-    can then be closed as it is once the monitor closes by itself.
+    by a script, under nohup, in a CI job): wait for the jobs of the run to be
+    over, saying how they are going as it changes, so that the session can then
+    be closed as it is once the monitor closes by itself.
 
     Ctrl+C stops the waiting, not the jobs.
+
+    Args:
+        job_ids (list): the jobs of the run in the session. Every job of the
+            session when None.
 
     Returns:
         bool: whether every job is over. False when the waiting was stopped or
@@ -540,20 +693,24 @@ def wait_for_session(state, script_name="run", poll_interval=5.0):
 
     session = Session(state)
     printc.note(
-        "Waiting for the jobs of session {} to be over before closing it (-E). "
+        "Waiting for the jobs of this run in session {} to be over (-E). "
         "Ctrl+C stops waiting; the jobs keep running".format(session.id),
         script_name,
     )
     said = None
+    guard_said = False
     try:
         while True:
-            counts = session.counts()
+            counts = _run_counts(session, job_ids)
+            if not guard_said:
+                guard_said = _say_auto_paused(session, script_name)
             line = "{}/{} job(s) over: {} succeeded, {} failed, {} running, {} queued".format(
                 counts["done"] + counts["failed"], counts["total"],
                 counts["done"], counts["failed"], counts["running"], counts["queued"],
             )
             if line != said:
                 printc.say(line, script_name)
+                sys.stdout.flush()
                 said = line
             if counts["running"] == 0 and counts["queued"] == 0:
                 return True
@@ -569,18 +726,58 @@ def wait_for_session(state, script_name="run", poll_interval=5.0):
     return False
 
 
-def close_finished_session(state, script_name="run"):
+def _say_auto_paused(session, script_name):
     """
-    What "-E" does once the monitor closed by itself: every job is over, so the
-    session is closed too -- what the popup of the monitor does by default --
-    and what became of the jobs is printed, since the monitor is gone.
-
-    The monitor also closes when it is left on purpose ("d"): jobs still
-    running then keep their session, which is said with how to get back to it.
+    Say it when auto-pause holds jobs: nothing else on a terminal without the
+    monitor tells why a run takes longer than it should.
 
     Returns:
-        dict: how many jobs ended how (see odatix.run.session.count_jobs), or
-        None when the session could not be asked.
+        bool: whether it was said.
+    """
+    from odatix.lib import printc
+
+    try:
+        paused = int((session.status().get("resource_guard") or {}).get("auto_paused") or 0)
+    except Exception:
+        return False
+    if paused <= 0:
+        return False
+    printc.note(
+        "{} job(s) paused by auto-pause: the machine is overloaded. They resume once the load goes down; "
+        "\"odatix monitor -S {}\" then \"a\" turns auto-pause off (or \"resource_guard: No\" in odatix.yml)".format(
+            paused, session.name,
+        ),
+        script_name,
+    )
+    return True
+
+
+#: How long (s) "-E" waits for the last exports of its jobs to be written, once
+#: the monitor has closed, before it says they are still going.
+EXPORT_SETTLE_TIMEOUT = 30.0
+
+
+def close_finished_session(state, script_name="run", job_ids=None, settle_timeout=EXPORT_SETTLE_TIMEOUT, analyses=False):
+    """
+    What "-E" does once the monitor closed by itself: the jobs of the run are
+    over, so the session is closed too -- what the popup of the monitor does by
+    default -- and what became of them is printed, since the monitor is gone.
+
+    A session that also runs the jobs of other runs ("-S") is left open, and
+    the command says how to follow it.
+
+    Args:
+        job_ids (list): the jobs of the run in the session. Every job of the
+            session when None.
+        analyses (bool): the jobs are RTL analyses. What they found is in
+            the report the command prints next, and a job that "failed" may
+            only have found an error in the design: no success count here,
+            it would say something else than the report.
+
+    Returns:
+        dict: how many jobs of the run ended how (see
+        odatix.run.session.count_jobs), or None when the session could not
+        be asked.
     """
     from odatix.lib import printc
     from odatix.run.session import Session, SessionError
@@ -589,7 +786,13 @@ def close_finished_session(state, script_name="run"):
     if not session.is_alive():
         return None  # closed from the monitor already ("q", or killing every job)
     try:
-        counts = session.counts()
+        counts = _run_counts(session, job_ids)
+        # A job still writing its results is not over: give it the time to.
+        deadline = time.time() + float(settle_timeout)
+        while (counts["running"] or counts["queued"]) and time.time() < deadline:
+            time.sleep(0.5)
+            counts = _run_counts(session, job_ids)
+        everything = counts if job_ids is None else session.counts()
     except SessionError as error:
         printc.warning(str(error), script_name)
         return None
@@ -598,6 +801,8 @@ def close_finished_session(state, script_name="run"):
     summary = "{}/{} job(s) succeeded".format(counts["done"], total)
     if counts["failed"]:
         summary += ", {} failed".format(counts["failed"])
+    if analyses:
+        summary = "{}/{} analysis job(s) over".format(counts["done"] + counts["failed"], total)
     if counts["running"] or counts["queued"]:
         printc.note(
             summary + "; {} still running or queued in session {}: follow them with "
@@ -606,11 +811,22 @@ def close_finished_session(state, script_name="run"):
         )
         return counts
 
-    closed = session.stop()
-    if counts["failed"]:
+    if counts["failed"] and not analyses:
         printc.warning(summary, script_name)
     else:
-        printc.note(summary, script_name)
+        printc.note(summary + (": the report below says what they found" if analyses else ""), script_name)
+
+    others = everything["running"] + everything["queued"]
+    if others:
+        # Other runs share the session: it stays for them.
+        printc.note(
+            "Session {} kept open: {} job(s) of other runs are still running or queued in it; "
+            "follow them with \"odatix monitor -S {}\"".format(session.id, others, session.name),
+            script_name,
+        )
+        return counts
+
+    closed = session.stop()
     if closed:
         printc.note("Session {} closed".format(session.id), script_name)
     else:

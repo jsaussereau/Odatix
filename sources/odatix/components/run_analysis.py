@@ -21,6 +21,7 @@
 
 import os
 import sys
+import time
 import yaml
 import argparse
 
@@ -31,10 +32,11 @@ from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
 from odatix.lib.run_report import JobPlan, Category
+import odatix.lib.run_report as run_report
 from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import ask_to_continue, get_timestamp_string, resolve_nb_jobs
 from odatix.lib.get_from_dict import get_from_dict
-from odatix.lib.check_tool import start_tool_check
+from odatix.lib.check_tool import start_tool_check, ToolCheck
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
@@ -321,7 +323,7 @@ def prepare_analysis(
   if architectures is None:
     printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
     printc.note('You must define your architectures in "' + run_config_settings_filename + '" before using this command.', script_name)
-    printc.note("Check out examples Odatix's documentation for more information.", script_name)
+    printc.note("See the Odatix documentation for more information.", script_name)
     sys.exit(-1)
 
   if overwrite:
@@ -425,6 +427,66 @@ def prepare_analysis(
     "nb_jobs": nb_jobs,
     "valid_arch_count": valid_arch_count,
   }
+
+
+def leave_out_unlaunchable_tools(tool_checks, prepared_tools):
+  """
+  Wait for the eda tool checks, and leave out of the run the tools that cannot
+  be launched, as long as the run has something else to do: an analysis by
+  several tools is worth running with those that are there. A tool with nothing
+  left to run (its analyses are done) is not needed at all.
+
+  The checks that are left to fail are those of a run no tool can do: they stop
+  it, as for any other job type, when the caller waits for them.
+  """
+  checks = {check.tool: check for check in tool_checks if check is not None}
+  if not checks:
+    return
+
+  # Announce the checks only when they keep the user waiting.
+  deadline = time.time() + ToolCheck.QUIET_DELAY
+  announced = False
+  while any(check.running() for check in checks.values()):
+    if not announced and time.time() >= deadline:
+      print('checking the selected eda tools "' + '", "'.join(checks) + '" ..', end="", flush=True)
+      announced = True
+    elif announced:
+      print(".", end="", flush=True)
+    time.sleep(0.2 if not announced else 0.5)
+  if announced:
+    print()
+
+  failed = [current_tool for current_tool, check in checks.items() if not check.result()[0]]
+  if not failed:
+    return
+  contexts = dict(prepared_tools)
+
+  def entries_to_run(context):
+    return [entry for entry in context["arch_handler"].plan.entries if run_report.runs(entry["category"])]
+
+  can_run = [
+    current_tool for current_tool, context in prepared_tools
+    if current_tool not in failed and entries_to_run(context)
+  ]
+  for current_tool in failed:
+    context = contexts[current_tool]
+    to_run = entries_to_run(context)
+    if to_run and not can_run:
+      continue
+    checks[current_tool].done = True
+    if not to_run:
+      printc.note('Could not launch eda tool "' + current_tool + '", which has nothing to run', script_name)
+      continue
+    printc.error(checks[current_tool].failure_message(), script_name)
+    printc.note(
+      'Its analyses are skipped, the other tools run. Install it, or leave it out '
+      '("-t", or the "tools" list of the analysis settings file)',
+      script_name,
+    )
+    for entry in to_run:
+      entry["category"] = Category.ERROR
+    context["architecture_instances"] = []
+    context["valid_arch_count"] = 0
 
 
 def merged_analysis_plan(prepared_tools, multi_tool):
@@ -536,25 +598,28 @@ def check_settings(
     prepared_tools.append((current_tool, context))
     _check_cancel(cancel_event)
 
+  # In a terminal, a tool that cannot be launched only stops the run when no
+  # other tool can do it (the GUI reports the checks its own way).
+  # Nothing to run at all: no tool is needed, their checks are not waited for.
+  anything_to_run = sum(context["valid_arch_count"] for _, context in prepared_tools) > 0
+  if tool_check_sink is None and anything_to_run:
+    leave_out_unlaunchable_tools(tool_checks, prepared_tools)
+
   # One single global checklist for all tools, with the eda tool shown like a
   # target: merge every tool plan into one, suffixing the job names.
   plan = merged_analysis_plan(prepared_tools, multi_tool)
   plan.print_summary(noun="architectures")
 
-  settle_tool_checks(tool_checks, tool_check_sink)
+  settle_tool_checks(tool_checks, tool_check_sink, needed=anything_to_run)
 
   _check_cancel(cancel_event)
 
   # Single confirmation for all tools
   total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
   ask_continue = any(context["ask_continue"] for _, context in prepared_tools)
-  # The report of an analysis that is not run again is the one it already has.
-  if total_valid and plan.counts().get(Category.CACHED, 0):
-    printc.note(
-      'Analyses already done are not run again (-o/--overwrite runs them again): "odatix results analysis" reports them',
-      script_name,
-    )
-  elif plan.counts().get(Category.CACHED, 0):
+  # The report of an analysis that is not run again is the one it already has
+  # (the checklist above already says "-o" runs it again).
+  if plan.counts().get(Category.CACHED, 0):
     printc.note('"odatix results analysis" reports the analyses already done', script_name)
   confirm_valid_jobs(total_valid, ask_continue, ask_to_continue, script_name=script_name, plan=plan)
 
@@ -690,15 +755,7 @@ def main(args):
     printc.note("Run \"odatix results analysis\" once the jobs are done to get their report", script_name)
     return
 
-  job_dirs = {os.path.realpath(instance.tmp_dir) for _build_job, instance in run.jobs}
-  jobs = {
-    job_dir: tool_flow
-    for job_dir, tool_flow in analysis_report.job_directories(run.work_path).items()
-    if os.path.realpath(job_dir) in job_dirs
-  }
-  analysis_report.print_report(analysis_report.collect_results(
-    jobs, expected=analysis.read_expectations(read_run_expectations(run.settings_file))
-  ))
+  analysis_report.print_report(analysis_report.run_results(run))
 
 
 if __name__ == "__main__":

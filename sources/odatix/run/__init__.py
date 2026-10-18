@@ -60,6 +60,7 @@ from odatix.run.planner import JobPlanner
 from odatix.run.reporter import CollectingReporter, Reporter, TerminalReporter
 from odatix.run.run import Run, run_job
 from odatix.run.session import Session, SessionError, sessions
+from odatix.run.export import ExportReport, export_results
 
 __all__ = [
     "Run",
@@ -72,7 +73,8 @@ __all__ = [
     "Session",
     "sessions",
     "SessionError",
-    "JobPlanner",
+    "export_results",
+    "ExportReport",
     "Reporter",
     "TerminalReporter",
     "CollectingReporter",

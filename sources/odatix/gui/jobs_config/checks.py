@@ -30,12 +30,17 @@ and its outcome published through prepare_state.
 """
 
 import contextlib
+from urllib.parse import quote
 
+import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
+from odatix.lib.parallel_job_handler import daemon_control
 
 from odatix.gui.jobs_config import prepare_state
+from odatix.gui.jobs_config.common import _normalize_session_selector
 from odatix.gui.jobs_config.prepare_state import _collect_tool_check
 from odatix.run import Run, RunCancelled, RunError
+from odatix.run.errors import NothingToRun
 
 
 @contextlib.contextmanager
@@ -79,14 +84,20 @@ def start_check(mode, workspace, **options):
         prepare_state._prepare_status = {"status": "checked", "error": None}
     except RunCancelled:
         prepare_state._prepare_status = {"status": "canceled", "error": None}
+    except NothingToRun as error:
+        # Every job is already done or running: not a failure, an answer.
+        prepare_state._prepare_status = {"status": "nothing", "error": str(error)}
     except Exception as error:
         prepare_state._prepare_status = {"status": "error", "error": str(error)}
 
 
 def start_prepare():
     """
-    Write the work directory of every job of the run that was checked. Nothing
-    is started: enqueueing is what the Start button does.
+    Write the work directory of every job of the run that was checked, then
+    hand the jobs over to a session (what the Start button asks for).
+
+    Done in this thread, not in the callback polling the popup: starting a new
+    session takes seconds, which held that callback (and the popup) still.
     """
     run = prepare_state._prepare_run
     try:
@@ -95,6 +106,7 @@ def start_prepare():
         with _collected():
             prepare_state._prepare_parallel_jobs = run.prepare()
         prepare_state._prepare_status = {"status": "prepared", "error": None}
+        _enqueue_prepared_jobs()
     except RunCancelled:
         prepare_state._prepare_status = {"status": "canceled", "error": None}
     except RunError as error:
@@ -104,3 +116,53 @@ def start_prepare():
         prepare_state._prepare_status = {"status": "error", "error": str(error)}
     except Exception as error:
         prepare_state._prepare_status = {"status": "error", "error": str(error)}
+
+
+def _monitor_href(state):
+    """Where the monitor of the session the jobs went to is."""
+    session_id = str(state.get("session_id", "")).strip()
+    session_name = str(state.get("session_name", "")).strip()
+    if session_id:
+        href = "/monitor?session=" + quote(session_id, safe="")
+    elif session_name:
+        href = "/monitor?session=" + quote(session_name, safe="")
+    else:
+        host = str(state.get("host", hard_settings.daemon_default_host))
+        port = int(state.get("port", hard_settings.daemon_default_port))
+        href = "/monitor?host={0}&port={1}".format(quote(host, safe=""), port)
+    # Where the monitor sends the results of these jobs once they are done:
+    # an analysis has its own Explorer page.
+    if prepare_state._prepare_synth_type == "analyze":
+        href += "&explorer=analysis"
+    return href
+
+
+def _enqueue_prepared_jobs():
+    """
+    Hand the prepared jobs over to the session picked on the page (a new one
+    by default), and publish where its monitor is.
+    """
+    if prepare_state._prepare_parallel_jobs is None:
+        return
+    with prepare_state._prepare_enqueue_lock:
+        if prepare_state._prepare_enqueued or prepare_state._prepare_monitor_href is not None:
+            return
+        prepare_state._prepare_enqueued = True
+    settings = prepare_state._prepare_runtime_settings
+    session = _normalize_session_selector(settings.get("session")) if isinstance(settings, dict) else None
+    try:
+        state, _response = daemon_control.enqueue_parallel_jobs(
+            prepare_state._prepare_parallel_jobs,
+            session=session,
+        )
+    except Exception as exc:
+        with prepare_state._prepare_enqueue_lock:
+            prepare_state._prepare_enqueued = False
+        prepare_state._prepare_messages.add("error", "Failed to enqueue jobs in session: {0}".format(exc))
+        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
+        return
+    prepare_state._prepare_monitor_href = _monitor_href(state or {})
+    # The jobs are built and in a session: the settings they were built from
+    # are no longer read.
+    prepare_state._remove_temp_settings_file()
+    prepare_state._prepare_status = {"status": "launched", "error": None}

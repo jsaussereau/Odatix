@@ -46,14 +46,22 @@ import copy
 from ruamel.yaml.comments import CommentedMap
 
 from odatix.workspace.yaml_io import (
+    ABSENT,
+    dump_document,
+    edit_list_text,
     flow_seq,
+    insert_key,
+    load_document,
+    merge,
     new_document,
     parse_bool,
     parse_int,
     parse_int_list,
-    read_document,
+    read_text,
     read_yaml,
-    write_document,
+    remove_key,
+    same_value,
+    write_text,
     yes_no,
 )
 
@@ -94,6 +102,11 @@ class Setting(object):
             instance). It is never written, but it is part of the settings.
         skip_if_empty (bool): do not write the key at all when its value is
             empty.
+        comment_out (bool): for a list of names, written one per line: an
+            entry taken out of the list is commented out where it is rather
+            than deleted, and a commented-out entry put back is uncommented
+            where it is. This is how a run settings file keeps the catalogue of
+            commented-out entries its author keeps at hand.
         doc (str): what the setting means, for the API documentation and the
             command line help.
     """
@@ -102,7 +115,7 @@ class Setting(object):
 
     def __init__(self, default=None, type="any", key=None, section=None, comment=None,
                  style=None, when=None, skip_if_empty=False, doc=None, factory=None,
-                 alt_key=None, alt_comment=None, stored=True):
+                 alt_key=None, alt_comment=None, stored=True, comment_out=False):
         Setting._order += 1
         self.order = Setting._order
         self.name = None
@@ -119,6 +132,7 @@ class Setting(object):
         self.alt_key = alt_key
         self.alt_comment = alt_comment
         self.stored = stored
+        self.comment_out = comment_out
 
     ######################################
     # Values
@@ -167,6 +181,10 @@ class Setting(object):
             return [value]
         if self.type == "dict":
             return dict(value) if isinstance(value, dict) else {}
+        if value is None and self.factory in (list, dict):
+            # An empty key ("campaigns:") holds the empty list or mapping the
+            # setting stands for, not something else to compare it with.
+            return self.factory()
         return value
 
     def dump(self, value):
@@ -241,10 +259,17 @@ class Settings(_SettingsBase):
     does not declare is set as a mapping key, and kept in ``extra``.
     """
 
-    #: True for settings whose file is expected to spell every key out, even the
-    #: ones left at their default (the run settings files, which Odatix reads
-    #: key by key and refuses when one is missing).
+    #: Former way of saying that a file spells every key out. A file Odatix
+    #: generates always does; a file it updates only gets the keys of
+    #: :attr:`required_keys` added to it, never a default nobody asked for.
     write_all_settings = False
+
+    #: Keys written to a file that does not hold them, even at their default:
+    #: the ones a reader of the file refuses to do without (a run settings
+    #: file has to say whether to overwrite, ask and how many jobs to run).
+    #: Any other key left at its default is not added to a file that never
+    #: mentioned it.
+    required_keys = ()
 
     #: Keys a file may still hold, that are read but never written again. They
     #: are dropped from a file the next time it is saved, so that a settings
@@ -294,7 +319,14 @@ class Settings(_SettingsBase):
     def __setattr__(self, name, value):
         spec = self._specs.get(name)
         if spec is not None:
+            current = self.__dict__.get(name)
             value = spec.coerce(value)
+            if isinstance(value, Settings) and isinstance(current, Settings) and value is not current:
+                # A block replaced by another one (a mapping handed to
+                # update(), say) is still compared with what the file holds,
+                # not with itself: otherwise nothing of it would look changed,
+                # and saving would write none of it.
+                _take_reference(value, current)
         elif not name.startswith("_") and name not in self.__dict__ and not hasattr(type(self), name):
             # A misspelled setting would otherwise be kept on the object, and
             # never written nor read by anything.
@@ -388,16 +420,21 @@ class Settings(_SettingsBase):
             known_keys.add(spec.key)
             if spec.alt_key:
                 known_keys.add(spec.alt_key)
+            # Set as read: the blocks built from the file are compared with what
+            # they were built from (see __setattr__).
             if spec.key in data:
-                setattr(settings, name, data[spec.key])
+                object.__setattr__(settings, name, spec.coerce(data[spec.key]))
                 settings._set_condition(spec, True)
             elif spec.alt_key and spec.alt_key in data:
                 # The value is in the file under the key that says it is off.
-                setattr(settings, name, data[spec.alt_key])
+                object.__setattr__(settings, name, spec.coerce(data[spec.alt_key]))
                 settings._set_condition(spec, False)
-        extra = dict((key, value) for key, value in data.items() if key not in known_keys)
+        extra = dict((key, copy.deepcopy(value)) for key, value in data.items() if key not in known_keys)
         object.__setattr__(settings, "extra", extra)
-        object.__setattr__(settings, "_file_data", dict(data))
+        # A copy, not the values handed out: a list changed in place
+        # (settings.exclusions.append) must still differ from what the file
+        # holds when it is saved.
+        object.__setattr__(settings, "_file_data", copy.deepcopy(dict(data)))
         return settings
 
     def to_dict(self, include_extra=True, skip_disabled=False):
@@ -421,7 +458,7 @@ class Settings(_SettingsBase):
 
     def copy(self):
         clone = self.__class__.from_dict(self.to_dict())
-        object.__setattr__(clone, "_file_data", dict(self._file_data))
+        _take_reference(clone, self)
         return clone
 
     def file_keys(self):
@@ -430,7 +467,7 @@ class Settings(_SettingsBase):
 
     def _mark_saved(self):
         """Take what is now in memory as the reference of what the file holds."""
-        object.__setattr__(self, "_file_data", self.to_dict())
+        object.__setattr__(self, "_file_data", copy.deepcopy(self.to_dict()))
         for name in self._spec_order:
             value = getattr(self, name)
             # A key holding several blocks (a "configurations" declaring several
@@ -494,6 +531,19 @@ class Settings(_SettingsBase):
         return "{0}({1})".format(self.__class__.__name__, inner)
 
 
+def _take_reference(settings, other):
+    """
+    Make `settings` compare with what `other` was read from, nested blocks
+    included: it now stands for the same part of the same file.
+    """
+    object.__setattr__(settings, "_file_data", copy.deepcopy(other._file_data))
+    for name in settings._spec_order:
+        mine = settings.__dict__.get(name)
+        theirs = other.__dict__.get(name)
+        if isinstance(mine, Settings) and isinstance(theirs, Settings) and mine is not theirs:
+            _take_reference(mine, theirs)
+
+
 def _plain(value, include_extra=True, skip_disabled=False):
     """
     A value as a plain mapping/list, whatever nesting it holds.
@@ -525,6 +575,15 @@ def _as_comment(text):
     return str(text).replace("\n", "\n#")
 
 
+def _section_comment(section):
+    """
+    The text of a section title, as ruamel writes it after "# ". Titles are
+    declared with the space that follows the "#" of a hand-written file, which
+    ruamel would otherwise double.
+    """
+    return "\n".join(line[1:] if line.startswith(" ") else line for line in str(section).split("\n"))
+
+
 def render(settings, header=None):
     """
     Build a complete YAML document from a settings object, with the section
@@ -548,7 +607,7 @@ def render(settings, header=None):
         section = spec.section or pending_section
         pending_section = None
         if section:
-            data.yaml_set_comment_before_after_key(key, before="\n" + section)
+            data.yaml_set_comment_before_after_key(key, before="\n" + _section_comment(section))
         comment = spec.comment if holds else spec.alt_comment
         if comment:
             data.yaml_add_eol_comment(_as_comment(comment), key=key)
@@ -576,15 +635,84 @@ def _separate_from_what_follows(data, position):
     data.yaml_set_comment_before_after_key(following, before="\n")
 
 
-def apply(settings, data):
+def _required(settings, spec):
+    """Whether a file has to say this setting, even at its default (see required_keys)."""
+    return spec.key in settings.required_keys or spec.key == getattr(settings, "selection_key", None)
+
+
+def _written_keys(spec):
+    return [key for key in (spec.key, spec.alt_key) if key]
+
+
+def _neighbour(settings, data, spec):
+    """
+    Where a key the file does not hold yet goes: after the closest key declared
+    before it that the file holds (its section), else before the closest one
+    declared after it. ``(after, before)``, None for what is not found.
+    """
+    specs = [other for other in settings.specs() if other.stored]
+    position = specs.index(spec)
+    after = None
+    for other in reversed(specs[:position]):
+        for key in _written_keys(other):
+            if key in data:
+                after = key
+                break
+        if after is not None:
+            break
+    before = None
+    if after is None:
+        for other in specs[position + 1:]:
+            for key in _written_keys(other):
+                if key in data:
+                    before = key
+                    break
+            if before is not None:
+                break
+    return after, before
+
+
+def _add_key(settings, data, spec, key, value):
+    """
+    Write a key the file does not hold yet, where it belongs and the way a
+    generated file introduces it: next to the keys of its section, after a
+    blank line and its section title when it opens one.
+    """
+    after, before = _neighbour(settings, data, spec)
+    if after is not None:
+        insert_key(data, key, value, after=after)
+    elif before is not None:
+        insert_key(data, key, value, before=before)
+    else:
+        data[key] = value
+    if not isinstance(data, CommentedMap):
+        return
+    keys = list(data.keys())
+    position = keys.index(key)
+    if spec.section and position > 0:
+        data.yaml_set_comment_before_after_key(key, before="\n" + _section_comment(spec.section))
+        if position + 1 < len(keys):
+            _separate_from_what_follows(data, position + 1)
+    comment = spec.comment if key == spec.key else spec.alt_comment
+    if comment and not isinstance(value, (dict, list)):
+        data.yaml_add_eol_comment(_as_comment(comment), key=key)
+
+
+def apply(settings, data, fresh=False, rewritten=()):
     """
     Write a settings object into an existing document, leaving its comments,
     its key order and everything it holds that the settings class does not
     declare untouched.
 
     Only what actually changed is written: a setting nobody touched keeps the
-    exact text it had in the file, and a setting left at its default is not
-    added to a file that never mentioned it.
+    exact text it had in the file, a changed one changes only the values that
+    differ (see :func:`odatix.workspace.yaml_io.merge`), and a setting left at
+    its default is not added to a file that never mentioned it.
+
+    Args:
+        fresh (bool): `data` is not what these settings were read from but a
+            document to fill (a template): every setting is written into it.
+        rewritten (tuple): keys `data` was already edited to hold, as text.
     """
     if data is None:
         data = CommentedMap()
@@ -614,47 +742,74 @@ def apply(settings, data):
             continue
         holds = settings._condition_holds(spec)
         key = spec.key if holds else spec.alt_key
-        if key != spec.key:
-            data.pop(spec.key, None)
-        if spec.alt_key and key != spec.alt_key:
-            data.pop(spec.alt_key, None)
+        if key != spec.key and spec.key in data:
+            remove_key(data, spec.key)
+        if spec.alt_key and key != spec.alt_key and spec.alt_key in data:
+            remove_key(data, spec.alt_key)
         if key is None:
             continue
         value = getattr(settings, spec.name)
+        unchanged = not fresh and key == spec.key and settings._unchanged(spec, value)
         if spec.skip_if_empty and spec.is_empty(value):
-            data.pop(key, None)
+            # An empty key the file holds on purpose ("expected:", under a
+            # comment saying what to put there) stays; one emptied goes.
+            if key in data and not unchanged:
+                remove_key(data, key)
             continue
-        unchanged = key == spec.key and settings._unchanged(spec, value)
         if unchanged and key in data:
             continue
-        if (not settings.write_all_settings and holds
-                and key not in data and not unchanged and value == spec.make_default()):
+        if (fresh and key not in data and not _required(settings, spec)
+                and same_value(spec.dump(value), spec.dump(spec.make_default()))):
+            # The template shows what a new file shows: a default it leaves out
+            # stays out, rather than being appended after its last key, away
+            # from any comment (DS-09).
+            continue
+        if (not fresh and holds and key not in data and not unchanged
+                and not _required(settings, spec) and value == spec.make_default()):
             # A default the file never mentioned: saying it explicitly would add
             # noise, and would freeze a value the user may want Odatix to own.
             continue
         if isinstance(value, Settings) and isinstance(data.get(key), CommentedMap):
-            apply(value, data[key])
+            apply(value, data[key], fresh=fresh)
         elif replaced_at is not None and key == settings.replacement_key and key not in data:
             # The blank line that set the dropped key apart is already there:
             # the title goes straight on top of it, not after another one.
             data.insert(replaced_at, key, spec.dump(value))
             if spec.section:
-                data.yaml_set_comment_before_after_key(key, before=spec.section)
+                data.yaml_set_comment_before_after_key(key, before=_section_comment(spec.section))
             _separate_from_what_follows(data, replaced_at + 1)
+        elif key in data:
+            # Only what differs from what the file was read as is changed, in
+            # the style the file writes it.
+            base = ABSENT
+            if not fresh and key == spec.key and key in settings._file_data and key not in rewritten:
+                try:
+                    base = spec.dump(spec.coerce(copy.deepcopy(settings._file_data[key])))
+                except Exception:
+                    base = ABSENT
+            merged = merge(data[key], spec.dump(value), base)
+            if merged is not data[key]:
+                data[key] = merged
         else:
-            data[key] = spec.dump(value)
+            _add_key(settings, data, spec, key, spec.dump(value))
     declared_keys = set()
     for spec in settings.specs():
         declared_keys.add(spec.key)
         if spec.alt_key:
             declared_keys.add(spec.alt_key)
     for key in settings._file_data:
-        if key not in settings.extra and key not in declared_keys:
-            data.pop(key, None)
+        if key not in settings.extra and key not in declared_keys and key in data:
+            remove_key(data, key)
+    previous = None
     for key, value in settings.extra.items():
-        if key in data and settings._file_data.get(key) == value:
-            continue  # untouched: leave the file's own version, as it was written
-        data[key] = value
+        if key in data:
+            if not same_value(settings._file_data.get(key, ABSENT), value) or fresh:
+                merged = merge(data[key], value)
+                if merged is not data[key]:
+                    data[key] = merged
+        else:
+            insert_key(data, key, copy.deepcopy(value), after=previous if previous is not None else ABSENT)
+        previous = key
     return data
 
 
@@ -666,13 +821,47 @@ def load_settings(settings_class, path):
     return settings_class.from_dict(read_yaml(path, default={}))
 
 
-def save_settings(settings, path, header=None, regenerate=False):
+def _edit_lists(settings, text):
+    """
+    The text of a file with the lists of names its settings comment out
+    (``comment_out``) edited the way a person would: see
+    :func:`odatix.workspace.yaml_io.edit_list_text`. Returns the text and the
+    keys it edited.
+    """
+    edited = []
+    for spec in settings.specs():
+        if not spec.comment_out or not spec.stored or not settings._condition_holds(spec):
+            continue
+        value = getattr(settings, spec.name)
+        if not isinstance(value, (list, tuple)) or any(isinstance(item, (dict, list)) for item in value):
+            continue
+        if settings._unchanged(spec, value):
+            continue
+        result = edit_list_text(text, spec.key, [str(item) for item in value])
+        if result is None:
+            continue
+        written = load_document(result).get(spec.key)
+        if isinstance(written, list) and [str(item) for item in written] == [str(item) for item in value]:
+            text = result
+            edited.append(spec.key)
+        elif isinstance(written, list) and sorted(map(str, written)) == sorted(str(item) for item in value):
+            # The same entries, in the order the file lists them: the order a
+            # run takes them in does not matter, the file's layout does.
+            text = result
+            edited.append(spec.key)
+    return text, edited
+
+
+def save_settings(settings, path, header=None, regenerate=False, template=None):
     """
     Write a settings object to `path`.
 
     An existing file is updated in place, so the comments and the extra keys the
-    user put there survive. A file that does not exist yet (or `regenerate`) is
-    generated from scratch, with its header and section comments.
+    user put there survive, and only what changed is written (see
+    :func:`apply`). A file that does not exist yet (or `regenerate`) is
+    generated from scratch, with its header and section comments -- or, when
+    a `template` file is given, written over a copy of it, its comments and
+    layout included.
     """
     import os
 
@@ -682,10 +871,16 @@ def save_settings(settings, path, header=None, regenerate=False):
     if callable(normalize):
         normalize()
 
-    if regenerate or not os.path.isfile(path):
-        document = render(settings, header=header)
+    if not regenerate and os.path.isfile(path):
+        previous = read_text(path)
+        text, edited = _edit_lists(settings, previous)
+        document = apply(settings, load_document(text), rewritten=tuple(edited))
+        write_text(path, dump_document(document, text))
+    elif not regenerate and template and os.path.isfile(template):
+        text = read_text(template)
+        document = apply(settings, load_document(text), fresh=True)
+        write_text(path, dump_document(document, text))
     else:
-        document = apply(settings, read_document(path))
-    write_document(path, document)
+        write_text(path, dump_document(render(settings, header=header)))
     settings._mark_saved()
     return path

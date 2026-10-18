@@ -104,3 +104,19 @@ def get_template(plot_theme):
     return None
   _ensure_templates()
   return _PLOT_THEMES[plot_theme]
+
+
+# Plotly templates as plain dicts, by name: converting a template is costly
+# and the figures are built without validation (see builder.make_figure), so
+# they need the template spelled out rather than its name.
+_template_dicts = {}
+
+
+def template_dict(name):
+  """The plotly.js form of a Plotly template, {"data": ..., "layout": ...}."""
+  if name not in _template_dicts:
+    import plotly.io as pio
+
+    _ensure_templates()
+    _template_dicts[name] = pio.templates[name].to_plotly_json()
+  return _template_dicts[name]

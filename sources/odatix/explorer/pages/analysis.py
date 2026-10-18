@@ -35,6 +35,10 @@ terminal report of "odatix analyze":
     -- those that are normal -- apart, folded.
 """
 
+import os
+import re
+import time
+
 import dash
 from dash import html, dcc, Input, Output, State, ALL
 
@@ -42,6 +46,7 @@ from odatix.explorer.core.store import STORE
 import odatix.explorer.ui.components as components
 import odatix.lib.analysis as analysis
 from odatix.gui.page_scope import anchor, page_callback
+import odatix.gui.ui_components as ui
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -81,6 +86,27 @@ def _analysis_results():
     if str(meta.get("type", "")).lower() == analysis.TYPE_ANALYSIS:
       results.append(analysis.AnalysisResult.from_record(record))
   return results
+
+
+def _status_text(results):
+  """
+  What the page reads: the analysis results and their tools, not every result
+  file of the directory (a synthesis is no analysis).
+  """
+  sources = [source for source in STORE.sources() if source.name.startswith("analysis_")]
+  if not sources:
+    return components.status_text(STORE) if not STORE.sources() else "No analysis result yet"
+  tools = _tool_names(results)
+  parts = [
+    "{0} result{1}".format(len(results), "" if len(results) == 1 else "s"),
+    "{0} tool{1}".format(len(tools), "" if len(tools) == 1 else "s"),
+  ]
+  if STORE.last_load_time:
+    parts.append("loaded " + time.strftime("%H:%M:%S", time.localtime(STORE.last_load_time)))
+  errors = [source.name for source in sources if source.error]
+  if errors:
+    parts.append("⚠ " + ", ".join(errors))
+  return " · ".join(parts)
 
 
 def _categories():
@@ -267,7 +293,11 @@ def _category_table(results, active_category):
   )
 
 
-def _finding_item(finding, categories):
+def _finding_item(finding, categories, owner=None):
+  """
+  One finding. Given its owner ({"tool", "design"}), it can be marked as
+  expected: the GUI only, which knows the workspace to write to.
+  """
   category = categories.get(finding.category)
   label = category.label if category else finding.category
   head = [
@@ -283,6 +313,23 @@ def _finding_item(finding, categories):
     where.append(html.Span(finding.code, className="xpa-finding-code"))
   if finding.reason:
     where.append(html.Span(finding.reason, className="xpa-finding-reason"))
+  if owner is not None and not finding.expected:
+    head.append(html.Button(
+      "Mark as expected",
+      id={
+        "type": "xpa-expect",
+        "tool": owner.get("tool") or "",
+        "design": owner.get("design") or "",
+        "category": finding.category or "",
+        "severity": finding.severity or "",
+        "code": finding.code or "",
+        "subject": finding.subject or "",
+        "message": finding.message or "",
+      },
+      n_clicks=0,
+      className="xp-mini-button xpa-expect-button",
+      title="This finding is normal for this design: report it apart, without counting it",
+    ))
   children = [html.Div(head, className="xpa-finding-head")]
   if where:
     children.append(html.Div(where, className="xpa-finding-where"))
@@ -291,18 +338,19 @@ def _finding_item(finding, categories):
   return html.Li(children, className="xpa-finding xpa-finding-" + finding.severity)
 
 
-def _findings_block(title, findings, categories, modifier):
+def _findings_block(title, findings, categories, modifier, owner=None):
   return html.Div(
     [
       html.Div(title + " (" + str(len(findings)) + ")", className="xpa-detail-title"),
-      html.Ul([_finding_item(finding, categories) for finding in findings], className="xpa-detail-list"),
+      html.Ul([_finding_item(finding, categories, owner) for finding in findings], className="xpa-detail-list"),
     ],
     className="xpa-detail-block xpa-detail-" + modifier,
   )
 
 
-def _record_row(result, categories):
+def _record_row(result, categories, editable=False):
   modifier, glyph = STATUS_META[result.status]
+  owner = {"tool": result.tool, "design": result.name} if editable else None
 
   chips = []
   for severity, css in (("error", "error"), ("critical", "critical"), ("warning", "warning")):
@@ -334,7 +382,7 @@ def _record_row(result, categories):
   for severity in analysis.SEVERITIES:
     findings = [finding for finding in attention if finding.severity == severity]
     if findings:
-      body.append(_findings_block(SEVERITY_LABELS[severity][0], findings, categories, SEVERITY_LABELS[severity][1]))
+      body.append(_findings_block(SEVERITY_LABELS[severity][0], findings, categories, SEVERITY_LABELS[severity][1], owner))
   if result.omitted:
     body.append(html.Div(
       f"{result.omitted} more finding(s) not kept: see the log.", className="xpa-detail-note",
@@ -373,7 +421,7 @@ def _filtered(results, active_status, active_category, search):
   return results
 
 
-def _list_children(all_results, results):
+def _list_children(all_results, results, editable=False):
   if not all_results:
     return html.Div(
       [
@@ -392,7 +440,207 @@ def _list_children(all_results, results):
     )
   categories = _categories()
   results = sorted(results, key=lambda result: (STATUS_ORDER.index(result.status), result.name.lower(), result.tool))
-  return [_record_row(result, categories) for result in results]
+  return [_record_row(result, categories, editable) for result in results]
+
+
+######################################
+# Expected findings (GUI only)
+######################################
+
+# Who the expected finding applies to, from the narrowest.
+EXPECT_SCOPES = ("design", "architecture", "all")
+
+
+def _can_edit(settings):
+  """
+  Whether the page may write expected findings: in the GUI, which knows the
+  workspace (its settings name the analysis settings file), not in the
+  standalone Explorer, which only knows a result directory.
+  """
+  return isinstance(settings, dict) and bool(settings.get("analyze_settings_file"))
+
+
+def _workspace(settings):
+  from odatix.gui.utils import get_workspace
+  return get_workspace(settings)
+
+
+def _expected_section(job_config):
+  """The "expected" section of the analysis settings, as {name: conditions}."""
+  current = job_config.settings.expected if job_config.exists else None
+  if isinstance(current, list):
+    return dict(("expected_" + str(index + 1), dict(item or {})) for index, item in enumerate(current))
+  if isinstance(current, dict):
+    return dict((str(name), dict(conditions or {})) for name, conditions in current.items())
+  return {}
+
+
+def _expect_name(target, existing):
+  """A name for a new expected finding, unique in the section."""
+  base = "_".join(part for part in (target.get("category"), target.get("subject") or target.get("code")) if part)
+  base = re.sub(r"[^A-Za-z0-9_]+", "_", base).strip("_").lower() or "expected"
+  name, index = base, 2
+  while name in existing:
+    name, index = base + "_" + str(index), index + 1
+  return name
+
+
+def expectation_from_finding(target, scope="design", tool_only=True, reason=""):
+  """
+  The conditions of an expected finding that matches this finding: its kind,
+  its code and its subject when it has them (its message otherwise), for this
+  design, every configuration of its architecture, or every design.
+
+  Args:
+      target (dict): the finding, with the tool and the design it was reported for.
+      scope (str): one of EXPECT_SCOPES.
+      tool_only (bool): only when this tool reports it.
+      reason (str): why it is normal.
+  """
+  conditions = {}
+  if target.get("category"):
+    conditions["category"] = target["category"]
+  if target.get("code"):
+    conditions["code"] = target["code"]
+  if target.get("subject"):
+    conditions["subject"] = target["subject"]
+  elif target.get("message"):
+    conditions["message"] = re.escape(target["message"])
+  if tool_only and target.get("tool"):
+    conditions["tools"] = [target["tool"]]
+  design = target.get("design") or ""
+  if scope == "design" and design:
+    conditions["architectures"] = [design]
+  elif scope == "architecture" and design:
+    conditions["architectures"] = [design.partition("/")[0]]
+  conditions["reason"] = str(reason or "").strip()
+  return conditions
+
+
+def _conditions_text(conditions):
+  parts = []
+  for key in analysis.Expectation.CONDITIONS:
+    value = conditions.get(key)
+    if value in (None, "", []):
+      continue
+    if isinstance(value, (list, tuple)):
+      value = ", ".join(str(item) for item in value)
+    parts.append(key + ": " + str(value))
+  return " · ".join(parts) or "every finding"
+
+
+def _reread_analyses(workspace, tools=None):
+  """
+  Read the analyses of the work directory again with the expected findings
+  just saved, so the dashboard says at once what they change.
+  """
+  from odatix.components.export_analysis import export_analysis_from_work
+  from odatix.components.run_analysis import read_run_expectations
+
+  paths = workspace.paths
+  analysis_root = paths.under_work_path("analysis_work_path")
+  if not os.path.isdir(analysis_root):
+    return
+  export_analysis_from_work(
+    analysis_root, paths.result_path, tools=tools,
+    expected=read_run_expectations(paths.analyze_settings_file),
+  )
+  STORE.poll(force=True)
+
+
+def _expected_editor(settings):
+  """The expected findings of the workspace, each with a button to remove it."""
+  if not _can_edit(settings):
+    return None
+  try:
+    workspace = _workspace(settings)
+    section = _expected_section(workspace.jobs["analysis"])
+    settings_file = os.path.relpath(workspace.paths.analyze_settings_file, workspace.root)
+  except Exception as e:
+    return html.Div("Cannot read the expected findings: " + str(e), className="xpa-detail-note")
+  rows = [
+    html.Li(
+      [
+        html.Div(
+          [
+            html.Span(name, className="xpa-expected-name"),
+            html.Span(_conditions_text(conditions), className="xpa-expected-conditions"),
+            html.Span(str(conditions.get("reason") or "no reason given"), className="xpa-finding-reason"),
+          ],
+          className="xpa-expected-text",
+        ),
+        html.Button(
+          "Remove", id={"type": "xpa-expect-remove", "name": name}, n_clicks=0,
+          className="xp-mini-button", title="Count this finding again",
+        ),
+      ],
+      className="xpa-expected-entry",
+    )
+    for name, conditions in section.items()
+  ]
+  if not rows:
+    rows = [html.Li(
+      'None yet: "Mark as expected" on a finding adds one.', className="xpa-detail-note",
+    )]
+  return html.Details(
+    [
+      html.Summary(
+        "Expected findings of this workspace (" + str(len(section)) + ")",
+        className="xpa-expected-summary",
+      ),
+      html.Div("Saved in " + settings_file + ", under \"expected\".", className="xpa-detail-note"),
+      html.Ul(rows, className="xpa-detail-list"),
+    ],
+    className="xpa-detail-block xpa-detail-expected xpa-expected-editor",
+  )
+
+
+def _expect_popup():
+  return html.Div(
+    id="xpa-expect-popup",
+    className="overlay-odatix",
+    children=[
+      html.Div(
+        [
+          html.H3("Mark as expected"),
+          html.Button("×", id="xpa-expect-cancel", n_clicks=0, className="close", title="Cancel"),
+          html.Div(id="xpa-expect-what", className="xpa-expect-what"),
+          html.Label("Normal for", className="xpa-expect-label"),
+          dcc.RadioItems(
+            id="xpa-expect-scope",
+            options=[
+              {"label": " this configuration", "value": "design"},
+              {"label": " every configuration of the architecture", "value": "architecture"},
+              {"label": " every design", "value": "all"},
+            ],
+            value="design",
+            className="xpa-expect-scope",
+          ),
+          dcc.Checklist(
+            id="xpa-expect-tool-only",
+            options=[{"label": " only when this tool reports it", "value": "tool"}],
+            value=["tool"],
+            className="xpa-expect-scope",
+          ),
+          html.Label("Why it is normal", htmlFor="xpa-expect-reason", className="xpa-expect-label"),
+          dcc.Input(
+            id="xpa-expect-reason", type="text", debounce=False,
+            placeholder="e.g. Debug bus, only connected in the lab build",
+            className="xp-text-input xpa-expect-reason",
+          ),
+          html.Div(
+            ui.icon_button(
+              icon=html.Span("✓", className="icon"), color="primary", text="Save",
+              id="xpa-expect-save", width="110px", center=True,
+            ),
+            className="xpa-expect-actions",
+          ),
+          ui.feedback("xpa-expect-feedback"),
+        ],
+        className="popup-odatix large xpa-expect-popup",
+      ),
+    ],
+  )
 
 
 ######################################
@@ -409,13 +657,15 @@ def layout(**kwargs):
       dcc.Store(id="xpa-status-filter", data="all"),
       dcc.Store(id="xpa-tool-filter", data="all"),
       dcc.Store(id="xpa-category-filter", data="all"),
+      dcc.Store(id="xpa-expect-target"),
+      _expect_popup(),
       html.Div(
         [
           html.Div(
             [
               html.Div(
                 [
-                  html.H1("RTL Analysis Dashboard", className="xpa-title"),
+                  html.H1("RTL analysis", className="xpa-title"),
                   html.P(
                     "What every analysis found, design by design: what needs attention first, what is expected apart.",
                     className="xpa-subtitle",
@@ -443,6 +693,8 @@ def layout(**kwargs):
           ),
           html.Div(id="xpa-matrix", className="xpa-matrix"),
           html.Div(id="xpa-categories", className="xpa-matrix"),
+          html.Div(id="xpa-expected", className="xpa-expected"),
+          ui.feedback("xpa-expected-feedback"),
           html.Div(id="xpa-list", className="xpa-list"),
         ],
         className="xpa-dashboard",
@@ -477,7 +729,7 @@ def poll(_intervals, _clicks, settings, current_version):
   if triggered == "xpa-refresh":
     STORE.mark_loaded()
 
-  status = components.status_text(STORE)
+  status = _status_text(_analysis_results())
   if current_version == STORE.version:
     return dash.no_update, status
   return STORE.version, status
@@ -541,8 +793,9 @@ def toggle_category_filter(_clicks, current):
   Input("xpa-tool-filter", "data"),
   Input("xpa-category-filter", "data"),
   Input("xpa-search", "value"),
+  State("odatix-settings", "data"),
 )
-def render(_version, active_status, tool_filter, category_filter, search):
+def render(_version, active_status, tool_filter, category_filter, search, settings=None):
   base = _analysis_results()
   all_tools = _tool_names(base)
 
@@ -558,8 +811,111 @@ def render(_version, active_status, tool_filter, category_filter, search):
     _tool_filter_chips(all_tools, tool_filter),
     _matrix(searched),
     _category_table(searched, category_filter),
-    _list_children(base, _filtered(working, active_status, category_filter, search)),
+    _list_children(base, _filtered(working, active_status, category_filter, search), _can_edit(settings)),
   )
 
 
-dash.register_page(__name__, path="/explorer/analysis", name="Analysis", title="Odatix Explorer - Analysis", order=20, layout=layout)
+@dash.callback(
+  Output("xpa-expected", "children"),
+  Input("xpa-data-version", "data"),
+  State("odatix-settings", "data"),
+)
+def render_expected(_version, settings):
+  return _expected_editor(settings)
+
+
+@page_callback(PAGE_SCOPE,
+  Output("xpa-expect-target", "data"),
+  Output("xpa-expect-popup", "className"),
+  Output("xpa-expect-what", "children"),
+  Output("xpa-expect-reason", "value"),
+  Output("xpa-expect-feedback", "children"),
+  Input({"type": "xpa-expect", "tool": ALL, "design": ALL, "category": ALL, "severity": ALL,
+         "code": ALL, "subject": ALL, "message": ALL}, "n_clicks"),
+  Input("xpa-expect-cancel", "n_clicks"),
+  prevent_initial_call=True,
+)
+def open_expect_popup(_clicks, _cancel):
+  """"Mark as expected" opens the form for that finding; the cross closes it."""
+  triggered = dash.callback_context.triggered_id
+  if triggered == "xpa-expect-cancel":
+    return None, "overlay-odatix", dash.no_update, dash.no_update, None
+  if not isinstance(triggered, dict) or not any(_clicks or []):
+    raise dash.exceptions.PreventUpdate
+  target = dict((key, value) for key, value in triggered.items() if key != "type")
+  what = [
+    html.Div(target.get("message"), className="xpa-finding-message"),
+    html.Div(
+      " · ".join(part for part in (target.get("design"), target.get("tool"), target.get("category"),
+                                   target.get("subject"), target.get("code")) if part),
+      className="xpa-detail-note",
+    ),
+  ]
+  return target, "overlay-odatix visible", what, "", None
+
+
+@page_callback(PAGE_SCOPE,
+  Output("xpa-expect-popup", "className", allow_duplicate=True),
+  Output("xpa-expect-feedback", "children", allow_duplicate=True),
+  Output("xpa-data-version", "data", allow_duplicate=True),
+  Input("xpa-expect-save", "n_clicks"),
+  State("xpa-expect-target", "data"),
+  State("xpa-expect-scope", "value"),
+  State("xpa-expect-tool-only", "value"),
+  State("xpa-expect-reason", "value"),
+  State("odatix-settings", "data"),
+  prevent_initial_call=True,
+)
+def save_expected(clicks, target, scope, tool_only, reason, settings):
+  """Add the expected finding to the analysis settings, then read the analyses again."""
+  if not clicks or not isinstance(target, dict):
+    raise dash.exceptions.PreventUpdate
+  if not _can_edit(settings):
+    return dash.no_update, ui.error("Not saved: this Explorer does not know the workspace."), dash.no_update
+  if not str(reason or "").strip():
+    return dash.no_update, ui.error("Not saved: say why this finding is normal."), dash.no_update
+  try:
+    workspace = _workspace(settings)
+    job_config = workspace.jobs["analysis"]
+    section = _expected_section(job_config)
+    name = _expect_name(target, section)
+    section[name] = expectation_from_finding(
+      target, scope if scope in EXPECT_SCOPES else "design", "tool" in (tool_only or []), reason,
+    )
+    job_config.settings.expected = section
+    job_config.save()
+    _reread_analyses(workspace, tools=[target["tool"]] if target.get("tool") else None)
+  except Exception as e:
+    return dash.no_update, ui.error("Not saved: " + str(e)), dash.no_update
+  return "overlay-odatix", None, STORE.version
+
+
+@page_callback(PAGE_SCOPE,
+  Output("xpa-data-version", "data", allow_duplicate=True),
+  Output("xpa-expected-feedback", "children"),
+  Input({"type": "xpa-expect-remove", "name": ALL}, "n_clicks"),
+  State("odatix-settings", "data"),
+  prevent_initial_call=True,
+)
+def remove_expected(_clicks, settings):
+  """Remove an expected finding: it counts again."""
+  triggered = dash.callback_context.triggered_id
+  if not isinstance(triggered, dict) or not any(_clicks or []) or not _can_edit(settings):
+    raise dash.exceptions.PreventUpdate
+  try:
+    workspace = _workspace(settings)
+    job_config = workspace.jobs["analysis"]
+    section = _expected_section(job_config)
+    if section.pop(triggered.get("name"), None) is None:
+      raise dash.exceptions.PreventUpdate
+    job_config.settings.expected = section or None
+    job_config.save()
+    _reread_analyses(workspace)
+  except dash.exceptions.PreventUpdate:
+    raise
+  except Exception as e:
+    return dash.no_update, ui.error("Not removed: " + str(e))
+  return STORE.version, None
+
+
+dash.register_page(__name__, path="/explorer/analysis", name="RTL analysis", title="Odatix Explorer - RTL analysis", order=20, layout=layout)

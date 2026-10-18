@@ -56,6 +56,7 @@ import odatix.lib.constraint_files as constraints_lib
 from odatix.lib.architecture_handler import Architecture, ArchitectureHandler
 from odatix.lib.constraint_files import ConstraintFileError
 from odatix.lib.run_report import Category
+import odatix.lib.run_report as run_report
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.variables import Variables, replace_variables
 from odatix.workspace.yaml_io import read_mapping
@@ -368,14 +369,18 @@ class PnrJobHandler(ArchitectureHandler):
       self.plan.add(display_name + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
       return None
 
+    # A job resuming, or running steps again, says which ones it will run.
+    steps = {}
+    if state in ("resume", "rerun"):
+      steps = run_report.step_details(arch.tmp_dir, self.requested_steps, self.rerun_step_index)
     if state == "overwrite":
       self.plan.add(display_name, Category.OVERWRITE)
     elif state == "incomplete":
       self.plan.add(display_name, Category.INCOMPLETE)
     elif state == "resume":
-      self.plan.add(display_name, Category.RESUME)
+      self.plan.add(display_name, Category.RESUME, **steps)
     elif state == "rerun":
-      self.plan.add(display_name, Category.RERUN)
+      self.plan.add(display_name, Category.RERUN, **steps)
     else:
       self.plan.add(display_name, Category.NEW)
 

@@ -253,7 +253,8 @@ class Workspace(object):
     SETTINGS_FILENAME = OdatixSettings.DEFAULT_SETTINGS_FILE
 
     def __init__(self, root=".", settings=None):
-        self.root = root or "."
+        # Absolute: a run changes directory, a relative root would then be lost.
+        self.root = os.path.abspath(root or ".")
         self._settings = dict(settings) if isinstance(settings, dict) else None
         self._paths = None
         self._forget_files()

@@ -46,29 +46,13 @@ padding = 20
 # Home page
 
 run_jobs_cards = [
-    {
-        "name": "Run workflow",
-        "link":  "/run_jobs?type=workflow",
-        "icon": "workflow",
-        "description": "Run a workflow",
-    },
+    # In the order a newcomer goes through them: check the RTL, synthesize,
+    # place and route, simulate, then automate and explore.
     {
         "name": "Run RTL analysis",
         "link": "/choose_eda_tool?type=analysis",
         "icon": "analysis",
         "description": "Check that your RTL is synthesizable with the selected tools",
-    },
-    {
-        "name": "Run RTL simulation",
-        "link": "/run_jobs?type=simulation",
-        "icon": "simulation",
-        "description": "Run testbenches against your design configurations",
-    },
-    {
-        "name": "Run Fmax synthesis",
-        "link": "/choose_eda_tool?type=fmax_synthesis",
-        "icon": "fmax",
-        "description": "Find the maximum frequency for your design",
     },
     {
         "name": "Run fixed-frequency synthesis",
@@ -77,16 +61,34 @@ run_jobs_cards = [
         "description": "Run synthesis at fixed frequencies",
     },
     {
-        "name": "Design space exploration",
-        "link": "/dse",
-        "icon": "dse",
-        "description": "Search a design space for optimal trade-offs",
+        "name": "Run Fmax synthesis",
+        "link": "/choose_eda_tool?type=fmax_synthesis",
+        "icon": "fmax",
+        "description": "Find the maximum frequency for your design",
     },
     {
         "name": "Run place & route",
         "link": "/choose_eda_tool?type=pnr",
         "icon": "pnr",
         "description": "Place & route designs another tool has already synthesized",
+    },
+    {
+        "name": "Run RTL simulation",
+        "link": "/run_jobs?type=simulation",
+        "icon": "simulation",
+        "description": "Run testbenches against your design configurations",
+    },
+    {
+        "name": "Run workflow",
+        "link":  "/run_jobs?type=workflow",
+        "icon": "workflow",
+        "description": "Run a custom pipeline of tasks",
+    },
+    {
+        "name": "Design space exploration",
+        "link": "/dse",
+        "icon": "dse",
+        "description": "Search a design space for optimal trade-offs",
     },
 ]
 

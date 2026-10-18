@@ -61,12 +61,33 @@ def rerun_panel(steps):
             options=options,
             value=RESUME,
             clearable=False,
-            tooltip="A job skips the steps it has already done. Pick a step to run it again, "
-                    "with the ones after it, even where it is done: what changed since the "
-                    "last run is what that step reads. The steps before it are still reused. "
-                    "(--rerun-from on the command line; not saved)",
+            tooltip="Each job skips the steps it has already done. To redo work after a change, "
+                    "pick the first step that change affects (e.g. synthesis after editing the RTL "
+                    "or the constraints): that step and the ones after it run again, the earlier "
+                    "ones are reused. Same as --rerun-from; applies to this run only, not saved.",
         ),
     ], className="odx-panel padded", style={"display": "block" if steps else "none"})
+
+
+def frequency_note(run_mode, override):
+    """
+    What the frequency fields mean with "Override frequencies" in its current
+    state: the run settings file only has the last word when it is on.
+    """
+    if run_mode == "fmax_synthesis":
+        if override:
+            return "Every architecture searches between these bounds."
+        return ("Off: each architecture searches between its own bounds (fmax_synthesis in its "
+                "_settings.yml), or the default ones. These are ignored.")
+    if override:
+        return "Every architecture runs at these frequencies."
+    return ("Off: each architecture runs at its own frequencies (fixed_freq_synthesis in its "
+            "_settings.yml). These only apply to an architecture that sets none.")
+
+
+def frequency_fields_class(override):
+    """The fields are dimmed while they are not what the run uses first."""
+    return "jobs-freq-fields" + ("" if override else " inactive")
 
 
 def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_steps=None):
@@ -77,6 +98,10 @@ def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_s
         fmax_bounds = {}
 
     auto_nb_jobs = is_auto_nb_jobs(settings.get("nb_jobs"))
+    override = bool(
+        fmax_bounds.get("override", False) if run_mode == "fmax_synthesis"
+        else frequencies.get("override", False)
+    )
 
     if selected_tools is None:
         selected_tools = settings.get("tools", [])
@@ -187,21 +212,21 @@ def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_s
                     ui.switch_row(
                         "Override frequencies",
                         id="override-arch-frequencies",
-                        checked=(
-                            fmax_bounds.get("override", False) if run_mode == "fmax_synthesis"
-                            else frequencies.get("override", False)
-                        ),
-                        tooltip="Override architecture-specific frequencies.",
+                        checked=override,
+                        tooltip="Use the values below for every architecture, instead of the "
+                                "frequencies each one sets in its own settings.",
                     ),
                     className="odx-switch-stack",
                 ),
+                html.Div(frequency_note(run_mode, override), id="frequency-override-note", className="jobs-freq-note"),
+                html.Div(id="frequency-fields", className=frequency_fields_class(override), children=[
                 html.Div(
                     children=[
                         ui.inline_switch(
                             "List",
                             id="use-custom-freq-list",
                             checked=frequencies.get("use_custom_freq_list", False),
-                            tooltip="Synthesize at each frequency of the list below.",
+                            tooltip="Synthesize at each frequency of the list on the right.",
                         ),
                         ui.form_field(
                             label="Target frequencies (MHz)",
@@ -221,28 +246,33 @@ def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_s
                             "Range",
                             id="use-custom-freq-range",
                             checked=frequencies.get("use_custom_freq_range", False),
-                            tooltip="Synthesize at every frequency of the range below.",
+                            tooltip="Synthesize at every frequency of the range on the right.",
                         ),
+                        # The unit is in the placeholder and the tooltips: in
+                        # the labels, it made them wrap on two lines.
                         ui.form_field(
-                            label="From (MHz)",
+                            label="From",
                             id="from_frequency",
                             type="number",
                             value=str(range.get("from", "")),
-                            tooltip="Lower frequency for the synthesis.",
+                            placeholder="MHz",
+                            tooltip="Lowest frequency of the range, in MHz.",
                         ),
                         ui.form_field(
-                            label="To (MHz)",
+                            label="To",
                             id="to_frequency",
                             type="number",
                             value=str(range.get("to", "")),
-                            tooltip="Upper frequency for the synthesis.",
+                            placeholder="MHz",
+                            tooltip="Highest frequency of the range, in MHz.",
                         ),
                         ui.form_field(
-                            label="Step (MHz)",
+                            label="Step",
                             id="step_frequency",
                             type="number",
                             value=str(range.get("step", "")),
-                            tooltip="Frequency step for the synthesis.",
+                            placeholder="MHz",
+                            tooltip="Step between two frequencies of the range, in MHz.",
                         ),
                     ],
                     className="odx-field-row",
@@ -270,6 +300,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_s
                     className="odx-field-row",
                     style={"display": "flex" if run_mode == "fmax_synthesis" else "none"},
                 )
+                ]),
             ], className="odx-panel padded", style={"display": "block" if run_mode in ("custom_freq_synthesis", "fmax_synthesis") else "none"}),
         ], className="odx-grid",
     )

@@ -42,6 +42,7 @@ import odatix.components.export_simulation_results as exp_sim_res
 import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.export_analysis as exp_analysis
+from odatix.components import results_command
 import odatix.components.clean as cln
 import odatix.components.migrate as migrate_cmd
 import odatix.components.generate_configs as gen_configs
@@ -101,7 +102,7 @@ REMOVED_COMMANDS = {
 }
 
 #: Where the words of Odatix are defined.
-GLOSSARY_URL = "https://odatix.readthedocs.io/docs/glossary/"
+from odatix.lib.doc_links import GLOSSARY_URL
 
 #: Options of the root parser, which take no value.
 ROOT_FLAGS = ("-v", "--version", "-h", "--help", "--init")
@@ -246,27 +247,27 @@ class ArgParser:
     # Daemon
     ArgParser.monitor_parser = add("monitor", "attach the monitor to a session of the workspace")
     add_options(
-      ArgParser.monitor_parser, "session", "any_workspace", "endpoint_options",
+      ArgParser.monitor_parser, "session_selector", "any_workspace", "endpoint_options",
+      session_selector={"help": "session to attach to: its name, its ID (12345.nightly), its PID, or the start of one of them (default: the only session of the workspace)"},
       remote={"help": "attach to a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
     ArgParser.add_nobanner(ArgParser.monitor_parser)
 
     ArgParser.ls_parser = add("ls", "list the active sessions of the workspace")
     add_options(
-      ArgParser.ls_parser, "session", "zombies", "any_workspace", "endpoint_options",
-      session={"help": "filter sessions by name or prefix"},
+      ArgParser.ls_parser, "session_selector", "zombies", "any_workspace", "endpoint_options",
+      session_selector={"help": "only the sessions this selects: a name, an ID (12345.nightly), a PID, or the start of one of them"},
       zombies={"help": "also list zombie sessions (unresponsive daemons and leftover state files)"},
       any_workspace={"help": "list the sessions of every workspace (default: those of the current workspace only)"},
-      host={"help": "daemon API host (optional explicit endpoint)"},
-      port={"help": "daemon API port (optional explicit endpoint)"},
       remote={"help": "list the sessions of another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
+    ArgParser.ls_parser.add_argument('-V', '--verbose', action='store_true', help='also show where each session listens')
     ArgParser.ls_parser.add_argument('--json', action='store_true', help='print the session list as JSON, session tokens included (this is what a remote odatix reads over ssh: do not pipe it anywhere public)')
     ArgParser.add_nobanner(ArgParser.ls_parser)
 
     ArgParser.stop_parser = add("stop", "stop a session of the workspace")
     stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
-    add_options(stop_selector_group, "session")
+    add_options(stop_selector_group, "session_selector")
     stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all the sessions of the workspace (of every workspace with --any-workspace)')
     add_options(
       ArgParser.stop_parser, "zombies", "any_workspace", "endpoint_options",
@@ -316,7 +317,7 @@ class ArgParser:
 
   def help():
     """The help of "odatix", generated from the commands it has."""
-    full_header(description="Odatix - a FPGA/ASIC toolbox for design space exploration")
+    full_header(description="Odatix - an FPGA/ASIC toolbox for design space exploration")
     print("usage: " + printc.colors.BOLD + "odatix" + printc.colors.ENDC + " [-h] [-v] <command> [<options>]")
     width = max(len(name) for _group, names in COMMAND_GROUPS for name in names) + 2
     for group, names in COMMAND_GROUPS:
@@ -372,10 +373,27 @@ def run_main(main_function, args):
     internal_error(e, error_logfile, script_name)
     return False
 
+def say_several_sessions(error, args, also=""):
+  """Several sessions match what a session command was given: list them, and say how to pick one."""
+  selector = args.session if args.session not in (None, "") else None
+  if selector is not None:
+    printc.warning(f"Several sessions match '{selector}':", script_name)
+  else:
+    printc.warning("Several sessions run in this workspace:", script_name)
+  if isinstance(error.daemons, list) and len(error.daemons) > 0:
+    print(daemon_control.format_daemons_table(error.daemons, workspace=bool(args.any_workspace)))
+  else:
+    printc.cyan(str(error), script_name)
+  if selector is not None:
+    printc.note("Refine the selector: give the session ID (e.g. -S {}) or its PID{}".format(
+      error.daemons[0].get("session_id", "12345.name") if error.daemons else "12345.name", also), script_name)
+  else:
+    printc.note("Choose one with -S/--session{}".format(also), script_name)
+
 def monitor_daemon(args):
   success = True
   try:
-    daemon_control.attach_monitor(
+    monitor_exit = daemon_control.attach_monitor(
       host=args.host,
       port=args.port,
       session=args.session,
@@ -383,16 +401,12 @@ def monitor_daemon(args):
       remote=getattr(args, "remote", None),
       any_workspace=args.any_workspace,
     )
+    # The screen goes back to what it was before the monitor: say which
+    # session goes on, or what became of it.
+    from odatix.components.run_common import say_monitor_exit
+    say_monitor_exit(monitor_exit, script_name)
   except daemon_control.MultipleDaemonsError as e:
-    if args.session is not None and args.session != "":
-      printc.warning(f"Multiple sessions match '{args.session}':", script_name)
-    else:
-      printc.warning("Multiple sessions found:", script_name)
-    if isinstance(e.daemons, list) and len(e.daemons) > 0:
-      print(daemon_control.format_daemons_table(e.daemons))
-    else:
-      printc.cyan(str(e), script_name)
-    printc.note("Use the -S/--session option to specify a session", script_name)
+    say_several_sessions(e, args)
     success = False
   except Exception as e:
     printc.error(str(e), script_name)
@@ -436,7 +450,7 @@ def stop_daemon(args):
       failed = result.get("failed", [])
 
       if total == 0:
-        printc.note("No active session found", script_name)
+        printc.note("No session to stop" + ("" if args.any_workspace else " in this workspace"), script_name)
         return success
 
       if len(failed) == 0:
@@ -458,22 +472,14 @@ def stop_daemon(args):
       remote=getattr(args, "remote", None),
       any_workspace=args.any_workspace,
     )
-    session_label = args.session if args.session not in (None, "") else "daemon"
+    session_label = "session " + args.session if args.session not in (None, "") else "the session of the workspace"
     if stopped:
-      printc.note(f"Session {session_label} stopped", script_name)
+      printc.note(f"Stopped {session_label}", script_name)
     else:
-      printc.warning(f"Could not confirm shutdown of session {session_label}", script_name)
+      printc.warning(f"Could not confirm that {session_label} stopped", script_name)
       success = False
   except daemon_control.MultipleDaemonsError as e:
-    if args.session is not None and args.session != "":
-      printc.warning(f"Multiple sessions match '{args.session}':", script_name)
-    else:
-      printc.warning("Multiple sessions found:", script_name)
-    if isinstance(e.daemons, list) and len(e.daemons) > 0:
-      print(daemon_control.format_daemons_table(e.daemons))
-    else:
-      printc.cyan(str(e), script_name)
-    printc.note("Use the -S/--session option to specify a session or -a/--all to stop all the sessions of the workspace", script_name)
+    say_several_sessions(e, args, also=", or stop them all with -a/--all")
     success = False
   except Exception as e:
     printc.error(str(e), script_name)
@@ -498,6 +504,7 @@ def list_daemons(args):
     # endpoint or another machine is a scope of its own.
     scanning = args.host is None and args.port is None and remote is None
     elsewhere = 0
+    _root, scoped = None, False
     if scanning:
       in_scope, _root, scoped = daemon_control.scope_daemons(daemons, any_workspace=args.any_workspace)
       elsewhere = len(daemons) - len(in_scope)
@@ -520,10 +527,21 @@ def list_daemons(args):
       # in the zombie section only, never advertise it as an active session.
       daemons = daemon_control.exclude_zombies(daemons, zombies)
 
+    # The sessions of this workspace only: the workspace column would say the
+    # same thing on every line.
+    one_workspace = scanning and not args.any_workspace and scoped
     if len(daemons) == 0:
-      printc.note("No active session in this workspace" if elsewhere else "No active session found", script_name)
+      where = " in this workspace" if one_workspace else ""
+      if args.session not in (None, ""):
+        printc.note("No active session matches '{}'{}".format(args.session, where), script_name)
+      else:
+        printc.note("No active session" + where, script_name)
     else:
-      print(daemon_control.format_daemons_table(daemons))
+      if one_workspace:
+        printc.say("Sessions of " + daemon_control._home_relative(_root) + ":", script_name)
+      print(daemon_control.format_daemons_table(
+        daemons, workspace=not one_workspace, address=getattr(args, "verbose", False), jobs=True,
+      ))
     if elsewhere:
       printc.note(
         "{} more session(s) in other workspaces: '{} ls --any-workspace' lists them".format(elsewhere, prog),
@@ -543,54 +561,31 @@ def list_daemons(args):
     success = False
   return success
 
-def export_all_results(args):
-  """
-  "odatix results": every kind of result there is, then the derived metrics,
-  which read what the others wrote. A kind with no work directory has simply
-  not been run, and is skipped.
-  """
-  settings = OdatixSettings(args.config)
-  work_root = args.work_path if args.work_path is not None else settings.work_path
-  success = True
+#: "odatix results" alone: every kind of result there is, then the derived
+#: metrics (see odatix.components.results_command, shared with the API).
+export_all_results = results_command.export_all
 
-  if os.path.isdir(work_root):
-    success = run_main(exp_res.main, argparse.Namespace(
-      tool=args.tool, work_path=work_root, result_path=args.result_path, metrics=args.metrics, config=args.config,
-    )) and success
-  else:
-    printc.note('No work directory "' + work_root + '": no synthesis results to export', script_name)
-
-  for kind, module, work_key in (
-    ("simulation", exp_sim_res, "simulation_work_path"),
-    ("workflow", exp_workflow_res, "workflow_work_path"),
-  ):
-    kind_root = os.path.join(str(work_root), str(getattr(settings, work_key)))
-    if not os.path.isdir(kind_root):
-      continue
-    options = argparse.Namespace(
-      work_path=kind_root, result_path=args.result_path, output=module.DEFAULT_OUTPUT_FILENAME, config=args.config, sim_path=None,
+def export_result_type(result_type, args):
+  """
+  One type of "odatix results". It fails as soon as it reported an error,
+  whatever the export went on to do: a metric that could not be read is a
+  definition to fix, and a script must be able to tell.
+  """
+  success, errors = results_command.export(
+    result_type, args, on_exception=lambda e: internal_error(e, error_logfile, script_name),
+  )
+  if errors:
+    printc.note(
+      str(len(errors)) + " error" + ("s" if len(errors) > 1 else "") + " reported above: exiting with status 1",
+      script_name,
     )
-    success = run_main(module.main, options) and success
-
-  # Derived metrics come last: they read the records the exports above just
-  # wrote, plus the simulation and workflow ones already on disk.
-  try:
-    if not exp_derived.run(result_path=args.result_path, config_file=args.config):
-      success = False
-  except Exception as e:
-    internal_error(e, error_logfile, script_name)
-    success = False
   return success
 
 #: What runs each type of "odatix results".
-RESULT_COMMANDS = {
-  "all": export_all_results,
-  "synth": lambda args: run_main(exp_res.main, args),
-  "sim": lambda args: run_main(exp_sim_res.main, args),
-  "workflow": lambda args: run_main(exp_workflow_res.main, args),
-  "analysis": lambda args: run_main(exp_analysis.main, args),
-  "derived": lambda args: run_main(exp_derived.main, args),
-}
+RESULT_COMMANDS = dict(
+  (result_type, lambda args, result_type=result_type: export_result_type(result_type, args))
+  for result_type in RESULT_TYPES
+)
 
 def export_results_command(args):
   return RESULT_COMMANDS[args.result_type](args)

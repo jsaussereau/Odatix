@@ -127,6 +127,24 @@ def print_version():
   version = read_version()
   print("Odatix " + str(version))
 
+def version_tuple(version):
+  """
+  A version string as a tuple of numbers, to compare versions ("3.10.0" comes
+  after "3.9.1", which a comparison of the strings gets wrong). What follows
+  the numbers of a part ("4.0.0rc1") is left out.
+  """
+  numbers = []
+  for part in str(version).split("."):
+    digits = ""
+    for char in part:
+      if not char.isdigit():
+        break
+      digits += char
+    if not digits:
+      break
+    numbers.append(int(digits))
+  return tuple(numbers)
+
 def check_for_update():
   """Checks for a newer version of Odatix on PyPI."""
   import requests  # imported lazily: it is slow to import and only needed here
@@ -138,8 +156,7 @@ def check_for_update():
     response.raise_for_status()
     latest_version = response.json()["info"]["version"]
 
-    # Comparer les versions
-    if installed_version < latest_version:
+    if version_tuple(installed_version) < version_tuple(latest_version):
       printc.green(f"\nA new version of Odatix ({latest_version}) is available!")
       printc.note(f"You currently have Odatix {installed_version}.")
       printc.note("You can run ", end="")

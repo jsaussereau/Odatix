@@ -1155,3 +1155,77 @@ def resolve_target_file(tool, target_path, fallback_dir=None):
     if os.path.isfile(candidate):
       return os.path.realpath(candidate)
   return os.path.realpath(primary)
+
+
+######################################
+# Installation
+######################################
+
+#: How the commands of a tool name the directory it is installed in.
+INSTALL_PATH_VARIABLE = "$tool_install_path"
+
+
+def install_path_hint(tool):
+  """
+  What "tool_install_path" must point to for a tool, in a few words: the
+  "tool_install_path_hint" of its tool.yml ("the directory holding qinit.sh"),
+  or "" when the tool does not say.
+  """
+  hint = load_tool_settings(tool).get("tool_install_path_hint")
+  return hint.strip() if isinstance(hint, str) else ""
+
+
+def _mentions(value, text):
+  """Whether a string somewhere in a tool.yml value contains the text."""
+  if isinstance(value, str):
+    return text in value
+  if isinstance(value, dict):
+    return any(_mentions(item, text) for item in value.values())
+  if isinstance(value, (list, tuple)):
+    return any(_mentions(item, text) for item in value)
+  return False
+
+
+def reads_install_path(tool):
+  """
+  Whether "tool_install_path" means anything to a tool.
+
+  A built-in tool reads it when one of its commands passes it on
+  ("$tool_install_path", as Quartus and LibreLane do); the others (Vivado,
+  Design Compiler, Genus...) are found on the PATH only, so a path given to
+  them would be silently ignored. A tool of the workspace always may read it:
+  its own scripts find it in the settings.yml of their job.
+  """
+  if get_builtin_tool_dir(tool) is None:
+    return True
+  settings = load_tool_settings(tool)
+  return bool(install_path_hint(tool)) or _mentions(settings, INSTALL_PATH_VARIABLE)
+
+
+def tool_test_command(tool, tool_install_path="", flow=None):
+  """
+  The command checking that a tool can be launched ("tool_test_command" of its
+  flow), its variables replaced the way a run replaces them, or None when the
+  tool declares none.
+  """
+  from odatix.lib.settings import OdatixSettings
+  from odatix.lib.variables import Variables, replace_variables
+
+  resolved = get_flow(tool, flow=flow)
+  command = resolved.get("tool_test_command") if resolved is not None else None
+  if command is None:
+    command = (load_tool_settings(tool).get(platform_key()) or {}).get("tool_test_command")
+  if not command:
+    return None
+  if isinstance(command, list):
+    command = " ".join(map(str, command))
+  install_path = str(tool_install_path or "").strip()
+  if install_path:
+    install_path = os.path.realpath(os.path.expanduser(install_path))
+  variables = Variables(
+    tool_install_path=install_path,
+    odatix_path=OdatixSettings.odatix_path,
+    odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    tool_path=get_tool_dir(tool),
+  )
+  return replace_variables(str(command), variables)

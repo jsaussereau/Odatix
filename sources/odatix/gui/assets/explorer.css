@@ -42,10 +42,74 @@
 .xp-graph-area {
     flex: 1 1 auto;
     min-height: 0;
+    position: relative;
 }
 
 .xp-graph {
     height: 100%;
+}
+
+/* ---------- Waiting indicators ---------- */
+
+.xp-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--theme-text-color) 25%, transparent);
+    border-top-color: var(--theme-primary-color);
+    animation: xp-spin 0.8s linear infinite;
+}
+@keyframes xp-spin {
+    to { transform: rotate(360deg); }
+}
+@keyframes xp-loading-in {
+    to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .xp-spinner,
+    .xp-graph-area:has([data-dash-is-loading="true"])::after { animation-duration: 2.4s; }
+}
+
+/* While a chart is being computed (Dash marks the component it waits for),
+   a spinner over the chart area, shown only past 300 ms so a quick change
+   does not blink. The chart under it stays visible. */
+.xp-graph-area:has([data-dash-is-loading="true"])::after {
+    content: "";
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 22px;
+    height: 22px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 3px solid color-mix(in srgb, var(--theme-text-color) 25%, transparent);
+    border-top-color: var(--theme-primary-color);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 4;
+    animation: xp-loading-in 0.01s linear 0.3s forwards, xp-spin 0.8s linear infinite;
+}
+
+/* "The chart could not be drawn" bar, shown by explorer_tabs.js once its own
+   retries gave up. */
+.xp-redraw-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 8px 8px 8px;
+    padding: 8px 12px;
+    border-radius: var(--theme-small-border-radius, 8px);
+    border: 1px solid var(--theme-caution-color, #d9534f);
+    color: var(--theme-text-color);
+}
+.xp-redraw-bar.xp-redraw-visible {
+    display: flex;
+}
+.xp-redraw-bar .xp-redraw-button {
+    width: auto;
+    flex: none;
 }
 
 /* ---------- Sidebar tabs ---------- */
@@ -974,6 +1038,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* An error or a warning is read whole (it says the line to fix): wrapped,
+   never cut. */
+.xp-source-detail.xp-source-detail-full {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+}
 
 .xp-source-error {
     border-color: var(--theme-caution-color, #d9534f);
@@ -1144,7 +1215,7 @@ button.xpa-stat-card:hover {
     justify-content: center;
     border-radius: 50%;
     flex: 0 0 auto;
-    color: #fff;
+    color: var(--theme-on-primary-color);
 }
 
 .xpa-stat-text {
@@ -1242,7 +1313,7 @@ button.xpa-stat-card:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--theme-on-primary-color);
     font-size: 0.9em;
     font-weight: 700;
     flex: 0 0 auto;
@@ -1389,7 +1460,7 @@ button.xpa-stat-card:hover {
 .xpa-tool-chip.xpa-active {
     background: var(--theme-primary-color);
     border-color: var(--theme-primary-color);
-    color: #fff;
+    color: var(--theme-on-primary-color);
 }
 
 /* ---------- Analysis: summary table (matrix) ---------- */
@@ -1579,10 +1650,15 @@ button.xpa-stat-card:hover {
 .xpa-finding-reason {
     font-style: italic;
 }
+/* The source excerpt a tool prints under a message: a monospaced font keeps
+   its caret under the column it points at, as in the terminal. */
 .xpa-finding-detail {
     margin: 4px 0 0 0;
     padding: 6px 8px;
+    font-family: var(--theme-mono-font-family, ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace);
     font-size: 0.8em;
+    line-height: 1.35;
+    white-space: pre;
     overflow-x: auto;
     background: color-mix(in srgb, var(--theme-text-color) 5%, transparent);
     border-radius: 4px;
@@ -1624,12 +1700,28 @@ button.xpa-stat-card:hover {
     font-style: italic;
 }
 
+/* Buttons side by side in a sidebar section (Download image / CSV). */
+.xp-button-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+.xp-button-row .xp-button {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A result file that could not be read, listed (disabled) among the sources. */
+.xp-source-unreadable {
+    color: var(--theme-caution-color, #d9534f);
+    cursor: help;
+}
+
 /* Short helper note under the column picker. */
 .xp-hint {
     margin-top: 8px;
     font-size: var(--theme-small-font-size, 12px);
-    color: var(--theme-subtle-text-color, var(--theme-text-color));
-    opacity: 0.8;
+    color: var(--theme-secondary-text-color);
     line-height: 1.4;
 }
 
@@ -1878,6 +1970,29 @@ button.xpa-stat-card:hover {
     border-radius: var(--theme-small-border-radius, 12px);
     padding: 16px 16px 10px 16px;
     box-sizing: border-box;
+    position: relative;
+}
+
+/* A chart of the exploration page takes a moment to come: computed on the
+   server, then drawn by plotly (loaded on first use, several megabytes). The
+   card says so, with the spinner of the other charts, from the request until
+   plotly has drawn it -- past 300 ms only, so a quick one does not blink. */
+.xp-dse-card:has([data-dash-is-loading="true"])::after,
+.xp-dse-card:has(.dash-graph):not(:has(.main-svg))::after {
+    content: "";
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 22px;
+    height: 22px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 3px solid color-mix(in srgb, var(--theme-text-color) 25%, transparent);
+    border-top-color: var(--theme-primary-color);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 4;
+    animation: xp-loading-in 0.01s linear 0.3s forwards, xp-spin 0.8s linear infinite;
 }
 
 .xp-dse-card-head {
@@ -2172,7 +2287,7 @@ button.xpa-stat-card:hover {
 .xp-chip-active {
     background: var(--theme-primary-color);
     border-color: var(--theme-primary-color);
-    color: #fff;
+    color: var(--theme-on-primary-color);
 }
 
 /* ---------- Insights gallery (generated view cards) ---------- */
@@ -2213,6 +2328,17 @@ button.xpa-stat-card:hover {
     letter-spacing: 0.04em;
     text-transform: uppercase;
     opacity: 0.55;
+}
+
+.xp-insights-computing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    max-width: 1100px;
+    margin: 0 auto 22px auto;
+    padding: 28px 16px;
+    opacity: 0.8;
 }
 
 .xp-insights-status {
@@ -2399,7 +2525,7 @@ button.xpa-stat-card:hover {
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .xp-reco-save:hover {
-    color: #fff;
+    color: var(--theme-on-primary-color);
     background: var(--theme-primary-color);
     border-color: var(--theme-primary-color);
 }
@@ -2416,4 +2542,65 @@ button.xpa-stat-card:hover {
     background: color-mix(in srgb, var(--theme-primary-color) 12%, transparent);
     opacity: 1;
     font-weight: 600;
+}
+
+/* ---------- Expected findings, written from the GUI ---------- */
+.xpa-expect-button {
+    margin-left: auto;
+    font-size: 0.8em;
+    padding: 1px 8px;
+    white-space: nowrap;
+}
+.xpa-expected-editor {
+    margin-bottom: 14px;
+    margin-top: 14px;
+}
+.xpa-expected-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.xpa-expected-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+.xpa-expected-name {
+    font-weight: 600;
+}
+.xpa-expected-conditions {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    opacity: 0.8;
+    overflow-wrap: anywhere;
+}
+.popup-odatix.xpa-expect-popup {
+    text-align: left;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.xpa-expect-what {
+    margin: 4px 30px 12px 0;
+    overflow-wrap: anywhere;
+}
+.xpa-expect-label {
+    display: block;
+    font-weight: 600;
+    margin: 12px 0 4px;
+}
+.xpa-expect-scope label {
+    display: block;
+    margin: 2px 0;
+    cursor: pointer;
+}
+.xpa-expect-reason {
+    width: 100%;
+    box-sizing: border-box;
+}
+.xpa-expect-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
 }

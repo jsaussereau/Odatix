@@ -4,7 +4,7 @@
 [![PyPi Package](https://img.shields.io/pypi/v/odatix)](https://pypi.org/project/odatix/)
 [![cite](https://img.shields.io/badge/cite-DOI%3A10.1016/j.softx.2024.101970-green)](https://www.sciencedirect.com/science/article/pii/S2352711024003406)
 [![GitHub License](https://img.shields.io/github/license/jsaussereau/Odatix)](https://github.com/jsaussereau/Odatix/blob/main/LICENSE)
-[![Documentation Status](https://readthedocs.org/projects/odatix/badge/?version=latest)](https://odatix.readthedocs.io/docs/)
+[![Documentation Status](https://readthedocs.org/projects/odatix/badge/?version=latest)](https://odatix.readthedocs.io/en/latest/docs/)
 
 **Odatix** is a **powerful tool** designed to facilitate **implementation** and **validation** of configurable digital designs across multiple **FPGA** and **ASIC** tools, including **Vivado**, **OpenLane**, and **Design Compiler**.
 
@@ -42,8 +42,8 @@ Odatix enables designers to:
    - Customize the appearance of your figures with different **themes**.
 
 ✅ **Quick Start**  
-   - [Install](https://odatix.readthedocs.io/install/pypi/) Odatix **easily** from PyPi with `pip`.
-   - Use **built-in examples** and [step-by-step tutorials](https://odatix.readthedocs.io/tutorials/) to get started quickly.
+   - [Install](https://odatix.readthedocs.io/en/latest/install/pypi/) Odatix **easily** from PyPi with `pip`.
+   - Use **built-in examples** and [step-by-step tutorials](https://odatix.readthedocs.io/en/latest/tutorials/) to get started quickly.
    - Need help? [Contact us](mailto:jonathan.saussereau@ims-bordeaux.fr?Subject=[Odatix]) or open an issue on [GitHub](https://github.com/jsaussereau/Odatix/issues).
 
 ## 💡 Highlights
@@ -105,27 +105,27 @@ Examples:
 | Cadence Innovus                                                  | ✔️ supported        |
 | Synopsys IC Compiler II                                          | 🧪 experimental     |
 
-See [Install supported EDA tools](https://odatix.readthedocs.io/install/eda_tools/) for how to set each one up.
+See [Install supported EDA tools](https://odatix.readthedocs.io/en/latest/install/eda_tools/) for how to set each one up.
 
 ### **Simulation**
 Odatix can work with virtually **any simulator**.  
 By default, **examples for Verilator and GHDL** are provided.
 
-For more details, check the guide: [Simulate your own RTL](https://odatix.readthedocs.io/tutorials/own_designs/simulations/).
+For more details, check the guide: [Simulate your own RTL](https://odatix.readthedocs.io/en/latest/tutorials/own_designs/simulations/).
 
 ## 🏁 Get Started Today!
 
 1️⃣ **Install Odatix and one of the supported EDA Tools**  
-   Follow the instructions in the [installation guide](https://odatix.readthedocs.io/install/), then [install an EDA tool](https://odatix.readthedocs.io/install/eda_tools/).
+   Follow the instructions in the [installation guide](https://odatix.readthedocs.io/en/latest/install/), then [install an EDA tool](https://odatix.readthedocs.io/en/latest/install/eda_tools/).
 
 2️⃣ **Run a Quick Test on Built-in Examples**  
-   Run the [built-in examples](https://odatix.readthedocs.io/tutorials/run_examples/), or follow [Getting started](https://odatix.readthedocs.io/docs/getting-started/).
+   Run the [built-in examples](https://odatix.readthedocs.io/en/latest/tutorials/run_examples/), or follow [Getting started](https://odatix.readthedocs.io/en/latest/docs/getting-started/).
 
 3️⃣ **Define Your Own Architectures**  
-   Follow [Add your own design](https://odatix.readthedocs.io/tutorials/own_designs/) to configure and run your own designs.
+   Follow [Add your own design](https://odatix.readthedocs.io/en/latest/tutorials/own_designs/) to configure and run your own designs.
 
 4️⃣ **Analyze Your Results**  
-   Visualize your synthesis and simulation results with [**Odatix Explorer**](https://odatix.readthedocs.io/docs/features/explorer/).
+   Visualize your synthesis and simulation results with [**Odatix Explorer**](https://odatix.readthedocs.io/en/latest/docs/features/explorer/).
 
 ## 📰 Citation
 

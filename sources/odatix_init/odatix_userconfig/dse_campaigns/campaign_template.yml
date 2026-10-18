@@ -112,6 +112,14 @@ search:
   patience:       0        # stop after this many batches that do not improve (0: never)
   improvement:    0        # how much the front has to grow for a batch to count (0.02: 2%)
   seed:                    # empty: a different search every time
+  mutation:                # genetic only, empty: one parameter per design on average
+  tournament:     2        # genetic only, how many designs a parent is picked out of
+  population:              # genetic only, empty: four batches' worth
+  candidates:              # bayesian only, empty: 300 - candidates the acquisition compares
+  samples:                 # bayesian only, empty: 12 - Monte Carlo draws that value a candidate
+  shortlist:               # bayesian only, empty: 24 - candidates that get the full, costly score
+  front_cap:               # bayesian only, empty: from the number of objectives
+  constraint_models: No    # bayesian only, yes: one model per constraint instead of their total
 
 # architectures to explore, one search each
 #

@@ -58,6 +58,7 @@ from odatix.lib.parallel_job_handler import process_control
 from odatix.lib.parallel_job_handler.job_status import (
     DONE_STATUSES,
     FAILED_STATUSES,
+    PAUSED_STATUSES,
     QUEUED_STATUSES,
     RUNNING_STATUSES,
     STATUS_BUCKETS,
@@ -106,6 +107,18 @@ RESOURCE_GUARD_MIN_PAUSE = 30.0
 
 #: Who the job log says paused or resumed a job the guard acted on.
 RESOURCE_GUARD_ACTOR = "resource guard"
+
+#: The format tags of the tool settings ("format: tags:" of tool.yml), left
+#: out of the console logs. Those a tool declares in its own settings too.
+CONSOLE_FORMAT_TAGS = tuple(
+    "<" + name + ">" for name in (
+        "bold", "end", "end_bold", "black", "red", "green", "yellow", "blue", "magenta", "cyan", "grey", "white",
+        "lgrey", "lred", "lgreen", "lyellow", "lblue", "lmagenta", "lcyan", "lwhite",
+    )
+)
+
+#: The longest unfinished tag or color code held back between two chunks.
+CONSOLE_CARRY_MAX = 16
 
 _resource_guard_unavailable = []  # [reason], computed once per process
 
@@ -385,7 +398,8 @@ class ParallelJobHandler:
         """
         with self._lock:
             jobs = []
-            counts = {"total": 0, "running": 0, "queued": 0, "done": 0, "failed": 0}
+            # "paused" is a part of "queued", told apart for the monitors.
+            counts = {"total": 0, "running": 0, "queued": 0, "done": 0, "failed": 0, "paused": 0}
             progress_sum = 0
             longest_elapsed = 0
             first_job_id = None
@@ -414,6 +428,8 @@ class ParallelJobHandler:
                     counts["running"] += 1
                 elif status_norm in QUEUED_STATUSES:
                     counts["queued"] += 1
+                    if status_norm in PAUSED_STATUSES:
+                        counts["paused"] += 1
                 elif status_norm in DONE_STATUSES:
                     counts["done"] += 1
                 elif status_norm in FAILED_STATUSES:
@@ -498,9 +514,15 @@ class ParallelJobHandler:
                     "format_yaml": self.format_yaml,
                     "selected_job_index": selected_id,
                     "job_count": int(self.job_count),
-                    "running": len(self.running_job_list),
-                    "queued": int(self.job_queue.qsize()),
-                    "retired": len(self.retired_job_list),
+                    # By status rather than by list: a job exporting its
+                    # results is retired from the scheduler's point of view,
+                    # but it is not over, and a paused one is in the running
+                    # list without running. What the monitor header says, and
+                    # when its "-E" closes, both read these.
+                    "running": counts["running"],
+                    "paused": counts["paused"],
+                    "queued": counts["total"] - counts["running"] - counts["paused"] - counts["done"] - counts["failed"],
+                    "retired": counts["done"] + counts["failed"],
                     "theme": getattr(self.theme, "theme", None),
                     "resource_guard": {
                         "enabled": bool(self.resource_guard_enabled),
@@ -702,6 +724,44 @@ class ParallelJobHandler:
         start = max(0, int(self.job_index_start))
         return pinned + scrollable[start:start + room]
 
+    def runtime_counts(self):
+        """
+        How many jobs run, are paused, wait and are over, as the monitor header
+        says it.
+
+        Counted by status rather than from the scheduler's lists: a job
+        exporting its results has left the running list but is not over, and
+        a paused job is still in it without running.
+
+        Returns:
+            dict: ``running`` (exports included), ``paused``, ``queued``,
+            ``retired`` (over, however it ended) and ``total``.
+        """
+        running = paused = retired = 0
+        for job in self.job_list:
+            status = str(job.status or "").lower().strip()
+            if status in RUNNING_STATUSES:
+                running += 1
+            elif status in PAUSED_STATUSES:
+                paused += 1
+            elif status in DONE_STATUSES or status in FAILED_STATUSES:
+                retired += 1
+        total = len(self.job_list)
+        return {
+            "running": running,
+            "paused": paused,
+            "queued": max(0, total - running - paused - retired),
+            "retired": retired,
+            "total": total,
+        }
+
+    def watched_jobs_over(self):
+        """
+        Whether the jobs this monitor was opened for are all over, or None when
+        it watches the whole session (see DaemonMonitorHandler.watch_jobs).
+        """
+        return None
+
     def scroll_position(self, job_index):
         """
         Where a job sits in what the monitor scrolls through, or None when it is
@@ -757,7 +817,11 @@ class ParallelJobHandler:
             if self._resource_guard_over_samples < RESOURCE_GUARD_PAUSE_SAMPLES:
                 return
             candidates = [job for job in self.running_job_list if job.status == "running" and job.takes_a_slot]
-            if candidates:
+            # Never the last one running: the load may well come from outside
+            # the session (other users of a shared machine), and pausing it
+            # would not lower it -- it would only stop the session from ever
+            # getting anywhere.
+            if len(candidates) > 1:
                 # Pause the most recently started job first: it has the least
                 # work invested in it, and pausing it disrupts the batch least.
                 job = candidates[-1]
@@ -798,9 +862,16 @@ class ParallelJobHandler:
             self.queue_job(job)
 
     def add_job(self, job):
-        """Add a new job to this handler and schedule it if already running headless."""
+        """
+        Add a new job to this handler and schedule it if already running headless.
+
+        Returns:
+            int: its id, i.e. its index in the job list: what the session API
+            and :meth:`odatix.run.session.Session.wait` know it by.
+        """
         with self._lock:
             self.job_list.append(job)
+            job_id = len(self.job_list) - 1
             self.job_count = len(self.job_list)
             # A new job means a new batch to close: derive again once it drains.
             self._post_batch_done = False
@@ -817,6 +888,7 @@ class ParallelJobHandler:
 
             if self._headless_initialized:
                 self._schedule_new_job_unlocked(job)
+            return job_id
 
     def add_jobs(self, jobs):
         for job in jobs:
@@ -946,17 +1018,24 @@ class ParallelJobHandler:
 
         self._headless_initialized = True
 
-    @staticmethod
-    def _write_console_log(job, text):
+    def _write_console_log(self, job, text):
         """
         Keep what a job prints in its console log (see hard_settings), when it
         has one. The file is opened for each write: the scheduler and the
         export thread both write to it, and a handle shared between them would
         be closed under one of them. A write failure never reaches the job:
         the monitor keeps the output anyway.
+
+        The file is meant to be read as it is (the documentation and the
+        analysis dashboard send there), so it gets the text without the color
+        codes and the format tags ("<cyan>", "<end>") the monitor turns into
+        colors.
         """
         path = getattr(job, "console_log", None)
         if not path:
+            return
+        text = self._plain_console_text(job, text)
+        if not text:
             return
         try:
             directory = os.path.dirname(path)
@@ -966,6 +1045,37 @@ class ParallelJobHandler:
                 handle.write(text)
         except Exception:
             job.console_log = None
+
+    def _plain_console_text(self, job, text):
+        """
+        `text` without color codes nor format tags, for the console log.
+
+        Output arrives in chunks, which may cut a tag or a color code in two:
+        an unfinished one at the end of a chunk is held back until the next.
+        """
+        text = getattr(job, "_console_carry", "") + text
+        carry = ""
+        for opener, closer in (("<", ">"), ("\x1b", None)):
+            position = text.rfind(opener)
+            if position == -1 or position < len(text) - CONSOLE_CARRY_MAX:
+                continue
+            tail = text[position:]
+            finished = closer in tail if closer else bool(re.match(r"\x1b\[[0-9;?]*[A-Za-z]", tail))
+            if not finished and "\n" not in tail:
+                carry = tail if len(tail) > len(carry) else carry
+        if carry:
+            text = text[: len(text) - len(carry)]
+        job._console_carry = carry
+
+        tags = set(CONSOLE_FORMAT_TAGS)
+        formatter = getattr(self, "formatter", None)
+        for entries in (getattr(formatter, "format_tags", None) or {}).values():
+            for entry in entries or []:
+                tags.add(str(entry))
+        for tag in tags:
+            if tag in text:
+                text = text.replace(tag, "")
+        return printc.strip_colors(text)
 
     def _append_job_log(self, job, line, stream_key="default"):
         if not line:
@@ -1043,6 +1153,19 @@ class ParallelJobHandler:
         job.log_changed = True
 
     def _flush_job_log_buffer(self, job):
+        # What the console log held back, waiting for the end of a tag that
+        # never came: plain text after all.
+        carry = getattr(job, "_console_carry", "")
+        if carry:
+            job._console_carry = ""
+            path = getattr(job, "console_log", None)
+            if path:
+                try:
+                    with open(path, "a", encoding="utf-8", errors="replace") as handle:
+                        handle.write(printc.strip_colors(carry))
+                except Exception:
+                    pass
+
         stream_states = getattr(job, "_log_stream_states", None)
         if not stream_states:
             return

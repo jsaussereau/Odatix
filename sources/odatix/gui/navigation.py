@@ -153,7 +153,8 @@ def top_bar(gui):
                             )
                         ],
                         className="nav-theme tooltip delay bottom auto",
-                        **{"data-tooltip": "Select theme"},
+                        role="group",
+                        **{"data-tooltip": "Theme", "aria-label": "Theme"},
                     ),
                 ],
                 id="nav-menu",

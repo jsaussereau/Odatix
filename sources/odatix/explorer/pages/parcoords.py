@@ -27,4 +27,4 @@ def layout(**kwargs):
   return explorer_shell("parcoords")
 
 
-dash.register_page(__name__, path="/explorer/parcoords", name="Parallel Coordinates", title="Odatix Explorer - Parallel Coordinates", order=26, layout=layout)
+dash.register_page(__name__, path="/explorer/parcoords", name="Parallel coordinates", title="Odatix Explorer - Parallel coordinates", order=26, layout=layout)

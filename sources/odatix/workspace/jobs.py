@@ -32,6 +32,7 @@ The command line overrides several of these settings; the comments the
 generated files carry say which flag overrides what.
 """
 
+import odatix.lib.doc_links as doc_links
 import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.errors import InvalidSettingsError, NotFoundError
 from odatix.workspace.settings import Setting, Settings, load_settings, save_settings
@@ -144,9 +145,10 @@ class JobSettings(Settings):
     What every run command reads, whatever it runs.
     """
 
-    # Odatix reads these files key by key and stops when one is missing, so they
-    # spell every setting out rather than relying on defaults.
-    write_all_settings = True
+    # Odatix refuses to run from a file that does not say these: they are
+    # added to a file that lacks them. Any other setting left at its default
+    # is not added to a file written by hand (see apply()).
+    required_keys = ("overwrite", "ask_continue", "nb_jobs")
 
     overwrite = Setting(
         False, type="bool", style="yesno", section=" overwrite existing results",
@@ -185,7 +187,7 @@ class JobSettings(Settings):
 #: generated file lists what it runs last, after how it runs it.
 def _architecture_selection():
     return Setting(
-        factory=list, type="any", section=" targeted architectures",
+        factory=list, type="any", section=" targeted architectures", comment_out=True,
         doc="Architecture configurations to run, as \"<architecture>/<configuration>\".",
     )
 
@@ -230,7 +232,7 @@ class AnalysisJobSettings(JobSettings):
     selection_key = "architectures"
 
     tools = Setting(
-        factory=list, type="str_list", section=" eda tools to run the analysis with",
+        factory=list, type="str_list", section=" eda tools to run the analysis with", comment_out=True,
         comment="overridden by -t / --tool",
         doc="EDA tools the RTL analysis runs with.",
     )
@@ -250,7 +252,7 @@ class PnrJobSettings(JobSettings):
     selection_key = "sources"
 
     sources = Setting(
-        factory=list, type="str_list",
+        factory=list, type="str_list", comment_out=True,
         section=(
             " completed synthesis jobs to place & route, written"
             "\n <source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]"
@@ -324,7 +326,7 @@ class WorkflowJobSettings(JobSettings):
     selection_key = "workflows"
 
     workflows = Setting(
-        factory=list, type="any", section=" targeted workflows",
+        factory=list, type="any", section=" targeted workflows", comment_out=True,
         doc="Workflow configurations to run, as \"<workflow>/<configuration>\".",
     )
 
@@ -537,7 +539,7 @@ class JobConfig(object):
                     hints=[
                         "Every run settings file sets overwrite, ask_continue and nb_jobs,"
                         ' e.g. "overwrite: No", "ask_continue: Yes", "nb_jobs: 8"'
-                        " (see https://odatix.readthedocs.io/docs/reference/run_settings/)",
+                        " (see " + doc_links.doc_url("docs/reference/run_settings/") + ")",
                     ],
                 )
         _require_bool(data, "overwrite", self.path)

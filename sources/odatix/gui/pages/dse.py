@@ -30,6 +30,9 @@ workspace, the ones this run selects, and the button that hands the whole thing
 to the daemon -- the very same exploration "odatix dse" would start.
 """
 
+import datetime
+from urllib.parse import quote
+
 import dash
 from dash import ALL, ctx, dcc, html, Input, Output, State
 
@@ -47,7 +50,9 @@ from odatix.gui.dse_config.common import (
     campaign_badges,
     campaign_link,
     campaign_names,
+    campaign_progress,
     checked,
+    designs_left,
     dse_settings,
     editor_path,
     delete_campaign,
@@ -75,10 +80,11 @@ NEW_SESSION = "__new_session__"
 # UI Components
 ######################################
 
-def campaign_card(name, selected, badges):
-    """One campaign of the workspace: what it is looking for, and whether it runs."""
+def campaign_card(name, selected, badges, progress=None):
+    """One campaign of the workspace: what it is looking for, where it is, and whether it runs."""
     architectures = badges["architectures"]
     objectives = badges["objectives"]
+    progress = progress or {}
     chips = [
         ui.badge(badges["run"].replace("_", " "), color="primary"),
         ui.badge(badges["strategy"]),
@@ -103,6 +109,11 @@ def campaign_card(name, selected, badges):
         ] or [html.Span("no objective yet", className="dse-goal empty")],
         className="dse-goals",
     )
+    constraints = [
+        html.Span(_describe_constraint(metric, minimum, maximum), className="dse-constraint")
+        for metric, minimum, maximum in badges.get("constraints", [])
+        if minimum is not None or maximum is not None
+    ]
 
     return html.Div(
         children=[
@@ -120,11 +131,18 @@ def campaign_card(name, selected, badges):
             ),
             html.Div(chips, className="dse-campaign-chips"),
             goals,
+            html.Div(constraints, className="dse-constraints") if constraints else None,
             html.Div(
-                ", ".join(architectures) if architectures else "no architecture yet",
+                ", ".join(architectures),
                 className="dse-campaign-architectures",
                 title=", ".join(architectures),
+            ) if architectures else html.Div(
+                # A campaign file without an architecture (the commented
+                # template "odatix init" writes) is not one that can run yet.
+                "No architecture yet: edit it to name the ones to search.",
+                className="dse-campaign-architectures missing",
             ),
+            _progress_line(name, badges, progress),
             html.Div(
                 children=[
                     ui.icon_button(
@@ -152,12 +170,64 @@ def campaign_card(name, selected, badges):
     )
 
 
+def _describe_constraint(metric, minimum, maximum):
+    """A constraint as a reader writes it: "Worst_Slack >= 0", "0 <= x <= 5"."""
+    def number(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        return str(int(value)) if value.is_integer() else "{0:g}".format(value)
+
+    if minimum is not None and maximum is not None:
+        return "{0} \u2264 {1} \u2264 {2}".format(number(minimum), metric, number(maximum))
+    if minimum is not None:
+        return "{0} \u2265 {1}".format(metric, number(minimum))
+    return "{0} \u2264 {1}".format(metric, number(maximum))
+
+
+def _progress_line(name, badges, progress):
+    """
+    Where the campaign is, as its archive says -- and the way to its results,
+    which are in the explorer and nowhere on this page.
+    """
+    if not progress.get("archives"):
+        return html.Div("Not run yet.", className="dse-campaign-progress empty")
+    budget = badges["budget"] * max(len(badges["architectures"]), 1)
+    if progress.get("space") is not None:
+        budget = min(budget, progress["space"])
+    parts = ["{0}/{1} evaluated".format(progress["evaluated"], budget)]
+    if progress.get("reused"):
+        parts.append("{0} reused".format(progress["reused"]))
+    parts.append("{0} on the front".format(progress["front"]))
+    if progress.get("modified"):
+        parts.append("last run {0}".format(
+            datetime.datetime.fromtimestamp(progress["modified"]).strftime("%b %d, %H:%M")
+        ))
+    return html.Div(
+        children=[
+            html.Span(" \u00b7 ".join(parts), className="dse-campaign-progress-text"),
+            dcc.Link(
+                "Results",
+                href="/explorer/dse?campaign={0}".format(quote(name, safe="")),
+                className="dse-campaign-results",
+                title="What the campaign found: its front, its trade-off curve and how the search went",
+            ),
+        ],
+        className="dse-campaign-progress",
+    )
+
+
 def build_campaign_cards(workspace):
     settings = dse_settings(workspace)
     selected = set(settings.campaign_names())
     cards = []
     for name in campaign_names(workspace):
-        cards.append(campaign_card(name, name in selected, campaign_badges(read_campaign(workspace, name))))
+        campaign = read_campaign(workspace, name)
+        cards.append(campaign_card(
+            name, name in selected, campaign_badges(campaign),
+            campaign_progress(workspace, name, campaign),
+        ))
     cards.append(ui.add_card(id={"type": "dse-campaign-add"}, text="New campaign", className="card add hover"))
     return cards
 
@@ -385,10 +455,12 @@ def _baseline(settings):
     Input({"type": "dse-campaign-enable", "name": ALL}, "value"),
     State({"type": "dse-campaign-enable", "name": ALL}, "id"),
 )
-def update_summary(values, ids):
+def update_summary(values, ids, overwrite=None):
     """
     What the selection amounts to: how many campaigns run, and how many designs
-    they are allowed to evaluate between them.
+    they may still evaluate between them -- the budgets, less what their
+    archives say is already done (unless it is all evaluated again). Explore
+    says it exactly, once the spaces are counted.
     """
     workspace = get_workspace()
     selected = [
@@ -396,16 +468,20 @@ def update_summary(values, ids):
         for value, identifier in zip(values or [], ids or [])
         if isinstance(identifier, dict) and checked(value)
     ]
-    budget = 0
+    left = 0
     architectures = set()
     for name in selected:
-        badges = campaign_badges(read_campaign(workspace, name))
-        budget += badges["budget"] * max(len(badges["architectures"]), 1)
+        campaign = read_campaign(workspace, name)
+        badges = campaign_badges(campaign)
+        if checked(overwrite):
+            left += badges["budget"] * max(len(badges["architectures"]), 1)
+        else:
+            left += designs_left(workspace, name, campaign)
         architectures.update(badges["architectures"])
 
     summary = [
         ui.stat(len(selected), "campaign" if len(selected) == 1 else "campaigns"),
-        ui.stat(budget, "designs at most"),
+        ui.stat(left, "design left to run at most" if left == 1 else "designs left to run at most"),
         ui.stat(len(architectures), "architecture" if len(architectures) == 1 else "architectures"),
     ]
     classes = [
@@ -436,7 +512,9 @@ def toggle_auto_nb_jobs(auto, current):
 def update_session_dropdown(_n, current_value):
     options = [{"label": "New session...", "value": NEW_SESSION, "title": "Explore in a new session"}]
     try:
-        daemons = daemon_control.list_daemons()
+        # The sessions of this workspace only, as on the Run jobs page: another
+        # workspace's session would run the campaign with that workspace's files.
+        daemons = daemon_control.list_daemons(only_workspace=get_workspace().root)
     except Exception:
         daemons = []
     for daemon in daemons:
@@ -709,6 +787,7 @@ def poll_exploration(_n, run_status, opened, render_key):
     title = {
         "checking": "Checking the exploration...",
         "checked": "Ready to explore",
+        "spent": "Nothing left to explore",
         "starting": "Starting the exploration...",
         "error": "The exploration cannot run",
     }.get(status, dash.no_update)

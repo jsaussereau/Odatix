@@ -36,6 +36,9 @@
     font-weight: normal;
     font-style: normal;
     font-display: swap;
+    /* The bitmap font draws "0", "O" and "o" like a "U" ("Udatix 4.U.U"):
+       those three come from the fallback font. */
+    unicode-range: U+0000-002F, U+0031-004E, U+0050-006E, U+0070-FFFF;
 }
 
 .theme.win95 {
@@ -47,7 +50,7 @@
     --win95-shadow: #808080;
 
     /* theme */
-    --theme-font-family: W95;
+    --theme-font-family: W95, Tahoma, "MS Sans Serif", Arial, sans-serif;
     --theme-background-color: var(--win95-bg);
     --theme-element-background-color: var(--win95-face);
     --theme-dimmed-element-background-color: var(--win95-face);
@@ -60,11 +63,11 @@
     --theme-text-color: #000000;
     --theme-text-shadow: none;
     --theme-running-color: var(--win95-blue);
-    --theme-success-color: #208c71;
-    --theme-warning-color: #FF8825;
-    --theme-caution-color: #e35f5f;
-    --theme-pause-color: var(--theme-disabled-color);
-    --theme-pending-color: var(--win95-bg);
+    --theme-success-color: #004d2b;
+    --theme-warning-color: #7a3d00;
+    --theme-caution-color: #a00000;
+    --theme-pause-color: #404040;
+    --theme-pending-color: #004d4d;
     --theme-border-color: #000000;
     --theme-overlay-background-color: #0000003d;
     --theme-contrast-background-color: #000000;
@@ -80,7 +83,7 @@
     --add-card-background-hover: var(--win95-face);
 
     /* buttons */
-    --back-button-color: var(--win95-face);
+    --back-button-color: #ffffff;
     --button-border-radius: 0px;
     --default-button-background: var(--win95-face);
     --primary-button-background: var(--win95-face);
@@ -118,8 +121,8 @@
     /* highlights */
     --primary-highlight-color: var(--theme-primary-color);
     --primary-highlight-text-color: var(--theme-contrast-text-color);
-    --secondary-highlight-color: var(--theme-warning-color);
-    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+    --secondary-highlight-color: #000080;
+    --secondary-highlight-text-shadow: none;
 
     /* progress bars */
     --progress-bar-background-color: var(--win95-face);
@@ -128,6 +131,14 @@
 
     /* monitor */
     --terminal-background-color: #ffffff6e;
+
+    /* contrast (WCAG AA) */
+    --theme-subtle-text-color: #303030;
+    --theme-secondary-text-color: #303030;
+
+    /* contrast (WCAG AA) */
+    --primary-button-text-color: var(--theme-text-color);
+    --primary-button-icon-color: var(--win95-blue);
 }
 
 .theme.win95 .card,
@@ -141,7 +152,7 @@
 .theme.win95 .Select-value,
 .theme.win95 .Select-arrow-zone,
 .theme.win95 .Select-menu,
-.theme.win95 .tooltip:after,
+.theme.win95 .odx-tooltip,
 .theme.win95 button {
     border-top: 2px solid var(--win95-highlight) !important;
     border-left: 2px solid var(--win95-highlight) !important;
@@ -183,4 +194,26 @@
 .theme.win95 .xp-tabs,
 .theme.win95 .xp-page {
     background: var(--win95-face);
+}
+
+/* How an action went (ui.feedback): often right on the teal desktop, where a
+   tinted line read at under 3:1. A message box of its own, like the dialogs. */
+.theme.win95 .odx-message.success,
+.theme.win95 .odx-message.error {
+    background: var(--win95-face);
+    border: 2px solid;
+    border-color: var(--win95-highlight) var(--win95-shadow) var(--win95-shadow) var(--win95-highlight);
+    border-radius: 0px;
+}
+
+/* The chart kind switch sits on the desktop: a toolbar of its own. */
+.theme.win95 .xp-view-switch {
+    background: var(--win95-face);
+}
+
+/* The results table: white rows like a list view, in a font that reads at
+   table size (the pixel font is for titles and buttons). */
+.theme.win95 {
+    --xp-table-background: #ffffff;
+    --xp-table-font-family: Tahoma, Arial, sans-serif;
 }

@@ -60,21 +60,26 @@ class Reporter(object):
     ######################################
 
     def of_level(self, level):
+        """The messages of one level (``"error"``, ``"warning"``, ``"note"``...), in order."""
         return [text for message_level, text in self.messages if message_level == level]
 
     @property
     def errors(self):
+        """The error messages, in order."""
         return self.of_level("error")
 
     @property
     def warnings(self):
+        """The warning messages, in order."""
         return self.of_level("warning")
 
     def last_error(self):
+        """The last error message, or None."""
         errors = self.errors
         return errors[-1] if errors else None
 
     def clear(self):
+        """Forget what was collected; returns the reporter."""
         self.messages = []
         return self
 

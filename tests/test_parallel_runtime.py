@@ -308,7 +308,7 @@ def _no_monitor(monkeypatch, run_common, counts):
 
     monkeypatch.setattr(session_module, "Session", FakeSession)
     closed = []
-    monkeypatch.setattr(run_common, "close_finished_session", lambda state: closed.append(state))
+    monkeypatch.setattr(run_common, "close_finished_session", lambda state, **kwargs: closed.append(state))
     return closed
 
 
@@ -323,7 +323,7 @@ def test_exit_when_done_without_monitor_waits_then_closes(monkeypatch, capsys):
     run_common.start_parallel_jobs(jobs)
 
     out = capsys.readouterr().out
-    assert "Waiting for the jobs of session 7.s" in out
+    assert "Waiting for the jobs of this run in session 7.s" in out
     # Said when it changes, not at every poll.
     assert out.count("0/2 job(s) over") == 1 and "2/2 job(s) over" in out
     assert closed == [{"session_id": "7.s"}]

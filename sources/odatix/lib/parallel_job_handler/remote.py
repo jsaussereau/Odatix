@@ -50,6 +50,14 @@ from odatix.lib.parallel_job_handler.transport import TRANSPORT_UNIX, Endpoint
 DEFAULT_SSH_COMMAND = "ssh"
 DEFAULT_ODATIX_COMMAND = "odatix"
 
+#: How Odatix runs ssh unless told otherwise: it cannot answer a password or
+#: host key prompt (its output is captured), so ssh must fail at once rather
+#: than wait for an answer that never comes, and say why.
+DEFAULT_SSH_OPTIONS = ("-o", "BatchMode=yes", "-o", "ConnectTimeout=10")
+
+#: What to check when ssh does not get through.
+SSH_TIP = 'check that "ssh {host} odatix -v" works without asking anything (key-based login, known host)'
+
 
 class RemoteError(RuntimeError):
     pass
@@ -94,7 +102,7 @@ class RemoteHost:
         self.odatix_command = shlex.split(
             str(odatix_command or os.environ.get("ODATIX_REMOTE_COMMAND", DEFAULT_ODATIX_COMMAND))
         )
-        self.ssh_options = list(ssh_options or [])
+        self.ssh_options = list(DEFAULT_SSH_OPTIONS if ssh_options is None else ssh_options)
 
     def __str__(self):
         if self.workspace:
@@ -122,13 +130,22 @@ class RemoteHost:
                 stderr=subprocess.PIPE,
                 timeout=float(timeout),
             )
-        except subprocess.TimeoutExpired:
-            raise RemoteError("Timed out running '{}' on {}".format(" ".join(argv), self.spec))
+        except subprocess.TimeoutExpired as error:
+            stderr = (error.stderr or b"").decode("utf-8", "replace").strip()
+            raise RemoteError(
+                "Timed out running '{}' on {}{}: {}".format(
+                    " ".join(argv), self.spec, " ({})".format(stderr.splitlines()[-1]) if stderr else "",
+                    SSH_TIP.format(host=self.spec),
+                )
+            )
 
         if check and proc.returncode != 0:
             message = proc.stderr.decode("utf-8", "replace").strip()
+            # 255 is ssh itself failing (refused, host key, authentication),
+            # not the remote odatix.
+            tip = "; " + SSH_TIP.format(host=self.spec) if proc.returncode == 255 else ""
             raise RemoteError(
-                "Remote command failed on {} ({}): {}".format(self.spec, proc.returncode, message or "no output")
+                "Remote command failed on {} ({}): {}{}".format(self.spec, proc.returncode, message or "no output", tip)
             )
         return proc.stdout.decode("utf-8", "replace")
 

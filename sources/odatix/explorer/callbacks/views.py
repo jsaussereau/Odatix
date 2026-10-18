@@ -48,7 +48,7 @@ _UI_KEYS = ("sources", "palette", "plot_theme", "toggles", "overview_chart_type"
 
 
 def view_options():
-  return [{"label": view["name"], "value": view["name"]} for view in views.list_views(STORE.result_path)]
+  return [{"label": view["title"], "value": view["name"]} for view in views.list_views(STORE.result_path)]
 
 
 def restore_generated(view):

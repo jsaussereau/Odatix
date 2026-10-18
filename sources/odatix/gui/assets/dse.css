@@ -333,3 +333,200 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* --- Explorer -> Exploration ---------------------------------------------
+   The page's own rules are in explorer.css; these are the ones the
+   exploration work added, kept with the rest of what the DSE pages need
+   (the explorer serves the same assets folder). */
+
+/* Text that sits on the page background rather than on a card: muted with a
+   color, not with opacity, which on a colored page (win95's teal) muted it
+   into the background itself. */
+.xp-dse .xp-dse-subtitle,
+.xp-dse .xp-dse-section-note,
+.xp-dse .xp-dse-table-note {
+    opacity: 1;
+    color: color-mix(in srgb, var(--theme-text-color) 82%, var(--theme-background-color));
+}
+.xp-dse .xp-dse-table-note {
+    max-width: 62em;
+    margin-top: var(--space-2);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+/* A table over a decorated background (synthwave's grid) has to be opaque,
+   or the decoration runs through the numbers. */
+.xp-dse .xp-dse-levels-table {
+    background-color: var(--theme-element-background-color);
+}
+.xp-dse .xp-dse-levels-table tbody tr:nth-child(odd) {
+    background-color: color-mix(in srgb, var(--theme-text-color) 5%, transparent);
+}
+.xp-dse .xp-dse-levels-table th[title] {
+    cursor: help;
+}
+
+/* Which line color is which, on the parallel coordinates plot. */
+.xp-dse-line-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: var(--space-3);
+    white-space: nowrap;
+}
+.xp-dse-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 3px;
+    border-radius: 2px;
+    margin-left: var(--space-2);
+}
+
+/* --- Additions of the second pass of the new-user campaign --------------- */
+
+/* The name of a campaign in the plan comes first, whole: the badges wrap
+   under it rather than squeezing it to "imag...". */
+.dse-plan-head {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+.dse-plan-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+}
+.dse-plan-head .badge,
+.dse-plan-head > span:not(.dse-plan-name) {
+    flex: none;
+}
+/* Where to fix a campaign the check refused. */
+.dse-plan-fix {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-4);
+    font-size: 13.5px;
+}
+.dse-plan-fix-label {
+    opacity: 0.75;
+}
+.dse-plan-fix-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--theme-primary-color) 45%, transparent);
+    color: var(--theme-primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+.dse-plan-fix-link:hover {
+    background: color-mix(in srgb, var(--theme-primary-color) 12%, transparent);
+}
+.dse-plan-fix-link .icon {
+    width: 14px;
+    height: 14px;
+}
+
+/* The constraints of a campaign card, next to its objectives. */
+.dse-constraints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.dse-constraint {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--theme-warning-color);
+    border: 1px dashed color-mix(in srgb, var(--theme-warning-color) 55%, transparent);
+}
+.dse-campaign-architectures.missing {
+    opacity: 1;
+    color: var(--theme-warning-color);
+    white-space: normal;
+}
+/* Where the campaign is, from its archive, and the way to its results. */
+.dse-campaign-progress {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font-size: 12.5px;
+    min-width: 0;
+}
+.dse-campaign-progress-text {
+    opacity: 0.8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.dse-campaign-progress.empty {
+    opacity: 0.6;
+    font-style: italic;
+}
+.dse-campaign-results {
+    flex: none;
+    color: var(--theme-primary-color);
+    font-weight: 600;
+    text-decoration: none;
+}
+.dse-campaign-results:hover {
+    text-decoration: underline;
+}
+
+/* A dropdown menu is as wide as its longest option, not as its field: the
+   architecture names of the campaign editor are long ("..._chisel"). */
+.dse-row .dash-dropdown .Select-menu-outer,
+.dse-row-dropdown .Select-menu-outer {
+    min-width: 100%;
+    width: max-content;
+    max-width: min(560px, 90vw);
+}
+.dse-row-dropdown .dash-dropdown-options,
+.dse-row-dropdown .dash-dropdown-content {
+    min-width: 100%;
+    width: max-content;
+    max-width: min(560px, 90vw);
+}
+
+/* Warnings of the feedback line (a campaign saved with a metric nothing it
+   runs measures): the shared line has success and error only. */
+.dse-page .odx-message.warning {
+    color: var(--theme-warning-color);
+    border-color: color-mix(in srgb, var(--theme-warning-color) 40%, transparent);
+    background: color-mix(in srgb, var(--theme-warning-color) 10%, transparent);
+}
+
+/* The back arrow sits inside the header card on these pages; win95 paints it
+   in the color of that card. */
+.theme.win95 .dse-editor-back .icon.back-button {
+    color: var(--theme-text-color);
+}
+
+/* Chips sit on the page background: opaque, and their text in the text color
+   (the color they carry is the border and the tint) -- a green label on
+   win95's teal, or a pink one on synthwave's sky, cannot be read. */
+.xp-dse .xp-dse-chip {
+    background: color-mix(in srgb, var(--theme-primary-color) 14%, var(--theme-element-background-color));
+}
+.xp-dse .xp-dse-chip-constraint {
+    background: color-mix(in srgb, var(--theme-text-color) 8%, var(--theme-element-background-color));
+}
+.xp-dse .xp-dse-chip-toggle {
+    color: var(--theme-text-color);
+    border-color: var(--xp-dse-chip-color, var(--theme-primary-color));
+    background: color-mix(in srgb, var(--xp-dse-chip-color, var(--theme-primary-color)) 24%, var(--theme-element-background-color));
+}
+.xp-dse .xp-dse-chip-toggle.xp-dse-chip-off {
+    background: var(--theme-element-background-color);
+    border-color: var(--theme-border-color);
+    opacity: 0.75;
+}

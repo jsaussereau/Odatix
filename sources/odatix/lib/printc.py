@@ -41,14 +41,34 @@ class colors:
 _ANSI_ESCAPE = re.compile(r"\033\[[0-9;?]*[A-Za-z]")
 
 
+def strip_colors(text):
+  """`text` without its terminal color codes."""
+  return _ANSI_ESCAPE.sub("", str(text))
+
+
 class _PlainStream(object):
-  """A text stream that drops the terminal color codes written to it."""
+  """
+  A text stream that drops the terminal color codes written to it.
+
+  It also writes each line out as soon as it is complete: a stream that is not
+  a terminal (a pipe, a file under nohup, a CI log) is otherwise written by
+  blocks of several kilobytes, and a command waiting for its jobs says nothing
+  for minutes -- or loses what it said if it is killed.
+  """
 
   def __init__(self, stream):
     self._stream = stream
 
   def write(self, text):
-    return self._stream.write(_ANSI_ESCAPE.sub("", text) if isinstance(text, str) else text)
+    if not isinstance(text, str):
+      return self._stream.write(text)
+    written = self._stream.write(_ANSI_ESCAPE.sub("", text))
+    if "\n" in text:
+      try:
+        self._stream.flush()
+      except (IOError, ValueError):
+        pass
+    return written
 
   def writelines(self, lines):
     for line in lines:
@@ -69,6 +89,9 @@ def wants_color(stream=None):
   """
   stream = sys.stdout if stream is None else stream
   if os.environ.get("NO_COLOR", "") != "":
+    return False
+  # A terminal that says it cannot do anything but print text.
+  if os.environ.get("TERM", "") == "dumb":
     return False
   isatty = getattr(stream, "isatty", None)
   try:
@@ -130,15 +153,35 @@ def collect(sink):
 # command; set once, by the command line, before the command runs.
 _command = None
 
+#: What a message says it comes from when no command is set (a script using the
+#: Python API, a session writing a job log): Odatix, not one of its modules.
+DEFAULT_LABEL = "odatix"
+
+#: Names some modules give themselves that are not a command either.
+_INTERNAL_NAMES = ("run",)
+
 def set_command(label):
-  """Prefix every message with `label` (e.g. "odatix fmax") from now on; None to go back to module names."""
+  """Prefix every message with `label` (e.g. "odatix fmax") from now on; None to go back to the default."""
   global _command
   _command = label
+
+def _label(script_name):
+  """
+  The name a message is prefixed with: the command, else "odatix" for a
+  module (a "something.py" or "something.tcl" name), else the name given
+  ("odatix-gui", "odatix-explorer").
+  """
+  if _command:
+    return _command
+  name = str(script_name)
+  if name in _INTERNAL_NAMES or name.endswith(".py") or name.endswith(".tcl"):
+    return DEFAULT_LABEL
+  return name
 
 def _prefix(script_name):
   if script_name == "":
     return ""
-  return colors.GREY + "[" + (_command or script_name) + "]" + colors.ENDC + " "
+  return colors.GREY + "[" + _label(script_name) + "]" + colors.ENDC + " "
 
 def say(message="", script_name="", color=colors.ENDC, end="\n"):
   script_name = _prefix(script_name)

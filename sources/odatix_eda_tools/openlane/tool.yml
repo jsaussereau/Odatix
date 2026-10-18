@@ -9,10 +9,13 @@ icon: "assets/icons/openroad.png"
 
 # Group processes
 process_group: False
-report_path: runs/odatix/reports
 
 # Default metrics file for this tool
 default_metrics_file: $eda_tools_path/openlane/metrics.yml
+
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: synthesis
 
 unix:
 
@@ -31,3 +34,14 @@ unix:
     - SCRIPT_DIR=$script_path
     - LOG_DIR=$log_path
     - LIB_NAME=$lib_name
+
+##############################################
+# Flows
+##############################################
+# Different ways of running the same job type with this tool. The commands
+# declared in the platform sections above are those of the default flow.
+
+flows:
+  synthesis:
+    label: "Synthesis"
+    description: "OpenLane synthesis flow"

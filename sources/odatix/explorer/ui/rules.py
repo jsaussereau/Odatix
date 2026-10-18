@@ -286,7 +286,7 @@ def build_rules_section(metrics, rule_state, units, matched=None, total=None):
   if active and matched is not None and total is not None:
     children.append(
       html.Div(
-        "Keeps " + str(matched) + " of " + str(total) + " records",
+        "Keeps " + str(matched) + " of " + str(total) + (" record" if total == 1 else " records"),
         className="xp-rule-count" + (" xp-rule-count-empty" if matched == 0 else ""),
       )
     )

@@ -190,6 +190,21 @@ def _finished_jobs(directories, known, listed, since):
     return done
 
 
+def _paused(directories, known):
+    """How many of the work directories waited on the daemon says are paused."""
+    return len([directory for directory in directories if known.get(directory) == "paused"])
+
+
+def _describe_paused(paused, waiting, unit="job(s)"):
+    """Why a batch stopped moving, when it is because its jobs are paused."""
+    return (
+        "{0}/{1} {2} paused -- by the auto-pause while the machine is loaded, in which case "
+        "they resume by themselves once it is less so, or by hand from the monitor".format(
+            paused, waiting, unit,
+        )
+    )
+
+
 class EvaluationError(RuntimeError):
     """A batch could not be run at all -- which stops the campaign."""
 
@@ -363,6 +378,11 @@ class Evaluator(object):
         )
         #: How many designs have actually been run, which is what a budget counts.
         self.count = 0
+        #: Told ``(jobs over, jobs of the batch)`` whenever more jobs of the
+        #: batch being waited for are over -- what lets the progress of the
+        #: exploration move while a batch runs (see
+        #: :meth:`odatix.dse.campaign.Campaign.follow_batch`).
+        self.on_jobs_done = None
 
     ######################################
     # Where it works
@@ -509,6 +529,12 @@ class Evaluator(object):
         """
         started = []
         failures = []
+        preparing_since = time.time()
+        # Preparing the jobs of a batch is reading every design it names and
+        # writing their work directories, which a large space makes take a
+        # while: said, so that a log that stops moving is not taken for a
+        # search that is stuck.
+        printc.say("Preparing the jobs of {0} design(s)...".format(len(designs)), script_name)
 
         # The simulations first, so that they run alongside the synthesis
         # instead of after it: neither needs the other's result, only the
@@ -526,10 +552,29 @@ class Evaluator(object):
             if parallel_jobs is not None:
                 started.append(parallel_jobs)
 
+        total = sum(len(self._tmp_dirs_of(parallel_jobs)) for parallel_jobs in started)
+        if total:
+            printc.say("{0} job(s) queued in {1:.0f}s.".format(
+                total, time.time() - preparing_since
+            ), script_name)
+        offset = 0
         for parallel_jobs in started:
-            self.wait_for(parallel_jobs)
+            count = len(self._tmp_dirs_of(parallel_jobs))
+            self.wait_for(parallel_jobs, done_before=offset, done_total=total)
+            offset += count
+            self._jobs_done(offset, total)
         self.derive()
         return "\n".join(failures) if failures else None
+
+    def _jobs_done(self, done, total):
+        """Tell whoever follows the batch how many of its jobs are over."""
+        if self.on_jobs_done is None or not total:
+            return
+        try:
+            self.on_jobs_done(done, total)
+        except Exception:
+            # How far along it is, is not worth stopping an exploration for.
+            pass
 
     def start_batch(self, designs, toolchain=None, frequency=None):
         """
@@ -827,7 +872,7 @@ class Evaluator(object):
                 statuses[os.path.realpath(str(directory))] = str(job.get("status", "")).strip().lower()
         return statuses
 
-    def wait_for(self, parallel_jobs):
+    def wait_for(self, parallel_jobs, done_before=0, done_total=None):
         """
         Block until the daemon is done with every job of the batch.
 
@@ -835,6 +880,12 @@ class Evaluator(object):
         hands its designs over and has nothing to do until they are done. The
         jobs are followed by their work directories, which is what the daemon
         reports them under.
+
+        Args:
+            done_before (int): jobs of the same batch already over, waited for
+                by an earlier call (a batch can be several runs).
+            done_total (int): how many jobs the whole batch has. Each job that
+                ends is reported to :attr:`on_jobs_done` against it.
         """
         pending = set(
             os.path.realpath(str(job.tmp_dir))
@@ -845,11 +896,13 @@ class Evaluator(object):
             return
 
         total = len(pending)
+        done_total = done_total or total
         started = time.time()
         answered_at = [started]
         last_heartbeat = started
         first = True
         listed = set()
+        paused_before = 0
         while pending:
             if self.cancel_event is not None and self.cancel_event.is_set():
                 raise EvaluationError("The exploration was cancelled while a batch was running.")
@@ -861,13 +914,30 @@ class Evaluator(object):
             if known is None:
                 continue
 
-            pending -= _finished_jobs(pending, known, listed, started)
+            finished = _finished_jobs(pending, known, listed, started)
+            if finished:
+                pending -= finished
+                self._jobs_done(done_before + total - len(pending), done_total)
+
+            paused = _paused(pending, known)
+            if paused != paused_before:
+                # Jobs that stopped moving are worth saying at once: otherwise
+                # the log only goes on waiting, and a paused batch reads like
+                # one that hangs.
+                if paused:
+                    printc.say(_describe_paused(paused, len(pending)), script_name)
+                elif pending:
+                    printc.say("the paused job(s) are running again", script_name)
+                paused_before = paused
 
             now = time.time()
             if pending and now - last_heartbeat >= WAIT_HEARTBEAT:
                 last_heartbeat = now
                 printc.say(
-                    "still waiting on {0}/{1} job(s) after {2:.0f}s".format(len(pending), total, now - started),
+                    "still waiting on {0}/{1} job(s) after {2:.0f}s{3}".format(
+                        len(pending), total, now - started,
+                        " ({0} of them paused)".format(paused) if paused else "",
+                    ),
                     script_name,
                 )
 
@@ -990,8 +1060,14 @@ class Evaluator(object):
             now = time.time()
             if now - last_heartbeat >= WAIT_HEARTBEAT:
                 last_heartbeat = now
+                paused = len([
+                    item for item in pending if _paused(item.tmp_dirs, known)
+                ])
                 printc.say(
-                    "still waiting on {0} design(s) after {1:.0f}s".format(len(pending), now - started),
+                    "still waiting on {0} design(s) after {1:.0f}s{2}".format(
+                        len(pending), now - started,
+                        "; {0}".format(_describe_paused(paused, len(pending), "design(s)")) if paused else "",
+                    ),
                     script_name,
                 )
 

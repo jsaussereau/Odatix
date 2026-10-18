@@ -41,7 +41,7 @@ from odatix.lib.parallel_job_handler.job import DRIVER_KIND, ParallelJob
 
 __all__ = [
     "driver_paths", "default_session", "new_session", "build_driver", "start_exploration",
-    "run_worker", "open_session", "close_session",
+    "report_outcome", "run_worker", "open_session", "close_session",
 ]
 
 #: How many sessions this process has named with :func:`new_session`.
@@ -178,6 +178,10 @@ def build_driver(workspace, settings, session, paths=None, architectures=None, c
         kind=DRIVER_KIND,
         progress_pattern=PROGRESS_PATTERN,
     )
+    # Its summary is printed again once the monitor is closed (see
+    # odatix.components.run_common.replay_summaries).
+    from odatix.dse.campaign import SUMMARY_MARKER
+    job.summary_marker = SUMMARY_MARKER
 
     handler = ParallelJobHandler(
         [job],
@@ -192,9 +196,15 @@ def build_driver(workspace, settings, session, paths=None, architectures=None, c
 
 
 def start_exploration(workspace, settings, session=None, detach=False, architectures=None,
-                      campaigns=None):
+                      campaigns=None, checked=None):
     """
     Hand the exploration to the daemon, and show it the way a run shows its jobs.
+
+    Args:
+        checked (list): the :class:`~odatix.dse.campaign.Campaign` objects the
+            command checked. Once the monitor closes on an exploration that is
+            over, what each of them found is printed again (see
+            :func:`report_outcome`): the monitor took its log with it.
 
     Returns:
         str: the session it runs in.
@@ -202,11 +212,67 @@ def start_exploration(workspace, settings, session=None, detach=False, architect
     from odatix.components.run_common import start_parallel_jobs
 
     session = default_session(session)
+    paths = driver_paths(workspace, session)
     handler = build_driver(
-        workspace, settings, session, architectures=architectures, campaigns=campaigns
+        workspace, settings, session, paths=paths, architectures=architectures, campaigns=campaigns
     )
     start_parallel_jobs(handler, detach=detach, session=session)
+    if not detach and checked:
+        report_outcome(checked, paths["progress_file"])
     return session
+
+
+def finished(progress_file):
+    """
+    Whether the exploration whose progress is written there is over: only the
+    very end of it writes 100 (see
+    :meth:`odatix.dse.campaign.Exploration.report_progress`).
+    """
+    try:
+        with open(progress_file, "r") as f:
+            return f.read().strip() == "100"
+    except (IOError, OSError):
+        return False
+
+
+def report_outcome(campaigns, progress_file):
+    """
+    What the exploration found, said in the terminal it was started from once
+    the monitor is gone.
+
+    The search says it at the end of its own log, but that log lived in the
+    monitor, and the monitor is closed now: without this, the terminal is left
+    with how many jobs succeeded and not a word about the answer. Each archive
+    is read back from disk, as the search left it.
+
+    An exploration still running (the monitor was left with "d") or one that
+    was stopped before its end says where its archives are instead.
+    """
+    import odatix.lib.printc as printc
+    if not finished(progress_file):
+        printc.note(
+            "The exploration is not over: what it found so far is in {0}.".format(
+                ", ".join('"{0}"'.format(_relative(campaign.archive.path)) for campaign in campaigns)
+            ),
+            "odatix dse",
+        )
+        return
+    # The summaries themselves are replayed from the driver's log (its
+    # summary_marker): only where to look next is added here.
+    printc.tip(
+        "Open \"odatix-explorer\", page \"Exploration\", to see the trade-off curve and how the "
+        "search got there.",
+        "odatix dse",
+    )
+
+
+def _relative(path):
+    """A path as short as the terminal it is printed in allows."""
+    try:
+        relative = os.path.relpath(path)
+    except ValueError:
+        return path
+    return path if relative.startswith("..") else relative
 
 
 def run_worker(workspace, settings, session, cancel_event=None):

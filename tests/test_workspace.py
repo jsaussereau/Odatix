@@ -184,7 +184,10 @@ class TestArchitectureValidation:
     @pytest.mark.parametrize("empty", [None, ""])
     def test_parameters_need_both_delimiters(self, empty):
         errors = self.errors(use_parameters=True, start_delimiter=empty, stop_delimiter=")")
-        assert errors == ['Cannot find key "start_delimiter" in "s.yml" while use_parameters=true.']
+        if empty is None:
+            assert errors == ['Cannot find key "start_delimiter" in "s.yml" while use_parameters=true.']
+        else:
+            assert errors == ['Key "start_delimiter" is empty in "s.yml" while use_parameters=true: a value is required.']
 
     def test_delimiters_do_not_matter_without_parameters(self):
         assert self.errors(use_parameters=False, start_delimiter=None) == []

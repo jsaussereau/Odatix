@@ -109,6 +109,42 @@ def unescape_delimiter(delimiter):
         delimiter,
     )
 
+#: The characters a one-line field cannot hold, and how they are typed there.
+escape_characters = {"\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t", "\0": "\\0"}
+
+def escape_delimiter(delimiter):
+    """
+    The form a delimiter is typed in a one-line field: what it matches, with its
+    line breaks, tabs and backslashes written as escape sequences, so that none
+    of them is lost by a field that cannot show them.
+
+    It is the inverse of `unescape_delimiter`: a delimiter written either way in
+    a settings file (a real line break, or "\\n") is shown "\\n".
+    """
+    if not delimiter:
+        return ""
+    return "".join(escape_characters.get(c, c) for c in unescape_delimiter(delimiter))
+
+def same_delimiter(first, second):
+    """Whether two delimiters, written with or without escape sequences, match the same text."""
+    return unescape_delimiter(first or "") == unescape_delimiter(second or "")
+
+def delimiter_to_write(typed, saved=None):
+    """
+    The value to write in a settings file for a delimiter typed `typed` in a
+    one-line field (see `escape_delimiter`).
+
+    A delimiter that still matches what `saved` matches is written back as it
+    was, so that saving a form never rewrites it. Otherwise it is written with
+    its real characters -- a line break as a line break -- unless it holds a
+    backslash: the escaped form is then the only one read back unchanged.
+    """
+    typed = typed or ""
+    if saved is not None and same_delimiter(typed, saved):
+        return saved
+    text = unescape_delimiter(typed)
+    return typed if "\\" in text else text
+
 def keep_line_count(replaced, replacement_text):
     """
     `replacement_text`, followed by as many line breaks as it lacks to span the
@@ -226,7 +262,7 @@ def commented_out_warning(base_text, replacement_text, start_delim, stop_delim, 
     return commented_out_message(line, start_delim, file_name)
 
 
-def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False):
+def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False, missing_is_error=False):
     """
     Reads the base file, replaces the text between delimiters by the text from the replacement file, and writes the updated content to the output file.
 
@@ -250,11 +286,17 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
     write_file(output_file, new_text)
 
     if not match_found:
-        printc.warning("Could not find pattern \"", script_name=script_name, end="")
+        # `odatix replace` fails on it (missing_is_error); a job only warns.
+        report = printc.error if missing_is_error else printc.warning
+        report("Could not find pattern \"", script_name=script_name, end="")
         printc.red(start_delimiter, end="")
         printc.grey("[…]", end="")
         printc.red(stop_delimiter, end="")
-        printc.yellow("\" in \"" + base_text_file + "\"")
+        tail = "\" in \"" + base_text_file + "\""
+        if missing_is_error:
+            printc.red(tail + ": input copied unchanged to \"" + output_file + "\"")
+        else:
+            printc.yellow(tail)
     else:
         commented = commented_out_warning(
             base_text, replacement_text, start_delimiter, stop_delimiter, base_text_file,
@@ -327,7 +369,7 @@ def main(args):
     """Main function to handle argument parsing and execution of text replacement."""
     # Delimiters that match nothing leave the output a copy of the input: the
     # command did not do what it was asked.
-    return replace_params(args.base_text_file, args.replacement_text_file, args.output_file, args.start_delimiter, args.stop_delimiter, args.replace_all_occurrences)
+    return replace_params(args.base_text_file, args.replacement_text_file, args.output_file, args.start_delimiter, args.stop_delimiter, args.replace_all_occurrences, missing_is_error=True)
 
 if __name__ == "__main__":
     args = parse_arguments()

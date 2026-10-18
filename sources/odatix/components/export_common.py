@@ -180,10 +180,14 @@ def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
         return data
     if not isinstance(data, dict):
         return None
-    value = data.get(key, None)
-    if value is None and error_if_missing:
-        printc.error(error_prefix + 'Could not find key "' + key + '" in yaml "' + file + '"', script_name=script_name)
-    return value
+    # A key written with no value ("cycles: null", what a failed simulation
+    # reports) is a metric with no value, not a missing key: only a key the
+    # file does not have at all is an error.
+    if key not in data:
+        if error_if_missing:
+            printc.error(error_prefix + 'Could not find key "' + key + '" in yaml "' + file + '"', script_name=script_name)
+        return None
+    return data[key]
 
 
 def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
@@ -206,10 +210,12 @@ def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
         if error_if_missing:
             printc.error(error_prefix + 'JSON file "' + file + '" does not contain a dictionary at top level', script_name=script_name)
         return None
-    value = data.get(key, None)
-    if value is None and error_if_missing:
-        printc.error(error_prefix + 'Could not find key "' + key + '" in json "' + file + '"', script_name=script_name)
-    return value
+    # As in parse_yaml, a null value is not a missing key.
+    if key not in data:
+        if error_if_missing:
+            printc.error(error_prefix + 'Could not find key "' + key + '" in json "' + file + '"', script_name=script_name)
+        return None
+    return data[key]
 
 
 def _split_xml_key(key):

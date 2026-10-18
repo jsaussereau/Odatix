@@ -39,7 +39,19 @@ from ruamel.yaml.comments import CommentedMap
 
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, NotFoundError
-from odatix.workspace.yaml_io import dump_document, parse_bool, read_text, read_yaml, sequence_offset, write_text
+from odatix.workspace.yaml_io import (
+    ABSENT,
+    dump_document,
+    edit_list_text,
+    load_document,
+    parse_bool,
+    read_text,
+    read_yaml,
+    remove_key,
+    sequence_offset,
+    set_key,
+    write_text,
+)
 
 __all__ = ["Target", "TargetFile", "TargetFileCollection"]
 
@@ -427,29 +439,17 @@ class TargetFile(object):
         """
         Write the target list back, keeping the comments and every other key of
         the file. Disabled targets are written as commented-out entries.
+
+        Only what changed is written: a target added, removed, renamed, enabled
+        or disabled changes its own line, and a setting changed by
+        :meth:`update` its own value, in the style the file writes it.
         """
         path = self.path
-        yaml_obj = YAML()
-        yaml_obj.preserve_quotes = True
-
         # A new file starts with the settings of the tool spelled out, so that
         # it runs as it is and says what else can be set.
         previous = read_text(path) if os.path.exists(path) else _new_file_text(self.tool)
-        settings = yaml_obj.load(previous)
-        if settings is None:
-            settings = CommentedMap()
 
-        for key, value in self._changes.items():
-            if key == "force_single_thread":
-                value = "Yes" if value else "No"
-            settings[key] = value
-
-        old_target_settings = settings.get("target_settings")
-        if not isinstance(old_target_settings, dict):
-            old_target_settings = {}
-
-        ordered = []  # (name, enabled), deduplicated
-        new_target_settings = CommentedMap()
+        ordered = []  # (name, enabled, original name), deduplicated
         seen = set()
         for target in self.targets:
             name = str(target.name).strip()
@@ -459,19 +459,76 @@ class TargetFile(object):
             if name == "" or name in seen:
                 continue
             seen.add(name)
-            ordered.append((name, bool(target.enabled)))
+            ordered.append((name, bool(target.enabled), original_name, target))
 
+        enabled = [name for name, active, _original, _target in ordered if active]
+        disabled = [name for name, active, _original, _target in ordered if not active]
+        renames = dict(
+            (original, name) for name, _active, original, _target in ordered
+            if original != name and original not in seen
+        )
+        text = None
+        if "disabled_targets" not in (load_document(previous) or {}):
+            text = edit_list_text(previous, "targets", enabled, keep=disabled, renames=renames)
+            if text is not None and _scan_targets_block(text) != [(name, active) for name, active, _o, _t in ordered]:
+                # The order asked for is not the file's: let the list be written whole.
+                if sorted(_scan_targets_block(text)) != sorted((name, active) for name, active, _o, _t in ordered):
+                    text = None
+        if text is None:
+            return self._save_rewriting_list(path, previous, ordered)
+
+        document = load_document(text)
+        self._write_settings(document, ordered)
+        write_text(path, dump_document(document, text))
+        return self._saved()
+
+    def _write_settings(self, document, ordered):
+        """The tool settings and the per-target settings, written into `document`."""
+        for key, value in self._changes.items():
+            set_key(document, key, value)
+
+        old_target_settings = document.get("target_settings")
+        if not isinstance(old_target_settings, dict):
+            old_target_settings = {}
+        wanted = {}
+        for name, _active, original_name, target in ordered:
             # Carry over existing per-target settings (possibly under the old name)
             per_target = old_target_settings.get(original_name, old_target_settings.get(name))
             per_target = copy.deepcopy(per_target) if isinstance(per_target, dict) else CommentedMap()
             if target.script_copy_enable:
-                per_target["script_copy_enable"] = True
-                per_target["script_copy_source"] = str(target.script_copy_source or "")
+                if not parse_bool(per_target.get("script_copy_enable"), False):
+                    per_target["script_copy_enable"] = True
+                if str(per_target.get("script_copy_source", "")) != str(target.script_copy_source or ""):
+                    per_target["script_copy_source"] = str(target.script_copy_source or "")
             else:
                 per_target.pop("script_copy_enable", None)
                 per_target.pop("script_copy_source", None)
             if per_target:
-                new_target_settings[name] = per_target
+                wanted[name] = per_target
+        if wanted:
+            set_key(document, "target_settings", wanted, after="targets" if "targets" in document else ABSENT)
+        elif "target_settings" in document:
+            remove_key(document, "target_settings")
+
+    def _saved(self):
+        for target in self.targets:
+            target.original_name = target.name
+        self._changes = {}
+        return self
+
+    def _save_rewriting_list(self, path, previous, ordered):
+        """
+        Write the file with its target list written whole: a list the text
+        cannot be edited in place for (an inline list, the former
+        "disabled_targets" key).
+        """
+        yaml_obj = YAML()
+        yaml_obj.preserve_quotes = True
+        yaml_obj.width = 4096
+        settings = load_document(previous)
+        if not isinstance(settings, CommentedMap):
+            settings = CommentedMap()
+        self._write_settings(settings, ordered)
 
         # The commented-out entries are re-emitted below: drop the ones attached
         # as comments to the "targets" key (the comments of the old list items go
@@ -481,10 +538,6 @@ class TargetFile(object):
         # The whole block is rewritten textually below ("targets: []" placeholder)
         settings["targets"] = []
         settings.pop("disabled_targets", None)  # legacy representation
-        if new_target_settings:
-            settings["target_settings"] = new_target_settings
-        else:
-            settings.pop("target_settings", None)
 
         offset = sequence_offset(previous)
         if offset:
@@ -493,18 +546,14 @@ class TargetFile(object):
 
         if ordered:
             block_lines = ["targets:"]
-            for name, enabled in ordered:
+            for name, enabled, _original, _target in ordered:
                 block_lines.append("  - {0}".format(name) if enabled else "  # - {0}".format(name))
             # Only the placeholder line is replaced: letting the pattern eat the
             # surrounding whitespace would drop the newline that ends the file.
             text = re.sub(r"(?m)^targets:[ \t]*\[\][ \t]*$", lambda _: "\n".join(block_lines), text, count=1)
 
         write_text(path, text)
-
-        for target in self.targets:
-            target.original_name = target.name
-        self._changes = {}
-        return self
+        return self._saved()
 
     ######################################
     # Other settings of the file

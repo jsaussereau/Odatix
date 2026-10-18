@@ -198,9 +198,11 @@ def collect_architectures(names, selections):
     return entries
 
 
+def metric_options(names):
+    """The suggestions themselves, as the datalist holds them."""
+    return [html.Option(value=name) for name in sorted(names or [], key=lambda name: name.lower())]
+
+
 def metric_datalist(names):
     """The suggestions every metric field of the page shares."""
-    return html.Datalist(
-        id=METRIC_DATALIST,
-        children=[html.Option(value=name) for name in names],
-    )
+    return html.Datalist(id=METRIC_DATALIST, children=metric_options(names))

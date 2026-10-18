@@ -400,7 +400,12 @@ def _pnr_job_sections(context, selection_settings):
     sections = []
     for work_dirname in context["instances"]:
         tool_sources = sources_by_tool.get(work_dirname, [])
-        tool_enabled = work_dirname in selection_map
+        # A tool none of whose syntheses handed a netlist over has nothing to
+        # place & route: it is off whatever the saved selection says, rather
+        # than on with "0/0 configs".
+        tool_enabled = work_dirname in selection_map and any(
+            not source.missing_handoff_files() for source in tool_sources
+        )
         saved_selectors = selection_map.get(work_dirname, [])
 
         sources_by_arch = {}

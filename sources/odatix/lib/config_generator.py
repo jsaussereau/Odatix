@@ -24,6 +24,7 @@ import re
 import sys
 import yaml
 import math
+import difflib
 import itertools
 from typing import Optional
 
@@ -196,9 +197,10 @@ def rule_set_variables(rules, variables):
   the declarations it is derived from, and keeps variables that move together
   (same "group") together.
 
-  A rule set may also say it outright, with a ``variables`` list of names, for
-  the case a variable has to vary without appearing anywhere -- the closure is
-  taken from that list instead.
+  A rule set may also name variables outright, with a ``variables`` list, for
+  the case a variable has to vary without appearing anywhere. That list adds to
+  what the rule set uses, it never replaces it: a variable its name or template
+  substitutes is always part of it, or the placeholder would be left as is.
 
   Args:
       rules (dict): one rule set (name, template, constraints, ...).
@@ -209,14 +211,11 @@ def rule_set_variables(rules, variables):
   """
   variables = variables or {}
   declared = rules.get(variables_key) if isinstance(rules, dict) else None
-  if isinstance(declared, (list, tuple)):
-    reached = set(str(name) for name in declared)
-  elif isinstance(declared, dict):
-    reached = set(str(name) for name in declared)
-  else:
-    reached = _template_references(rules.get("name", "")) | _template_references(rules.get("template", ""))
-    for expression, _message in parse_constraints(rules):
-      reached |= _expression_references(expression)
+  reached = _template_references(rules.get("name", "")) | _template_references(rules.get("template", ""))
+  for expression, _message in parse_constraints(rules):
+    reached |= _expression_references(expression)
+  if isinstance(declared, (list, tuple, dict)):
+    reached |= set(str(name) for name in declared)
 
   reached &= set(variables)
 
@@ -305,6 +304,32 @@ class GeneratedPoint(object):
 
   def __repr__(self):
     return "<GeneratedPoint {0!r} {1!r}>".format(self.name, self.values)
+
+
+def unresolved_name_error(name_template, missing, variables, source=None):
+  """
+  The error to raise for a configuration name that substitutes a variable
+  nothing declares: its placeholder would be written as is, in the name of a
+  file and of every job run on it.
+
+  It is a :class:`odatix.workspace.errors.InvalidSettingsError`, imported here
+  rather than at the top of the module, which the workspace package imports.
+  """
+  from odatix.workspace.errors import InvalidSettingsError
+  names = ", ".join("${" + name + "}" for name in missing)
+  where = ' of "{0}"'.format(source) if source else ""
+  hints = []
+  for name in missing:
+    close = difflib.get_close_matches(name, list(variables), n=1)
+    if close:
+      hints.append('did you mean ${{{0}}} instead of ${{{1}}}?'.format(close[0], name))
+  message = (
+    'The configuration name "{0}"{1} substitutes {2}, which is not a declared variable: '
+    'declare it under "variables", or fix the name.'.format(name_template, where, names)
+  )
+  if hints:
+    message += " (" + "; ".join(hints) + ")"
+  return InvalidSettingsError(message, path=source, key="name", hints=hints)
 
 
 def duplicate_point_names(points):
@@ -742,6 +767,7 @@ class ConfigGenerator:
     if self.rule_sets:
       return self._union_points()
 
+    self._check_name_references()
     group_row_lists, dimension_vars, source_dim_vars, valid = self._dimension_rows()
     if not valid:
       return [], {}
@@ -900,6 +926,7 @@ class ConfigGenerator:
           return point
       return None
 
+    self._check_name_references()
     value_map = dict(assignment)
     for variable, config in self.variables.items():
       value_type = config.get("type") if isinstance(config, dict) else None
@@ -908,6 +935,16 @@ class ConfigGenerator:
     if not self.satisfies(value_map):
       return None
     return self.render_point(value_map)
+
+  def _check_name_references(self):
+    """
+    Raise an error when the name template substitutes a variable that is not
+    declared: every configuration would carry the placeholder in its name.
+    """
+    missing = sorted(_template_references(self.name_template) - set(self.variables))
+    if missing:
+      source = self.yaml_file if self.yaml_file and not self.yaml_file.startswith("<") else None
+      raise unresolved_name_error(self.name_template, missing, self.variables, source)
 
   def _variable_group(self, variable):
     """Return the non-empty "group" label of a variable, or None if ungrouped."""

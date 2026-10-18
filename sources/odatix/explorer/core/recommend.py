@@ -340,7 +340,14 @@ class Context(object):
       if stat.interest > minimum and (direction is None or stat.direction == direction)
     ]
     candidates.sort(key=lambda stat: (-self._preference(stat.metric, "metrics"), -stat.interest, stat.metric))
-    return [stat.metric for stat in candidates]
+    names = set(stat.metric for stat in candidates)
+    # "lut_percent" is "lut_count" over the size of the device: the same
+    # question twice. The count is what the design uses; the share stays a
+    # metric of the charts, it is just not proposed on its own.
+    return [
+      stat.metric for stat in candidates
+      if not (stat.metric.endswith("_percent") and stat.metric[:-len("_percent")] + "_count" in names)
+    ]
 
   def ranked_dimensions(self, numeric=None, minimum=0.0, exclude=()):
     """Dimensions worth splitting on, most interesting first."""
@@ -401,6 +408,29 @@ class Context(object):
       if kept and len(kept) < len(self.dimensions[dimension]):
         restrict[dimension] = kept
     return restrict
+
+  def lines_connect(self, x, y):
+    """
+    Whether a lines chart of `y` along `x` draws lines at all: its traces are
+    the designs that differ only by `x`, and a trace of one point is a dot. True
+    when at least half the measured points share their trace with another one.
+    Without a dataframe to look at, assume so.
+    """
+    df = getattr(self, "df", None)
+    if df is None or x not in getattr(df, "columns", ()) or y not in df.columns:
+      return True
+    others = [
+      dimension for dimension in self.dimensions
+      if dimension in df.columns and dimension not in (x, schema.COL_CONFIGURATION, "main")
+    ]
+    measured = df[pd.to_numeric(df[y], errors="coerce").notna()]
+    if measured.empty:
+      return False
+    if not others:
+      return measured[x].nunique() >= 2
+    keys = measured[others].astype(str).apply(lambda row: "\x1f".join(row), axis=1)
+    spread = measured.groupby(keys)[x].transform("nunique")
+    return bool((spread >= 2).sum() * 2 >= len(measured))
 
   def curves_overlap(self, x, y, split):
     """
@@ -655,8 +685,9 @@ def _view_thumbnail(ctx, view, thumb_kind):
       global_dimensions=ctx.base_dimensions,
       palette=view.get("palette") or palettes.DEFAULT_PALETTE,
       plot_theme=view.get("plot_theme") or plot_themes.DEFAULT_PLOT_THEME,
+      as_dict=True,
     )
-    thumb = views.make_figure_thumbnail(figure.to_plotly_json(), thumb_kind)
+    thumb = views.make_figure_thumbnail(figure, thumb_kind)
     if thumb:
       return thumb
   except Exception:
@@ -720,6 +751,9 @@ class Recipe(object):
 
 
 def _display(name):
+  # "main" is what the results call the main parameter domain.
+  if name == "main":
+    return "Main domain"
   return schema.metric_display_name(name)
 
 
@@ -850,6 +884,11 @@ def _pareto_recipe(ctx):
   return built
 
 
+def _dissociable(dimension):
+  """What a chart along `dimension` dissociates (see ``_scaling_recipe``)."""
+  return [] if dimension in ("main", schema.COL_CONFIGURATION) else [dimension]
+
+
 def _scaling_recipe(ctx):
   """
   A metric plotted against a numeric parameter: how the design scales.
@@ -880,6 +919,10 @@ def _scaling_recipe(ctx):
       # than a dot.
       if len(ctx.measured_values(parameter, metric)) < 3:
         continue
+      # Designs sampled at random (an exploration) rarely differ by this
+      # parameter alone: the chart would be dots, not a trend.
+      if not ctx.lines_connect(parameter, metric):
+        continue
       stat = ctx.metric_stats[metric]
       restrict = ctx.restrict_to(requires=(parameter,), metric=metric)
 
@@ -896,7 +939,11 @@ def _scaling_recipe(ctx):
         controls={
           "x": parameter, "y": metric,
           "color_by": others[:1],
-          "dissociate": [parameter],
+          # The parameter is pulled out of the configuration names, so one
+          # trace follows it -- except for a parameter that is the whole name
+          # (the main domain, the configuration itself): pulled out, nothing
+          # is left to tell the traces apart, one point each.
+          "dissociate": _dissociable(parameter),
           "sort_x_order": "natural",
         },
         description=why, restrict=restrict,
@@ -940,6 +987,8 @@ def _comparison_recipe(ctx):
       restrict = ctx.restrict_to(requires=(split, axis[0]), metric=metric)
 
       overlap = ctx.curves_overlap(axis[0], metric, split)
+      if not overlap and not ctx.lines_connect(axis[0], metric):
+        continue
       why = (_display(metric) + " compared across the " + str(len(compared)) + " values of "
              + _display(split) + ", "
              + ("one group per " if overlap else "along ") + _display(axis[0]) + ".")
@@ -958,7 +1007,7 @@ def _comparison_recipe(ctx):
         controls["sort_x_order"] = "y_desc"
       else:
         controls["sort_x_order"] = "natural"
-        controls["dissociate"] = [axis[0]]
+        controls["dissociate"] = _dissociable(axis[0])
 
       view = make_view(
         ctx, "columns" if overlap else "lines",

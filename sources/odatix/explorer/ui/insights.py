@@ -40,6 +40,8 @@ ran the same designs), so a card always describes a slice that holds together
 rather than an average of unrelated result files.
 """
 
+import threading
+
 import dash
 from dash import dcc, html, Input, Output, State, ALL
 
@@ -56,9 +58,17 @@ from odatix.gui.page_scope import page_callback
 # embedding the matching anchor store (see odatix.gui.page_scope).
 PAGE_SCOPE = "explorer_home"
 
-# The gallery recomputes only when the data or the source selection changed, so
-# this can poll often.
+# The gallery recomputes only when the data or the source selection changed
+# (see cached_gallery), so this can poll often.
 POLL_INTERVAL = 3000
+
+# The last gallery computed, keyed by what it was measured on. Kept on the
+# server, not in a page store: a store is only written when the callback
+# returns, so a computation slower than the poll interval was started again on
+# every tick, each one slowing the others down until the page never got an
+# answer (and the server stopped answering anything else).
+_gallery_cache = {}
+_gallery_lock = threading.Lock()
 
 # Source names listed on a card before they collapse into a "+n" tag.
 MAX_SOURCE_TAGS = 3
@@ -78,6 +88,22 @@ def default_filters(store, sources):
     if len(kept) != len(values):
       filters[dimension] = kept
   return filters
+
+
+def cached_gallery(store, sources):
+  """
+  The recommendations for ``sources``, computed once per version of the data.
+
+  Concurrent calls (two tabs, or a poll tick arriving during the computation)
+  wait for the first one and share its result rather than computing it again.
+  """
+  key = (store.result_path, store.version, tuple(sources))
+  with _gallery_lock:
+    if key not in _gallery_cache:
+      recommendations = recommend.recommend_gallery(store, sources=sources, filters=default_filters(store, sources))
+      _gallery_cache.clear()
+      _gallery_cache[key] = recommendations
+    return _gallery_cache[key]
 
 
 def selected_sources(selection, available):
@@ -211,6 +237,14 @@ def _empty_state(has_sources):
 ######################################
 
 
+def _computing():
+  """What the grid shows until the first suggestions arrive."""
+  return html.Div(
+    [html.Span(className="xp-spinner"), html.Span("Looking for charts worth a look…")],
+    className="xp-insights-computing",
+  )
+
+
 def insights_section():
   """The gallery, as a block to drop into the Explorer landing page."""
   return html.Div(
@@ -223,7 +257,7 @@ def insights_section():
       dcc.Store(id="xp-insights-sources", data=[], storage_type="session"),
       section_header("Insights"),
       html.Div(
-        "Charts Odatix suggests from what your results actually contain.",
+        "Start here: charts Odatix suggests from what your results actually contain. Click one to open it.",
         className="xp-insights-subtitle",
       ),
       html.Div(
@@ -235,7 +269,7 @@ def insights_section():
         className="xp-insights-bar",
       ),
       html.Div(id="xp-insights-status", className="xp-insights-status"),
-      html.Div(id="xp-insights-grid"),
+      html.Div(_computing(), id="xp-insights-grid"),
     ],
     className="xp-home-section xp-insights",
   )
@@ -310,7 +344,7 @@ def update_insights(_intervals, settings, selection, previous):
   if not sources:
     return _empty_state(False), {"signature": signature, "views": []}
 
-  recommendations = recommend.recommend_gallery(STORE, sources=sources, filters=default_filters(STORE, sources))
+  recommendations = cached_gallery(STORE, sources)
   if not recommendations:
     return _empty_state(bool(available)), {"signature": signature, "views": []}
 
@@ -374,7 +408,8 @@ def save_recommendation(clicks, store):
     raise dash.exceptions.PreventUpdate
   try:
     # A proposal never replaces a view the user saved: it takes a free name
-    slug = views.save_view(STORE.result_path, views.free_name(STORE.result_path, view.get("name")), view)
+    titled = dict(view, title=view.get("title") or view.get("name"))
+    slug = views.save_view(STORE.result_path, views.free_name(STORE.result_path, view.get("name")), titled)
   except (OSError, ValueError) as e:
     return html.Div("⚠ Could not save the view: " + str(e), className="xp-view-warning")
   return html.Div('Saved as "' + slug + '.json" — it now shows up on the Explorer home page', className="xp-view-ok")

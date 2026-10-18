@@ -51,7 +51,8 @@ class Category:
     ERROR = "error"
 
 
-# label:       short name, used by the GUI badges
+# label:       short name, used by the GUI badges: what the run is going to do
+#              (the plan is shown before anything is launched)
 # description: full sentence, used for the CLI checklist and the GUI tooltips
 # color:       CLI color of the checklist section
 # glyph/style: GUI badge symbol and css status modifier
@@ -63,7 +64,7 @@ CATEGORIES = {
         "glyph": "✗",
         "style": "failed",
         "label": "Invalid",
-        "description": "Invalid settings, (skipped, see errors above)",
+        "description": "Invalid settings (skipped, see errors above)",
         "color": printc.colors.RED,
         "runs": False,
         "severity": 0,
@@ -72,7 +73,7 @@ CATEGORIES = {
     Category.OVERWRITE: {
         "glyph": "↻",
         "style": "warning",
-        "label": "Overwritten",
+        "label": "Overwrite",
         "description": "Existing results (will be overwritten)",
         "color": printc.colors.YELLOW,
         "runs": True,
@@ -82,7 +83,7 @@ CATEGORIES = {
     Category.INCOMPLETE: {
         "glyph": "↻",
         "style": "warning",
-        "label": "Incomplete",
+        "label": "Redo",
         "description": "Incomplete results (will be overwritten)",
         "color": printc.colors.YELLOW,
         "runs": True,
@@ -100,10 +101,12 @@ CATEGORIES = {
         "cli_order": 3,
     },
     Category.RESUME: {
-        "glyph": "▸",
+        "glyph": "»",
         "style": "warning",
-        "label": "Resumed",
+        "label": "Resume",
         "description": "Partially done (will resume at the first missing step)",
+        # A workflow has no step to resume at: its tasks all run again.
+        "workflows_description": "Incomplete (will run again in its existing work directory)",
         "color": printc.colors.YELLOW,
         "runs": True,
         "severity": 4,
@@ -159,7 +162,38 @@ def plain(text):
 
 def category_description(category, noun="architectures"):
     """Full description of a category, e.g. for a checklist heading."""
-    return CATEGORIES[category]["description"].format(noun=noun)
+    category_meta = CATEGORIES[category]
+    description = category_meta.get(noun + "_description", category_meta["description"])
+    return description.format(noun=noun)
+
+
+def step_details(tmp_dir, requested_steps, rerun_step_index=None):
+    """
+    The steps a job of a stepped flow is going to run, as plan details
+    (``JobPlan.add(name, category, **details)``): {"steps": [names]}, from the
+    first one it has not done (or the one "--rerun-from" names) to the last one
+    the run asks for. Empty for a flow without steps.
+    """
+    if not requested_steps:
+        return {}
+    import odatix.lib.job_steps as job_steps
+
+    requested_steps = list(requested_steps)
+    done = job_steps.resume_index(tmp_dir, requested_steps)
+    if rerun_step_index is not None:
+        done = min(done, rerun_step_index)
+    return {"steps": requested_steps[done:]}
+
+
+def steps_text(details):
+    """
+    The steps a job is going to run, for a plan entry: "synthesis → pnr", the
+    step alone when it is the only one; "" when the entry does not say.
+    """
+    steps = list((details or {}).get("steps") or [])
+    if not steps:
+        return ""
+    return steps[0] if len(steps) == 1 else steps[0] + " → " + steps[-1]
 
 
 def meta(category):
@@ -225,6 +259,7 @@ class JobPlan:
         return names if colored else [plain(name) for name in names]
 
     def counts(self):
+        """How many jobs fall in each category: ``{"new": 4, "cached": 2, ...}``."""
         counts = {category: 0 for category in CATEGORIES}
         for entry in self.entries:
             counts[entry["category"]] += 1
@@ -246,15 +281,22 @@ class JobPlan:
         return [dict(entry, details=dict(entry["details"])) for entry in self.entries]
 
     def print_summary(self, noun="architectures"):
-        """The CLI checklist: one section per non-empty category."""
+        """
+        The CLI checklist: one section per non-empty category. A job resuming or
+        running steps again says which ones ("steps: synthesis → pnr").
+        """
         for category in CLI_ORDER:
-            names = self.names(category, colored=True)
-            if not names:
+            entries = [entry for entry in self.entries if entry["category"] == category]
+            if not entries:
                 continue
             print()
             printc.bold(category_description(category, noun) + ":")
             printc.color(CATEGORIES[category]["color"])
-            for name in names:
+            for entry in entries:
+                name = entry["name"]
+                steps = steps_text(entry["details"]) if CATEGORIES[category]["runs"] else ""
+                if steps:
+                    name += " " + printc.colors.GREY + "(steps: " + steps + ")" + CATEGORIES[category]["color"]
                 print("  - " + name)
             printc.endc()
 
@@ -310,6 +352,7 @@ class MessageLog:
         return sum(message["count"] for message in self.of_level(level))
 
     def counts(self):
+        """How many distinct messages of each level were emitted."""
         return {level: len(self.of_level(level)) for level in MESSAGE_LEVELS}
 
     def to_list(self):

@@ -46,7 +46,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
 from odatix.workspace.entries import Collection, Entry, check_name
 from odatix.workspace.errors import AlreadyExistsError, NotFoundError
-from odatix.workspace.yaml_io import read_document, read_yaml, write_document
+from odatix.workspace.yaml_io import merge, read_document, read_yaml, remove_key, set_key, write_document
 
 __all__ = [
     "TOOL_SETTINGS_FILENAME",
@@ -1030,9 +1030,9 @@ class ToolMetrics(object):
         for section_key, _label in METRIC_SECTIONS:
             definitions = sections.get(section_key, {})
             if isinstance(definitions, dict) and len(definitions) > 0:
-                document[section_key] = definitions
-            else:
-                document.pop(section_key, None)
+                set_key(document, section_key, definitions)
+            elif section_key in document:
+                remove_key(document, section_key)
         write_document(self.path, document)
         return self
 
@@ -1245,9 +1245,17 @@ class Tool(Entry):
 
         if not as_overlay:
             os.makedirs(self.path, exist_ok=True)
-            document = self.settings.to_document(
-                header=file_header("Settings for " + self.name)
-            )
+            if not os.path.isfile(self.settings_path):
+                write_document(self.settings_path, self.settings.to_document(
+                    header=file_header("Settings for " + self.name)
+                ))
+                return self
+            # A tool.yml written by hand keeps its comments, its quoting and
+            # its layout: only what the settings changed, compared with what
+            # the file said, is written into it.
+            document = read_document(self.settings_path)
+            read_as = ToolSettings.from_dict(self.document).to_document()
+            merge(document, self.settings.to_document(), read_as)
             write_document(self.settings_path, document)
             return self
 
@@ -1316,6 +1324,11 @@ class Tool(Entry):
             return self
 
         os.makedirs(self.path, exist_ok=True)
+        if os.path.isfile(self.settings_path):
+            # What the overlay already says, and its comments, stay as written.
+            existing = read_document(self.settings_path)
+            merge(existing, document)
+            document = existing
         write_document(self.settings_path, document)
         return self
 

@@ -100,8 +100,8 @@ class TestSessionList:
         assert "nightly" in option["search"]
         assert ELSEWHERE in option["search"]
 
-    def test_a_long_workspace_path_is_shortened_to_its_name(self, monitor):
-        assert monitor._short_workspace("/a/very/long/path/to/some/deeply/nested/workspace") == "…/workspace"
+    def test_a_long_workspace_path_keeps_its_last_folders(self, monitor):
+        assert monitor._short_workspace("/a/very/long/path/to/some/deeply/nested/workspace") == "…/some/deeply/nested/workspace"
 
     def test_the_default_selection_is_the_latest_session_of_the_workspace(self, monitor, machine, monkeypatch):
         set_trigger(monitor, monkeypatch, "monitor-session-refresh.n_intervals")
@@ -109,11 +109,11 @@ class TestSessionList:
         assert selected == "30.recent"
         assert options[0]["value"] == "30.recent"
 
-    def test_without_a_session_in_the_workspace_another_one_is_shown(self, monitor, machine, monkeypatch):
+    def test_without_a_session_in_the_workspace_none_is_selected(self, monitor, machine, monkeypatch):
         machine[:] = [entry for entry in machine if entry["workspace_root"] != HERE]
         set_trigger(monitor, monkeypatch, "monitor-session-refresh.n_intervals")
         _options, selected, _stopped = dropdown(monitor)
-        assert selected == "10.nightly"
+        assert selected is None
 
     def test_a_name_several_workspaces_use_means_the_one_of_this_workspace(self, monitor, machine):
         machine.append(session(50, "pts-1.host", HERE))

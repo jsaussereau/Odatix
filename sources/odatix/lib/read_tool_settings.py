@@ -97,7 +97,7 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
         sys.exit(-1)
 
   # Retrieve global settings
-  process_group, _ = get_from_dict("process_group", settings_data, tool_settings_file, default_value=True, script_name=script_name)
+  process_group, _ = get_from_dict("process_group", settings_data, tool_settings_file, default_value=True, silent=True, script_name=script_name)
   # Only exporting the results needs metrics, and it says so when there are none.
   default_metrics_file, _ = get_from_dict("default_metrics_file", settings_data, tool_settings_file, silent=True, script_name=script_name)
 
@@ -137,6 +137,14 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
 
   if not runnable_flows:
     printc.error(f'{job_type_label} is not supported with the selected EDA tool "{tool}" on {platform_key}', script_name)
+    command_key = eda_tools.JOB_TYPE_COMMAND_KEYS.get(synth_type)
+    steps_key = eda_tools.JOB_TYPE_STEPS_KEYS.get(synth_type)
+    if command_key:
+      printc.note(
+        f'The "{platform_key}" section of its tool.yml ("{tool_settings_file}") declares no "{command_key}"'
+        + (f' (nor "{steps_key}")' if steps_key else ""),
+        script_name,
+      )
     sys.exit(-1)
 
   if flow is None or str(flow).strip() == "":

@@ -259,7 +259,11 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
     window.attroff(curses.A_BOLD)
 
 
-def _resource_guard_label(handler):
+def _resource_guard_label(handler, short=False):
+    """
+    Where auto-pause stands. `short` leaves out how many jobs it holds: the
+    job counts of the header already say how many are paused.
+    """
     try:
         unavailable = handler.resource_guard_unavailable()
     except Exception:
@@ -272,43 +276,117 @@ def _resource_guard_label(handler):
         paused = int(handler.resource_guard_paused_count())
     except Exception:
         paused = 0
-    return "on ({} paused)".format(paused) if paused > 0 else "on"
+    return "on ({} paused)".format(paused) if paused > 0 and not short else "on"
 
 
-def update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width):
+def _job_counts_texts(retired, total, running, paused):
+    """The job counts of the header, from the most to the least detailed."""
+    if total <= 0:
+        return ["waiting for jobs", "no jobs yet"]
+    noun = "job" if total == 1 else "jobs"
+    if retired >= total and running == 0 and paused == 0:
+        return ["{}/{} {} done!".format(retired, total, noun), "{}/{} done!".format(retired, total)]
+    queued = max(0, total - retired - running - paused)
+    details = [
+        "{} {}".format(count, label)
+        for count, label in ((running, "running"), (paused, "paused"), (queued, "queued"))
+        if count
+    ] or ["0 running"]
+    texts = [
+        "{}/{} {} done - {}".format(retired, total, noun, ", ".join(details)),
+        "{}/{} done, {}".format(retired, total, ", ".join(details)),
+    ]
+    if paused:
+        texts.append("{}/{} done, {} paused".format(retired, total, paused))
+    texts.append("{}/{} done".format(retired, total))
+    return texts
+
+
+HEADER_TITLE = " Odatix "
+
+
+def header_layout(width, version, nb_jobs, guard_long, guard_short, counts_texts, session_label=None):
+    """
+    What the header of the monitor shows in `width` columns, and where.
+
+    Nothing overlaps, whatever the width: the parts are dropped or shortened
+    by priority, the least useful first. The session and the job counts come
+    first, then auto-pause, then the number of parallel jobs and the version.
+    The " Odatix " title is only drawn in the middle when there is room left
+    for it.
+
+    Returns:
+        tuple: (left text, right text, column of the title or None). The left
+        text starts at column 1, the right text ends one column before the edge.
+    """
+    room = max(0, int(width) - 2)
+    session = "session {}".format(session_label) if session_label else None
+
+    def parts(*items):
+        return [item for item in items if item]
+
+    # Richest first. Each level gives up something the previous one showed:
+    # the version, then wording, then the number of parallel jobs, then the
+    # detail of the job counts.
+    lefts = [
+        ("   ", parts(session, "v{}".format(version), "parallel jobs: {}".format(nb_jobs), "auto-pause: " + guard_long)),
+        ("   ", parts(session, "parallel jobs: {}".format(nb_jobs), "auto-pause: " + guard_long)),
+        ("  ", parts(session, "parallel: {}".format(nb_jobs), "auto-pause: " + guard_short)),
+    ]
+    candidates = [(sep, left, right) for sep, left in lefts for right in counts_texts[:2]]
+    minimal = parts(session, "auto-pause: " + guard_short)
+    candidates.extend(("  ", minimal, right) for right in counts_texts)
+    for separator, left_parts, right in candidates:
+        left = separator.join(left_parts)
+        if len(left) + len(right) + 2 <= room:
+            break
+    else:
+        # Too narrow for everything that matters: the session and the counts,
+        # the session cut short when even that does not fit.
+        separator, right = "  ", counts_texts[-1]
+        left = separator.join(parts(session, "auto-pause: " + guard_short))
+        if len(left) + len(right) + 2 > room:
+            left = session or ""
+        budget = room - len(right) - 2
+        if len(left) > budget:
+            left = left[: max(0, budget - 1)] + "~" if budget > 1 else ""
+        if len(right) > room:
+            right = right[:room]
+
+    title_x = None
+    left_end = 1 + len(left)
+    right_start = int(width) - 1 - len(right)
+    x = (int(width) - len(HEADER_TITLE)) // 2
+    if x >= left_end + 2 and x + len(HEADER_TITLE) <= right_start - 2:
+        title_x = x
+    return left, right, title_x
+
+
+def update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width, paused_jobs_count=0):
     nb_jobs = int(getattr(handler, "nb_jobs", 1))
-    left_text = "v{}   parallel jobs: {}   auto-pause: {}".format(
-        handler.version, nb_jobs, _resource_guard_label(handler)
+    left_text, text, title_x = header_layout(
+        width,
+        version=handler.version,
+        nb_jobs=nb_jobs,
+        guard_long=_resource_guard_label(handler),
+        guard_short=_resource_guard_label(handler, short=True),
+        counts_texts=_job_counts_texts(retired_jobs_count, total_jobs_count, active_jobs_count, paused_jobs_count),
+        session_label=getattr(handler, "session_label", None),
     )
-    session_label = getattr(handler, "session_label", None)
-    if session_label:
-        left_text = "session {}   {}".format(session_label, left_text)
     try:
         header_win.hline(0, 0, " ", width, curses.color_pair(NORMAL) | curses.A_REVERSE)
         header_win.addstr(0, 1, left_text, curses.color_pair(NORMAL) | curses.A_REVERSE)
     except curses.error:
         pass
-    if total_jobs_count == 1:
-        if retired_jobs_count == total_jobs_count:
-            text = "{}/{} job done!".format(retired_jobs_count, total_jobs_count)
-        else:
-            text = "{}/{} job done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
-    else:
-        if retired_jobs_count == total_jobs_count:
-            text = "{}/{} jobs done!".format(retired_jobs_count, total_jobs_count)
-        else:
-            text = "{}/{} jobs done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
     try:
-        header_win.addstr(0, width - len(text) - 1, text, curses.color_pair(NORMAL) | curses.A_REVERSE)
+        header_win.addstr(0, max(0, width - len(text) - 1), text, curses.color_pair(NORMAL) | curses.A_REVERSE)
     except curses.error:
         pass
-
-    try:
-        header_win.addstr(
-            0, (width - len(" Odatix ")) // 2, " Odatix ", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD
-        )
-    except curses.error:
-        pass
+    if title_x is not None:
+        try:
+            header_win.addstr(0, title_x, HEADER_TITLE, curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+        except curses.error:
+            pass
 
     header_win.refresh()
 
@@ -472,27 +550,62 @@ def update_status_message(bottom_bar, message):
     bottom_bar.refresh()
 
 
-def show_exit_confirmation(bottom_bar):
+def exit_prompt_parts(width, can_detach):
+    """
+    What "q" asks while jobs remain, as (text, bold) pieces fitting `width`.
+
+    Leaving is what "q" is for, so the first choice is the one that leaves the
+    jobs alone; killing them takes a key of its own, never the one just typed.
+    """
+    if can_detach:
+        variants = [
+            [(" Jobs are still running: ", False), ("d", True), (" leave them running and quit | ", False),
+             ("k", True), (" kill them all and close the session | ", False), ("Esc", True), (" stay ", False)],
+            [(" Jobs still running: ", False), ("d", True), (" quit, keep them | ", False),
+             ("k", True), (" kill all, close session | ", False), ("Esc", True), (" stay ", False)],
+            [(" ", False), ("d", True), (": keep jobs | ", False), ("k", True), (": kill all | ", False),
+             ("Esc", True), (": stay ", False)],
+        ]
+    else:
+        variants = [
+            [(" Jobs are still running: ", False), ("k", True), (" kill them all and quit | ", False),
+             ("Esc", True), (" stay ", False)],
+            [(" ", False), ("k", True), (": kill all, quit | ", False), ("Esc", True), (": stay ", False)],
+        ]
+    for parts in variants:
+        if sum(len(text) for text, _bold in parts) <= max(0, width - 1):
+            return parts
+    return variants[-1]
+
+
+def show_exit_confirmation(bottom_bar, can_detach=True):
+    """
+    Ask what "q" should do while jobs are still running.
+
+    Returns:
+        str: "detach" (quit, the jobs keep running in their session), "kill"
+        (kill every job, and close the session), "cancel", or None when the
+        key pressed answers nothing (asked again).
+    """
     try:
         bottom_bar.erase()
-        prompt = " Kill all jobs and stop daemon: Yes ("
-        bottom_bar.addstr(prompt, curses.color_pair(NORMAL) | curses.A_REVERSE)
-        bottom_bar.addstr("y", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
-        bottom_bar.addstr(") / No (", curses.color_pair(NORMAL) | curses.A_REVERSE)
-        bottom_bar.addstr("n", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
-        bottom_bar.addstr(")? ", curses.color_pair(NORMAL) | curses.A_REVERSE)
+        width = bottom_bar.getmaxyx()[1]
+        for text, bold in exit_prompt_parts(width, can_detach):
+            attr = curses.color_pair(NORMAL) | curses.A_REVERSE | (curses.A_BOLD if bold else 0)
+            bottom_bar.addstr(text, attr)
         bottom_bar.refresh()
     except curses.error:
         pass
 
     key = bottom_bar.getch()
     curses.flushinp()
-    if key == ord("y") or key == ord("Y"):
-        return True, True
-    elif key == ord("n") or key == ord("N"):
-        return True, False
-    else:
-        return False, False
+    if key in (ord("k"), ord("K")):
+        return "kill"
+    if can_detach and key in (ord("d"), ord("D"), ord("q"), ord("Q")):
+        return "detach"
+    if key in (27, ord("n"), ord("N")):
+        return "cancel"
+    return None
 
 
 def update_exit(bottom_bar):
@@ -545,7 +658,19 @@ def finished_popup_close_button(popup_width):
     return 1, x, x + 2
 
 
-def update_finished_popup(popup_win, popup_width, popup_height, options, selected, retired_jobs_count, total_jobs_count):
+def finished_popup_summary(retired_jobs_count, total_jobs_count, failed_jobs_count=0):
+    """What the end-of-run popup says about the jobs."""
+    if total_jobs_count <= 0:
+        return ""
+    succeeded = max(0, retired_jobs_count - failed_jobs_count)
+    summary = "{}/{} job(s) succeeded".format(succeeded, total_jobs_count)
+    if failed_jobs_count:
+        summary += ", {} failed".format(failed_jobs_count)
+    return summary
+
+
+def update_finished_popup(popup_win, popup_width, popup_height, options, selected, retired_jobs_count, total_jobs_count,
+                          failed_jobs_count=0):
     popup_win.erase()
     popup_win.box()
 
@@ -563,17 +688,20 @@ def update_finished_popup(popup_win, popup_width, popup_height, options, selecte
     close_y, close_x, _ = finished_popup_close_button(popup_width)
     addstr(close_y, close_x, " X ", curses.A_BOLD | curses.color_pair(REVERSE_RED))
 
-    if total_jobs_count > 0:
-        summary = "{}/{} job(s) finished".format(retired_jobs_count, total_jobs_count)
-        addstr(2, max(1, (popup_width - len(summary)) // 2), summary, curses.A_DIM)
+    summary = finished_popup_summary(retired_jobs_count, total_jobs_count, failed_jobs_count)
+    if summary:
+        attr = curses.color_pair(RED) if failed_jobs_count else curses.A_DIM
+        addstr(2, max(1, (popup_width - len(summary)) // 2), summary, attr)
 
     for i, (label, _) in enumerate(options):
         text = " {}. {} ".format(i + 1, label)
         text = text.ljust(popup_width - 2 * FINISHED_POPUP_OPTION_X)
-        attr = curses.A_BOLD | curses.color_pair(REVERSE) if i == selected else curses.color_pair(NORMAL)
+        attr = curses.A_BOLD | highlight_attr() if i == selected else curses.color_pair(NORMAL)
         addstr(FINISHED_POPUP_FIRST_OPTION_Y + i, FINISHED_POPUP_OPTION_X, text, attr)
 
-    hint = "Click, or Up/Down then Enter"
+    hint = "Up/Down + Enter, 1-{}, or click | Esc: stay".format(len(options))
+    if len(hint) > popup_width - 2:
+        hint = "1-{} or Enter | Esc: stay".format(len(options))
     addstr(popup_height - 2, max(1, (popup_width - len(hint)) // 2), hint, curses.A_DIM)
     popup_win.refresh()
 
@@ -590,7 +718,7 @@ def finished_popup_option_at(popup_width, popup_height, options, y, x):
     return index
 
 
-def show_finished_popup(stdscr, options, retired_jobs_count, total_jobs_count):
+def show_finished_popup(stdscr, options, retired_jobs_count, total_jobs_count, failed_jobs_count=0):
     """Blocking popup shown once every job is done.
 
     Returns "stay", "detach" (quit, leave the session running) or "close"
@@ -613,7 +741,8 @@ def show_finished_popup(stdscr, options, retired_jobs_count, total_jobs_count):
 
     selected = 1
     while True:
-        update_finished_popup(popup_win, popup_width, popup_height, options, selected, retired_jobs_count, total_jobs_count)
+        update_finished_popup(popup_win, popup_width, popup_height, options, selected, retired_jobs_count, total_jobs_count,
+                              failed_jobs_count)
         key = popup_win.getch()
 
         if key == curses.KEY_UP:
@@ -735,10 +864,11 @@ def update_logs(handler, logs_win, selected_job, logs_height, width):
     handler.previous_log_size = log_length
 
 
-def update_help_popup(popup_win, popup_width, popup_height):
+def help_popup_keys():
+    """Every key the help popup lists, as (key, alternate key, description)."""
     help_text = [
-        ("q"          , "Quit"),
-        ("d"          , "Detach monitor"),
+        ("q"          , "Quit (asks before killing jobs)"),
+        ("d"          , "Detach: quit, jobs keep running"),
         ("PageDown  n", "Select next job"),
         ("PageUp    p", "Select previous job"),
         ("Up         ", "Scroll log up"),
@@ -759,9 +889,33 @@ def update_help_popup(popup_win, popup_width, popup_height):
 
     if can_open_path_in_explorer():
         help_text.insert(-2, ("o", "Open current job work path"))
+    return help_text
 
-    if popup_height <= 7:
-        popup_win.erase()
+
+#: First row of the key list in the help popup, under the title and the column headers.
+HELP_FIRST_ROW = 4
+
+
+def help_popup_rows(popup_height):
+    """How many keys the help popup has room for."""
+    return max(0, popup_height - 2 - HELP_FIRST_ROW)
+
+
+def update_help_popup(popup_win, popup_width, popup_height, offset=0, ascii_only=False):
+    """
+    Draw the help popup, its list scrolled down by `offset` keys.
+
+    A list taller than the popup scrolls (Up/Down), and says that it goes on
+    above or below rather than being cut without a word.
+
+    Returns:
+        int: the offset actually used, clamped to what the list allows.
+    """
+    help_text = help_popup_keys()
+    rows = help_popup_rows(popup_height)
+    offset = max(0, min(int(offset), max(0, len(help_text) - rows)))
+
+    popup_win.erase()
     popup_win.box()
 
     try:
@@ -780,18 +934,28 @@ def update_help_popup(popup_win, popup_width, popup_height):
             try:
                 popup_win.addstr(3, 3, "Key      Alt", curses.A_BOLD)
                 popup_win.addstr(3, 17, "Description", curses.A_BOLD)
-                for i, (key, desc) in enumerate(help_text, start=4):
-                    if i < popup_height - 2:
-                        popup_win.addstr(i, 3, f"{key}", curses.color_pair(CYAN))
-                        popup_win.addstr(i, 17, f"{desc}")
+                if offset > 0:
+                    more = "^ more" if ascii_only else "\u25b2 more"
+                    popup_win.addstr(3, max(17, popup_width - len(more) - 3), more, curses.A_DIM)
+                for i, (key, desc) in enumerate(help_text[offset:offset + rows], start=HELP_FIRST_ROW):
+                    popup_win.addstr(i, 3, f"{key}", curses.color_pair(CYAN))
+                    popup_win.addstr(i, 17, f"{desc}"[: max(0, popup_width - 18)])
             except curses.error:
                 pass
+    below = offset + rows < len(help_text)
     try:
-        text = "Press 'q' or 'h' to close"
-        popup_win.addstr(max(popup_height - 2, 1), (popup_width - len(text)) // 2, text, curses.A_DIM)
+        if below or offset > 0:
+            text = "Up/Down: scroll | q, h: close"
+            if below:
+                text = ("v more | " if ascii_only else "\u25bc more | ") + text
+        else:
+            text = "Press 'q' or 'h' to close"
+        text = text[: max(0, popup_width - 2)]
+        popup_win.addstr(max(popup_height - 2, 1), max(1, (popup_width - len(text)) // 2), text, curses.A_DIM)
     except curses.error:
         pass
     popup_win.refresh()
+    return offset
 
 
 def read_escape_sequence(stdscr, timeout=50, max_length=12):
@@ -831,8 +995,68 @@ def click_on_job(handler, progress_win, y, x):
     return -1
 
 
+def no_color():
+    """Whether colors are turned off (https://no-color.org): bold and reverse video stay."""
+    return os.environ.get("NO_COLOR", "") != ""
+
+
+def init_colors():
+    """Define the color pairs of the monitor, all of them plain under NO_COLOR."""
+    try:
+        if not curses.has_colors():
+            return  # vt100 and the like: bold and reverse video only
+        curses.start_color()
+        curses.use_default_colors()
+    except curses.error:
+        return
+    light = AnsiToCursesConverter.LIGHT_OFFSET
+    pairs = {
+        NORMAL: (-1, -1),
+        RED: (curses.COLOR_RED, -1),
+        YELLOW: (curses.COLOR_YELLOW, -1),
+        GREEN: (curses.COLOR_GREEN, -1),
+        BLUE: (curses.COLOR_BLUE, -1),
+        CYAN: (curses.COLOR_CYAN, -1),
+        BLACK: (curses.COLOR_BLACK, -1),
+        WHITE: (curses.COLOR_WHITE, -1),
+        GREY: (curses.COLOR_BLACK + light, -1),
+        REVERSE: (curses.COLOR_BLACK, curses.COLOR_WHITE + light),
+        REVERSE_RED: (-1, curses.COLOR_RED + light),
+        REVERSE_YELLOW: (-1, curses.COLOR_YELLOW + light),
+        REVERSE_GREEN: (-1, curses.COLOR_GREEN + light),
+        REVERSE_BLUE: (-1, curses.COLOR_BLUE + light),
+        REVERSE_CYAN: (-1, curses.COLOR_CYAN + light),
+        REVERSE_BLACK: (-1, curses.COLOR_BLACK + light),
+        REVERSE_WHITE: (-1, curses.COLOR_WHITE + light),
+        REVERSE_GREY: (-1, curses.COLOR_BLACK),
+    }
+    plain = no_color()
+    for pair, (foreground, background) in pairs.items():
+        if plain:
+            foreground, background = -1, -1
+        try:
+            curses.init_pair(pair, foreground, background)
+        except (curses.error, ValueError):
+            # A terminal with 8 colors has no "light" ones.
+            try:
+                curses.init_pair(pair, foreground % 8 if foreground > 0 else foreground,
+                                 background % 8 if background > 0 else background)
+            except (curses.error, ValueError):
+                pass
+
+
+def highlight_attr():
+    """What marks the selected option of a popup: a reverse color, or reverse video without colors."""
+    return curses.color_pair(REVERSE) | (curses.A_REVERSE if no_color() else 0)
+
+
 def curses_main(handler, stdscr):
-    curses.curs_set(0)  # Hide cursor
+    # Hide the cursor where the terminal can: vt100 cannot, and still shows
+    # the monitor well enough.
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
 
     # Enable mouse actions (disable selection)
     from odatix.lib.curses_helper import (
@@ -841,29 +1065,7 @@ def curses_main(handler, stdscr):
     )
     disable_selection()
 
-    curses.start_color()
-    curses.use_default_colors()
-
-    # Define color pairs
-    curses.init_pair(NORMAL, -1, -1)
-    curses.init_pair(RED, curses.COLOR_RED, -1)
-    curses.init_pair(YELLOW, curses.COLOR_YELLOW, -1)
-    curses.init_pair(GREEN, curses.COLOR_GREEN, -1)
-    curses.init_pair(BLUE, curses.COLOR_BLUE, -1)
-    curses.init_pair(CYAN, curses.COLOR_CYAN, -1)
-    curses.init_pair(BLACK, curses.COLOR_BLACK, -1)
-    curses.init_pair(WHITE, curses.COLOR_WHITE, -1)
-    curses.init_pair(GREY, curses.COLOR_BLACK + AnsiToCursesConverter.LIGHT_OFFSET, -1)
-
-    curses.init_pair(REVERSE, curses.COLOR_BLACK, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_RED, -1, curses.COLOR_RED + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_YELLOW, -1, curses.COLOR_YELLOW + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_GREEN, -1, curses.COLOR_GREEN + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_BLUE, -1, curses.COLOR_BLUE + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_CYAN, -1, curses.COLOR_CYAN + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_BLACK, -1, curses.COLOR_BLACK + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_WHITE, -1, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
-    curses.init_pair(REVERSE_GREY, -1, curses.COLOR_BLACK)
+    init_colors()
 
     height, width = stdscr.getmaxyx()
     old_width = width
@@ -924,25 +1126,47 @@ def curses_main(handler, stdscr):
         if handler.job_index_end <= handler.job_index_start:
             handler.job_index_end = handler.job_index_start + 1
 
-    # Default: max(total_height/2, total_jobs), clamped to available screen content height.
-    progress_height = _clamp_progress_height(min(height // 2, handler.job_count), height)
+    # The height the user gave the progress window (+/-, dragging the
+    # separator), or None for the default: as many rows as there are jobs, up
+    # to half the screen. It is what every resize starts from again, so a
+    # window shrunk to almost nothing grows back once the terminal does.
+    wanted_height = None
+
+    def _wanted_progress_height(screen_height):
+        if wanted_height is not None:
+            return _clamp_progress_height(wanted_height, screen_height)
+        return _clamp_progress_height(min(screen_height // 2, handler.job_count), screen_height)
+
+    progress_height = _wanted_progress_height(height)
     logs_height = max(0, height - progress_height - 2 * separator_height - help_height - header_height)
     popup_width = min(50, width - 4)
-    popup_height = max(3, min(HELP_POPUP_HEIGHT, height - 4))
+    popup_height = max(3, min(HELP_POPUP_HEIGHT, height - 2))
     start_x = (width - popup_width) // 2
     start_y = (height - popup_height) // 2
     sync_progress_indices()
     last_job_count = handler.job_count
+
+    def keep_selected_visible():
+        """Scroll the job list so that the selected job is in sight, if it is one that scrolls."""
+        position = handler.scroll_position(handler.selected_job_index)
+        if position is None:
+            return
+        if position < handler.job_index_start:
+            handler.job_index_start = position
+            sync_progress_indices()
+        elif position >= handler.job_index_end:
+            handler.job_index_start = position - scroll_room() + 1
+            sync_progress_indices()
 
     def recreate_windows():
         nonlocal header_win, separator_top_win, progress_win, separator_middle_win
         nonlocal logs_win, bottom_bar, popup_win
         nonlocal progress_height, logs_height, popup_width, popup_height, start_x, start_y
 
-        progress_height = _clamp_progress_height(progress_height, height)
+        progress_height = _wanted_progress_height(height)
         logs_height = max(0, height - progress_height - 2 * separator_height - help_height - header_height)
         popup_width = min(50, width - 4)
-        popup_height = max(3, min(HELP_POPUP_HEIGHT, height - 4))
+        popup_height = max(3, min(HELP_POPUP_HEIGHT, height - 2))
         start_x = (width - popup_width) // 2
         start_y = (height - popup_height) // 2
         sync_progress_indices()
@@ -1162,21 +1386,35 @@ def curses_main(handler, stdscr):
     finished_draw_cycles = 0
 
     handler.showing_help = False
+    help_offset = 0
+
+    paused_jobs_count = 0
 
     def get_runtime_counters():
-        active_jobs_count = int(getattr(handler, "_remote_running", len(handler.running_job_list)))
-        queued_jobs_count = int(getattr(handler, "_remote_queued", handler.job_queue.qsize()))
-        retired_jobs_count = int(getattr(handler, "_remote_retired", len(handler.retired_job_list)))
-        total_jobs_count = int(getattr(handler, "_remote_total_jobs", len(handler.job_list)))
+        nonlocal paused_jobs_count
+        counts = handler.runtime_counts()
+        active_jobs_count = int(counts["running"])
+        paused_jobs_count = int(counts["paused"])
+        queued_jobs_count = int(counts["queued"])
+        retired_jobs_count = int(counts["retired"])
+        total_jobs_count = int(counts["total"])
 
-        finished_now = active_jobs_count == 0 and queued_jobs_count == 0
+        # A paused job is not over: it waits for someone to resume it.
+        finished_now = active_jobs_count == 0 and queued_jobs_count == 0 and paused_jobs_count == 0
         if total_jobs_count > 0:
             finished_now = finished_now and retired_jobs_count >= total_jobs_count
+
+        # "-E" in a session shared with other runs: what closes the monitor is
+        # the end of the jobs of this run, not of the whole session.
+        watched = handler.watched_jobs_over()
+        if handler.auto_exit and watched is not None:
+            finished_now = watched
 
         return active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now
 
     while True:
         if handler._request_curses_exit:
+            handler.monitor_exit = "shutdown"
             update_exit(bottom_bar)
             handler.terminate_all_jobs()
             return False
@@ -1211,6 +1449,10 @@ def curses_main(handler, stdscr):
                     if grown > height // 2:
                         break
                     grown = _clamp_progress_height(grown + 1, height)
+                if wanted_height is not None:
+                    wanted_height = max(wanted_height, grown)
+                else:
+                    grown = _wanted_progress_height(height)
                 if grown != progress_height:
                     progress_height = grown
                     sync_progress_indices()
@@ -1220,6 +1462,7 @@ def curses_main(handler, stdscr):
             if height != old_height or width != old_width or resize:
                 try:
                     recreate_windows()
+                    keep_selected_visible()
                     update_logs(handler, logs_win, selected_job, logs_height, width)
                 except curses.error:
                     try:
@@ -1249,6 +1492,7 @@ def curses_main(handler, stdscr):
 
             # The session was stopped from elsewhere: nothing left to watch.
             if getattr(handler, "session_gone", False):
+                handler.monitor_exit = "gone"
                 return False
 
             # Completion is announced below, once the final progress/logs have been drawn.
@@ -1258,7 +1502,8 @@ def curses_main(handler, stdscr):
             if not handler.showing_help:
                 help_static_drawn = False
 
-                update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+                update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width,
+                              paused_jobs_count)
                 update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
 
                 # Keep the local selected_job reference synchronized with handler state.
@@ -1279,7 +1524,8 @@ def curses_main(handler, stdscr):
             elif not help_static_drawn:
                 # Draw a single dimmed snapshot behind the popup, then keep it stable
                 # while help is open to avoid flicker from continuous progress redraws.
-                update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+                update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width,
+                              paused_jobs_count)
                 update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
                 update_progress_window(handler, progress_win)
                 update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
@@ -1308,22 +1554,29 @@ def curses_main(handler, stdscr):
 
                     # Dim the whole background behind the popup, like the help menu does.
                     handler.showing_help = True
-                    update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+                    update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width,
+                              paused_jobs_count)
                     update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
                     update_progress_window(handler, progress_win)
                     update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
                     update_logs(handler, logs_win, selected_job, logs_height, width)
 
                     try:
+                        failed_jobs_count = sum(
+                            1 for job in handler.job_list if job.status in ("failed", "killed", "canceled")
+                        )
                         choice = show_finished_popup(
-                            stdscr, finished_popup_options(handler), retired_jobs_count, total_jobs_count
+                            stdscr, finished_popup_options(handler), retired_jobs_count, total_jobs_count,
+                            failed_jobs_count,
                         )
                     finally:
                         handler.showing_help = False
 
                     if choice == "detach":
+                        handler.monitor_exit = "detach"
                         return True
                     if choice == "close":
+                        handler.monitor_exit = "close"
                         on_quit_after_finished(handler)
                         return True
                     # "stay": redraw the whole screen behind the popup.
@@ -1443,8 +1696,9 @@ def curses_main(handler, stdscr):
                         relative_y = y - (header_height + separator_height)
                         new_progress_height = _clamp_progress_height(relative_y, height)
                         if new_progress_height != progress_height:
-                            progress_height = new_progress_height
+                            progress_height = wanted_height = new_progress_height
                             sync_progress_indices()
+                            keep_selected_visible()
                             resize = True
 
                 if log_selection is not None and log_selection.dragging:
@@ -1544,6 +1798,7 @@ def curses_main(handler, stdscr):
                 scroll_right_logs(selected_job)
 
             elif key == ord("d") or key == ord("D"):
+                handler.monitor_exit = "detach"
                 return True
 
             elif key == curses.KEY_HOME:
@@ -1560,15 +1815,18 @@ def curses_main(handler, stdscr):
             elif key == ord("+") or key == ord("="):
                 new_progress_height = _clamp_progress_height(progress_height + 1, height)
                 if new_progress_height != progress_height:
-                    progress_height = new_progress_height
+                    progress_height = wanted_height = new_progress_height
                     sync_progress_indices()
+                    keep_selected_visible()
                     resize = True
 
             elif key == ord("-") or key == ord("_"):
                 new_progress_height = _clamp_progress_height(progress_height - 1, height)
                 if new_progress_height != progress_height:
-                    progress_height = new_progress_height
+                    progress_height = wanted_height = new_progress_height
                     sync_progress_indices()
+                    # The selected job stays in sight: its log is the one shown.
+                    keep_selected_visible()
                     resize = True
 
             elif key == ord(">") or key == ord("."):
@@ -1610,6 +1868,7 @@ def curses_main(handler, stdscr):
                 elif log_selection is not None:
                     clear_log_selection()
                 elif handler.auto_exit and finished:
+                    handler.monitor_exit = "auto"
                     return True
 
             elif key == ord("t") or key == ord("T"):
@@ -1617,10 +1876,12 @@ def curses_main(handler, stdscr):
 
             elif key in [ord("h"), ord("H"), ord("?")]:
                 handler.showing_help = True
+                help_offset = 0
                 help_static_drawn = False
 
             else:
                 if handler.auto_exit and finished:
+                    handler.monitor_exit = "auto"
                     return True
                 if key == ord("q") or key == ord("Q"):
                     if not finished and hasattr(handler, "_sync_snapshot"):
@@ -1633,6 +1894,7 @@ def curses_main(handler, stdscr):
                         finished = finished or finished_now
 
                     if finished:
+                        handler.monitor_exit = "close"
                         on_quit_after_finished(handler)
                         return True
                     ask_exit = True
@@ -1651,6 +1913,12 @@ def curses_main(handler, stdscr):
                         logs_win.erase()
                     update_logs(handler, logs_win, selected_job, logs_height, width)
 
+            elif key in (curses.KEY_UP, curses.KEY_PPAGE):
+                help_offset = max(0, help_offset - (1 if key == curses.KEY_UP else help_popup_rows(popup_height)))
+
+            elif key in (curses.KEY_DOWN, curses.KEY_NPAGE):
+                help_offset += 1 if key == curses.KEY_DOWN else help_popup_rows(popup_height)
+
             elif key in [ord('h'), ord('H'), ord('?'), ord('q'), ord('Q')]:
                 handler.showing_help = False
                 if logs_win is not None:
@@ -1658,13 +1926,20 @@ def curses_main(handler, stdscr):
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
         if ask_exit:
-            user_answered, user_confirmed = show_exit_confirmation(bottom_bar)
-            if user_answered:
-                if user_confirmed:
-                    update_exit(bottom_bar)
-                    handler.terminate_all_jobs()
-                    return False
+            can_detach = callable(getattr(handler, "on_quit_after_finished", None))
+            answer = show_exit_confirmation(bottom_bar, can_detach=can_detach)
+            if answer == "kill":
+                handler.monitor_exit = "kill"
+                handler.monitor_exit_counts = handler.runtime_counts()
+                update_exit(bottom_bar)
+                handler.terminate_all_jobs()
+                return False
+            if answer == "detach":
+                handler.monitor_exit = "detach"
+                return True
+            if answer == "cancel":
                 ask_exit = False
+                bottom_bar_drawn = False
         else:
             if status_message is not None and time.time() - status_message_time >= STATUS_MESSAGE_DELAY:
                 status_message = None
@@ -1686,7 +1961,8 @@ def curses_main(handler, stdscr):
 
         # Draw help popup last so it always stays above logs/progress redraws.
         if handler.showing_help and not fast_input:
-            update_help_popup(popup_win, popup_width, popup_height)
+            help_offset = update_help_popup(popup_win, popup_width, popup_height, offset=help_offset,
+                                            ascii_only=handler.theme.get("bar") == "-")
 
         # Look ahead: if another event is already waiting, run the next cycle in
         # fast mode so the queue is drained at input speed rather than at redraw

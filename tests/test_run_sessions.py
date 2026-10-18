@@ -55,7 +55,7 @@ class TestNothingToRun:
         with pytest.raises(SystemExit) as stop:
             confirm_valid_jobs(0, False, None, plan=self._plan("daemon", "daemon"))
         assert stop.value.code == NOTHING_TO_RUN
-        assert "already running in a session" in capsys.readouterr().out
+        assert "already in a session (running or over)" in capsys.readouterr().out
 
     def test_jobs_done_or_in_a_session_is_nothing_to_run(self, capsys):
         from odatix.components.run_common import confirm_valid_jobs

@@ -36,6 +36,8 @@ import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
 from odatix.explorer.standalone import ExplorerStandaloneApp
 from odatix.lib.utils import get_local_ip, find_free_port, open_browser_when_ready
+from odatix.components.cli_options import HelpFormatter, deprecated_option
+from odatix.lib.settings import OdatixSettings
 
 sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
 
@@ -51,18 +53,38 @@ start_port = 8052
 # Parse Arguments
 ######################################
 
+def theme_help():
+    """The help of -T/--theme, with the themes there are."""
+    try:
+        import odatix.gui.themes as themes
+
+        names = themes.theme_list()
+    except Exception:
+        names = []
+    text = "theme to start with (default: the one chosen last in the browser)"
+    if names:
+        text += ": " + ", ".join(names)
+    return text
+
 def add_arguments(parser):
-    parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
-    parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
-    parser.add_argument('-p', '--port', type=int, default=None, help='Port to run the server on, which must be free (default: ' + str(start_port) + ', or the next free one)')
-    parser.add_argument('-N', '--normal_term_mode', action='store_true', help='Do not change terminal mode')
-    parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
-    parser.add_argument('-B', '--nobrowser', action='store_true', help='Do not open browser')
-    parser.add_argument('-T', '--theme', default=None, help='Use a specific theme')
-    parser.add_argument('--read_only', action='store_true', help='Do not let visitors save views on the server (recommended with --network)')
+    parser.add_argument('-i', '--input', type=str, default=None, help='result directory (default: "result_path" of the workspace settings file, else ' + OdatixSettings.DEFAULT_RESULT_PATH + ')')
+    parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='workspace settings file, which gives the result directory (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
+    parser.add_argument('-n', '--network', action='store_true', help='serve on the network, not only on this machine')
+    parser.add_argument('-p', '--port', type=int, default=None, help='port to serve on, which must be free (default: ' + str(start_port) + ', or the next free one)')
+    parser.add_argument('-N', '--normal-term-mode', dest='normal_term_mode', action='store_true', help='leave the terminal mode alone (then "q" needs Enter)')
+    parser.add_argument('--safe-mode', dest='safe_mode', action='store_true', help='keep running on an internal error')
+    parser.add_argument('-B', '--nobrowser', action='store_true', help='do not open a browser')
+    parser.add_argument('-T', '--theme', default=None, metavar='THEME', help=theme_help())
+    parser.add_argument('--read-only', dest='read_only', action='store_true', help='do not let visitors save views on the server (recommended with --network)')
+    deprecated_option(parser, '--normal_term_mode', '-N/--normal-term-mode', action='store_true', dest='normal_term_mode')
+    deprecated_option(parser, '--safe_mode', '--safe-mode', action='store_true', dest='safe_mode')
+    deprecated_option(parser, '--read_only', '--read-only', action='store_true', dest='read_only')
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
+    parser = argparse.ArgumentParser(
+        prog='odatix-explorer', description='Odatix result explorer: the charts of the results, on their own',
+        formatter_class=HelpFormatter,
+    )
     add_arguments(parser)
     # Try enabling autocompletion if argcomplete is installed
     try:
@@ -155,12 +177,36 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
 # Main
 ######################################
 
+def result_directory(input=None, config=OdatixSettings.DEFAULT_SETTINGS_FILE):
+    """
+    The result directory to explore: "-i" when given, else the "result_path"
+    of the workspace settings file (relative to that file), else "results".
+    """
+    if input:
+        return input
+    if config and os.path.isfile(config):
+        settings = OdatixSettings(config, silent=True)
+        result_path = getattr(settings, "result_path", None) or OdatixSettings.DEFAULT_RESULT_PATH
+        if not os.path.isabs(result_path):
+            result_path = os.path.join(os.path.dirname(config), result_path) if os.path.dirname(config) else result_path
+        return result_path
+    if config and config != OdatixSettings.DEFAULT_SETTINGS_FILE:
+        printc.warning('Workspace settings file "' + config + '" does not exist: exploring "' + OdatixSettings.DEFAULT_RESULT_PATH + '"', script_name=script_name)
+    return OdatixSettings.DEFAULT_RESULT_PATH
+
+######################################
+
 def main(args=None):
+    # No color codes nor carriage returns in a file or a pipe (nohup, a
+    # service manager): its log is read as text.
+    printc.plain_unless_terminal()
+    printc.set_command(script_name)
+
     if args is None:
         args = parse_arguments()
 
     network = args.network
-    input = args.input
+    input = result_directory(args.input, getattr(args, "config", OdatixSettings.DEFAULT_SETTINGS_FILE))
     normal_term_mode = args.normal_term_mode
     safe_mode = args.safe_mode
     do_not_open_browser = args.nobrowser

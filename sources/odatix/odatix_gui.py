@@ -43,6 +43,7 @@ import odatix.lib.term_mode as term_mode
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.app import OdatixApp
 from odatix.lib.utils import get_local_ip, find_free_port, open_browser_when_ready
+from odatix.components.cli_options import HelpFormatter, deprecated_option
 
 sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
 
@@ -64,16 +65,20 @@ synthesis_job_types = ["fmax_synthesis", "custom_freq_synthesis", "pnr"]
 class PageOption:
     """A page-specific command line option, forwarded to the page as an url parameter."""
 
-    def __init__(self, flags, url_key, help, dest=None, type=str, choices=None):
+    def __init__(self, flags, url_key, help, dest=None, type=str, choices=None, former=()):
         self.flags = flags if isinstance(flags, (list, tuple)) else [flags]
         self.url_key = url_key
         self.help = help
         self.dest = dest if dest is not None else "page_" + url_key
         self.type = type
         self.choices = choices
+        # Former spellings, still read for one version (see deprecated_option).
+        self.former = tuple(former)
 
     def add_to(self, parser):
         parser.add_argument(*self.flags, dest=self.dest, default=None, type=self.type, choices=self.choices, help=self.help)
+        for flag in self.former:
+            deprecated_option(parser, flag, "/".join(self.flags), dest=self.dest, type=self.type)
 
     def value(self, args):
         return getattr(args, self.dest, None)
@@ -84,9 +89,11 @@ class PageOption:
 gui_pages = {
     "home": ("/", []),
     "monitor": ("/monitor", [
-        PageOption(['-S', '--session'], "session", "daemon session name or selector"),
-        PageOption(['--host'], "host", "daemon API host (default: current workspace daemon host)"),
-        PageOption(['--port'], "port", "daemon API port (default: current workspace daemon port)", type=int),
+        PageOption(['-S', '--session'], "session", "session to show: its name, ID, PID or the start of one (default: the latest one of the workspace)"),
+        # "--port" is the port of the GUI, before or after the page name: the
+        # port of a session given by hand has a name of its own.
+        PageOption(['--daemon-host'], "host", "host of a session reached by hand, rather than by its name", former=['--host']),
+        PageOption(['--daemon-port'], "port", "port of a session reached by hand, rather than by its name", type=int),
     ]),
     "jobs": ("/choose_job_type", []),
     "run_jobs": ("/run_jobs", [
@@ -96,10 +103,10 @@ gui_pages = {
         PageOption(['--until'], "until", "last step to run"),
     ]),
     "eda_tool": ("/choose_eda_tool", [
-        PageOption(['--type'], "type", "job type to choose an eda tool for", choices=synthesis_job_types),
+        PageOption(['--type'], "type", "job type to choose a tool for", choices=synthesis_job_types),
     ]),
     "select_targets": ("/select_targets", [
-        PageOption(['--tool'], "tool", "eda tool to select targets for"),
+        PageOption(['--tool'], "tool", "tool to select targets for"),
     ]),
     "architectures": ("/architectures", []),
     "arch_editor": ("/arch_editor", [
@@ -112,13 +119,13 @@ gui_pages = {
     ]),
     "tools": ("/tools", []),
     "tool_editor": ("/tool_editor", [
-        PageOption(['--tool'], "tool", "eda tool to edit"),
+        PageOption(['--tool'], "tool", "tool to edit"),
     ]),
     "sim_editor": ("/sim_editor", [
         PageOption(['--sim'], "sim", "simulation to edit"),
     ]),
     "metric_editor": ("/metric_editor", [
-        PageOption(['--tool'], "tool", "edit the exported metrics of this eda tool"),
+        PageOption(['--tool'], "tool", "edit the exported metrics of this tool"),
         PageOption(['--workflow'], "workflow", "edit the exported metrics of this workflow"),
         PageOption(['--simulation'], "simulation", "edit the exported metrics of this simulation"),
     ]),
@@ -129,6 +136,42 @@ gui_pages = {
 
 default_page = "home"
 
+#: What each page is for, as "odatix-gui -h" lists it.
+page_descriptions = {
+    "home": "home page",
+    "monitor": "follow the jobs of a session",
+    "jobs": "choose what to run",
+    "run_jobs": "check and start a run",
+    "eda_tool": "choose the tool of a synthesis",
+    "select_targets": "choose the targets of a tool",
+    "architectures": "list the architectures",
+    "arch_editor": "edit an architecture",
+    "config_editor": "generate configurations",
+    "workflows": "list the workflows",
+    "workflow_editor": "edit a workflow",
+    "tools": "list the tools",
+    "tool_editor": "edit a tool",
+    "sim_editor": "edit a simulation",
+    "metric_editor": "edit the metrics a tool, workflow or simulation exports",
+    "derived_metrics": "edit the derived metrics",
+    "clean": "remove generated files",
+    "workspace": "edit the workspace settings",
+}
+
+
+def theme_help():
+    """The help of -T/--theme, with the themes there are."""
+    try:
+        import odatix.gui.themes as themes
+
+        names = themes.theme_list()
+    except Exception:
+        names = []
+    text = "theme to start with (default: the one chosen last in the browser)"
+    if names:
+        text += ": " + ", ".join(names)
+    return text
+
 def add_arguments(parser, suppress_defaults=False, skip_flags=()):
     def default(value):
         return argparse.SUPPRESS if suppress_defaults else value
@@ -138,30 +181,36 @@ def add_arguments(parser, suppress_defaults=False, skip_flags=()):
             return
         parser.add_argument(*flags, **kwargs)
 
-    add(['-i', '--input'], type=str, default=default('results'), help='Directory of the result YAML files')
-    add(['-n', '--network'], action='store_true', default=default(False), help='Run the server on the network')
-    add(['-p', '--port'], type=int, default=default(None), help='Port to run the server on, which must be free (default: ' + str(start_port) + ', or the next free one)')
-    add(['-N', '--normal_term_mode'], action='store_true', default=default(False), help='Do not change terminal mode')
-    add(['--safe_mode'], action='store_true', default=default(False), help='Do not exit on internal error')
-    add(['-B', '--nobrowser'], action='store_true', default=default(False), help='Do not open browser')
-    add(['-T', '--theme'], default=default(None), help='Use a specific theme')
-    add(["-c", "--config"], default=default(OdatixSettings.DEFAULT_SETTINGS_FILE), help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
+    add(['-i', '--input'], type=str, default=default('results'), help='result directory (default: results)')
+    add(['-n', '--network'], action='store_true', default=default(False), help='serve on the network, not only on this machine')
+    add(['-p', '--port'], type=int, default=default(None), help='port to serve on, which must be free (default: ' + str(start_port) + ', or the next free one)')
+    add(['-N', '--normal-term-mode'], dest='normal_term_mode', action='store_true', default=default(False), help='leave the terminal mode alone (then "q" needs Enter)')
+    add(['--safe-mode'], dest='safe_mode', action='store_true', default=default(False), help='keep running on an internal error')
+    add(['-B', '--nobrowser'], action='store_true', default=default(False), help='do not open a browser')
+    add(['-T', '--theme'], default=default(None), metavar='THEME', help=theme_help())
+    add(["-c", "--config"], default=default(OdatixSettings.DEFAULT_SETTINGS_FILE), help="workspace settings file (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
+    if '--normal_term_mode' not in skip_flags:
+        deprecated_option(parser, '--normal_term_mode', '-N/--normal-term-mode', action='store_true', dest='normal_term_mode')
+        deprecated_option(parser, '--safe_mode', '--safe-mode', action='store_true', dest='safe_mode')
 
 def add_page_parsers(parser):
-    subparsers = parser.add_subparsers(dest='page', help='page to open (default: ' + default_page + ')')
+    subparsers = parser.add_subparsers(dest='page', metavar='<page>', help='page to open (default: ' + default_page + ')')
     for page, (path, options) in gui_pages.items():
-        page_parser = subparsers.add_parser(page, help='open the ' + path + ' page')
+        description = page_descriptions.get(page, 'open the ' + path + ' page')
+        page_parser = subparsers.add_parser(page, help=description, description=description[:1].upper() + description[1:],
+                                            formatter_class=HelpFormatter)
         # Global options are also accepted after the page name, unless the page defines
-        # an option with the same flag (for instance '--port' on the monitor page refers
-        # to the daemon port, as in `odatix monitor`). In that case, the global option
-        # is only available before the page name.
+        # an option with the same flag. In that case, the global option is only
+        # available before the page name.
         page_flags = [flag for option in options for flag in option.flags]
         add_arguments(page_parser, suppress_defaults=True, skip_flags=page_flags)
         for option in options:
             option.add_to(page_parser)
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Odatix - Start Graphical User Interface')
+    parser = argparse.ArgumentParser(
+        prog='odatix-gui', description='Odatix graphical interface: configure, run and explore', formatter_class=HelpFormatter,
+    )
     add_arguments(parser)
     add_page_parsers(parser)
     # Try enabling autocompletion if argcomplete is installed
@@ -275,6 +324,15 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
 ######################################
 
 def main(args=None):
+    # No color codes nor carriage returns in a file or a pipe (nohup, a
+    # service manager): its log is read as text.
+    printc.plain_unless_terminal()
+    printc.set_command(script_name)
+    # The sessions started from here are named after the GUI, not after the
+    # terminal it was started from.
+    import odatix.lib.parallel_job_handler.daemon_control as daemon_control
+    daemon_control.set_session_origin("gui")
+
     if args is None:
         args = parse_arguments()
 

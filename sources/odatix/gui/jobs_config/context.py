@@ -66,7 +66,7 @@ def _run_context(search, odatix_settings) -> dict:
             "settings_link": lambda name: f"/sim_editor?sim={name}",
             "config_link": lambda name: f"/metric_editor?simulation={name}",
             "config_text": "Edit Metrics",
-            "settings_text": "Simulation Settings",
+            "settings_text": "Simulation settings",
             "title": "Simulations",
         }
     if run_mode == "pnr":
@@ -89,7 +89,7 @@ def _run_context(search, odatix_settings) -> dict:
             "sources_by_tool": sources_by_tool,
             "settings_link": lambda name: f"/tool_editor?tool={_pnr_tool_of(name)}",
             "config_link": lambda name: f"/metric_editor?tool={_pnr_tool_of(name)}",
-            "settings_text": "Tool Settings",
+            "settings_text": "Tool settings",
             "config_text": "Edit Metrics",
             "title": "Synthesized designs",
         }
@@ -104,7 +104,7 @@ def _run_context(search, odatix_settings) -> dict:
             "instances": ws.workflows.names(),
             "settings_link": lambda name: f"/workflow_editor?workflow={name}",
             "config_link": lambda name: f"/config_editor?workflow={name}",
-            "settings_text": "Workflow Settings",
+            "settings_text": "Workflow settings",
             "config_text": "Edit Configs",
             "title": "Workflows",
         }

@@ -45,14 +45,14 @@ _CHART_CARDS = [
   {"name": "Scatter", "link": "/explorer/scatter", "kind": "scatter", "description": "Any metric against any other metric"},
   {"name": "Scatter 3D", "link": "/explorer/scatter3d", "kind": "scatter3d", "description": "Three metrics in one 3D view"},
   {"name": "Radar", "link": "/explorer/radar", "kind": "radar", "description": "Polar view of a metric"},
-  {"name": "Parallel Coordinates", "link": "/explorer/parcoords", "kind": "parcoords", "description": "Compare several metrics across configurations"},
+  {"name": "Parallel coordinates", "link": "/explorer/parcoords", "kind": "parcoords", "description": "Compare several metrics across configurations"},
   {"name": "Overview", "link": "/explorer/overview", "kind": "overview", "description": "Every metric at a glance"},
   {"name": "Table", "link": "/explorer/table", "kind": "table", "description": "Sortable, filterable data table"},
 ]
 
 _REPORT_CARDS = [
-  {"name": "RTL Analysis", "link": "/explorer/analysis", "kind": "analysis", "description": "RTL analysis warnings and errors dashboard"},
-  {"name": "Design Space Exploration", "link": "/explorer/dse", "kind": "dse", "description": "Pareto front and progress of a design space exploration"},
+  {"name": "RTL analysis", "link": "/explorer/analysis", "kind": "analysis", "description": "RTL analysis warnings and errors dashboard"},
+  {"name": "Design space exploration", "link": "/explorer/dse", "kind": "dse", "description": "Pareto front and progress of a design space exploration"},
 ]
 
 
@@ -64,7 +64,7 @@ def _view_card(view):
   created = str(view.get("created", ""))[:10]
   meta = " · ".join(part for part in [views.kind_label(view.get("kind")), ", ".join(view.get("sources") or []), created] if part)
   description = str(view.get("description") or "").strip()
-  text_children = [html.Div(name, className="xp-view-card-name")]
+  text_children = [html.Div(views.view_title(view), className="xp-view-card-name")]
   if description:
     text_children.append(html.Div(description, className="xp-view-card-desc", title=description))
   text_children.append(html.Div(meta, className="xp-view-card-meta", title=meta))
@@ -110,7 +110,7 @@ def _source_card(source):
   if source.error:
     detail = "⚠ " + str(source.error)
   else:
-    detail = str(source.record_count) + " records · " + source.schema
+    detail = str(source.record_count) + (" record" if source.record_count == 1 else " records") + " · " + source.schema
     if source.warnings:
       detail += " · ⚠ " + "; ".join(source.warnings)
   return html.Div(
@@ -119,7 +119,11 @@ def _source_card(source):
       html.Div(
         [
           html.Div(source.name, className="xp-source-name", title=source.name),
-          html.Div(detail, className="xp-source-detail", title=detail),
+          html.Div(
+            detail,
+            className="xp-source-detail" + (" xp-source-detail-full" if source.error or source.warnings else ""),
+            title=detail,
+          ),
         ],
         className="xp-source-text",
       ),
@@ -152,14 +156,20 @@ def layout(**kwargs):
       # stores written by open_view_from_home and mounts already restored (see
       # the same note in ui/shell.py for xp-url).
       dcc.Location(id="xp-home-url", refresh=True),
+      # What the sections below were last built from: the poll only rebuilds
+      # a section when it changed, instead of every 3 seconds.
+      dcc.Store(id="xp-home-signature", data={}),
       home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
+      # The data first (what was loaded, or why nothing was), then what to look
+      # at: the suggestions and the saved views, before the list of every chart
+      # kind, which the navigation bar repeats anyway.
+      html.Div(id="xp-home-sources", className="xp-home-section"),
+      insights_section(),
+      html.Div(id="xp-home-views", className="xp-home-section"),
       section_header("Charts"),
       home_shared.home_card_grid(_CHART_CARDS, _card_visual),
       section_header("Reports"),
       home_shared.home_card_grid(_REPORT_CARDS, _card_visual),
-      html.Div(id="xp-home-sources", className="xp-home-section"),
-      html.Div(id="xp-home-views", className="xp-home-section"),
-      insights_section(),
     ],
     className="xp-home",
   )
@@ -170,34 +180,45 @@ dash.register_page(__name__, path="/explorer", name="Explorer", title="Odatix Ex
 
 @dash.callback(
   Output("xp-home-sources", "children"),
+  Output("xp-home-views", "children"),
+  Output("xp-home-signature", "data"),
   Input("xp-home-poll", "n_intervals"),
   Input("odatix-settings", "data"),
+  State("xp-home-signature", "data"),
 )
-def update_home_sources(_intervals, settings):
+def update_home_sections(_intervals, settings, previous):
+  """The data sources and saved views sections, rebuilt only when they changed."""
   if isinstance(settings, dict) and settings.get("result_path"):
     STORE.configure(settings.get("result_path"))
   STORE.poll()
+  saved = views.list_views(STORE.result_path)
 
-  sources = STORE.sources()
+  previous = previous or {}
+  signature = {
+    "sources": [STORE.result_path, STORE.version],
+    "views": [[view.get("name"), view.get("mtime")] for view in saved],
+  }
+  sources_children = dash.no_update
+  views_children = dash.no_update
+  if signature["sources"] != previous.get("sources"):
+    sources_children = _sources_section(STORE.sources())
+  if signature["views"] != previous.get("views"):
+    views_children = _views_section(saved)
+  if sources_children is dash.no_update and views_children is dash.no_update:
+    raise dash.exceptions.PreventUpdate
+  return sources_children, views_children, signature
+
+
+def _sources_section(sources):
   if not sources:
     return [section_header("Data sources"), _empty_sources()]
-
   return [
     section_header("Data sources", len(sources)),
     html.Div([_source_card(source) for source in sources], className="xp-source-grid"),
   ]
 
 
-@dash.callback(
-  Output("xp-home-views", "children"),
-  Input("xp-home-poll", "n_intervals"),
-  Input("odatix-settings", "data"),
-)
-def update_home_views(_intervals, settings):
-  if isinstance(settings, dict) and settings.get("result_path"):
-    STORE.configure(settings.get("result_path"))
-
-  saved = views.list_views(STORE.result_path)
+def _views_section(saved):
   if not saved:
     return None
   return [

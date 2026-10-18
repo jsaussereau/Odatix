@@ -103,7 +103,7 @@
 }
 .odx-subtitle {
     font-size: 13px;
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
     white-space: nowrap;
 }
 .odx-header-actions {
@@ -160,6 +160,14 @@
 .odx-summary:empty {
     display: none;
 }
+.odx-selection-source {
+    font-size: 12px;
+    color: var(--theme-secondary-text-color);
+    padding-top: var(--space-1);
+}
+.odx-selection-source:empty {
+    display: none;
+}
 .odx-stat {
     display: inline-flex;
     align-items: baseline;
@@ -173,14 +181,17 @@
     font-weight: 700;
     font-size: 15px;
 }
+/* On the tinted chip, not on the card: pulled a little toward the text color,
+   which keeps them above 4.5:1 in the light themes (solarized_light, default)
+   and the dark ones (odatix_dark, nord). */
 .odx-stat-label {
-    opacity: 0.65;
+    color: color-mix(in srgb, var(--theme-secondary-text-color) 75%, var(--theme-text-color));
 }
 .odx-stat.accent .odx-stat-value {
-    color: var(--theme-primary-color);
+    color: color-mix(in srgb, var(--theme-primary-color) 75%, var(--theme-text-color));
 }
 .odx-stat.muted .odx-stat-value {
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
 }
 .odx-stat.caution .odx-stat-value {
     color: var(--theme-caution-color);
@@ -272,11 +283,10 @@
     font-family: inherit;
     font-size: 13px;
     font-weight: 600;
-    color: var(--theme-text-color);
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
 }
 .odx-link-button:hover {
-    opacity: 1;
+    color: var(--theme-text-color);
 }
 
 /* --- Panel grid -------------------------------------------------------- */
@@ -336,7 +346,7 @@
 }
 .odx-panel-note {
     font-size: 13px;
-    opacity: 0.7;
+    color: var(--theme-secondary-text-color);
 }
 .odx-panel-caption {
     font-size: 12px;
@@ -349,7 +359,7 @@
     gap: 2px;
 }
 .odx-panel-caption > span {
-    opacity: 0.65;
+    color: var(--theme-secondary-text-color);
 }
 .odx-panel.padded > .odx-panel-caption {
     margin-bottom: var(--space-3);
@@ -506,7 +516,6 @@
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
-    opacity: 0.85;
 }
 /* Colored variants: a variant only sets --odx-badge-color, the tinted
    background and the text color follow. Any theme color works, so a page
@@ -519,7 +528,8 @@
 .odx-badge.caution,
 .odx-badge.error {
     background: color-mix(in srgb, var(--odx-badge-color) 14%, transparent);
-    color: var(--odx-badge-color);
+    /* pulled toward the text color: readable on its own tint */
+    color: color-mix(in oklab, var(--odx-badge-color) 70%, var(--theme-text-color));
     opacity: 1;
 }
 .odx-badge.accent,
@@ -540,7 +550,7 @@
     padding: var(--space-6);
     text-align: center;
     font-size: 14px;
-    opacity: 0.7;
+    color: var(--theme-secondary-text-color);
 }
 
 /* --- Chip checklist ---------------------------------------------------- */
@@ -582,7 +592,7 @@
 }
 .odx-chips label:has(input:checked) {
     background: var(--theme-primary-color);
-    color: var(--theme-contrast-text-color);
+    color: var(--theme-on-primary-color);
     border-color: transparent;
 }
 /* A read-only choice (the job types of a built-in flow): still readable, and
@@ -743,11 +753,10 @@
 /* --- Status text ------------------------------------------------------- */
 .odx-status {
     font-size: 12px;
-    opacity: 0.7;
+    color: var(--theme-secondary-text-color);
 }
 .odx-status.error {
     color: var(--theme-caution-color);
-    opacity: 1;
 }
 
 /* --- Feedback (ui.feedback / ui.error / ui.success) -------------------- */
@@ -870,11 +879,39 @@
     gap: 4px;
     text-align: center;
 }
-.odx-tool-img {
-    max-height: 56px;
-    max-width: 60%;
-    object-fit: contain;
+/* Logos are drawn for a light background: they sit on a light plate, which
+   blends into a light card and keeps a dark or saturated logo readable on a
+   dark one. */
+.odx-tool-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 70%;
+    padding: 6px 10px;
     margin-bottom: 2px;
+    box-sizing: border-box;
+    border-radius: var(--theme-small-border-radius);
+    background: color-mix(in srgb, var(--theme-element-background-color) 12%, white);
+}
+.odx-tool-logo .odx-tool-img {
+    display: block;
+    max-height: 56px;
+    max-width: 100%;
+    object-fit: contain;
+    margin: 0;
+}
+/* Set once the tool has been checked: empty while it can be launched. */
+.odx-tool-installed:empty {
+    display: none;
+}
+/* A tool that cannot be launched here stays a way in, dimmed. */
+.odx-tool-card-wrap.unavailable > .odx-tool-card {
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+}
+.odx-tool-card-wrap.unavailable:hover > .odx-tool-card,
+.odx-tool-card-wrap.unavailable:focus-within > .odx-tool-card {
+    opacity: 1;
 }
 .odx-tool-name {
     font-size: 1.05em;
@@ -883,7 +920,7 @@
 .odx-tool-desc {
     font-size: 0.86em;
     line-height: 1.35;
-    opacity: 0.65;
+    color: var(--theme-secondary-text-color);
 }
 
 /* Flows spread over as many columns as the card was given (--odx-tool-cols,
@@ -915,7 +952,7 @@
 }
 .odx-flow:hover {
     background: var(--theme-primary-color);
-    color: var(--theme-contrast-text-color);
+    color: var(--theme-on-primary-color);
 }
 .odx-flow-name {
     flex: 1;
@@ -935,12 +972,11 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     background: transparent;
-    color: inherit;
     border: 1px solid currentColor;
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
 }
 .odx-flow:hover .odx-flow-custom-badge {
-    opacity: 0.85;
+    color: var(--theme-text-color);
 }
 .odx-flow:hover .odx-flow-go {
     opacity: 1;
@@ -951,42 +987,46 @@
 .odx-flow-block {
     position: relative;
 }
-/* Hint that there is more here than the button: a chevron in the gutter the
-   overlay comes out of. */
-.odx-flow.has-steps::after {
-    content: "›";
-    position: absolute;
-    right: -11px;
-    top: 50%;
-    transform: translateY(-50%);
+/* Hint that there is more here than the button: a chevron at its end, on the
+   side the overlay comes out of, set apart from the "run" arrow. */
+.odx-flow-steps-hint {
+    margin-left: -2px;
+    padding-left: 8px;
+    border-left: 1px solid currentColor;
+    border-left-color: color-mix(in srgb, currentColor 30%, transparent);
     line-height: 1;
     font-size: 15px;
     font-weight: 700;
-    opacity: 0.35;
-    transition: opacity 0.15s ease;
+    color: var(--theme-secondary-text-color);
+    transition: color 0.15s ease;
 }
-.odx-flow-block:hover .odx-flow.has-steps::after {
-    opacity: 1;
+.odx-flow-block:hover .odx-flow-steps-hint,
+.odx-flow:focus-visible .odx-flow-steps-hint {
+    color: var(--theme-text-color);
 }
 
 /* The overlay itself. Its left padding is a bridge the pointer crosses without
-   ever leaving the block, so the panel does not vanish on the way to it. */
+   ever leaving the block, so the panel does not vanish on the way to it.
+   Not drawn at all while hidden (an invisible overlay would still widen the
+   page). floating_menus.js opens it on the left (`odx-pop-left`) when the
+   right side of the window has no room for it. */
 .odx-steps-pop {
     position: absolute;
     top: -6px;
     left: 100%;
     z-index: 20;
     padding-left: 12px;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateX(-4px);
-    transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+    display: none;
 }
 .odx-flow-block:hover .odx-steps-pop,
 .odx-flow-block:focus-within .odx-steps-pop {
-    opacity: 1;
-    visibility: visible;
-    transform: none;
+    display: block;
+}
+.odx-flow-block.odx-pop-left .odx-steps-pop {
+    left: auto;
+    right: 100%;
+    padding-left: 0;
+    padding-right: 12px;
 }
 /* Stacked rather than chained side by side: the steps read as an ordered list,
    and a long step name does not push the chain onto a second line. */
@@ -1009,7 +1049,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    opacity: 0.45;
+    color: var(--theme-secondary-text-color);
 }
 .odx-step {
     display: flex;
@@ -1026,7 +1066,7 @@
 }
 .odx-step:hover {
     background: var(--theme-primary-color);
-    color: var(--theme-contrast-text-color);
+    color: var(--theme-on-primary-color);
 }
 .odx-step-index {
     display: inline-flex;
@@ -1040,7 +1080,7 @@
     font-weight: 700;
 }
 .odx-step:hover .odx-step-index {
-    background: var(--theme-contrast-text-color);
+    background: var(--theme-on-primary-color);
     color: var(--theme-primary-color);
 }
 .odx-step.default {
@@ -1054,7 +1094,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
 }
 /* "Built-in tools", between two card grids. */
 .odx-choose-subhead {
@@ -1131,7 +1171,7 @@
 .odx-job-inherited {
     font-size: 12px;
     font-style: italic;
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
     padding: 2px 0 4px;
 }
 .odx-job textarea {
@@ -1212,25 +1252,22 @@
     border-radius: 999px;
     border: 1px solid rgba(128, 128, 128, 0.3);
     background: transparent;
-    color: var(--theme-text-color);
     font-family: inherit;
     font-size: 13px;
     font-weight: 600;
     line-height: 1.5;
     cursor: pointer;
-    opacity: 0.55;
+    color: var(--theme-secondary-text-color);
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 .odx-flow-default-chip:hover:not(:disabled) {
     border-color: var(--theme-primary-color);
     color: var(--theme-primary-color);
-    opacity: 1;
 }
 .odx-flow-default-chip.active {
     background: var(--theme-primary-color);
-    color: var(--theme-contrast-text-color);
+    color: var(--theme-on-primary-color);
     border-color: transparent;
-    opacity: 1;
     cursor: default;
 }
 .odx-flow-default-chip:disabled:not(.active) {
@@ -1267,6 +1304,9 @@
     flex: 0 1 auto;
 }
 .odx-flow-param-chip {
+    /* A block of its own, not the flex box of a badge: only a block ends a
+       cut value with an ellipsis. */
+    display: inline-block;
     font-family: monospace;
     font-size: 12px;
     font-weight: 500;
@@ -1281,7 +1321,7 @@
     flex-shrink: 0;
 }
 .odx-flow-param-chip-name {
-    opacity: 0.65;
+    color: var(--theme-secondary-text-color);
 }
 @media (max-width: 760px) {
     .odx-flow-param-chips {
@@ -1301,13 +1341,12 @@
 }
 .odx-param-count {
     font-size: 12px;
-    opacity: 0.55;
+    color: var(--theme-secondary-text-color);
     white-space: nowrap;
 }
 .odx-param-count.active {
     color: var(--theme-primary-color);
     font-weight: 600;
-    opacity: 1;
 }
 .odx-param-rows {
     display: flex;
@@ -1383,7 +1422,7 @@
     align-items: center;
     padding-left: 4px;
     font-size: 12px;
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
 }
 .odx-param-value {
     display: flex;
@@ -1432,7 +1471,7 @@
 .odx-param-row.inherited .odx-param-name,
 .odx-param-row.inherited .odx-param-inherited-value,
 .odx-param-row.static.inherited .odx-param-static-value {
-    opacity: 0.55;
+    color: var(--theme-secondary-text-color);
 }
 .odx-param-inherited-value.empty,
 .odx-param-static-value.empty,
@@ -1452,7 +1491,7 @@
     min-width: 0;
     padding: 0 2px;
     font-size: 12px;
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
 }
 .odx-param-hint-label {
     flex-shrink: 0;
@@ -1471,18 +1510,17 @@
     border-radius: 999px;
     border: 1px solid rgba(128, 128, 128, 0.3);
     background: transparent;
-    color: var(--theme-text-color);
     font-family: inherit;
     font-size: 12px;
     font-weight: 600;
     line-height: 1.5;
     cursor: pointer;
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
     transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .odx-param-row:hover .odx-param-override,
 .odx-param-override:focus-visible {
-    opacity: 1;
+    color: var(--theme-text-color);
 }
 .odx-param-override:hover {
     border-color: var(--theme-primary-color);
@@ -1493,7 +1531,7 @@
     padding: var(--space-2) 0 var(--space-1);
     font-size: 13px;
     line-height: 1.6;
-    opacity: 0.75;
+    color: var(--theme-secondary-text-color);
 }
 .odx-param-empty-title {
     font-weight: 600;
@@ -1722,7 +1760,7 @@
     color: var(--theme-text-color);
 }
 .odx-exclusion-count.muted {
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
 }
 .odx-exclusion-count.warning {
     color: var(--theme-warning-color);
@@ -1847,7 +1885,7 @@ div:has(> .odx-configs-diff) + div .card-matrix.configs {
 .odx-config-preview-card .odx-config-preview-content:empty::before {
     content: "empty";
     font-style: italic;
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
 }
 
 .odx-config-preview-footer {
@@ -1896,7 +1934,7 @@ div:has(> .odx-configs-diff) + div .card-matrix.configs {
     font-size: 13px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    opacity: 0.75;
+    color: var(--theme-secondary-text-color);
     margin-bottom: 4px;
 }
 .odx-help-text {
@@ -1936,7 +1974,7 @@ div:has(> .odx-configs-diff) + div .card-matrix.configs {
     font-size: 11px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
 }
 .odx-diagram-name {
     font-family: monospace;
@@ -1957,7 +1995,7 @@ div:has(> .odx-configs-diff) + div .card-matrix.configs {
     font-weight: 600;
 }
 .odx-diagram-dim {
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
 }
 .odx-diagram-delimiter {
     color: var(--theme-primary-color);
@@ -1998,7 +2036,7 @@ div:has(> .odx-configs-diff) + div .card-matrix.configs {
     text-align: center;
     font-size: 13px;
     line-height: 1.5;
-    opacity: 0.6;
+    color: var(--theme-secondary-text-color);
 }
 /* Hidden with the cards it introduces, while the rules preview stands in. */
 div:has(> .odx-configs-diff) + div .odx-configs-note {
@@ -2074,7 +2112,7 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
 .odx-variable-values-empty {
     font-size: 13px;
     font-style: italic;
-    opacity: 0.5;
+    color: var(--theme-secondary-text-color);
 }
 
 /* Opened, a row becomes the editor of its variable: the fields it uses, side by
@@ -2230,7 +2268,7 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
 
 .odx-show-more-count {
     font-size: 0.9em;
-    opacity: 0.7;
+    color: var(--theme-secondary-text-color);
     padding-bottom: 20px;
 }
 

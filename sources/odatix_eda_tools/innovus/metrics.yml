@@ -6,16 +6,21 @@
 # report format; adapt them if your flow writes its reports differently.
 # report_area prints a table whose first row not indented is the top level
 # module: "<top>  <instance count>  <total area>".
+#
+# The names and units are those of the synthesis tools (Design Compiler, Genus)
+# and of LibreLane, so that Explorer shows a synthesis estimate and the result
+# of its place & route as the same metric: report_area gives the area of the
+# cells, which is "Cell_Area" for them too.
 
 pnr_metrics:
-  Total_area:
+  Cell_Area:
     type: regex
     settings:
       file: report/area.rep
       pattern: "^\\S+\\s+([0-9]+)\\s+([0-9.]+)\\s*$"
       group_id: 2
     format: "%.2f"
-    unit: um²
+    unit: um^2
 
   Cell_count:
     type: regex
@@ -34,7 +39,7 @@ pnr_metrics:
       pattern: "Die area: ([0-9.]+)"
       group_id: 1
     format: "%.2f"
-    unit: um²
+    unit: um^2
 
   Core_utilization:
     type: regex
@@ -45,7 +50,7 @@ pnr_metrics:
       group_id: 1
     format: "%.4f"
 
-  Total_power:
+  Total_Power:
     type: regex
     error_if_missing: No
     settings:

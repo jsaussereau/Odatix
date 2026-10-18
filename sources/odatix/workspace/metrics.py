@@ -32,7 +32,7 @@ written.
 
 import os
 
-from odatix.workspace.yaml_io import read_document, read_yaml, write_document
+from odatix.workspace.yaml_io import read_document, read_yaml, remove_key, set_key, write_document
 
 __all__ = ["METRICS_FILENAME", "MetricsFile"]
 
@@ -140,11 +140,13 @@ class MetricsFile(object):
                 if key != "metadata":
                     del data[key]
 
-        data["metrics"] = self._metrics
+        # Definition by definition: what was not touched keeps its quoting
+        # and its comments.
+        set_key(data, "metrics", self._metrics)
         if self._metadata:
-            data["metadata"] = self._metadata
-        else:
-            data.pop("metadata", None)
+            set_key(data, "metadata", self._metadata)
+        elif "metadata" in data:
+            remove_key(data, "metadata")
 
         write_document(self.path, data)
         return self

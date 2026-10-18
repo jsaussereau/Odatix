@@ -33,13 +33,13 @@
     --theme-background-color: #17181a;
     --theme-element-background-color: #242628;
     --theme-action-color: #0078d4;
-    --theme-primary-color: #2585cd;
-    --theme-secondary-color: #2585cd;
+    --theme-primary-color: color-mix(in oklab, #2585cd 74%, white);
+    --theme-secondary-color: var(--theme-primary-color);
     --theme-tertiary-color: #2f3133;
     --theme-tertiary-color-light: #2f313390;
     --theme-disabled-color: #515760;
-    --theme-warning-color: #D27120;
-    --theme-caution-color: #CA3939;
+    --theme-warning-color: color-mix(in oklab, #D27120 85%, white);
+    --theme-caution-color: color-mix(in oklab, #CA3939 72%, white);
     --theme-text-color: #ffffff;
     --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
     --theme-border-color: #3a3d40;
@@ -55,7 +55,7 @@
 
     /* buttons */
     --button-background: #ffffff05;
-    --back-button-color: var(--theme-disabled-color);
+    --back-button-color: var(--theme-secondary-text-color);
 
     /* inputs */
     --title-input-border: var(--theme-border-style) #ffffff00;

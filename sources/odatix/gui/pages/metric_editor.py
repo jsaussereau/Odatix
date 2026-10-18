@@ -129,7 +129,7 @@ PNR_TOOLTIP = "Metrics extracted only for place & route jobs."
 
 WORKFLOW_SECTIONS = [
     (METRIC_PREFIX, "Metrics", METRIC_TOOLTIP, "metrics"),
-    (META_PREFIX, "Metadata Dimensions", META_TOOLTIP, "metadata"),
+    (META_PREFIX, "Metadata dimensions", META_TOOLTIP, "metadata"),
 ]
 TOOL_SECTIONS = [
     (METRIC_PREFIX, "Fmax synthesis metrics", FMAX_TOOLTIP, "fmax_synthesis_metrics"),
@@ -399,19 +399,19 @@ def build_section_dict(
 def metric_title(name, is_tool=False, mode="workflow"):
     if is_tool:
         settings_link = f"/tool_editor?tool={name}"
-        settings_text = "Tool Settings"
+        settings_text = "Tool settings"
         settings_tooltip = "Back to the Tool Editor for this tool"
         back_link = f"/tool_editor?tool={name}" if name else "/tools"
         empty_text = "No tool selected"
     elif mode == "simulation":
         settings_link = f"/sim_editor?sim={name}"
-        settings_text = "Simulation Settings"
+        settings_text = "Simulation settings"
         settings_tooltip = "Back to the Simulation Editor for this simulation"
         back_link = f"/sim_editor?sim={name}" if name else "/architectures"
         empty_text = "No simulation selected"
     else:
         settings_link = f"/workflow_editor?workflow={name}"
-        settings_text = "Workflow Settings"
+        settings_text = "Workflow settings"
         settings_tooltip = "Back to the Workflow Editor for this workflow"
         back_link = f"/workflow_editor?workflow={name}" if name else "/workflows"
         empty_text = "No workflow selected"
@@ -543,6 +543,7 @@ def metric_card(
     unit_value="", format_value="", error_if_missing_value=True, multiple_value=False,
     origin=ORIGIN_WORKSPACE,
     has_builtin=None,
+    with_multiple=True,
 ):
     """
     One metric card. Every field is editable, whatever the metric is: editing a
@@ -566,6 +567,11 @@ def metric_card(
 
     def button_style(shown):
         return {"display": "flex", "alignItems": "center"} if shown else {"display": "none"}
+
+    # "Multiple values" only means something for a workflow or a simulation
+    # (one run, many records): a tool card keeps the switch, hidden, so the
+    # field lists of the callbacks stay aligned with the cards.
+    multiple_style = {"display": "inline"} if with_multiple else {"display": "none"}
 
     return html.Div([
         html.Div([
@@ -593,6 +599,8 @@ def metric_card(
                     "textAlign": "center",
                 },
             ),
+            # What is wrong with the name (empty, taken), right under it.
+            ui.field_error(id={"type": f"{prefix}-name-error", "name": name}),
             dcc.Dropdown(
                 id={"type": f"{prefix}-type", "name": name},
                 options=METRIC_TYPE_OPTIONS,
@@ -629,14 +637,16 @@ def metric_card(
                                         style={"marginTop": "8px", "marginBottom": "4px", "display": "inline-block"},
                                     ),
                                     ui.tooltip_icon("If checked, an error is raised when the value cannot be extracted. If unchecked, the run is simply skipped for this field."),
-                                    dcc.Checklist(
-                                        options=[{"label": "Multiple values", "value": True, "disabled": read_only}],
-                                        value=[True] if multiple_value else [],
-                                        id={"type": f"{prefix}-field-multiple", "name": name},
-                                        className="checklist-switch",
-                                        style={"marginBottom": "4px", "display": "inline-block"},
-                                    ),
-                                    ui.tooltip_icon("Extract every match as a list. The run then expands into one result entry per value, indexed by the metadata dimensions."),
+                                    html.Span([
+                                        dcc.Checklist(
+                                            options=[{"label": "Multiple values", "value": True, "disabled": read_only}],
+                                            value=[True] if multiple_value else [],
+                                            id={"type": f"{prefix}-field-multiple", "name": name},
+                                            className="checklist-switch",
+                                            style={"marginBottom": "4px", "display": "inline-block"},
+                                        ),
+                                        ui.tooltip_icon("Extract every match as a list. The run then expands into one result entry per value, indexed by the metadata dimensions."),
+                                    ], style=multiple_style),
                                 ],
                             ),
                         ],
@@ -736,16 +746,17 @@ def add_card(prefix, text):
         },
     )
 
-def metric_card_from_def(prefix, name, definition, origin=ORIGIN_WORKSPACE, has_builtin=None):
+def metric_card_from_def(prefix, name, definition, origin=ORIGIN_WORKSPACE, has_builtin=None, with_multiple=True):
     return metric_card(
         prefix,
         name=name,
         origin=origin,
         has_builtin=has_builtin,
+        with_multiple=with_multiple,
         **card_fields_of(definition),
     )
 
-def cards_from_section(prefix, entries, add_text):
+def cards_from_section(prefix, entries, add_text, with_multiple=True):
     """
     Build the card row of a section from an ordered list of
     (name, definition, origin, has_builtin) tuples. A plain {name: definition}
@@ -756,7 +767,9 @@ def cards_from_section(prefix, entries, add_text):
     if isinstance(entries, dict):
         entries = [(name, definition, ORIGIN_WORKSPACE, False) for name, definition in entries.items()]
     for name, definition, origin, has_builtin in entries or []:
-        cards.append(metric_card_from_def(prefix, name, definition, origin=origin, has_builtin=has_builtin))
+        cards.append(metric_card_from_def(
+            prefix, name, definition, origin=origin, has_builtin=has_builtin, with_multiple=with_multiple
+        ))
     cards.append(add_card(prefix, add_text))
     return cards
 
@@ -795,6 +808,30 @@ def section_entries(builtin_section, workspace_section):
 # Per-section callbacks (registered once per prefix)
 ######################################
 
+def item_noun(prefix, mode):
+    """What one card of a section is called in a message."""
+    return "metadata dimension" if prefix == META_PREFIX and mode != "tool" else "metric"
+
+
+def name_errors(names, noun):
+    """
+    The error under each card title of a section: empty when the name is fine,
+    otherwise why it is not (empty, or already taken by an earlier card).
+    """
+    errors = []
+    seen = set()
+    for name in names or []:
+        clean = str(name).strip() if name is not None else ""
+        if clean == "":
+            errors.append("The {0} name cannot be empty".format(noun))
+        elif clean in seen:
+            errors.append("Duplicate {0} name: '{1}'".format(noun, clean))
+        else:
+            errors.append("")
+        seen.add(clean)
+    return errors
+
+
 def register_section_callbacks(prefix, name_stem, add_text):
     """Register the add/duplicate/delete, field-visibility and more-fields
     toggle callbacks for one section, namespaced by its id prefix."""
@@ -828,6 +865,9 @@ def register_section_callbacks(prefix, name_stem, add_text):
     ):
         trigger_id = ctx.triggered_id
         mode = initial.get("mode") if isinstance(initial, dict) else None
+        with_multiple = mode != "tool"
+        # A tool has no metadata dimensions: what its sections hold are metrics.
+        stem = "metric" if mode == "tool" else name_stem
 
         if cards is None:
             cards = []
@@ -865,9 +905,9 @@ def register_section_callbacks(prefix, name_stem, add_text):
                 for card in cards if isinstance(card.get("props", {}).get("id", {}), dict)
             ]
             idx = 1
-            while f"{name_stem}{idx}" in existing_names:
+            while f"{stem}{idx}" in existing_names:
                 idx += 1
-            cards.append(metric_card(prefix, name=f"{name_stem}{idx}"))
+            cards.append(metric_card(prefix, name=f"{stem}{idx}", with_multiple=with_multiple))
 
         if isinstance(trigger_id, dict):
             trig_type = trigger_id.get("type")
@@ -887,7 +927,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
                     # the card stays, greyed out, for the reset button to bring
                     # back.
                     cards[idx] = metric_card_from_def(
-                        prefix, trig_name, builtin_defs[trig_name], origin=ORIGIN_REMOVED
+                        prefix, trig_name, builtin_defs[trig_name], origin=ORIGIN_REMOVED, with_multiple=with_multiple
                     )
                 else:
                     cards = [
@@ -902,7 +942,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
                 # Back to what Odatix defines: whatever the workspace said about
                 # this metric (an override or its removal) is dropped.
                 cards[idx] = metric_card_from_def(
-                    prefix, trig_name, builtin_defs.get(trig_name, {}), origin=ORIGIN_BUILTIN
+                    prefix, trig_name, builtin_defs.get(trig_name, {}), origin=ORIGIN_BUILTIN, with_multiple=with_multiple
                 )
             elif trig_type == f"{prefix}-duplicate" and idx is not None and idx < len(duplicate_clicks) and duplicate_clicks[idx]:
                 existing_names = [
@@ -920,11 +960,21 @@ def register_section_callbacks(prefix, name_stem, add_text):
                     name=new_name,
                     origin=ORIGIN_WORKSPACE,
                     has_builtin=False,
+                    with_multiple=with_multiple,
                     **card_values(idx),
                 ))
 
         cards.append(add_card(prefix, add_text_for(prefix, mode) if mode else add_text))
         return cards
+
+    @dash.callback(
+        Output({"type": f"{prefix}-name-error", "name": dash.ALL}, "children"),
+        Input({"type": f"{prefix}-title", "name": dash.ALL}, "value"),
+        State("metric-initial", "data"),
+    )
+    def update_name_errors(names, initial):
+        mode = initial.get("mode") if isinstance(initial, dict) else None
+        return name_errors(names, item_noun(prefix, mode))
 
     @dash.callback(
         Output({"type": f"{prefix}-origin-note", "name": dash.ALL}, "children"),
@@ -1007,6 +1057,29 @@ register_section_callbacks(FOURTH_PREFIX, "metric", "Add new metric")
 # Page-level callbacks
 ######################################
 
+def _template_metrics(simulation, sim_path):
+    """
+    The metrics and metadata a simulation inherits from its template(s), as
+    {"metrics": {...}, "metadata": {...}}: empty when it has no template.
+    """
+    from odatix.sim import templates as sim_templates
+    from odatix.components.export_workflow_results import _load_metrics
+    inherited = {"metrics": {}, "metadata": {}}
+    try:
+        directories, _settings = sim_templates.resolve(simulation, sim_path)
+    except Exception:
+        return inherited
+    for path in sim_templates.metrics_files(directories[:-1]):
+        metrics, metadata = _load_metrics(path)
+        for key, values in (("metrics", metrics), ("metadata", metadata)):
+            for metric, definition in (values or {}).items():
+                if definition is None:
+                    inherited[key].pop(metric, None)
+                else:
+                    inherited[key][metric] = definition
+    return inherited
+
+
 def _section_title_children(sections):
     """Title tiles for the (up to three) sections, keyed by their card-row prefix."""
     children = dict((prefix, None) for prefix in ALL_PREFIXES)
@@ -1070,13 +1143,22 @@ def init_page(search, page, odatix_settings):
         by_key = {"metrics": metrics, "metadata": metadata}
         section_defs = {prefix: by_key.get(key, {}) for prefix, _l, _t, key in sections}
         entries = {prefix: section_defs[prefix] for prefix, _l, _t, _k in sections}
+        if is_simulation:
+            # What the template a simulation starts from measures is measured
+            # too: shown as the built-in layer, which the simulation overrides.
+            inherited = _template_metrics(name, ws.paths.sim_path)
+            for prefix, _l, _t, key in sections:
+                builtin_defs[prefix] = inherited.get(key, {})
+                entries[prefix] = section_entries(inherited.get(key, {}), section_defs[prefix])
     else:
         section_defs = {prefix: {} for prefix, _l, _t, _k in sections}
         entries = dict(section_defs)
 
     rows = {}
     for prefix, _l, _t, _key in sections:
-        rows[prefix] = cards_from_section(prefix, entries.get(prefix, {}), add_text_for(prefix, mode))
+        rows[prefix] = cards_from_section(
+            prefix, entries.get(prefix, {}), add_text_for(prefix, mode), with_multiple=not is_tool
+        )
     # Prefixes not used by this mode still need a valid (empty) card row.
     for prefix in ALL_PREFIXES:
         if prefix not in rows:
@@ -1227,13 +1309,14 @@ def save_and_status(
         seen = set()
         for name in (fields[0] or []):
             clean = str(name).strip() if name is not None else ""
+            noun = item_noun(prefix, mode)
             if clean == "":
-                return error, f"{label} name cannot be empty", dash.no_update, (ui.error(f"Not saved: {label} name cannot be empty") if saving else dash.no_update)
+                return error, f"The {noun} name cannot be empty", dash.no_update, (ui.error(f"Not saved: the {noun} name cannot be empty") if saving else dash.no_update)
             for character in hard_settings.invalid_filename_characters:
                 if character in clean and character != " ":
-                    return error, f"Unauthorized character in {label} name: '{character}'", dash.no_update, (ui.error(f"Not saved: Unauthorized character in {label} name: '{character}'") if saving else dash.no_update)
+                    return error, f"Unauthorized character in {noun} name: '{character}'", dash.no_update, (ui.error(f"Not saved: unauthorized character in {noun} name: '{character}'") if saving else dash.no_update)
             if clean in seen:
-                return error, f"Duplicate {label} name: '{clean}'", dash.no_update, (ui.error(f"Not saved: Duplicate {label} name: '{clean}'") if saving else dash.no_update)
+                return error, f"Duplicate {noun} name: '{clean}'", dash.no_update, (ui.error(f"Not saved: duplicate {noun} name: '{clean}'") if saving else dash.no_update)
             seen.add(clean)
 
     current = {"mode": mode, "sections": current_sections}
@@ -1313,7 +1396,7 @@ layout = html.Div(
         html.Div(id={"page": page_path, "type": "metric-title-div"}, style={"marginTop": "20px"}),
         ui.feedback("metric-save-feedback"),
         _section_block(METRIC_PREFIX, "Metrics", METRIC_TOOLTIP),
-        _section_block(META_PREFIX, "Metadata Dimensions", META_TOOLTIP),
+        _section_block(META_PREFIX, "Metadata dimensions", META_TOOLTIP),
         _section_block(FOURTH_PREFIX, "Place & route metrics", PNR_TOOLTIP, wrapper_style={"display": "none"}),
         _section_block(THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, wrapper_style={"display": "none"}),
         dcc.Store(id="metric-initial", data={"mode": "workflow", "sections": {}}),

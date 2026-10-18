@@ -656,7 +656,11 @@ def _replace_pairs(replace):
 # UI Components
 ######################################
 
-def tool_title(tool_name, overlay=False):
+def tool_title(tool_name, overlay=False, new=False):
+    """
+    The title of the editor, with its buttons. A tool not saved yet (`new`)
+    starts with "Save all" on: saving it as it is creates it.
+    """
     title_buttons = html.Div(
         children=[
             ui.icon_button(
@@ -672,8 +676,8 @@ def tool_title(tool_name, overlay=False):
             ),
             ui.save_button(
                 id={"page": page_path, "action": "save-all"},
-                tooltip="Save all changes",
-                disabled=True,
+                tooltip="Unsaved new tool: save it to create it" if new else "Save all changes",
+                disabled=not new,
             ),
         ],
         className="inline-flex-buttons",
@@ -872,8 +876,11 @@ def tool_form(settings, tool_name="", overlay=False, base_options=None):
     )
 
     return html.Div(
-        children=[metadata_tile, behaviour_tile],
-        className="tiles-container config",
+        children=[
+            html.Div([metadata_tile], className="flex-form-column"),
+            html.Div([behaviour_tile], className="flex-form-column"),
+        ],
+        className="tiles-container config flex-form",
         style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
@@ -2207,8 +2214,11 @@ def log_formatting_tiles(settings, overlay=False):
     )
 
     return html.Div(
-        children=[log_tile, tags_tile],
-        className="tiles-container config",
+        children=[
+            html.Div([log_tile], className="flex-form-column"),
+            html.Div([tags_tile], className="flex-form-column"),
+        ],
+        className="tiles-container config flex-form",
         style={"marginBottom": "20px"},
     )
 
@@ -2481,7 +2491,7 @@ def init_form(search, page, odatix_settings):
         builtin_notice(tool_name) if overlay else None,
         overlay,
         builtin,
-        tool_title(tool_name or "", overlay=overlay),
+        tool_title(tool_name or "", overlay=overlay, new=not overlay and not tools.exists(tool_name or "")),
     )
 
 # The section a reset button puts back to the built-in state, and the settings
@@ -2742,14 +2752,14 @@ def save_and_status(*args):
             if tools.exists(tool_name):
                 tools.rename(tool_name, tool_title_value)
             tool_name = tool_title_value
-            new_search = f"?tool={tool_name}"
+            new_search = f"?tool={tool_name}&saved=1"
         elif not tool_name:
             if tools.exists(tool_title_value):
                 return error_class, f"'{tool_title_value}' already exists", dash.no_update, saved_settings, (ui.error(f"Not saved: '{tool_title_value}' already exists") if saving else dash.no_update)
             if _builtin_tool_exists(tool_title_value):
                 return error_class, f"'{tool_title_value}' is a built-in tool name", dash.no_update, saved_settings, (ui.error(f"Not saved: '{tool_title_value}' is a built-in tool name") if saving else dash.no_update)
             tool_name = tool_title_value
-            new_search = f"?tool={tool_name}"
+            new_search = f"?tool={tool_name}&saved=1"
 
         tool = tools.get(tool_name)
         if tool is None:
@@ -2768,6 +2778,15 @@ def save_and_status(*args):
         except Exception as e:
             return error_class + " small", "Failed to save...", dash.no_update, saved_settings, ui.error(f"Not saved: {e}")
 
+    if not overlay and not tools.exists(tool_name or ""):
+        # Nothing on disk yet: saving the form as it is creates the tool.
+        return (
+            "color-button warning icon-button tooltip bottom small",
+            "Unsaved new tool: save it to create it",
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+        )
     if current_compare != reference_settings or tool_title_value != (tool_name or ""):
         return (
             "color-button warning icon-button tooltip bottom small",
@@ -2784,6 +2803,22 @@ def save_and_status(*args):
         saved_settings,
         dash.no_update,
     )
+
+
+@dash.callback(
+    Output("tool-save-feedback", "children", allow_duplicate=True),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    prevent_initial_call="initial_duplicate",
+)
+def saved_feedback(search, page):
+    """
+    A tool created or renamed gets a new address, which renders the page again
+    and loses the line saying it was saved: "saved=1" in the address says it.
+    """
+    if page != page_path or get_key_from_url(search, "saved") != "1":
+        raise dash.exceptions.PreventUpdate
+    return ui.success()
 
 
 ######################################

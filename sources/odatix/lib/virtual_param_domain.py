@@ -39,6 +39,7 @@ This module is shared by workflows (task commands) and architectures
 
 import os
 import re
+import json
 import yaml
 
 import odatix.lib.printc as printc
@@ -52,6 +53,16 @@ script_name = os.path.basename(__file__)
 # Both ${name} (group 1) and bare $name (group 2) command placeholders.
 COMMAND_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
 SAFE_VALUE_PATTERN = re.compile(r"[^A-Za-z0-9_.-]")
+
+# Every generated value is read back as plain text: the C loader when PyYAML has
+# it (a large space renders thousands of them), the pure Python one otherwise.
+_VALUES_LOADER = getattr(yaml, "CBaseLoader", yaml.loader.BaseLoader)
+
+# The variants of the last spaces built, by settings file and variables. One run
+# check asks for the space of a workflow once per selected entry (a DSE batch:
+# ten points of a space of thousands), and the Run jobs page once per card.
+_VARIANTS_CACHE = {}
+_VARIANTS_CACHE_SIZE = 16
 
 
 def sanitize_value(value):
@@ -176,7 +187,39 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
 
     Returns a list of {"requested_param_domains": [...], "substitutions": {...}},
     an empty list when there is nothing to generate, or None on error.
+
+    The space of the same variables is only built once: later calls get a copy
+    of the variants built the first time.
     """
+    try:
+        cache_key = (str(settings_file), json.dumps(settings, sort_keys=True, default=str))
+    except (TypeError, ValueError):
+        cache_key = None
+    cached = _VARIANTS_CACHE.get(cache_key) if cache_key is not None else None
+    if cached is not None:
+        return _copy_variants(cached)
+
+    variants = _build_variants(settings, settings_file, debug=debug, script_name=script_name)
+    if variants is not None and cache_key is not None:
+        if len(_VARIANTS_CACHE) >= _VARIANTS_CACHE_SIZE:
+            _VARIANTS_CACHE.pop(next(iter(_VARIANTS_CACHE)))
+        _VARIANTS_CACHE[cache_key] = _copy_variants(variants)
+    return variants
+
+
+def _copy_variants(variants):
+    """A copy of variants a caller can change without changing the cached ones."""
+    return [
+        {
+            "requested_param_domains": list(variant.get("requested_param_domains", [])),
+            "substitutions": dict(variant.get("substitutions", {})),
+        }
+        for variant in variants
+    ]
+
+
+def _build_variants(settings, settings_file, debug=False, script_name=script_name):
+    """The work of :func:`build_variants`, without its cache."""
     # A domain that describes its own configurations is a physical one: its
     # variables build those configurations, and expanding them into virtual
     # domains too would sweep the same axis twice. The former flag is honoured
@@ -239,7 +282,7 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
     variants = []
     for rendered_values in generated_params.values():
         try:
-            parsed_values = yaml.load(rendered_values, Loader=yaml.loader.BaseLoader)
+            parsed_values = yaml.load(rendered_values, Loader=_VALUES_LOADER)
         except yaml.YAMLError as e:
             printc.error(
                 "Could not parse generated variables from \"" + settings_file + "\": " + str(e),

@@ -86,7 +86,7 @@ class TestPausing:
 
     def test_the_log_says_the_guard_did_it_and_why(self, machine):
         job = _Job("a")
-        handler = _guarded([job])
+        handler = _guarded([_Job("still running"), job])
         machine.cpu = 99.0
         _sample(handler, machine, RESOURCE_GUARD_PAUSE_SAMPLES)
         action, by, detail = job.calls[0]
@@ -96,8 +96,9 @@ class TestPausing:
 
 class TestResuming:
     def _paused(self, machine):
+        # Another job keeps running: the guard never pauses the last one.
         job = _Job("a")
-        handler = _guarded([job])
+        handler = _guarded([_Job("still running"), job])
         machine.cpu = 99.0
         _sample(handler, machine, RESOURCE_GUARD_PAUSE_SAMPLES)
         assert job.status == "paused"
@@ -128,7 +129,7 @@ class TestResuming:
         # The load drops whenever the job is paused and comes back with it:
         # what used to be a pause/resume every two samples.
         job = _Job("a")
-        handler = _guarded([job])
+        handler = _guarded([_Job("still running"), job])
         for _ in range(60):  # two minutes of samples
             machine.cpu = 99.0 if job.status == "running" else 40.0
             _sample(handler, machine)

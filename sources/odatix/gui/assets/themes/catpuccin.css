@@ -86,44 +86,45 @@
 
     /* buttons */
     --hover-percentage: 95%;
-    --default-button-icon-color: var(--theme-contrast-text-color);
-    --default-button-text-color: var(--theme-contrast-text-color);
+    --default-button-icon-color: var(--inverted-text);
+    --default-button-text-color: var(--inverted-text);
     --default-button-background: linear-gradient(120deg,var(--overlay1),var(--overlay2));
     --default-button-border-hover: var(--theme-large-border-style) #fff0;
-    --default-button-icon-color-hover: var(--theme-contrast-text-color);
-    --default-button-text-color-hover: var(--theme-contrast-text-color);
+    --default-button-icon-color-hover: var(--inverted-text);
+    --default-button-text-color-hover: var(--inverted-text);
     --default-button-background-hover: linear-gradient(120deg,var(--overlay1) var(--hover-percentage),var(--overlay2));
     --default-button-border: var(--theme-large-border-style) #fff0;
-    --primary-button-icon-color: var(--theme-contrast-text-color);
-    --primary-button-text-color: var(--theme-contrast-text-color);
+    /* Dark text on the pastel gradients of the buttons: white read at 1.4:1. */
+    --primary-button-icon-color: var(--inverted-text);
+    --primary-button-text-color: var(--inverted-text);
     --primary-button-background: linear-gradient(120deg,var(--blue),var(--sky));
     --primary-button-border-hover: var(--theme-large-border-style) #fff0;
-    --primary-button-icon-color-hover: var(--theme-contrast-text-color);
-    --primary-button-text-color-hover: var(--theme-contrast-text-color);
+    --primary-button-icon-color-hover: var(--inverted-text);
+    --primary-button-text-color-hover: var(--inverted-text);
     --primary-button-background-hover: linear-gradient(120deg,var(--blue) var(--hover-percentage),var(--sky));
     --primary-button-border: var(--theme-large-border-style) #fff0;
-    --secondary-button-icon-color: var(--theme-contrast-text-color);
-    --secondary-button-text-color: var(--theme-contrast-text-color);
+    --secondary-button-icon-color: var(--inverted-text);
+    --secondary-button-text-color: var(--inverted-text);
     --secondary-button-background: linear-gradient(120deg,var(--blue),var(--sky));
     --secondary-button-border: var(--theme-large-border-style) #fff0;
-    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
-    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-icon-color-hover: var(--inverted-text);
+    --secondary-button-text-color-hover: var(--inverted-text);
     --secondary-button-background-hover: linear-gradient(120deg,var(--blue) var(--hover-percentage),var(--sky));
     --secondary-button-border-hover: var(--theme-large-border-style) #fff0;
-    --warning-button-icon-color: var(--theme-contrast-text-color);
-    --warning-button-text-color: var(--theme-contrast-text-color);
+    --warning-button-icon-color: var(--inverted-text);
+    --warning-button-text-color: var(--inverted-text);
     --warning-button-background: linear-gradient(120deg,var(--peach),var(--yellow));
     --warning-button-border: var(--theme-large-border-style) #fff0;
-    --warning-button-icon-color-hover: var(--theme-contrast-text-color);
-    --warning-button-text-color-hover: var(--theme-contrast-text-color);
+    --warning-button-icon-color-hover: var(--inverted-text);
+    --warning-button-text-color-hover: var(--inverted-text);
     --warning-button-background-hover: linear-gradient(120deg,var(--peach) var(--hover-percentage),var(--yellow));
     --warning-button-border-hover: var(--theme-large-border-style) #fff0;
-    --caution-button-icon-color: var(--theme-contrast-text-color);
-    --caution-button-text-color: var(--theme-contrast-text-color);
+    --caution-button-icon-color: var(--inverted-text);
+    --caution-button-text-color: var(--inverted-text);
     --caution-button-background: linear-gradient(120deg,var(--red) var(--hover-percentage),var(--maroon));
     --caution-button-border: var(--theme-large-border-style) #fff0;
-    --caution-button-icon-color-hover: var(--theme-contrast-text-color);
-    --caution-button-text-color-hover: var(--theme-contrast-text-color);
+    --caution-button-icon-color-hover: var(--inverted-text);
+    --caution-button-text-color-hover: var(--inverted-text);
     --caution-button-background-hover: linear-gradient(120deg,var(--red) var(--hover-percentage),var(--maroon));
     --caution-button-border-hover: var(--theme-large-border-style) #fff0;
     --back-button-color: var(--overlay0);
@@ -137,4 +138,7 @@
     /* progress bars */
     --progress-bar-background-color-hover: var(--theme-background-color);
     --progress-bar-background-color-selected: var(--theme-background-color);
+
+    /* contrast (WCAG AA) */
+    --theme-placeholder-color: color-mix(in srgb, var(--theme-text-color) 78%, transparent);
 }

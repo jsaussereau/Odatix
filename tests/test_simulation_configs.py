@@ -159,7 +159,7 @@ class TestEditorMode:
     def test_the_title_goes_back_to_the_simulation_settings(self, config_editor):
         title = str(config_editor.instance_title("simulation", "tb_cordic"))
         assert "/sim_editor?sim=tb_cordic" in title
-        assert "Simulation Settings" in title
+        assert "Simulation settings" in title
 
     def test_nothing_is_previewed_for_a_simulation(self, config_editor):
         # Nothing is shown: what the pane holds is the hidden span every domain

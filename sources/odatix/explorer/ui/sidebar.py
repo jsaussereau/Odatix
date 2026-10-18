@@ -56,7 +56,7 @@ _VIEW_TABS = (
   ("scatter", "/explorer/scatter", "Scatter"),
   ("scatter3d", "/explorer/scatter3d", "Scatter 3D"),
   ("radar", "/explorer/radar", "Radar"),
-  ("parcoords", "/explorer/parcoords", "Parallel Coordinates"),
+  ("parcoords", "/explorer/parcoords", "Parallel coordinates"),
   ("table", "/explorer/table", "Table"),
   ("overview", "/explorer/overview", "Overview"),
 )
@@ -327,11 +327,34 @@ def build_sidebar(kind):
         ), hidden=is_table),
         components.control_row("Image background", _dropdown(
           "xp-dl-background",
-          options=[{"label": "Transparent", "value": "transparent"}, {"label": "White", "value": "white"}, {"label": "Theme", "value": "theme"}],
+          options=[
+            {"label": "Transparent", "value": "transparent"},
+            {"label": "White (dark text, for documents)", "value": "white"},
+            {"label": "Theme (as on screen)", "value": "theme"},
+          ],
           value="transparent",
           persist=False,
-        ), hidden=is_table),
-        html.Button("Download CSV", id="xp-download-csv", n_clicks=0, className="xp-button", title="Export the currently displayed data as CSV"),
+        ), tooltip="Background of the exported image. The chart on screen shows it already.", hidden=is_table),
+        # What the chosen background means with the current app theme (light
+        # text on a transparent background, typically): see controls.py.
+        html.Div(id="xp-export-hint", className="xp-hint", hidden=is_table),
+        html.Div(
+          [
+            html.Button(
+              "Download image", id="xp-download-image", n_clicks=0, className="xp-button",
+              title="Save the chart as an image, in the format and with the background above",
+              style={"display": "none"} if (is_table or is_overview) else None,
+            ),
+            html.Button("Download CSV", id="xp-download-csv", n_clicks=0, className="xp-button", title="Export the currently displayed data as CSV"),
+          ],
+          className="xp-button-row",
+        ),
+        html.Div(
+          "Each chart has its own camera button, at its top right, to save it as an image.",
+          className="xp-hint",
+          hidden=not is_overview,
+        ),
+        dcc.Store(id="xp-download-image-done"),
       ]),
 
       # --- Saved views ---
