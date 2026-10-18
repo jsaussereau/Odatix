@@ -14,7 +14,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
     secondary_button_url="https://github.com/jsaussereau/odatix"
     image="/images/screenshots/explorer-overview.png"
     image_caption="Odatix Explorer — interactive comparison of implementation metrics"
-    tools="Vivado, Design Compiler, Genus, Innovus, IC Compiler II, OpenLane, Verilator, GHDL"
+    tools="Vivado, Quartus, Design Compiler, Genus, Innovus, IC Compiler II, OpenLane, Verilator, GHDL"
     arrow=true
 >}}
 
@@ -109,7 +109,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
   description="Elaborate every configuration of your designs with several EDA tools at once, and catch missing sources, black boxes and lint issues in seconds instead of hours — before committing a whole campaign to synthesis."
   badgeColor="#f59e0b"
   image="/images/features/analysis.svg"
-  features="Elaboration only, Parallel runs, Vivado\, Genus\, Design Compiler\, Verilator, Errors\, black boxes and critical warnings flagged"
+  features="Elaboration only, Parallel runs, Vivado\, Quartus\, Genus\, Design Compiler\, Verilator, Errors\, black boxes and critical warnings flagged"
   imagePosition="right"
   buttonText="Learn more"
   buttonLink="/docs/features/analysis/"
@@ -117,10 +117,10 @@ description: "Odatix is a free and open-source design automation toolbox for the
 
 {{< feature
   title="Automated RTL synthesis"
-  description="Run synthesis for every configuration of your design, on every target you care about, across FPGA and ASIC tools. Odatix drives Vivado, Design Compiler, Genus and OpenLane for you and collects area, resource, timing and power metrics automatically."
+  description="Run synthesis for every configuration of your design, on every target you care about, across FPGA and ASIC tools. Odatix drives Vivado, Quartus, Design Compiler, Genus and OpenLane for you and collects area, resource, timing and power metrics automatically."
   badgeColor="#7c3aed"
   image="/images/features/rtl-synthesis.svg"
-  features="FPGA and ASIC targets, Vivado\, Design Compiler\, Genus\, OpenLane, Parallel runs, Custom flows and scripts, Step-by-step or one-shot (synthesis\, PNR\, bitstream generation)"
+  features="FPGA and ASIC targets, Vivado\, Quartus\, Design Compiler\, Genus\, OpenLane, Parallel runs, Custom flows and scripts, Step-by-step or one-shot (synthesis\, PNR\, bitstream generation)"
   imagePosition="left"
   buttonText="Learn more"
   buttonLink="/docs/features/rtl_synthesis/"

@@ -17,7 +17,7 @@ your design space becomes larger.
 
 ## Suggested order
 
-1. [Implement your own RTL](/tutorials/own_designs/synthesis/) to create the
+1. [Implement your own RTL](/tutorials/own_designs/architecture/) to create the
 	architecture definition and configuration files.
 2. [Simulate your own RTL](/tutorials/own_designs/simulations/) to connect a
 	testbench and capture validation data.
