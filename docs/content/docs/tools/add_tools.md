@@ -217,16 +217,17 @@ fmax_upper_bound: 1000
 constraint_filename: constraints.xdc
 lib_name: WORK
 param_domains: [...]
+tool_install_path: ""   # also written as install_path, its former name
 workspace_path: /home/me/my_workspace
 job_path: /home/me/my_workspace/work/custom_freq_synthesis/my_tool/.../100MHz
 {{< /code >}}
 
 Its paths are not where your command runs: `rtl_path` is relative to the job
-directory (`job_path`), the others to the workspace (`workspace_path`), both
-absolute. Join them, or take the paths from the variables of the
+directory, `script_path`, `report_path` and `log_path` to the workspace;
+`job_path` and `workspace_path` are absolute. Join them, or take the paths from the variables of the
 command instead (`$work_path`, `$script_path`, `$log_path`, `$report_path`),
 start the command with `cd $work_path;` and read `rtl/`, `report/`… relative to
-it. An empty value is written as `None`. The parameters of the flow are not in
+it. A value left unset is `null`, or an empty string. The parameters of the flow are not in
 this file: pass them to your script in the command, as `$<name>`.
 {{% /tab %}}
 {{< /tabs >}}

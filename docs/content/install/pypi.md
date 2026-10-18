@@ -1,6 +1,6 @@
 ---
 weight: 1
-title: "Install Odatix from PyPi"
+title: "Install Odatix from PyPI"
 date: 2026-05-15
 author: "Jonathan Saussereau"
 description: "Recommended installation method for Odatix using the Python package manager (pip)."
@@ -14,6 +14,11 @@ next_tutorials:
 
 {{< toc >}}
 
+> [!WARNING] Odatix 4.0 is not on PyPI yet
+> PyPI still serves Odatix 3.7: until Odatix 4.0 is released, the command of
+> this page installs Odatix 3.7, whose commands differ from the ones this
+> documentation describes. To use Odatix 4.0 now, install it
+> [from sources](/install/sources/). `odatix --version` tells which one you have.
 
 > [!WARNING]
 > Odatix provides partial support for Windows. For a better experience, it is recommended to use Linux.

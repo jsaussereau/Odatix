@@ -352,7 +352,9 @@ The declaration is shared; the effect depends on the context.
 {{< tabs groupId="var-context" >}}
 {{% tab name="Generated configurations" %}}
 With a `configurations` block, a run resolves one parameter file per
-combination. `template` and `name` are mandatory here.
+combination. `template` and `name` are required, except in a named parameter
+domain with a single variable, where Odatix fills them in (see
+[Configuration generation](/docs/configurations/config_generation/)).
 
 {{< code lang=yaml filename="architectures/ALU/_settings.yml" >}}
 configurations:

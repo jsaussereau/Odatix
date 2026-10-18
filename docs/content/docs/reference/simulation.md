@@ -184,7 +184,7 @@ parameters of the configuration are written into the RTL:
 - **`odatix_sim.f`**: the same sources as a plain filelist, design first, then
   testbench, which most simulators read with `-f`.
 
-{{< code lang=yaml filename="odatix_sim.yml" >}}
+{{< code lang=yaml filename="work/simulations/TB_Example_Cordic_QuestaSim/Example_Cordic_vhdl/<configuration>/odatix_sim.yml" >}}
 simulation: TB_Example_Cordic_QuestaSim
 architecture: Example_Cordic_vhdl
 configuration: Example_Cordic_vhdl
@@ -193,6 +193,7 @@ dut:
   top: cordic
   clock: clock
   reset: reset
+  reset_active_low: false
   languages: [vhdl]
   rtl_dir: rtl
   rtl_generated: false
@@ -204,12 +205,24 @@ sources:
   order: dependencies
 testbench:
   top: tb_cordic
-  files: [tb/tb_cordic.sv]
-  languages: [sv]
+  files: [testbench/tb_cordic.vhdl]
+  languages: [vhdl]
+  parameters:
+    WIDTH: '8'
+    ITERATIONS: '12'
+  include_dirs: []
 param_domains:
   iterations: '12'
   width: '8'
+parallel_jobs: 1
 {{< /code >}}
+
+The testbench here is the architecture's own (`testbench` in its settings),
+copied into `testbench/` in the work directory, in the language of the
+architecture: the VHDL one for `Example_Cordic_vhdl`. Its `parameters` already
+hold the values of the configuration. `parallel_jobs` is how many jobs the run
+executes at once: a template shares the cores of the machine among them (the
+Verilator one builds with `cores / parallel_jobs` processes).
 
 A testbench reading the parameters of the configuration from this file, or from
 the `${<domain>}` placeholders, does not have to parse the RTL.
@@ -267,7 +280,8 @@ simulation on one it does not list works exactly as before, and only prints a
 warning:
 
 {{< code lang=text >}}
-[simulation_handler.py] warning: "Example_Counter_vhdl" is not one of the architectures "TB_Example_Cordic_GHDL" runs on
+[odatix sim] warning: "Example_Counter_vhdl" is not one of the architectures "TB_Example_Cordic_GHDL" runs on
+[odatix sim] note: Add it to "architectures" in "odatix_userconfig/simulations/TB_Example_Cordic_GHDL/_settings.yml" to silence this warning
 {{< /code >}}
 
 An empty list, or no key at all, means the simulation lists nothing: it runs on
@@ -582,7 +596,7 @@ in it is specific to a design.
 | Template | Simulator | Languages | Commands |
 |----------|-----------|-----------|----------|
 | `ghdl` | GHDL | VHDL | `ghdl -i`, `ghdl -m`, `ghdl -r` |
-| `verilator` | Verilator 5 | Verilog, SystemVerilog | `verilator --binary`, no C++ to write |
+| `verilator` | Verilator 5 | Verilog, SystemVerilog | `verilator --binary`, no C++ to write. The C++ is built with the cores of the machine divided by the number of jobs run at once (`-j`). |
 | `questa` | Questa, ModelSim | VHDL, Verilog, SystemVerilog, mixed | `vlib`, `vcom`, `vlog`, `vsim -c` |
 | `xsim` | Vivado simulator | VHDL, Verilog, SystemVerilog, mixed | `xvhdl`, `xvlog`, `xelab`, `xsim` |
 | `icarus` | Icarus Verilog | Verilog, part of SystemVerilog | `iverilog`, `vvp` |
@@ -646,7 +660,7 @@ Every template writes `sim_report.yml` in the job's work directory, which its
 |--------|-------|
 | `sim_status` | `passed`, or `failed` when a command failed or printed an error. A failed simulation is exported too. |
 | `sim_errors`, `sim_warnings` | Errors and warnings the simulator printed. |
-| `compile_time`, `elaboration_time`, `simulation_time` | Time spent in each stage, in seconds. |
+| `compile_time`, `elaboration_time`, `simulation_time` | Time spent in each stage, in seconds. A stage the run did not reach has no value. Verilator and Icarus elaborate while they compile: their templates report no `elaboration_time`, and `compile_time` includes it. |
 | `simulated_cycles` | Cycles the testbench simulated, when it prints `odatix_cycles: <n>`. |
 | `cycles_per_second` | Simulated cycles per second of simulation time. |
 
@@ -678,6 +692,8 @@ sim.finish()
 `sim.compile(files, command)` compiles the files all at once and, should the
 order be wrong, one by one until they all compile: the last resort when the
 [compilation order](#compilation-order) Odatix computed is not the right one.
+`sim.build_jobs` is how many processes a build may use without taking the
+cores of the other jobs running at once.
 
 ## `_metrics.yml`
 
@@ -713,38 +729,45 @@ metrics:
 
 ## In the GUI
 
-**RTL Architectures** → **Simulations** edits this file, with the same task
-editor as workflows, and the metrics editor for `_metrics.yml`. See
-[The Odatix GUI](/docs/gui/app/).
+**Configure** → **RTL simulations** opens the **Simulations** section at the
+bottom of the Architectures page. A card per simulation opens the **Simulation
+editor** on it, and **Create new simulation** opens it on a new one, which
+starts from a template whose simulator is installed. The editor writes this
+file, with the same task editor as workflows; **Edit metrics** opens the
+metrics editor for `_metrics.yml`. See [The Odatix GUI](/docs/gui/app/).
 
-The **Template** card of the Simulation Editor chooses the template the
-simulation starts from, and says what it brings: the languages it compiles,
-its tasks, its progress tracking and its metrics. The **Testbench** card sets
-`testbench`; an empty field shows, greyed, what the simulation inherits, or
-what happens without it.
+The **Template** card chooses the template the simulation starts from, and
+says what it brings: the languages it compiles, its tasks, its progress
+tracking and its metrics. A template whose simulator is not in the `PATH` says
+*not installed*. Without a template, a task or a `Makefile`, the card says the
+simulation has nothing to run.
 
-**Run jobs** → *Simulations* lists the templates after the simulations of the
-workspace. Their dropdown only offers the architectures written in a language
-the simulator compiles (and those whose RTL is generated, which is only known
-once generated). **New simulation from it** opens the Simulation Editor on a
+The **Testbench** card sets `testbench`; an empty field shows, greyed, what the
+simulation inherits, or what happens without it. Its **Generated testbench**
+fields (cycles, inputs, waveforms) are only read when Odatix generates the
+testbench, that is when there is none.
+
+The **Architectures** section lists the architectures the simulation runs on,
+one card each: the architecture (wildcards included, *All architectures* for
+`*`), the metrics file of its results, and **Edit parameter domains**, which
+opens the configuration editor on what the simulation substitutes for it. An
+architecture written in a language the template does not compile is listed
+greyed, and cannot be picked. Editing a card never touches what else the entry
+holds, so a key set by hand survives.
+
+**Configure** → **Tools** → *Simulators* lists the templates, the languages
+each one compiles, and whether its simulator is installed: its `test_command`
+is run when the page opens. **New simulation** opens the Simulation editor on a
 new simulation starting from that template.
 
-The **Simulators** section of the **Tools** page lists the templates, the
-languages each one compiles, and whether its simulator is installed: its
-`test_command` is run when the page opens.
-
-**Run jobs** → *Simulations* shows only the architectures a simulation lists.
-The cross next to an architecture takes it out of the list, and the dropdown at
-the bottom of the simulation card puts one back. Both are edits like any other:
-the **Save** button turns orange, and `architectures` is written to this file
-when you press it.
-
-Each card of the **Parameter Domains** section of the [Simulation
-Editor](/docs/gui/app/) carries an **Architecture** field holding the
-architecture the override applies to — wildcards included, and `*` for every
-architecture. Two cards with the same domain name but a different architecture
-are two independent overrides. Editing them never touches what else an
-architecture entry holds, so a `metrics_file` set by hand survives.
+**Run** → **Simulations** lists the templates after the simulations of the
+workspace. Their dropdown only offers the architectures written in a language
+the simulator compiles (and those whose RTL is generated, which is only known
+once generated). A simulation card shows only the architectures the simulation
+lists: the cross next to one takes it out of the list, and the dropdown at the
+bottom of the card puts one back. Both are edits like any other: the **Save**
+button turns orange, and `architectures` is written to this file when you press
+it.
 
 ## See also
 

@@ -6,14 +6,14 @@ weight: 4
 
 # Themes
 
-Odatix GUI and Odatix Explorer share the same themes, picked from the dropdown in the top bar. The choice is stored in a cookie, so it survives page reloads and application restarts, and it can be forced at startup:
+Odatix GUI and Odatix Explorer share the same themes, picked from the dropdown in the top bar. The choice is stored in a cookie, so it survives page reloads and application restarts, and the theme of browsers without a saved choice can be set at startup:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix-gui --theme odatix_dark
 $ odatix-explorer --theme solarized_light
 {{< /code >}}
 
-The theme also drives the charts: figures are drawn with the text and grid colors of the active theme, over a transparent background, so they blend into the page and stay readable once exported.
+The theme also drives the charts: figures are drawn with the text and grid colors of the active theme, over a transparent background, so they blend into the page. An image exported that way keeps those colors: from a dark theme, pick **Image background: White** in the Explorer **Save** tab to get dark text on white for a document. `--theme` sets the default theme for browsers without a saved choice.
 
 {{< toc >}}
 

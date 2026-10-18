@@ -64,9 +64,9 @@ $ odatix-explorer --network --port 8052
 Then browse to `http://<server-address>:8052` from your workstation.
 
 > [!WARNING]
-> `--network` exposes Explorer to every machine that can reach the server on that port, with no authentication. Anyone who reaches it can read every result of the result directory, and save or replace [saved views](/docs/gui/explorer/#saved-views) in it. Only use it on a trusted network, prefer the SSH tunnel otherwise, and add `--read_only` so that visitors cannot write anything:
+> `--network` exposes Explorer to every machine that can reach the server on that port, with no authentication. Anyone who reaches it can read every result of the result directory, and save or replace [saved views](/docs/gui/explorer/#saved-views) in it. Only use it on a trusted network, prefer the SSH tunnel otherwise, and add `--read-only` so that visitors cannot write anything:
 >
-> `odatix-explorer --network --read_only --port 8052`
+> `odatix-explorer --network --read-only --port 8052`
 
 ## Running it in the background
 
@@ -81,7 +81,7 @@ $ cat explorer.log
 {{< /code >}}
 
 Without a terminal on its standard input, there is no key to wait for and no
-terminal mode to change: `--normal_term_mode` is not needed.
+terminal mode to change: `--normal-term-mode` is not needed.
 
 ## Keeping a foreground process alive
 

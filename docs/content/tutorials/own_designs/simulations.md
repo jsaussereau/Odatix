@@ -100,6 +100,17 @@ for [step 4](#step-4--report-your-own-figures).
 
 The testbench belongs to the design: add it to the architecture's settings.
 
+{{< tabs groupId="how" >}}
+{{% tab name="Graphical interface" %}}
+
+Open **Configure** → **RTL architectures**, then the `MyCounter` card. In the
+**Testbench** card of the Architecture editor, fill in the top (`tb_counter`),
+the files (`tb/tb_counter.sv`) and the parameters (`BITS: ${width}`), then
+click **Save all**.
+
+{{% /tab %}}
+{{% tab name="YAML files" %}}
+
 {{< code lang=yaml filename="architectures/MyCounter/_settings.yml" >}}
 testbench:
   top: tb_counter
@@ -108,6 +119,23 @@ testbench:
     BITS: ${width}
 {{< /code >}}
 
+{{% /tab %}}
+{{% tab name="Python API" %}}
+
+{{< code lang=python filename="setup.py" >}}
+from odatix.workspace import Workspace
+
+ws = Workspace.open()
+ws.architectures["MyCounter"].update(testbench={
+    "top": "tb_counter",
+    "files": ["tb/tb_counter.sv"],
+    "parameters": {"BITS": "${width}"},
+})
+{{< /code >}}
+
+{{% /tab %}}
+{{< /tabs >}}
+
 | Key | |
 |-----|---|
 | `top` | The module or entity at the top of the testbench. Optional: Odatix guesses it from the files. |
@@ -115,6 +143,17 @@ testbench:
 | `parameters` | What its top is given. `${width}` is the value of the variable `width` the configuration was built from: `8` for `8bits`. A [parameter domain](/docs/configurations/param_domains/) works the same way, under its name. |
 
 ## Step 3 — Run it
+
+{{< tabs groupId="how" >}}
+{{% tab name="Graphical interface" %}}
+
+Open **Run** → **Simulations**. The templates are listed after the simulations
+of the workspace: switch on `icarus`, pick `MyCounter` in its dropdown (only
+the architectures it compiles are offered), click **Run jobs**, check the plan
+and start. You land on the **Monitor**.
+
+{{% /tab %}}
+{{% tab name="YAML files" %}}
 
 Name a template and the configurations to run:
 
@@ -129,6 +168,21 @@ simulations:
   - icarus:
     - MyCounter/*
 {{< /code >}}
+
+{{% /tab %}}
+{{% tab name="Python API" %}}
+
+{{< code lang=python filename="run.py" >}}
+from odatix.run import Run
+
+run = Run(ws, "simulation", simulations=["icarus"], architectures=["MyCounter/*"])
+print(run.check().counts())
+run.start()
+run.wait()
+{{< /code >}}
+
+{{% /tab %}}
+{{< /tabs >}}
 
 Odatix checks the run first: a design or a testbench written in a language the
 simulator does not compile (VHDL with `icarus`) is listed with the invalid
@@ -180,9 +234,39 @@ metrics:
     format: "%.0f"
 {{< /code >}}
 
+{{< tabs groupId="how" >}}
+{{% tab name="Graphical interface" %}}
+
+Open **Configure** → **Tools**: the *Simulators* section says which simulators
+are installed. Click **New simulation** on `icarus`, rename the simulation
+`TB_MyCounter` in the title field, and click **Save all**. Then click **Edit
+metrics** and add `bits` and `mismatches` (type *yaml*, file `results.yml`,
+keys `bits` and `errors`). Run it from **Run** → **Simulations**, on
+`MyCounter`.
+
+{{% /tab %}}
+{{% tab name="YAML files" %}}
+
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix sim -s TB_MyCounter -a "MyCounter/*"
 {{< /code >}}
+
+{{% /tab %}}
+{{% tab name="Python API" %}}
+
+{{< code lang=python filename="setup.py" >}}
+from odatix.run import Run
+
+sim = ws.simulations.create("TB_MyCounter", template="icarus")
+for name, key in (("bits", "bits"), ("mismatches", "errors")):
+    sim.metrics.set(name, {"type": "yaml", "settings": {"file": "results.yml", "key": key}, "format": "%.0f"})
+sim.metrics.save()
+
+Run(ws, "simulation", simulations=["TB_MyCounter"], architectures=["MyCounter/*"]).start()
+{{< /code >}}
+
+{{% /tab %}}
+{{< /tabs >}}
 
 Each result now holds the metrics of the template and those of
 `_metrics.yml`. The testbench still comes from the architecture: a simulation

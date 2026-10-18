@@ -1,10 +1,10 @@
 ---
-title: "Results & Export"
+title: "Results & export"
 description: "How Odatix collects metrics into result files, how to export them manually, and how to link results from different job types together."
 weight: 10
 ---
 
-# Results & Export
+# Results & export
 
 A job leaves behind a work directory full of tool reports, logs and outputs. Odatix turns that into **results**: a list of records, each tying a *design + configuration + target* to the **metrics** measured for it — area, timing, Fmax, power, simulation cycles, whatever your workflow reports.
 
@@ -35,7 +35,7 @@ That same property is what makes manual export useful: if a metric was missing o
 | Command | Exports |
 |---------|---------|
 | `odatix results` | Everything that was run: synthesis, fixed-frequency and place & route results, simulation and workflow results, then derived metrics. |
-| `odatix results synth` | Synthesis, fixed-frequency and place & route results only. |
+| `odatix results synth` | Synthesis, fixed-frequency and place & route results, and the RTL analyses. |
 | `odatix results sim` | Simulation results only. |
 | `odatix results workflow` | Workflow results only. |
 | `odatix results analysis` | RTL analysis results, with their report. |
@@ -43,6 +43,11 @@ That same property is what makes manual export useful: if a metric was missing o
 
 `odatix results` alone skips a kind of job whose work directory does not exist,
 and applies the derived metrics last, since they read what the others wrote.
+Every export that writes a results file again (`synth`, `sim`, `workflow`) also
+applies the derived metrics right after, so re-exporting never drops them.
+A type asked for explicitly whose work directory does not exist is an error; one
+whose work directory holds no run has nothing to export. In both cases nothing is
+written, so no empty results file shows up in Explorer.
 One type at a time is for a single kind of result:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
@@ -70,8 +75,32 @@ $ odatix results derived -d my_derived_metrics.yml
 | `-c`, `--config` | Workspace settings file (default `odatix.yml`). |
 | `-d`, `--derived` | `odatix results derived` only: derived metrics file (default: the one of the workspace). |
 
-A job that failed has no report to read: `odatix results` says once per missing
-file that no metric could be read from it, and goes on with the other jobs.
+A job that did not finish is skipped with a warning. A value a metric cannot read
+(a missing report, a pattern that matches nothing) is an error naming the job, the
+metric and the file, once per job; the export goes on with the rest.
+
+### Exit status
+
+`odatix results` exits with `1` as soon as an error was reported, even if everything
+else was exported, and its last line says how many: a metric definition to fix must
+not go unnoticed in a script or a CI job. Warnings (an unfinished job, a derived
+metric with no source) do not change the exit status.
+
+### From a script
+
+{{< code lang=python filename="export.py" >}}
+from odatix.workspace import Workspace
+from odatix.run import export_results
+
+ws = Workspace.open()
+report = export_results(ws, "derived")      # or "all", "synth", "sim", ...
+print(report.summary())                     # Derived metrics updated in 1 results file
+if not report:
+    print(report.errors())
+{{< /code >}}
+
+The GUI page **Derived metrics** applies them when it saves, and on its
+**Apply to results** button.
 
 ## Metrics come with the tools
 
@@ -108,14 +137,16 @@ From there you can compare configurations, correlate metrics and export figures 
 
 ## Cleaning up
 
-Result files are small; the work directories they were extracted from are not. Once you are satisfied with the exported results, remove the work directories with a cleanup profile:
+`odatix clean` removes what a clean profile lists. The default profile only lists the
+files eda tools leave at the workspace root (`.Xil`, `*.jou`, `vivado*.log`, ...): it
+**keeps the work directories**. Result files are small, the work directories are not;
+to remove them once you are satisfied with the exported results, add `work/` to the
+profile's `remove_list` (see [Configuration reference](/docs/reference/run_settings/#clean_settingsyml)):
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix clean
-$ odatix clean -i odatix_userconfig/clean_settings.yml
-{{< /code >}}
-
-The profile's `remove_list` (see [Configuration reference](/docs/reference/run_settings/#clean_settingsyml)) lists the glob patterns to delete. Keep in mind that once the work directories are gone, re-exporting is no longer possible — only `odatix results derived`, which works from the result files themselves, still is.
+$ odatix clean                 # what the profile lists; "Nothing to clean" otherwise
+$ odatix clean -i my_clean.yml # another profile
+{{< /code >}} Keep in mind that once the work directories are gone, re-exporting is no longer possible — only `odatix results derived`, which works from the result files themselves, still is.
 
 ## In this section
 

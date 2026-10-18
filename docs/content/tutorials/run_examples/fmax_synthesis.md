@@ -35,7 +35,7 @@ $ source odatix_venv/bin/activate
 Create a new directory for the demonstration and move into it. For example:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/odatix_examples && cd ~/odatix_examples
+$ mkdir -p ~/odatix_examples && cd ~/odatix_examples
 {{< /code >}}
 
 Create a new Odatix workspace and copy the built-in examples into it:
@@ -50,8 +50,12 @@ $ odatix init --examples
 ╚██████╔╝ ██████╔╝ ██║  ██║   ██║    ██║ ██╔╝ ██╗
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
+<font color="#555753">[odatix init]</font> <font color="#34E2E2">note: This command will create all the configuration files needed by Odatix in the current directory.</font>
+<font color="#555753">[odatix init]</font> Would you like to continue? (Y/n) y
 <font color="#555753">[odatix init]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
+<font color="#555753">[odatix init]</font> Try a first run (with your tool in place of vivado): <b>odatix fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis</b>
 <font color="#555753">[odatix init]</font> Run <b>odatix -h</b> to get a list of useful commands
+<font color="#555753">[odatix init]</font> New to Odatix? Follow https://odatix.readthedocs.io/en/latest/docs/getting-started/
 {{< /code >}}
 
 ### Step 2 — Choose your target
@@ -140,7 +144,7 @@ Continue? (Y/n)
 
 ### Step 5 — Monitor the jobs
 
-The job monitor shows the status of each job, and the log of the currently selected job. You can detach and re-attach to the monitor at any time. More information is available in [Sessions & Job Monitor](/docs/sessions/) documentation page.
+The job monitor shows the status of each job, and the log of the currently selected job. You can detach and re-attach to the monitor at any time. More information is available in [Sessions & job monitor](/docs/sessions/) documentation page.
 
 > [!TIP]
 > Use <kbd>PageUp</kbd> and <kbd>PageDown</kbd> keys to change jobs and the <kbd>Up</kbd> and <kbd>Down</kbd> keys to scroll logs. The mouse can also be used to scroll and select jobs.  

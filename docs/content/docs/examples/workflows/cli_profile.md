@@ -14,6 +14,12 @@ workflows:
   - cli_profile/aggressive
 {{< /code >}}
 
+Or name it on the command line, without touching the file:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "cli_profile/default" "cli_profile/aggressive"
+{{< /code >}}
+
 The workflow does not touch its sources at all. Instead, the **command** carries a placeholder named after the workflow:
 
 {{< code lang=yaml filename="workflows/cli_profile/_settings.yml" >}}
@@ -56,7 +62,7 @@ metrics:
 <div class="not-prose docs-links">
   <a class="docs-link" href="/docs/examples/workflows/">
     <span class="docs-link__title">All workflow examples</span>
-    <span class="docs-link__text">The nine examples and what each one isolates.</span>
+    <span class="docs-link__text">The ten examples and what each one isolates.</span>
   </a>
   <a class="docs-link" href="/docs/features/workflows/">
     <span class="docs-link__title">Workflows</span>

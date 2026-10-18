@@ -51,7 +51,7 @@ derived_metrics:
 
 Metrics are computed **in declaration order**, so an `operation` can use a value an earlier import brought in — as `Runtime` does above.
 
-The GUI has a **Derived metrics** page (**Workspace → Derived metrics**) that edits this file, if you prefer not to write the YAML by hand. Every key of this page has a field there (`step` under the extra fields of a card); a key it does not know is kept as it is when the page saves, and so are the comments of the metrics left unchanged.
+The GUI has a **Derived metrics** page (**Workspace → Derived metrics**) that edits this file, if you prefer not to write the YAML by hand. Every key of this page has a field there (`step` under the extra fields of a card); a key it does not know is kept as it is when the page saves, and the metrics left unchanged are written back exactly as the file holds them, comments included. **Save all** also applies the metrics to the result files, and says what it updated and what went wrong; **Apply to results** applies them again without changing anything, for instance after new results were exported.
 
 ## The two kinds
 
@@ -97,6 +97,12 @@ derived_metrics:
 In an `import`, `meta.<key>` is read on the **source** result; in an `operation`, on the result being computed. A result does not need to import its own meta: `op: "... / meta.frequency"` reads it directly, and a metric named like a dimension (`Frequency`) would show twice in Explorer.
 
 Values that read as numbers are converted to numbers, the others stay text — so `op: "meta.target == 'xc7a100t' "` compares fine. A key the result does not carry makes the operation skip that result, exactly like an unknown metric name does. For a key that is not a valid Python name, write `meta["Data width"]`.
+
+An operation that cannot work is said, not skipped in silence:
+
+- an `op` that is not a valid expression (`"LUT_count / / 2"`) is an **error**, naming the metric and the expression; the metric is left out, and `odatix results` exits with `1`;
+- a name **no** result in scope has (`"LUT_cnt / 2"`, a typo of `LUT_count`) is a **warning** naming it, since the metric is then computed nowhere. A name only some results have is not: those results are skipped, as above. `optional: true` silences it;
+- an operation that fails on some results (a division by zero, a metric holding text) is a warning, once per metric, with how many results it failed on.
 
 > [!NOTE]
 > `meta` is a reserved name inside an `op`: a metric of your own named `meta` would be shadowed by it.
@@ -227,7 +233,9 @@ Every synthesis result of a CPU now carries `Cycles`, `Runtime` and `Benchmark_e
 Derived metrics are not computed as each job is exported — the result they need may not exist yet when a job finishes, since a synthesis can complete before the simulation it borrows from has run. They are applied:
 
 - once **every job of a run is done** (end of the batch), by the run commands (`odatix synth`, `odatix fmax`, `odatix sim`, `odatix workflow`, ...) and by the GUI;
-- by every `odatix results` (all types) and `odatix results derived`.
+- by every `odatix results`: `odatix results derived` applies them alone, and an export that writes a results file again (`odatix results`, `synth`, `sim`, `workflow`) applies them right after, so that re-exporting never drops them;
+- when the GUI page saves them, or on its **Apply to results** button;
+- from a script, with `odatix.run.export_results(ws, "derived")` (see [Results & export](/docs/results/#from-a-script)).
 
 They are recomputed from scratch over the whole result set every time they run, so applying them twice changes nothing, and a value whose source disappeared is removed rather than left stale.
 
@@ -236,7 +244,7 @@ $ odatix results derived  # apply derived metrics to the result files
 $ odatix results          # export everything, then apply them
 {{< /code >}}
 
-If no source result matches, Odatix warns once per metric, naming a few of the affected results — set `optional: true` when that is expected.
+If no source result matches, Odatix warns once per metric, naming a few of the affected results — set `optional: true` when that is expected. `odatix results derived -d other.yml` reads another definitions file; a file named this way that does not exist is an error, while a workspace with no derived metrics file simply derives nothing.
 
 ## See also
 

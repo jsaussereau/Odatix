@@ -13,6 +13,12 @@ workflows:
   - param_domains_json + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
 {{< /code >}}
 
+Or name it on the command line, without touching the file:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "param_domains_json + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*"
+{{< /code >}}
+
 The same traffic simulation, but the script takes no arguments at all: it reads a JSON file that sits in its sources.
 
 {{< code lang=yaml filename="workflows/param_domains_json/_settings.yml" >}}
@@ -60,7 +66,7 @@ This is the pattern for any tool driven by a configuration file rather than by f
 <div class="not-prose docs-links">
   <a class="docs-link" href="/docs/examples/workflows/">
     <span class="docs-link__title">All workflow examples</span>
-    <span class="docs-link__text">The nine examples and what each one isolates.</span>
+    <span class="docs-link__text">The ten examples and what each one isolates.</span>
   </a>
   <a class="docs-link" href="/docs/features/workflows/">
     <span class="docs-link__title">Workflows</span>

@@ -164,6 +164,13 @@
     @apply max-w-none;
   }
 
+  /* Wide tables scroll on their own instead of widening the page on a phone. */
+  .prose table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
   .prose h1, .prose h2, .prose h3, .prose h4 {
     @apply font-heading font-bold text-gray-900;
   }

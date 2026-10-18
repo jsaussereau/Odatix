@@ -1,10 +1,10 @@
 ---
-title: "Sessions & Job Monitor"
+title: "Sessions & job monitor"
 description: "Track parallel synthesis, simulation and workflow jobs in real time, and manage detached daemon sessions."
 weight: 8
 ---
 
-# Sessions & Job Monitor
+# Sessions & job monitor
 
 > [!IMPORTANT] Requires Odatix 4.0+
 
@@ -42,7 +42,7 @@ $ odatix fmax --tool vivado -d
 
 A session stays alive once its jobs are done, so that you can still look at their logs. Close it from the end-of-run dialog of the monitor, or with [`odatix stop`](#stop-sessions).
 
-With `-E`/`--exit`, the monitor closes by itself once every job is over, and so does the session. The command then prints what became of the jobs:
+With `-E`/`--exit`, the monitor closes by itself once every job of the run is over (a job still exporting its results is not over), and so does the session. The command then prints what became of the jobs:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix workflow -y -E
@@ -51,9 +51,9 @@ $ odatix workflow -y -E
 [odatix workflow] note: Session 517634.pts-12.myhost closed
 {{< /code >}}
 
-If jobs of another run are still running in that session (several runs can share one with `-S`), the session is kept open and the command says how to follow it.
+`-E` waits for the jobs of its own run only. If jobs of another run are still running in that session (several runs can share one with `-S`), the session is kept open and the command says how to follow it.
 
-When the terminal cannot show the monitor (a script, a CI job, `nohup`), `-E` still means that the run is over when the command returns: the command waits for the jobs, printing a line each time their count changes, then closes the session the same way. <kbd>Ctrl</kbd>+<kbd>C</kbd> stops the waiting, not the jobs. Without `-E`, the command returns at once and the jobs keep running in their session.
+When the terminal cannot show the monitor (a script, a CI job, `nohup`), `-E` still means that the run is over when the command returns: the command waits for the jobs, printing a line each time their count changes (and saying when auto-pause holds some of them), then closes the session the same way. Without a terminal, every line is written as soon as it is printed, without color codes. <kbd>Ctrl</kbd>+<kbd>C</kbd> stops the waiting, not the jobs. Without `-E`, the command returns at once and the jobs keep running in their session.
 
 ### Session naming
 
@@ -65,14 +65,15 @@ $ odatix fmax --tool vivado -d -S nightly
 
 The same pattern applies to `odatix synth`, `odatix pnr`, `odatix sim` and `odatix workflow` commands.
 
-Without `-S`, every run starts a new session, named after the terminal and the machine it was started from: `<tty>.<host>` (e.g. `pts-3.myhost`), then `pts-3.myhost.2`, `pts-3.myhost.3`... when that name is taken. A run started without a terminal (a script, the GUI) gets `no_tty.<host>`.
+Without `-S`, every run starts a new session, named after the terminal and the machine it was started from: `<tty>.<host>` (e.g. `pts-3.myhost`), then `pts-3.myhost.2`, `pts-3.myhost.3`... when that name is taken. A run started without a terminal (a script, a CI job) gets `script.<host>`, and a run started from the GUI `gui.<host>`.
 
 Running a command with `-S` naming a session that is already running **adds its jobs to that session**, instead of starting a new one. They run with the session's settings and environment: the environment variables are those of the command that started the session, not those of the command that adds the jobs.
 
 ### Inspect and attach
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls                 # list the active sessions of this workspace
+$ odatix ls                 # list the active sessions of this workspace, and where their jobs stand
+$ odatix ls -V              # also show where each session listens
 $ odatix ls -S nightly      # filter with a selector
 $ odatix monitor -S nightly # re-attach the monitor to a session
 {{< /code >}}

@@ -100,7 +100,8 @@ print(targets.enabled_names())
 {{< /code >}}
 
 `add()` writes the file back at once, its comments and its other keys
-untouched. It refuses a target the file already has, disabled or not: use
+untouched. The new target goes at the end of the list, after the commented-out
+ones (the YAML tab lets you put it where you want). It refuses a target the file already has, disabled or not: use
 `enable()` for those.
 
 {{% /tab %}}
@@ -196,8 +197,10 @@ it in their own format. A tool of your own can read it, or ignore it.
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-Back on the run page of Vivado, select `Example_Counter_verilog/08bits`, set the
-frequency to `100`, and **Start**.
+Back on the run page of Vivado, select `Example_Counter_verilog` and, in its **Preview**, untick every configuration
+but `08bits`. Turn on **Override frequencies**, type `100` in **Target
+frequencies (MHz)**, click **Run jobs**, then **Start** in the popup once the
+check is done.
 
 {{% /tab %}}
 {{% tab name="YAML files" %}}

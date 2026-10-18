@@ -9,7 +9,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
     highlight="automatically"
     sub_headline="Odatix generates every configuration of your parametrizable design, runs synthesis, place &amp; route and simulation jobs in parallel on the EDA tools you already use, and gathers every metric in one interactive dashboard."
     primary_button_text="Get started"
-    primary_button_url="/docs"
+    primary_button_url="/docs/getting-started/"
     secondary_button_text="View on GitHub"
     secondary_button_url="https://github.com/jsaussereau/odatix"
     image="/images/screenshots/explorer-overview.png"
@@ -38,7 +38,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
             <div class="home-step" style="--step-accent:#2563eb">
                 <span class="home-step__num">01</span>
                 <h3 class="home-step__title">Describe once</h3>
-                <p class="home-step__text">Point Odatix at your existing HDL sources and declare the parameters you want to sweep. A handful of YAML rules is enough — scripting is optional, no per-tool project files. Once declared once, it works on all your tools!</p>
+                <p class="home-step__text">Point Odatix at your existing HDL sources and declare the parameters you want to sweep. A handful of YAML rules is enough — scripting is optional, no per-tool project files. Declared once, it works on all your tools!</p>
                 <span class="home-step__meta">VHDL · Verilog · SystemVerilog · Chisel · HLS</span>
             </div>
             <div class="home-step" style="--step-accent:#7c3aed">

@@ -13,6 +13,12 @@ workflows:
   - param_domains_cli + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
 {{< /code >}}
 
+Or name it on the command line, without touching the file:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "param_domains_cli + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*"
+{{< /code >}}
+
 A traffic simulation with four independent knobs — speed limit, vehicle count, signal timing, road length — each its own [parameter domain](/docs/configurations/param_domains/):
 
 {{< code lang=yaml filename="workflows/param_domains_cli/_settings.yml" >}}
@@ -73,7 +79,7 @@ metrics:
 <div class="not-prose docs-links">
   <a class="docs-link" href="/docs/examples/workflows/">
     <span class="docs-link__title">All workflow examples</span>
-    <span class="docs-link__text">The nine examples and what each one isolates.</span>
+    <span class="docs-link__text">The ten examples and what each one isolates.</span>
   </a>
   <a class="docs-link" href="/docs/features/workflows/">
     <span class="docs-link__title">Workflows</span>

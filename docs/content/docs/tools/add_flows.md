@@ -11,8 +11,8 @@ weight: 3
 A **flow** is a way of running an eda tool: a different strategy, different
 options, sometimes different scripts. Vivado ships runtime, performance, area
 and power oriented flows next to its standard one; Design Compiler ships
-`compile`, `compile_ultra` and timing, area and power oriented variants of the
-latter. Flows of the same tool are **alternatives meant to be compared**, so each
+`standard` and `high_effort` (`compile`), `ultra` (`compile_ultra`) and timing,
+area and power oriented variants of the latter. Flows of the same tool are **alternatives meant to be compared**, so each
 one runs in its own work directory and tags the results it produces — and a
 [design space exploration](/docs/reference/dse/) can choose between them.
 
@@ -491,8 +491,9 @@ unix:
 {{< /code >}}
 
 `constants` is not read by Odatix — it exists only so the anchors have somewhere
-to be defined. Anchors are resolved when the file is loaded; the graphical editor
-re-emits a flat, anchor-free `tool.yml` on save.
+to be defined. Anchors are resolved when the file is loaded. Saving from the Tool
+Editor only rewrites the lines of the settings that changed: the comments, the
+quoting and the anchors of the other lines stay as they are.
 
 ## From the GUI
 

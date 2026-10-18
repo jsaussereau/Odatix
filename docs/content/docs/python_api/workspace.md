@@ -304,7 +304,7 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 
 ### `Setting`
 
-`Setting(default=None, type='any', key=None, section=None, comment=None, style=None, when=None, skip_if_empty=False, doc=None, factory=None, alt_key=None, alt_comment=None, stored=True)`
+`Setting(default=None, type='any', key=None, section=None, comment=None, style=None, when=None, skip_if_empty=False, doc=None, factory=None, alt_key=None, alt_comment=None, stored=True, comment_out=False)`
 
 One key of a settings file.
 
@@ -321,6 +321,7 @@ One key of a settings file.
 - `alt_comment` *(str)* — end-of-line comment of that other key.
 - `stored` *(bool)* — False for a setting that only exists in memory (a switch whose state is read back from which key the file uses, for instance). It is never written, but it is part of the settings.
 - `skip_if_empty` *(bool)* — do not write the key at all when its value is empty.
+- `comment_out` *(bool)* — for a list of names, written one per line: an entry taken out of the list is commented out where it is rather than deleted, and a commented-out entry put back is uncommented where it is. This is how a run settings file keeps the catalogue of commented-out entries its author keeps at hand.
 - `doc` *(str)* — what the setting means, for the API documentation and the command line help.
 
 | Method | What it does |
@@ -350,7 +351,8 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 
 | Attribute | What it is |
 |---|---|
-| `write_all_settings` | True for settings whose file is expected to spell every key out, even the ones left at their default (the run settings files, which Odatix reads key by key and refuses when one is missing). |
+| `write_all_settings` | Former way of saying that a file spells every key out. A file Odatix generates always does; a file it updates only gets the keys of `required_keys` added to it, never a default nobody asked for. |
+| `required_keys` | Keys written to a file that does not hold them, even at their default: the ones a reader of the file refuses to do without (a run settings file has to say whether to overwrite, ask and how many jobs to run). Any other key left at its default is not added to a file that never mentioned it. |
 | `dropped_keys` | Keys a file may still hold, that are read but never written again. They are dropped from a file the next time it is saved, so that a settings file only ever shows the form that is documented. What such a key used to mean has to be carried over when the file is read, in `from_dict()`, or saving would lose it. |
 | `replacement_key` | The key the dropped ones leave their place to, written where the first of them was rather than at the end of the file. |
 | `moved_keys` | Keys the class does not declare, that `normalize()` may carry over into a declared one, as `(former key, key)` pairs. Once carried over (gone from `extra`), the key takes the place of the former one in the file. |
@@ -549,8 +551,6 @@ Declared settings:
 | `attributes` | `dict` |  | How to read values off the name or the content of the configurations of the main domain, so that exclusions can be written about hand-written ones. "defaults", "from_name", "from_content" and "values". See odatix.workspace.attributes. |
 | **Exclusions** | | | |
 | `exclusions` | `any` |  | Combinations of the parameter domains of this architecture that are not part of its design space. Each one has a "when", optionally a "require" naming what it should be instead, a "kind" among "illegal", "duplicate" and "dominated", and a "message". See odatix.workspace.exclusions. |
-| `generate_configurations` | `bool` | `False` |  |
-| `generate_configurations_settings` | `ConfigGeneration` | `ConfigGeneration(name='', template='', variables={}, blacklist=[], constraints=[])` |  |
 
 ### `FrequencyBounds`
 
@@ -698,8 +698,6 @@ Declared settings:
 | `variables` | `dict` |  | Definition of each variable, by name. Variables are the values the configurations are built from. A domain with no template substitutes them as "${name}" into commands instead. |
 | **Attributes** | | | |
 | `attributes` | `dict` |  | How to read values off the name or the content of the configurations of this domain, so that exclusions can be written about hand-written ones. "defaults", "from_name", "from_content" and "values". See odatix.workspace.attributes. |
-| `generate_configurations` | `bool` | `False` |  |
-| `generate_configurations_settings` | `ConfigGeneration` | `ConfigGeneration(name='', template='', variables={}, blacklist=[], constraints=[])` |  |
 
 ### `Configuration`
 
@@ -844,12 +842,12 @@ that `require` does not.
 |---|---|
 | `identifier` *(property)* | How the rule is named when a campaign turns it off, or a run reports it. |
 | `valid` *(property)* | A rule that says nothing rejects nothing. |
-| `id` | `<member 'id' of 'Exclusion' objects>` |
-| `kind` | `<member 'kind' of 'Exclusion' objects>` |
-| `message` | `<member 'message' of 'Exclusion' objects>` |
-| `require` | `<member 'require' of 'Exclusion' objects>` |
-| `source` | `<member 'source' of 'Exclusion' objects>` |
-| `when` | `<member 'when' of 'Exclusion' objects>` |
+| `id` | The name a campaign uses to turn the rule off ("" when unnamed). |
+| `kind` | Why the points are out: `illegal`, `duplicate` or `dominated`. |
+| `message` | The explanation shown when a point is rejected. |
+| `require` | What those points must also satisfy ("" rejects them all). |
+| `source` | Where the rule was written (a file, or a domain), for messages. |
+| `when` | The condition that selects the points the rule is about. |
 
 | Method | What it does |
 |---|---|
@@ -884,7 +882,7 @@ Supports `len(x)`, iteration.
 | `active()` | The rules a run is actually applying. |
 | `merge(other)` | This set, plus what a campaign says on top of it. The rules add up -- a campaign may write an exclusion of its own -- and what the campaign says about which kinds to apply and which ids to ignore replaces what the architecture said, because that is the decision a campaign is entitled to make. |
 | `with_kinds(applied)` | The same rules, applying the given kinds. |
-| `check(values)` | Whether one point belongs to the space. *Args:* `values` *(dict)* — what the names of the expressions are worth, as `context()` builds it. *Returns:* `Excluded` — why the point is out, or None when it is in. A rule whose expression cannot be evaluated is reported once, and rejects; `nothing` — a typo must not empty a space silently, and an exclusion is never the thing a run is about. |
+| `check(values)` | Whether one point belongs to the space. *Args:* `values` *(dict)* — what the names of the expressions are worth, as `context()` builds it. *Returns:* `Excluded` — why the point is out, or None when it is in. A rule whose expression cannot be evaluated is reported once, and rejects nothing: a typo must not empty a space silently, and an exclusion is never the thing a run is about. |
 | `take_errors()` | The evaluation errors gathered so far, cleared on the way out. |
 
 ### `parse_exclusions(settings, source='', applied=None)`
@@ -1102,8 +1100,6 @@ Declared settings:
 | `configurations` | `Configurations` | `Configurations(enabled=False, name='', template='', blacklist=[], constraints=[])` | Name and template the configurations of the main domain are built from. A list declares several rule sets, whose union the domain is. |
 | **Variables** | | | |
 | `variables` | `dict` |  | Definition of each variable, by name. Variables are the values the configurations are built from. A workflow with no template substitutes them as "${name}" into its commands instead. |
-| `generate_configurations` | `bool` | `False` |  |
-| `generate_configurations_settings` | `ConfigGeneration` | `ConfigGeneration(name='', template='', variables={}, blacklist=[], constraints=[])` |  |
 
 ## Tools and targets
 
@@ -1352,7 +1348,7 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `duplicate(name, new_name, save=True)` | Copy a target, per-target settings included. |
 | `enable(name, save=True)` |  |
 | `disable(name, save=True)` |  |
-| `save()` | Write the target list back, keeping the comments and every other key of the file. Disabled targets are written as commented-out entries. |
+| `save()` | Write the target list back, keeping the comments and every other key of the file. Disabled targets are written as commented-out entries. Only what changed is written: a target added, removed, renamed, enabled or disabled changes its own line, and a setting changed by `update()` its own value, in the style the file writes it. |
 | `settings()` | Everything the target file holds, as plain values. Useful to read the keys that belong to the tool rather than to the target list (its constraint file, its install path, ...). Changes made by `update()` and not saved yet are included. |
 | `update(save=True, **values)` | Change the settings of the tool held by this file, and, unless told otherwise, write the file back. Example: `ws.targets["mytool"].update(constraint_file="constraints.sdc", tool_install_path="/opt/mytool")` *Args:* `constraint_file` *(str)* — file of the job directory holding the clock constraint.; `tool_install_path` *(str)* — installation directory of the tool; empty when it is on the PATH.; `force_single_thread` *(bool)* — run the tool on a single thread. |
 
@@ -1556,7 +1552,7 @@ What every run command reads, whatever it runs.
 
 | Attribute | What it is |
 |---|---|
-| `write_all_settings` | `True` |
+| `required_keys` | `('overwrite', 'ask_continue', 'nb_jobs')` |
 
 Declared settings:
 

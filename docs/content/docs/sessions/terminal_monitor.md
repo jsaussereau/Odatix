@@ -22,7 +22,7 @@ $ odatix monitor -S nightly    # attach to a specific session of the workspace
 
 The screen is split into four horizontal areas:
 
-- a **header** with the session ID, the Odatix version, the number of jobs allowed in parallel, the auto-pause state, and how many jobs are done,
+- a **header** with the session ID, the Odatix version, the number of jobs allowed in parallel, the auto-pause state, and how many jobs are done, running, paused and queued. In a narrow terminal, the least useful parts are shortened or left out first (version, then the number of parallel jobs); the session, the job counts and auto-pause always stay,
 - the **progress window**, listing every job with its status and progress bar,
 - the **log window**, showing the output of the selected job live,
 - the **help bar** at the bottom, recalling the most useful keys (`d` detach, `q` quit, `h` help menu, `c` cursor mode). While a part of a log is selected, it recalls how to copy it instead.
@@ -72,6 +72,10 @@ Auto-pause is the [resource guard](/docs/reference/workspace/#resource-guard): w
 > [!TIP]
 > **Cursor mode** re-enables your terminal's own text selection, so you can copy a chunk of a log with the mouse. While it is on, mouse clicks go to the terminal rather than to the monitor; press `c` again to give control back to the monitor.
 
+## Terminals without colors
+
+With `NO_COLOR` set, the monitor shows no colors (bold and reverse video stay). A terminal that cannot hide its cursor (`TERM=vt100`) still shows it. One that cannot show it at all (`TERM=dumb`, no terminal) says so, and how to follow the jobs instead (`odatix ls`, the GUI Monitor page).
+
 ## Mouse support
 
 The monitor is fully usable with the mouse:
@@ -86,13 +90,17 @@ The monitor is fully usable with the mouse:
 Detaching and quitting are two different things:
 
 - `d` **detaches** the monitor. The session keeps running in the background; re-attach later with `odatix monitor -S <session>`.
-- `q` **quits**. If jobs are still running, Odatix asks for confirmation (`Kill all jobs and stop daemon: Yes (y) / No (n)?`) before killing them and stopping the daemon.
+- `q` **quits**. If jobs are still running, it asks what to do: `d` leaves them running in their session (like detaching), `k` kills them all and closes the session, `Esc` stays in the monitor. `q` never kills anything by itself.
+
+Once the monitor is closed, the terminal keeps a line saying what happened: which session goes on and how to re-attach (`odatix monitor -S <session>`), or how many jobs succeeded and that the session was closed.
+
+The help menu (`h`) scrolls with `Up`/`Down` when the terminal is too small to show every key.
 
 ## When everything is done
 
 With `-E`/`--exit`, there is no popup: the monitor closes by itself once every job is over, the session is closed with it, and the command prints how many jobs succeeded and failed (see [when the jobs are done](/docs/sessions/#when-the-jobs-are-done)). Otherwise:
 
-Once every job of the session has finished, a popup summarizes the run (`x/y job(s) finished`) and offers three choices:
+Once every job of the session has finished, a popup summarizes the run (`x/y job(s) succeeded, n failed`) and offers three choices:
 
 1. **Stay in the monitor** — keep browsing the logs.
 2. **Close the session and quit** — shut the session down and return to the shell (default).
@@ -102,6 +110,6 @@ Navigate with `Up`/`Down` then `Enter`, press the option number directly, or cli
 
 ## See also
 
-- [Sessions & Job Monitor](/docs/sessions/)
+- [Sessions & job monitor](/docs/sessions/)
 - [GUI monitor](/docs/sessions/gui_monitor/)
 - [Commands reference](/docs/commands/)

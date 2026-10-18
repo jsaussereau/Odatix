@@ -65,6 +65,12 @@ Each analyzed configuration ends up in one of six states:
 | **Not supported** | The design is written in a language the tool does not read (Verilator and VHDL): reported as such, not as a pile of syntax errors. |
 | **Passed** | The tool reported nothing, or nothing but expected findings. |
 
+The status of a **job** (in the job monitor, `odatix ls`, the API) says whether
+the tool ran, the same way for every tool, and not what it found: the job of a
+*Failed* design succeeded, since the tool did its work and the RTL is at fault.
+Only *Tool failure* and *Incomplete* make the job fail. The verdict is in the
+report, the results files and Explorer.
+
 ### Expected findings
 
 Some findings are normal. Quartus advises the Reset Release IP for every Agilex
@@ -89,6 +95,15 @@ expected:
     architectures: [Legacy_ROM]
     reason: "The legacy ROM uses a latch on purpose"
 {{< /code >}}
+
+In the GUI, the **RTL analysis** page writes this section for you: **Mark as
+expected** on a finding asks for whom it is normal (this configuration, every
+configuration of the architecture, or every design; with this tool only, or
+any) and why, then saves it in `analyze_settings.yml`, without touching the
+rest of the file. The page reads the analyses again at once, so the design moves
+to *Passed* when nothing else needs attention. **Expected findings of this
+workspace** lists them, each with a **Remove** button. The standalone
+`odatix-explorer` only reads results: it has no such button.
 
 The results files keep the verdict read when each job ended: after editing this
 section, `odatix results analysis` reads the analyses of the work directory
@@ -120,11 +135,15 @@ At the end of the run, `odatix analyze` prints:
 {{< /code >}}
 
 Every result is also a record of `results/results_analysis_<tool>.yml`, written
-as soon as its job ends — whether the tool succeeded or not. A finished analysis
+as soon as its job ends — whether the tool found errors or not. A finished analysis
 is not run again unless `-o/--overwrite` is given: after fixing the RTL, run
 `odatix analyze -o`. Five metrics come
 with each record — `error_count`, `critical_warning_count`, `warning_count`,
 `info_count` and `expected_count` — so they can be charted like any other metric.
+
+A tool listed in `tools` that cannot be launched (not installed, not in the
+`PATH`) is reported as an error and its analyses are skipped: the other tools
+run all the same. The run stops only when none of them can.
 
 How each tool's reports are read is declared in the `analysis.yml` of the tool,
 not in Odatix: adding a tool, or teaching Odatix a message it does not know, is a
@@ -199,12 +218,34 @@ Every key is on the
 analysis command, each with its flows: clicking a flow opens the job settings,
 where more tools can be ticked (they run their default flow), with the same
 settings as the settings file — designs, configurations, parallel jobs,
-overwrite — and launches. Results land in the **RTL Analysis** dashboard of
+overwrite — and launches. Results land in the **RTL analysis** page of
 Explorer: the status of every design
 with every tool, the kinds of findings (click one to keep the designs it was
 reported for), and for each design what needs attention first — category,
 message, location, message id and the source excerpt — with its expected
 findings folded apart.
+
+### From Python
+
+`Run(workspace, "analysis", ...)` runs an analysis like any other job type (see
+the [Python API](/docs/python_api/)). Its verdicts are read from the results
+files, which is what the terminal report and Explorer show:
+
+{{< code lang=python filename="check_rtl.py" >}}
+import odatix.lib.analysis as analysis
+from odatix.workspace import Workspace
+
+workspace = Workspace.open(".")
+for result in analysis.read_results(workspace.paths.result_path, tools=["verilator"]):
+    print(result.tool, result.name, result.status, result.summary)
+    for finding in result.attention:          # what needs attention, most relevant first
+        print("   ", finding.severity, finding.category, finding.message, finding.location)
+{{< /code >}}
+
+`read_results` also takes `designs` (`["Counter/*"]`). `result.status` is one
+of `failed`, `tool_failure`, `incomplete`, `warning`, `unsupported` and
+`passed` (`analysis.STATUS_LABELS` names them), and
+`analysis.count_by_status(results)` counts them.
 
 ## Where to go next
 

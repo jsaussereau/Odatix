@@ -14,7 +14,7 @@ change.
 
 > [!NOTE]
 > All run commands are daemon-driven. To detach, re-attach, list and stop
-> sessions, see [Job Monitor & sessions](/docs/sessions/).
+> sessions, see [Sessions and Job Monitor](/docs/sessions/).
 
 ## Run the built-in examples
 

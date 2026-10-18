@@ -68,7 +68,7 @@ a domain constraint: `- "$a <= $b"`.
 
 ## In the graphical interface
 
-**Configure → RTL Architectures → Architecture Settings** ends with an
+**RTL architectures** → **Settings** (on the card of the architecture) ends with an
 **Exclusions** tile: one card per rule, with its **When**, **Require**,
 **Kind**, **Id** and **Message**, and **Add exclusion** to write one more. **Save
 all** writes them to the `_settings.yml` of the architecture.
@@ -86,8 +86,11 @@ That list is worth reading: the name of a configuration is a **string**, so a
 domain whose configurations are called `4`, `8` and `12` is compared with
 `$width == '8'`, not `$width == 8`.
 
-A space of more than a million combinations is not checked from the page; a
-larger one is checked on a sample spread over the whole space. A block written
+Up to 20,000 combinations are all checked; a larger space, however large, is
+checked on 20,000 combinations drawn at random over the whole space. The line
+under the button turns orange or red when a rule cannot be read, reads a name
+nothing defines (the card names it and suggests the closest one), or leaves
+nothing out. A block written
 as a mapping keeps its `apply` and `ignore` as they are. The `attributes` blocks
 have no editor yet: write them in the settings file.
 

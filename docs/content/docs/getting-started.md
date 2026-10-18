@@ -1,10 +1,10 @@
 ---
-title: "Getting Started"
+title: "Getting started"
 description: "From nothing to a first chart in five steps, then the core concepts behind every Odatix run."
 weight: 0
 ---
 
-# Getting Started
+# Getting started
 
 This page takes you from nothing to a first chart in five steps, then explains
 the ideas behind them. Every term in **bold** is defined where it first appears,
@@ -30,11 +30,18 @@ the other ways):
 $ pip install odatix
 {{< /code >}}
 
+> [!WARNING] Odatix 4.0 is not on PyPI yet
+> This documentation describes Odatix 4.0. Until it is released,
+> `pip install odatix` installs Odatix 3.7, whose commands differ: the steps
+> below fail with it. Install Odatix 4.0
+> [from sources](/install/sources/) instead. `odatix --version` tells which one
+> you have.
+
 **2. Create a workspace.** A **workspace** is a directory holding an
 `odatix.yml` file and the settings of what Odatix runs there:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/odatix_examples && cd ~/odatix_examples
+$ mkdir -p ~/odatix_examples && cd ~/odatix_examples
 {{< /code >}}
 
 **3. Fill it with the examples.** They add example
@@ -45,6 +52,9 @@ parameter values each):
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix init --examples
 {{< /code >}}
+
+It asks before writing anything (`-y` skips the question), then ends with the
+command of a first run, the one of the next step.
 
 **4. Run.** `odatix fmax` searches the maximum frequency of every configuration
 listed in `odatix_userconfig/fmax_settings.yml`, on every
@@ -97,37 +107,37 @@ To run your own design next, follow [Add your own design](/tutorials/own_designs
 Everything in Odatix is built from a few key ideas. The steps above met most of
 them; here they are in more detail.
 
-### Workflow
+### Architecture
 
-A [**workflow**](/docs/glossary/#workflow) is a Makefile-like task execution graph. It lives in `odatix_userconfig/workflows/<name>/`, described by a `_settings.yml` that lets you define the tasks, their dependencies, and the commands to run. See [Workflows](/docs/features/workflows/) for details. They do not have to be tied to a design, and can be used for any kind of task automation.
+An [**architecture**](/docs/glossary/#architecture) is a parametrizable RTL (or generated) design. It lives in `odatix_userconfig/architectures/<name>/`, described by a `_settings.yml` that points to your sources, the top-level file and module, the clock/reset signals, and the delimiters that mark the parameter section of the top level. See [Add your own design](/tutorials/own_designs/architecture/).
 
-### RTL Architecture
+### Configuration
 
-An **architecture** is an HDL (or generated) design. It lives in `odatix_userconfig/architectures/<name>/`, described by a `_settings.yml` that points to your sources, the top-level file and module, the clock/reset signals, and the delimiters that mark the parameter section of the top level. Parametrizable design configurations can be explored with odatix.
+A [**configuration**](/docs/glossary/#configuration) is one set of parameter values of an architecture. You describe each configuration with a small *parameter file*, or you let Odatix generate them. See [Configurations](/docs/configurations/).
+Parameters that vary together form a [**parameter domain**](/docs/glossary/#parameter-domain); a run combines the configurations of the domains it selects.
 
-### Design Configuration
+### Target and tool
 
-A **configuration** is one concrete instantiation of a design — a specific set of parameter values. You describe each configuration with a small *parameter file*, or you let Odatix generate them automatically. See [Configurations](/docs/configurations/). 
-The impact of different parameters can be studied by grouping parameters into a [parameter domain](/docs/configurations/param_domains/).
-
-### Target
-
-A **target** is where a configuration is implemented — an FPGA device or an ASIC technology. Targets are listed in the per-tool `target_*.yml` files, and a single run implements every selected configuration on every selected target.
+A [**target**](/docs/glossary/#target) is where a configuration is implemented: an FPGA device or an ASIC technology. Each [**tool**](/docs/glossary/#tool) lists its targets in its target file (`target_<tool>.yml`, in `odatix_userconfig/targets/`), and a single run implements every selected configuration on every selected target.
 
 ### Job
 
-A **job** is the unit of work: implement (or simulate) *one configuration* on *one target*. Odatix schedules jobs in parallel through a background [daemon](/docs/glossary/#daemon), grouped into a [session](/docs/sessions/), and shows their progress in the Job Monitor.
+A [**job**](/docs/glossary/#job) is the unit of work: one configuration of an architecture, on one target, by one tool (a fixed-frequency synthesis also has one job per frequency). Odatix runs the jobs of a [**session**](/docs/sessions/) in parallel, through a background [daemon](/docs/glossary/#daemon), and shows their progress in the Job Monitor.
+
+### Workflow
+
+A [**workflow**](/docs/glossary/#workflow) is a chain of tasks of your own, with their dependencies, like a Makefile. It lives in `odatix_userconfig/workflows/<name>/`, described by a `_settings.yml` that defines the tasks, their dependencies and the commands to run. A workflow does not have to involve a design: any command-line step can become a task. Like an architecture, it can have parameter domains: a run then gives each of its configurations a job of its own. See [Workflows](/docs/features/workflows/).
 
 ## The typical loop
 
 {{< img src="/images/diagrams/typical-loop.svg" shadow="false" >}}
 
-In commands:
+In commands (each of them can also be done from `odatix-gui`):
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix-gui                # start the GUI where you can define workflows, design architectures, configurations, and targets 
-$ odatix fmax --tool vivado # find Fmax for every configuration/target, in parallel (can also be done from odatix-gui)
-$ odatix-explorer           # open the interactive results dashboard (can also be done from the odatix-gui)
+$ odatix-gui                # define architectures, configurations, targets and workflows
+$ odatix fmax --tool vivado # search the Fmax of every configuration on every target, in parallel
+$ odatix-explorer           # chart the results in your browser
 {{< /code >}}
 
 ## Keep going
@@ -137,7 +147,7 @@ $ odatix-explorer           # open the interactive results dashboard (can also b
 Define parametrizable designs, parameter domains and automatic configuration generation.
 {{< /doc-card >}}
 
-{{< doc-card title="Graphical User Interface" link="/docs/gui/" icon="window" accent="#0284c7" >}}
+{{< doc-card title="Graphical user interface" link="/docs/gui/" icon="window" accent="#0284c7" >}}
 Odatix GUI, Odatix Explorer, and how to host them on a server.
 {{< /doc-card >}}
 

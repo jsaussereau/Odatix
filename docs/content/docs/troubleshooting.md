@@ -30,6 +30,8 @@ workspace root.
 | Symptom | Likely cause | What to check |
 |---------|--------------|---------------|
 | `odatix: command not found` | Odatix is not installed in the active shell environment. | Activate the intended virtual environment, then run `python3 -m pip show odatix`. |
+| A command or option of this documentation is unknown (`odatix init --examples`, `--until`...) | The installed Odatix is 3.7, from PyPI, where Odatix 4.0 is not released yet. | `odatix --version`; until the release, [install Odatix 4.0 from sources](/install/sources/). |
+| `The "architectures" section of ... is empty` | The workspace has no design selected yet: `odatix init` without `--examples` creates an empty one. | Add your design ([Add your own design](/tutorials/own_designs/)) and list it in the settings file named, or try the examples first with `odatix init --examples`. |
 | The EDA tool check fails | The executable, module, licence or target setup is unavailable. | Run the tool's native version command in the same terminal; then check `PATH`, environment modules and `tool_install_path`. |
 | No jobs are planned | The selected names do not match existing configurations, or the run settings list is empty. | Check `architectures`, `simulations` or `workflows` in the corresponding `*_settings.yml`. |
 | A parameter block cannot be found | `start_delimiter` or `stop_delimiter` does not exactly match the copied source. | Use `odatix replace` to test the delimiters against one source/configuration pair. |
@@ -85,8 +87,8 @@ $ odatix monitor -S nightly
 $ odatix stop -S nightly
 {{< /code >}}
 
-Use a meaningful `-S`/`--session` name for detached runs. The [Job Monitor &
-Sessions](/docs/sessions/) page explains selectors, reattachment and the
+Use a meaningful `-S`/`--session` name for detached runs. The [Sessions and Job
+Monitor](/docs/sessions/) page explains selectors, reattachment and the
 scheduling policy.
 
 | Symptom | Cause | Action |

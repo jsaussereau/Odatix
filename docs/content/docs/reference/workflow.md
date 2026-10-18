@@ -157,11 +157,11 @@ resolved configuration:
 | `${<workflow_name>}` | The content of the selected configuration's file (`cli_profile/aggressive` → `aggressive.txt`), whether `use_parameters` is on or off. |
 | `${<domain>}` | One per [parameter domain](/docs/configurations/param_domains/) of the workflow. |
 | `${<variable>}` | One per inline [variable](/docs/configurations/virtual_param_domains/). |
-| `${workflow}` | Name of this workflow. |
+| `${workflow}` | The workflow and its configuration (`cli_profile/aggressive`). |
 | `${configuration}` | Configuration being run. |
 | `${workflow_full}` | Full name of the variant, domains included. |
 | `${work_path}` | The workflow's work directory. |
-| `${log_path}` | Directory logs are expected in. |
+| `${log_path}` | Directory logs are expected in, relative to the work directory (`log`). |
 | `${workflow_path}` | This workflow's definition directory. |
 | `${source_path}` | Directory the workflow's sources are copied from. |
 | `${odatix_path}` | Odatix installation directory. |

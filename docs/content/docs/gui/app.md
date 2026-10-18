@@ -30,7 +30,7 @@ Eight cards, matching the eight things you do with Odatix:
 | Card | Goes to |
 |------|---------|
 | **Workflows** | Configure your workflows. |
-| **RTL Architectures** | Configure your designs, their configurations and their simulations. |
+| **RTL architectures** | Configure your designs, their configurations and their simulations. |
 | **Tools** | Add and configure the EDA tools of the workspace. |
 | **Run jobs** | Launch workflows, RTL analysis, synthesis, design space explorations, place & route. |
 | **Monitor Jobs** | Follow the jobs currently running. |
@@ -46,7 +46,7 @@ If you start the GUI in a directory that is not a workspace yet, it offers to cr
 
 | Page | What it edits |
 |------|---------------|
-| **RTL Architectures** (`/architectures`) | Your designs: sources, top level, clock and reset, parameter delimiters, per-tool/target/configuration overrides, and the combinations of its parameter domains left out of its design space ([exclusions](/docs/configurations/exclusions/#in-the-graphical-interface)). Each design lists its configurations, with an editor for each parameter file, and the rules its parameter domains describe them with. |
+| **RTL architectures** (`/architectures`) | Your designs: sources, top level, clock and reset, parameter delimiters, per-tool/target/configuration overrides, and the combinations of its parameter domains left out of its design space ([exclusions](/docs/configurations/exclusions/#in-the-graphical-interface)). Each design lists its configurations, with an editor for each parameter file, and the rules its parameter domains describe them with. |
 | **Simulations** (`/architectures#simulations`) | The testbenches of the workspace and their `_settings.yml`. |
 | **Workflows** (`/workflows`) | Workflow definitions: tasks, dependencies, variables, and the metrics they export. |
 | **Tools** (`/tools`) | The tools of the workspace and, apart, the built-in ones. Create, duplicate, edit flows and steps, edit metrics. |
@@ -72,9 +72,12 @@ A **save** button in the header turns to a warning colour as soon as something i
 1. **Job type** — workflow, simulation, RTL analysis, fmax synthesis, fixed-frequency synthesis, design space exploration (see [below](#design-space-exploration)), or place & route.
 2. **EDA tool** (synthesis, analysis and place & route only) — each tool's card shows its flows as buttons and, when a flow is split into steps, its steps as "run up to here" buttons. Every one of them leads straight to the job settings, so a run stays one click away whatever the tool offers. For an RTL analysis, the flow clicked is the one of that tool; the job settings then let you tick more tools, which run their default flow.
 3. **Targets** — the FPGA devices or technologies to run on.
-4. **Job settings** — which designs and configurations to run, frequency range or list, parallel jobs, overwrite, session name. These are the same values as the settings files, and saving them writes those files. For a flow split into steps, **Re-run from** picks a step to do again, with the ones after it, even where the jobs have already done it (`--rerun-from`): what this one run does, so it is not saved.
+4. **Job settings** — which designs and configurations to run, frequency range or list, parallel jobs, overwrite. These are the same values as the settings files, and **Save all** writes only what you changed to those files. The strip under the title sums up the run: job type, tool, flow, the step it stops at, the number of designs and configurations selected. Turning a design on selects all its configurations, its default configuration only when it has no other. **Override frequencies** off means each architecture keeps its own frequencies: the note under the switch says what the fields below are used for. For a flow split into steps, **Re-run from** picks the first step to do again, with the ones after it, even where the jobs have already done it (`--rerun-from`): what this one run does, so it is not saved.
+5. **Session** — the list in the header offers **New session...** and the sessions of this workspace, by name and uptime.
 
 Selection pages act immediately: clicking a tool, a flow or a step navigates on, there is no intermediate confirmation screen.
+
+**Run jobs** runs what the page shows, saved or not, from a temporary copy of the settings. Its window first shows **Checking settings...**, then **Ready to run**, **Nothing to run** or **Cannot run**, under a line that says what the run uses: tool, flow, last step, targets and work directory. The plan lists the jobs that will run and the ones that won't, with the reason on each card; **Start** is only available when there is something to run. The back arrow next to the title returns to the tool choice (or the job type choice).
 
 Launching enqueues the jobs into the daemon exactly like the CLI does, and drops you on the Monitor. A run started from the GUI can be followed from a terminal with `odatix monitor`, and vice versa — there is one daemon, not one per interface.
 
@@ -104,7 +107,7 @@ $ odatix-gui --theme odatix_dark
 | `-n`, `--network` | Expose the server on the local network. |
 | `-p`, `--port` | HTTP port. A port given with `-p` must be free: if it is taken, the GUI stops with an error instead of moving elsewhere. Without `-p`, it takes 8052, or the next free port, and prints the address it took. |
 | `-B`, `--nobrowser` | Do not open the browser automatically. |
-| `-T`, `--theme` | Force a specific app theme. |
+| `-T`, `--theme` | Default theme for browsers without a saved choice; a theme picked in the GUI is kept by that browser. |
 | `-N`, `--normal_term_mode` | Do not switch terminal mode. |
 | `--safe_mode` | Keep running on internal errors. |
 | `-c`, `--config` | Alternate workspace settings file (default `odatix.yml`). |

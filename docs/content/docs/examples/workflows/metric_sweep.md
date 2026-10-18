@@ -13,6 +13,12 @@ workflows:
   - metric_sweep + channel_gain/*
 {{< /code >}}
 
+Or name it on the command line, without touching the file:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "metric_sweep + channel_gain/*"
+{{< /code >}}
+
 Some tools do not produce a result, they produce a **curve**. A BER simulation sweeps its own Eb/N0 axis internally and writes one CSV row per point:
 
 {{< code lang=yaml filename="workflows/metric_sweep/_settings.yml" >}}
@@ -77,7 +83,7 @@ Two mechanisms worth separating:
 <div class="not-prose docs-links">
   <a class="docs-link" href="/docs/examples/workflows/">
     <span class="docs-link__title">All workflow examples</span>
-    <span class="docs-link__text">The nine examples and what each one isolates.</span>
+    <span class="docs-link__text">The ten examples and what each one isolates.</span>
   </a>
   <a class="docs-link" href="/docs/features/workflows/">
     <span class="docs-link__title">Workflows</span>

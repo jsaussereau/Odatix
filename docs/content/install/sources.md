@@ -14,6 +14,10 @@ next_tutorials:
 
 {{< toc >}}
 
+> [!NOTE]
+> Until Odatix 4.0 is on PyPI, this is the way to install the version this
+> documentation describes: `pip install odatix` still installs Odatix 3.7.
+
 > [!WARNING]
 > Odatix provides partial support for Windows. For a better experience, it is recommended to use Linux.
 
@@ -206,6 +210,17 @@ $ python3 -m pip install -e ./sources
 $ python3 -m pip install --upgrade pip setuptools wheel
 $ python3 -m pip install ./sources
 {{< /code >}}
+
+### Step 4: Check the installation
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix --version
+Odatix 4.0.0
+{{< /code >}}
+
+Then [install an EDA tool](/install/eda_tools/) if you have none yet, and follow
+[Getting started](/docs/getting-started/) from its second step: create a
+workspace and run a first job.
 
 ## Enable autocompletion *(optional)*
 

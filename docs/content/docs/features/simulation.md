@@ -192,12 +192,15 @@ Every key is on the
 
 ### From the GUI
 
-`odatix-gui` → **RTL Architectures** → **Simulations** edits the testbench
-definition: the template it starts from, its testbench, its tasks and
-dependencies as cards, the replacements it does per architecture, and the
-metrics editor for `_metrics.yml`. **Run jobs** →
-**Simulation** then picks which simulation runs on which configurations, and
-launches into the same daemon.
+In `odatix-gui`, **Configure** → **RTL simulations** opens the **Simulations**
+section at the bottom of the Architectures page: a card per simulation opens
+the **Simulation editor**, which edits the template it starts from, its
+testbench, its tasks and dependencies as cards, the architectures it runs on
+and what it changes for each, and opens the metrics editor for `_metrics.yml`.
+**Configure** → **Tools** → *Simulators* says which simulators are installed,
+and **New simulation** starts one from a template. **Run** → **Simulations**
+then picks which simulation runs on which configurations, and launches into
+the same daemon.
 
 ## Where to go next
 

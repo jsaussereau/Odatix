@@ -1,6 +1,6 @@
 ---
 title: "Workflows"
-description: "Nine workflow examples — no RTL, no EDA tool — sweeping Python scripts to show command placeholders, paired variables, platform-specific tasks, task dependencies and multi-row metrics."
+description: "Ten workflow examples — no RTL, no EDA tool — sweeping Python scripts to show command placeholders, paired variables, platform-specific tasks, task dependencies and multi-row metrics."
 weight: 2
 ---
 
@@ -8,7 +8,7 @@ weight: 2
 
 A [workflow](/docs/features/workflows/) is Odatix without the hardware: a directory of sources, a list of commands to run, and a way to read numbers out of whatever those commands produce. Same sweeps, same parallel job monitor, same result files and same [Explorer](/docs/features/explorer/) — but the thing being swept is a script rather than a design.
 
-The nine shipped examples use throwaway Python — a string manipulator, a traffic model, a BER curve, a small neural network — because the interesting part is never the script. Each one isolates **one** workflow mechanism.
+The ten shipped examples use throwaway Python — a string manipulator, a traffic model, a BER curve, a small neural network — because the interesting part is never the script. Each one isolates **one** workflow mechanism.
 
 {{< details title="What these examples demonstrate" >}}
 - **Task graphs** — `dependencies` between named tasks, and a `main` entry point.
@@ -61,6 +61,10 @@ One run, many result rows: multi-row CSV metrics, `metadata` to tell them apart,
 {{< doc-card title="TensorFlow training" link="/docs/examples/workflows/tensorflow/" icon="activity" accent="#9333ea" cta="Read the example" >}}
 A generated sweep over epochs, a dependency task that bootstraps a virtualenv once, and `on_failure_commands`.
 {{< /doc-card >}}
+
+{{< doc-card title="Image codec" link="/docs/examples/workflows/image_codec/" icon="chart" accent="#0891b2" cta="Read the example" >}}
+Four command-line variables describing 3150 encoders: a design space too large to run in full, searched with `odatix dse`.
+{{< /doc-card >}}
 {{< /doc-cards >}}
 
 ## At a glance
@@ -76,6 +80,7 @@ A generated sweep over epochs, a dependency task that bootstraps a virtualenv on
 | [`param_domains_json`](/docs/examples/workflows/param_domains_json/) | substitution into a config file instead of a command | `workflow_param_domains_json` |
 | [`metric_sweep`](/docs/examples/workflows/metric_sweep/) | multi-row metrics, `operation` metrics, metadata | `workflow_metric_sweep` |
 | [`tensorflow`](/docs/examples/workflows/tensorflow/) | environment built once (`phony: No`), `on_failure_commands` | `workflow_tensorflow` |
+| [`image_codec`](/docs/examples/workflows/image_codec/) | a design space too large to run in full, searched by a DSE | `workflow_image_codec` |
 
 ## Running them
 

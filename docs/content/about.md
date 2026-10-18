@@ -1,5 +1,5 @@
 ---
-title: "Development Team"
+title: "Development team"
 layout: "company"
 description: "Meet the team behind Odatix, a group of researchers and PhD students at the IMS Laboratory in Bordeaux, France."
 ---
@@ -27,7 +27,7 @@ description: "Meet the team behind Odatix, a group of researchers and PhD studen
     
 {{< section-container class="py-20" >}}
     <div class="max-w-6xl mx-auto">
-        <h2 class="text-3xl font-bold text-center mb-12">Main Contributors</h2>
+        <h2 class="text-3xl font-bold text-center mb-12">Main contributors</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             {{< team-member 
                 name="Jonathan Saussereau"

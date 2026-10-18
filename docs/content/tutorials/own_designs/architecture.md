@@ -104,7 +104,7 @@ Start the GUI from your workspace:
 $ odatix-gui
 {{< /code >}}
 
-Open **RTL Architectures** from the home page, then click the
+Open **RTL architectures** from the home page, then click the
 **Create new architecture** card. You land on the **Architecture editor**, the
 page the next steps fill in, on an architecture called `New_Architecture1`:
 rename it `MyCounter` in the title field at the top — this name is how the
@@ -209,8 +209,9 @@ keys of a file that already exists.
 {{< /tabs >}}
 
 At this point the design is complete enough to be synthesized — with one
-configuration, the parameter values written in your sources. The next steps make
-it parametrizable.
+configuration, the parameter values written in your sources. Until it has
+configuration files, select it by its name alone (`-a MyCounter`, not
+`MyCounter/*`). The next steps make it parametrizable.
 
 ## Step 3 *(optional)* — Generate the RTL first
 
@@ -326,7 +327,7 @@ and a configuration file holds nothing but the replacement text:
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-On the **RTL Architectures** page, click **Edit configs** on the `MyCounter`
+On the **RTL architectures** page, click **Edit configs** on the `MyCounter`
 card. The **Configuration editor** opens on the **Main parameter domain**.
 
 In the **Configuration parameters** panel:
@@ -442,7 +443,7 @@ variant is named) and a **content template** (what it writes between the
 delimiters):
 
 {{< code lang=text filename="From a rule to configurations" >}}
-variable width = 8, 16, 32       name: "${width}bits"      08bits, 16bits, 32bits
+variable width = 8, 16, 32       name: "${width}bits"      8bits, 16bits, 32bits
                             ──►  template:              ──►  "parameter BITS = 8"
                                  "  parameter BITS = ${width}"   ...
 {{< /code >}}

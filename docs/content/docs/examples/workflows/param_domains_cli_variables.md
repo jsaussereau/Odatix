@@ -13,6 +13,12 @@ workflows:
   - param_domains_cli_variables + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
 {{< /code >}}
 
+Or name it on the command line, without touching the file:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "param_domains_cli_variables + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*"
+{{< /code >}}
+
 Identical sources, identical command, identical metrics — and **no domain directories at all**. The four sweeps are declared as variables instead:
 
 {{< code lang=yaml filename="workflows/param_domains_cli_variables/_settings.yml" >}}
@@ -58,7 +64,7 @@ Selected the same way, with `+ max_speed/*`, and named the same way — `unit: k
 <div class="not-prose docs-links">
   <a class="docs-link" href="/docs/examples/workflows/">
     <span class="docs-link__title">All workflow examples</span>
-    <span class="docs-link__text">The nine examples and what each one isolates.</span>
+    <span class="docs-link__text">The ten examples and what each one isolates.</span>
   </a>
   <a class="docs-link" href="/docs/features/workflows/">
     <span class="docs-link__title">Workflows</span>

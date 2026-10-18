@@ -41,7 +41,7 @@ $ source odatix_venv/bin/activate
 Create a new directory for the demonstration and move into it. For example:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/odatix_examples && cd ~/odatix_examples
+$ mkdir -p ~/odatix_examples && cd ~/odatix_examples
 {{< /code >}}
 
 Create a new Odatix workspace and copy the built-in examples into it:
@@ -56,8 +56,12 @@ $ odatix init --examples
 ╚██████╔╝ ██████╔╝ ██║  ██║   ██║    ██║ ██╔╝ ██╗
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
-<font color="#555753">[settings.py]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
-<font color="#555753">[settings.py]</font> Run <b>odatix -h</b> to get a list of useful commands
+<font color="#555753">[odatix init]</font> <font color="#34E2E2">note: This command will create all the configuration files needed by Odatix in the current directory.</font>
+<font color="#555753">[odatix init]</font> Would you like to continue? (Y/n) y
+<font color="#555753">[odatix init]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
+<font color="#555753">[odatix init]</font> Try a first run (with your tool in place of vivado): <b>odatix fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis</b>
+<font color="#555753">[odatix init]</font> Run <b>odatix -h</b> to get a list of useful commands
+<font color="#555753">[odatix init]</font> New to Odatix? Follow https://odatix.readthedocs.io/en/latest/docs/getting-started/
 {{< /code >}}
 
 ### Step 2 — Select the targeted tools and configurations
@@ -65,6 +69,9 @@ $ odatix init --examples
 Open `odatix_userconfig/analyze_settings.yml`.
 This is where you define the tools and configurations to check.
 To disable a tool, comment it out with `#` or simply remove the line.
+Keep only the tools installed on your machine: a listed tool that cannot be
+launched is reported as an error and its analyses are skipped, while the other
+tools run (when none of them can, the run stops).
 
 {{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" linenos="true" linenostart="22" >}}
 tools:
@@ -143,7 +150,7 @@ tool — **Passed**, **Warnings**, **Failed**, **Tool failure**, **Incomplete** 
 **Not supported** — the kinds of findings each tool reported, and one line per
 configuration that needs attention. Verilator does not read VHDL: the
 `Example_Counter_vhdl` configurations are reported as *not supported* by it.
-See [RTL Analysis](/docs/features/analysis/#how-it-works) for what each status
+See [RTL analysis](/docs/features/analysis/#how-it-works) for what each status
 means.
 
 An analysis that already ran is not run again: after changing the RTL, run
@@ -183,12 +190,18 @@ Continue? (Y/n)
 
 ### Step 4 — Monitor the jobs
 
-The job monitor shows the status of each job, and the log of the currently selected job. You can detach and re-attach to the monitor at any time. More information is available in [Sessions & Job Monitor](/docs/sessions/) documentation page.
+The job monitor shows the status of each job, and the log of the currently selected job. You can detach and re-attach to the monitor at any time. More information is available in [Sessions & job monitor](/docs/sessions/) documentation page.
 
 > [!TIP]
 > Use <kbd>PageUp</kbd> and <kbd>PageDown</kbd> keys to change jobs and the <kbd>Up</kbd> and <kbd>Down</kbd> keys to scroll logs. The mouse can also be used to scroll and select jobs.  
 > Use <kbd>d</kbd> to detach and let the job run in the background, and run `odatix monitor` to re-attach.  
 > Use <kbd>q</kbd> to quit when all jobs are complete.
+
+A job of the monitor says whether its tool ran, not what it found: the job of a
+design with errors in its RTL is done all the same, its verdict being in the
+report printed at the end. A job fails when the tool could not analyze the
+design (not installed, no licence, stopped before the end): the report then
+says **Tool failure** or **Incomplete**.
 
 ### Step 5 — View the analysis dashboard
 
@@ -196,13 +209,19 @@ The job monitor shows the status of each job, and the log of the currently selec
 $ odatix-explorer
 {{< /code >}}
 
-Open the **RTL Analysis** dashboard to group configurations by status and see
-error, warning and critical-warning counts.
+Open the **RTL analysis** page. It counts the configurations of each status
+(click one to keep only them), shows the status of every configuration with each
+tool, then the kinds of findings each tool reported (click one to keep the
+configurations it was reported for). Below, every configuration lists what needs
+attention first, with the source excerpt the tool printed, and the expected
+findings apart.
 
-{{< img src="/images/screenshots/explorer-analysis.png" alt="RTL Analysis dashboard" caption="RTL Analysis dashboard" shadow="false" >}}
+{{< img src="/images/screenshots/explorer-analysis.png" alt="RTL analysis page of Odatix Explorer" caption="RTL analysis page of Odatix Explorer" shadow="false" >}}
 
 > [!NOTE]
-> A tool may accept RTL that another rejects. In this examples, Vivado accepts the VHDL counter, but Verilator rejects it because it does not support VHDL.
+> A tool may accept RTL that another cannot read. In these examples, Vivado
+> accepts the VHDL counter, while Verilator reports it as *not supported*: it
+> does not read VHDL.
 
 <!-- ## Troubleshooting
  -->

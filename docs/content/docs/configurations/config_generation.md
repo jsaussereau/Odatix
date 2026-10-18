@@ -175,9 +175,10 @@ A rule set that has to sweep a variable it never spells out can say so with a
 > way one rule set naming two combinations alike is.
 
 > [!NOTE]
-> The Configuration Editor shows what several rule sets generate, and leaves the
-> file as it is. Editing the rules themselves is done in the settings file for
-> now.
+> The configuration editor edits several rule sets too: under **Advanced**, in
+> the **Configuration parameters** tile, each rule set has its own card
+> (**Rule set 1**, **Rule set 2**…), and **Add another set of rules** starts a
+> new one.
 
 ## Variables
 
@@ -286,9 +287,10 @@ describe — never a file you wrote yourself.
 
 ## In the GUI
 
-Every parameter domain of the **RTL Architectures** and **Workflows** editors
-carries a **Configuration rules** panel, folded away until you open it. It edits
-the two templates and the variables of this page, and shows the values each
+In the configuration editor of a parameter domain (**RTL architectures** or
+**Workflows**, then **Edit configs**), the **Variables** tile edits the
+variables of this page, and **Advanced**, folded away at the bottom of the
+**Configuration parameters** tile, edits the two templates. The editor and shows the values each
 variable takes as you type. The `${...}` of both templates are highlighted:
 green for a variable this domain declares, orange for a name nothing here
 defines — usually a typo, since a rule has no other source of values. A named

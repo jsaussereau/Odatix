@@ -10,7 +10,7 @@ features:
   - title: "Arbitrary tasks"
     description: "Any command-line step becomes a task: build, generate, train, benchmark, measure."
   - title: "Dependencies"
-    description: "Declare task dependencies; Odatix resolves the order and runs independent branches in parallel."
+    description: "Declare task dependencies; Odatix resolves the order; the tasks of a job run one after another, and the jobs run in parallel."
   - title: "Custom metrics"
     description: "Extract any value from your outputs with regex, CSV, JSON or XML rules and compare it in Explorer."
   - title: "Parameter sweeping"

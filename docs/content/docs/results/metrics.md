@@ -199,7 +199,12 @@ $ odatix results workflow  # workflow results only
 $ odatix results sim       # simulation results only
 {{< /code >}}
 
-If a value cannot be found, Odatix reports an error naming the metric and the file — unless you set `error_if_missing: false`.
+If a value cannot be found, Odatix reports an error naming the job, the metric and the
+file (`... => metric "Cells": No match for regex ...`), once per job — unless you set
+`error_if_missing: false`. A key a `yaml` or `json` report writes with no value
+(`cycles: null`, what a failed simulation reports) is a metric with no value, not an
+error. Any error makes `odatix results` exit with `1` once everything else is exported, so a
+script or a CI job notices a definition to fix.
 
 ## See also
 

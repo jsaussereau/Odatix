@@ -55,7 +55,7 @@ and LibreLane.
 | `languages` | list | The languages the tool reads (`verilog`, `systemverilog`, `vhdl`). A design written in another one is reported as **not supported** instead of failing with syntax errors. All of them when absent. |
 | `logs` | list of glob patterns | The files messages are read from, relative to the job directory. `log/analysis.log` by default. When none of them exists, the console output of the job (`log/console.log`) is read instead: a tool that could not start (no license) only says why there. |
 | `ignore` | list of regular expressions | Lines that are no finding (`"^%Error: Exiting due to"`). |
-| `continuation` | regular expression | Lines continuing the previous message, kept as its `detail` (`"^\\s"` for the indented excerpt of Verilator). |
+| `continuation` | regular expression | Lines continuing the previous message, kept as its `detail` (`"^\\s"` for the indented excerpt of Verilator). The first 16 are kept; a longer detail ends with a line saying how many more the log holds. |
 | `severities` | `{word: severity}` | How the tool says each severity, for the rules capturing it (`CRITICAL WARNING: critical`). Compared without case. |
 | `codes` | `{code: category}` or `{code: {category, severity, secondary, message}}` | What each message id is about, for the rules capturing a code. Its `message`, if any, replaces the rule's (see below). |
 | `messages` | `{name: rule}` | The message rules, see below. |

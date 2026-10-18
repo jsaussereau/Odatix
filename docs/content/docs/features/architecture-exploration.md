@@ -240,7 +240,7 @@ syntax is on the [run settings reference](/docs/reference/run_settings/#architec
 
 ### From the GUI
 
-`odatix-gui` → **RTL Architectures** (`/architectures`) does the same without
+`odatix-gui` → **RTL architectures** (`/architectures`) does the same without
 YAML: a form for the sources, top level, clock, reset and delimiters, the list of
 configurations with an editor for each parameter file, and per-target frequency
 bounds. The **Configuration rules** panel of a parameter domain describes a

@@ -292,7 +292,10 @@ post-synthesis metrics are empty: they are measured by the later steps.
 A job whose requested steps are all done is skipped like any cached result; a
 partially done one is listed as **Partially done** in the run checklist, and one
 whose done steps `--rerun-from` runs again as **Steps already done (will run
-again from the step asked for)**. Steps
+again from the step asked for)**. In the GUI, the same jobs are tagged
+**Resume** and **Re-run**. Each of them also says which steps it is going to
+run, from the first one to the last: `(steps: pnr → bitstream)` in the terminal
+checklist, a **steps: pnr → bitstream** badge on its card in the GUI. Steps
 completed are recorded in `log/steps.yml`, and the last one reached is exported
 as the `step` meta key.
 

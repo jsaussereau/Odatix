@@ -2,10 +2,16 @@
 title: "Install Odatix"
 description: "Odatix is a Python package: one command in most cases. The only real question is where the package comes from."
 quick_command: "pip install odatix"
-quick_note: "Python 3.6 or later — see the [prerequisites](/install/pypi/#prerequisites)."
+quick_note: "Python 3.6 or later — see the [prerequisites](/install/pypi/#prerequisites). Until Odatix 4.0 is on PyPI, this installs Odatix 3.7: [install from sources](/install/sources/) instead."
 ---
 
 ## Choose where the package comes from
+
+> [!WARNING] Odatix 4.0 is not on PyPI yet
+> This documentation describes Odatix 4.0, which is not released yet: PyPI
+> still serves Odatix 3.7, whose commands differ (`pip install odatix` and the
+> offline method install it). Until the release, install Odatix 4.0
+> [from sources](/install/sources/). `odatix --version` tells which one you have.
 
 {{< install-methods >}}
 
@@ -31,4 +37,4 @@ package is installed, two things are left before your first job.
   </a>
 </div>
 
-<!-- Installed already? Head to [Getting started](/docs/getting-started/) to initialize a workspace and run your first job. -->
+Installed already? Head to [Getting started](/docs/getting-started/) to initialize a workspace and run your first job.

@@ -13,6 +13,12 @@ workflows:
   - crossplatform
 {{< /code >}}
 
+Or name it on the command line, without touching the file:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "crossplatform"
+{{< /code >}}
+
 The same task is declared **twice**, each declaration listing the platforms it applies to. Exactly one is selected, according to `sys.platform`:
 
 {{< code lang=yaml filename="workflows/crossplatform/_settings.yml" >}}
@@ -55,7 +61,7 @@ branch actually ran.
 <div class="not-prose docs-links">
   <a class="docs-link" href="/docs/examples/workflows/">
     <span class="docs-link__title">All workflow examples</span>
-    <span class="docs-link__text">The nine examples and what each one isolates.</span>
+    <span class="docs-link__text">The ten examples and what each one isolates.</span>
   </a>
   <a class="docs-link" href="/docs/features/workflows/">
     <span class="docs-link__title">Workflows</span>

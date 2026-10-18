@@ -34,7 +34,9 @@ file for. An analysis whose settings file lists `tools` runs those instead.
 
 ## Work directories
 
-Jobs run in `<work_path>/<job type path>/<tool>/<target>/<design>/<config>/`.
+Jobs run in `<work_path>/<job type path>/<tool>[@<flow>]/<target>/<design>/<config>[/<freq>MHz]/`:
+`@<flow>` is added for a flow other than the tool's default one, and
+`<freq>MHz` for a fixed-frequency synthesis.
 The per-job-type keys are **relative to `work_path`**.
 
 | Key | Type | Default | Description |
@@ -132,8 +134,8 @@ or the `a` key of the [terminal monitor](/docs/sessions/terminal_monitor/): turn
 the jobs it had paused right away.
 
 > [!NOTE]
-> The guard needs `psutil` (an optional dependency: `pip install psutil`), and does
-> nothing on Windows. Both monitors say so when it cannot run.
+> The guard relies on `psutil`, installed with Odatix, and does nothing on
+> Windows. Both monitors say so when it cannot run.
 
 ## Example
 

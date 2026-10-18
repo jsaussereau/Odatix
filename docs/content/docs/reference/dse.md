@@ -218,7 +218,7 @@ The metrics an objective or a constraint names are the ones the workflow's
 This is where an exploration is often worth the most: a workflow's knobs are
 arguments on a command line, so there is nothing stopping five of them from
 describing a hundred thousand runs, and nothing to synthesize means a batch
-comes back in seconds. The shipped example, `image_codec`, is a small transform
+of ten comes back in a few seconds. The shipped example, `image_codec`, is a small transform
 codec with four knobs — 3150 encoders, of which a campaign runs sixty and comes
 back with the rate/quality curve none of them is beaten on:
 
@@ -640,7 +640,7 @@ adding what the entry selected (`asterisc_mem_AsteRISC+MEM_1024I_1024D.yml`).
 ## Running one
 
 The quickest exploration to watch is the workflow example: it needs no eda
-tool, and a batch comes back in seconds.
+tool, and a batch comes back in a few seconds.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix init --examples
@@ -834,7 +834,7 @@ objective as it is known then, so that two batches can be compared at all.
 The designs a campaign evaluated are also exported as a results source of their
 own, `results/results_dse_<campaign>.yml`. It is an ordinary results file — the
 same records, the same metrics, read by Odatix Explorer like any other source —
-with three dimensions added to every record:
+with these dimensions added to every record:
 
 | Dimension | What it says |
 | --- | --- |
@@ -888,8 +888,17 @@ its architectures:
 run, the tools, flows and targets, the simulations), its frequencies, whether
 it starts from what is already measured, the objectives and the constraints
 (with the metric names of the workspace suggested), the search, and the
-architectures with what each entry fixes or searches. Saving writes the
-campaign file.
+architectures with what each entry fixes or searches. The metric names
+suggested are the ones what the campaign runs measures, and saving warns about
+a name nothing it runs measures. For a workflow, the tool, flow, target and
+simulation fields are hidden: they say nothing to it. Saving writes the
+campaign file; the `exclusions` block is not edited on the page, and is kept
+as it is written.
+
+Each card of **`/dse`** also says where its campaign is (designs evaluated out
+of its budget, designs on the front, last run) and links to its results in the
+explorer. A selection whose budgets are all spent cannot be started: raise the
+`budget`, or switch on **Evaluate again what is already done**.
 
 What an exploration found is shown in Odatix Explorer, on the
 [exploration page](#the-exploration-page).

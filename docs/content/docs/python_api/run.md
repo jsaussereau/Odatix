@@ -61,7 +61,7 @@ into what it prints and into its exit code.
 
 ## `Run`
 
-`Run(workspace, mode, options=None, reporter=None, cancel_event=None, **overrides)`
+`Run(workspace, mode, options=None, reporter=None, cancel_event=None, quiet=False, **overrides)`
 
 A run of one of the commands of a workspace.
 
@@ -93,6 +93,7 @@ failed = [job["name"] for job in jobs if job["status"] != "success"]
 - `mode` *(str)* — what to run, one of `odatix.workspace.JOB_MODES`.
 - `options` *(RunOptions)* — what this run does differently from what its settings file says. Built from the keyword arguments when not given.
 - `reporter` *(Reporter)* — where what the run says is collected.
+- `quiet` *(bool)* — print nothing (the control list, the progress bars): what the run says is only collected, in a `CollectingReporter`. Ignored when `reporter` is given.
 - `cancel_event` *(threading.Event)* — asking the run to stop. Checking and preparing look at it between jobs, and raise `RunCancelled`.
 - `**overrides` — any `RunOptions` setting, e.g. `overwrite=True`.
 
@@ -103,8 +104,8 @@ failed = [job["name"] for job in jobs if job["status"] != "success"]
 | Attribute | What it is |
 |---|---|
 | `config` *(property)* | The run settings file of this run, as the workspace API sees it. |
-| `settings_file` *(property)* |  |
-| `work_path` *(property)* |  |
+| `settings_file` *(property)* | The run settings file this run reads (`options.settings_file`, or the workspace's). |
+| `work_path` *(property)* | The directory the jobs of this run work in. |
 | `result_path` *(property)* | Where the results go. Nothing is exported when there is none, which is what a run working outside of a workspace does. |
 | `TOOL_MODES` | The runs that need an eda tool, and take the default one when not told which. |
 | `was_checked` *(property)* | Whether checking has already been done, and its plan is in hand. |
@@ -124,6 +125,7 @@ failed = [job["name"] for job in jobs if job["status"] != "success"]
 | `start(detach=None, session=None)` | Hand the prepared jobs over to a session, preparing them first when that has not been done. `session` is then the session that took them. *Args:* `detach` *(bool)* — return as soon as the jobs are enqueued, instead of attaching the monitor to them. A run started from a script does, unless it is told otherwise.; `session` *(str)* — the daemon session to enqueue into. |
 | `status()` | Where the jobs of this run are, as its session reports them. *Returns:* `list` — one dict per job, as `Session.jobs()` gives them (`name`, `status`, `progress`...). *Raises:* `RunError` — the run has not been started.; `SessionError` — its session did not answer. |
 | `wait(timeout=None, poll_interval=2.0)` | Wait until every job of this run is over, however it ends. *Args:* `timeout` *(float)* — give up after that many seconds. Forever when None.; `poll_interval` *(float)* — how often to ask the session, in seconds. *Returns:* `list` — the jobs of the run, as `status()` gives them. *Raises:* `RunError` — the run has not been started.; `SessionError` — its session did not answer.; `TimeoutError` — the jobs were not over in time. |
+| `analysis_results()` | What the analyses of this run found, once its jobs are over (see `wait()`). *Returns:* `list` — AnalysisResult objects, one per job the run launched. `odatix.lib.analysis.count_by_status` counts them by verdict. |
 | `execute()` | Check, prepare and start, in one call. |
 
 ## `run_job(mode, workspace=None, **overrides)`
@@ -225,11 +227,11 @@ Supports `len(x)`, iteration, `if x:`.
 | `add(name, category, **details)` | Record one job. `details` holds extra facts to display (tasks, target, ...). |
 | `merge(other, suffix='')` | Append the entries of another plan, optionally suffixing their names. Used when a single run covers several eda tools: one plan per tool, one checklist for the user. |
 | `names(category=None, colored=None)` | Names of the jobs of one category, in insertion order: every job when `category` is None. `colored=False` strips the terminal color codes, for anything but a terminal; by default, they are kept only when the standard output is one. |
-| `counts()` |  |
+| `counts()` | How many jobs fall in each category: `{"new": 4, "cached": 2, ...}`. |
 | `run_count()` | How many jobs are actually going to be launched. |
 | `sorted_entries()` | Entries by category severity, then by name. |
 | `to_list()` | JSON-serializable form (dcc.Store, daemon api, ...). |
-| `print_summary(noun='architectures')` | The CLI checklist: one section per non-empty category. |
+| `print_summary(noun='architectures')` | The CLI checklist: one section per non-empty category. A job resuming or running steps again says which ones ("steps: synthesis → pnr"). |
 
 ## `RunError`
 
@@ -324,38 +326,55 @@ Derives from `RuntimeError`.
 
 A session cannot be found, reached or told something.
 
-## `JobPlanner`
+## `export_results(workspace, result_type='all', tool='all', quiet=False)`
 
-`JobPlanner(work_path='', work_log_path='', status_filename='', valid_status='', overwrite=False, requested_steps=None, rerun_step_index=None)`
+Export the results of the work directory again, as `odatix results
+<result_type>` does, or only apply the derived metrics (`"derived"`).
 
-What a run does with each of its job directories, and the plan it builds
-from those decisions.
+Exporting is what turns the reports a job left in its work directory into
+the results files Odatix Explorer reads. Runs do it themselves; exporting
+again is for after a metric definition changed. Every export but
+`"analysis"` and `"derived"` writes a results file from scratch, and
+applies the derived metrics again right after.
 
 **Args:**
 
-- `work_path` *(str)* — where the jobs of this run live.
-- `work_log_path` *(str)* — the log directory inside a job directory.
-- `status_filename` *(str)* — the file a finished job writes its status in.
-- `valid_status` *(str)* — what that file holds when the job went through.
-- `overwrite` *(bool)* — run again what is already done.
-- `requested_steps` *(list)* — names of the flow steps this run covers, when the flow is split into steps (see odatix.lib.job_steps). Empty for a flow that runs in one go.
-- `rerun_step_index` *(int)* — index of the step "--rerun-from" points at. Everything from there on is run again, even when already recorded.
+- `workspace` *(Workspace)* — the workspace whose results to export.
+- `result_type` *(str)* — one of `RESULT_TYPES`.
+- `tool` *(str)* — for "all" and "synth", the eda tool whose results to export ("all" for every one of them); for "analysis", the tool whose analyses to report.
+- `quiet` *(bool)* — print nothing; what the export said is still in the report.
 
-| Attribute | What it is |
-|---|---|
-| `DAEMON_RESTARTABLE_STATUSES` | A job a session left in one of these states is not being worked on by it any more: a run may take it over. |
-| `DAEMON_FINISHED_STATUSES` | Statuses of a job a session is done with: re-enqueueing over one of them is allowed when the flow has steps left to run (see daemon_decision). |
+**Returns:**
+
+- `ExportReport` — how it went. It is false when an error was reported, even if the export went on with the rest: a metric that cannot be read is a definition to fix.
+
+**Raises:**
+
+- `ValueError` — for an unknown result type.
+
+## `ExportReport`
+
+`ExportReport(result_type, ok, messages=None, output=None)`
+
+How an export went.
+
+True when it went through without a single error, so that
+`if export_results(ws):` reads as expected.
+
+**Attributes:**
+
+- `result_type` *(str)* — what was exported (see `RESULT_TYPES`).
+- `ok` *(bool)* — whether it went through without reporting any error.
+- `messages` *(list)* — what it reported, as `(level, text)` pairs (level being "error", "warning", "note" or "tip").
+- `output` *(list)* — every line it printed, without color codes.
+
+Supports `if x:`.
 
 | Method | What it does |
 |---|---|
-| `reset()` | Forget every decision taken so far. |
-| `steps_decision(tmp_dir)` | Cache decision for a flow split into steps, or None when the flow is not stepped (the caller then falls back to the status file). Returns "cached" when the directory already holds every step this run asks for, "resume" when it holds some of them (the run picks up at the first missing one), "rerun" when steps it holds are run again because the run was asked to ("--rerun-from"), "new" otherwise. This has to take precedence over the status file: a directory left by a run that stopped at an earlier step holds a perfectly valid status file, and must not be mistaken for a complete result. |
-| `normalize_tmp_dir(tmp_dir)` *(staticmethod)* |  |
-| `format_daemon_entry(entry)` *(staticmethod)* | How a job another session owns is named in the plan. |
-| `refresh_daemon_jobs()` | Read what the daemon sessions are working on. |
-| `daemon_decision(tmp_dir, steps_decision=None)` | Whether a job is already handled by a daemon session ("skip"), can be re-enqueued over a failed one ("replace"), or is unknown to every session ("none"). `steps_decision` is the step-level verdict for the same directory (see `steps_decision()`): a session that ran an earlier step of the flow reports a successful job, which must not stand in the way of running the steps left to do. |
-| `classify_job(tmp_dir, subject, job_noun='synthesis')` | Decide what a run should do with a job directory, printing the notes and warnings the checklist is built from. The verdict comes from three sources, in order of precedence: the step state of the directory (see `steps_decision()`), its status file, then the daemon sessions (a job another session already owns is not run again). *Args:* `tmp_dir` *(str)* — the job directory.; `subject` *(str)* — how to name the job in the messages, already quoted and complete (e.g. '"Counter/8bits" @ 50 MHz with target "gf22"').; `job_noun` *(str)* — what the previous run was, for the "not finished" warning ("synthesis", "place & route", ...). *Returns:* `tuple` — (state, daemon_entry) where state is one of "cached", "daemon", "overwrite", "incomplete", "resume", "rerun" or "new". Mapping a state to a plan category is left to the caller, which knows how it names its jobs there. |
-| `record(name, state, daemon_entry=None)` | Add a job to the plan, under the category its state calls for. Returns whether the job is one this run will actually work on, which is what tells a caller to keep building it. |
+| `errors()` | Only what was reported as an error. |
+| `warnings()` | Only what was reported as a warning. |
+| `summary()` | The last line the export printed that is not a diagnostic ("Derived metrics updated in 1 results file"), or "" when it printed none. |
 
 ## `Reporter`
 
@@ -370,15 +389,15 @@ Supports `len(x)`, iteration.
 
 | Attribute | What it is |
 |---|---|
-| `errors` *(property)* |  |
-| `warnings` *(property)* |  |
+| `errors` *(property)* | The error messages, in order. |
+| `warnings` *(property)* | The warning messages, in order. |
 
 | Method | What it does |
 |---|---|
 | `listening()` | Collect everything reported inside the context. |
-| `of_level(level)` |  |
-| `last_error()` |  |
-| `clear()` |  |
+| `of_level(level)` | The messages of one level (`"error"`, `"warning"`, `"note"`...), in order. |
+| `last_error()` | The last error message, or None. |
+| `clear()` | Forget what was collected; returns the reporter. |
 
 ## `TerminalReporter`
 

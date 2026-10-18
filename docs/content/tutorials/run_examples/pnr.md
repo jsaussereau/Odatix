@@ -204,6 +204,12 @@ estimate and the implemented result of a configuration, same target, same
 frequency, can be shown side by side — which is the whole point of running the
 chain.
 
+Both tools name their metrics alike — `Cell_Area` (um^2), `Total_Power` (mW),
+`Worst_Slack` (ns) — so a metric is the same column for both. To see them side
+by side: open **Columns**, tick `design_compiler` and `innovus` under **Data**,
+pick `Cell_Area` (or `Worst_Slack`) as y, and **Color by: tool**. The two bars
+of a configuration are the synthesis estimate and the implemented result.
+
 ## Doing it from the GUI
 
 `odatix-gui` → **Run jobs** → **Run place & route** lists the tools declaring a `pnr` job

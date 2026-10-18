@@ -1,12 +1,12 @@
 ---
-title: "Configuration File Reference"
+title: "Configuration file reference"
 description: "Every configuration file Odatix reads, and every key it accepts."
 weight: 90
 aliases:
   - /docs/settings/
 ---
 
-# Configuration File Reference
+# Configuration file reference
 
 This section is the exhaustive syntax reference: every configuration file of an
 Odatix workspace, every key it accepts, its type, its default and what it does.
@@ -23,28 +23,29 @@ walked through writing one, follow a [tutorial](/tutorials/).
 of them can be moved in [`odatix.yml`](/docs/reference/workspace/).
 
 {{< code lang=text filename="An Odatix workspace" >}}
-odatix.yml                                  # workspace settings: where everything lives
+odatix.yml                                            # workspace settings: where everything lives
 odatix_userconfig/
-├── fmax_settings.yml             # what "odatix fmax" runs
-├── synth_settings.yml      # what "odatix synth" runs
-├── analyze_settings.yml                   # what "odatix analyze" runs
-├── sim_settings.yml                # what "odatix sim" runs
-├── workflow_settings.yml                   # what "odatix workflow" runs
-├── pnr_settings.yml                        # what "odatix pnr" runs
-├── dse_settings.yml                        # how "odatix dse" runs, and which campaigns
-├── dse_campaigns/<campaign>.yml            # one design space exploration
-├── derived_metrics.yml                     # metrics computed from other metrics
-├── clean_settings.yml                               # what "odatix clean" removes
-├── architectures/<design>/_settings.yml    # a parametrizable design
-│                        /<config>.txt      # one configuration of it
-├── simulations/<sim>/_settings.yml         # a testbench and how it runs
-│                   /_metrics.yml           # what it exports
-├── workflows/<name>/_settings.yml          # a task pipeline
-│                  /_metrics.yml            # what it exports
-├── targets/target_<tool>.yml               # devices/technologies for one eda tool
-└── tools/<tool>/tool.yml                   # an eda tool of your own
-             /metrics.yml                   # what to extract from its reports
-             /analysis.yml                  # how to read what its analysis reports
+├── fmax_settings.yml                                 # what "odatix fmax" runs
+├── synth_settings.yml                                # what "odatix synth" runs
+├── analyze_settings.yml                              # what "odatix analyze" runs
+├── sim_settings.yml                                  # what "odatix sim" runs
+├── workflow_settings.yml                             # what "odatix workflow" runs
+├── pnr_settings.yml                                  # what "odatix pnr" runs
+├── clean_settings.yml                                # what "odatix clean" removes
+├── dse_settings.yml                                  # how "odatix dse" runs, and which campaigns
+├── dse_campaigns/<campaign>.yml                      # one design space exploration
+├── derived_metrics.yml                               # metrics computed from other metrics (not created by init)
+├── architectures/<architecture>/_settings.yml        # a parametrizable design
+│                               /<configuration>.txt  # one configuration of it
+├── simulations/<simulation>/_settings.yml            # a testbench and how it runs
+│                           /_metrics.yml             # what it exports
+├── workflows/<workflow>/_settings.yml                # a task pipeline
+│                       /_metrics.yml                 # what it exports
+├── targets/target_<tool>.yml                         # devices or technologies of one tool
+├── themes/gui/<theme>.css                            # GUI themes of your own
+└── tools/<tool>/tool.yml                             # a tool of your own
+                /metrics.yml                          # what to extract from its reports
+                /analysis.yml                         # how to read what its analysis reports
 {{< /code >}}
 
 ## Reference pages

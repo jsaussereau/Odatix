@@ -1,10 +1,10 @@
 ---
-title: "Commands Reference"
+title: "Commands reference"
 description: "Every odatix and odatix-explorer command, with its options and examples."
 weight: 100
 ---
 
-# Commands Reference
+# Commands reference
 
 Odatix provides two command-line tools:
 
@@ -43,7 +43,7 @@ unexpected error prints a one-line message and writes the full trace to
 | Daemon sessions | `odatix ls`, `odatix monitor`, `odatix stop` | Inspect, attach and stop daemon sessions. |
 | Export | `odatix results [all\|synth\|sim\|workflow\|analysis\|derived]` | Export synthesis, simulation, workflow and analysis results, and apply derived metrics. |
 | Maintenance | `odatix clean`, `odatix migrate` | Remove generated files from a clean profile, and rewrite settings files written in a former format. |
-| Exploration | `odatix-explorer`, `odatix-gui` | Interactive visualization of results, and the full graphical interface. |
+| Graphical tools | `odatix-explorer`, `odatix-gui` | Interactive visualization of results, and the full graphical interface. |
 
 ## Common runtime options
 
@@ -115,7 +115,9 @@ exports: a benchmark score is a [simulation metric](/docs/results/metrics/) now.
 Every command exits with `0` when it did what it was asked, and with a non-zero
 status otherwise, so that it can be chained in a script (`odatix fmax -y -d &&
 ...`). This includes the export commands when a results file cannot be written,
-`odatix results` when deriving the metrics fails, `odatix stop` when a session
+`odatix results` when any error was reported (a metric that cannot be read, an
+invalid derived metric, a missing work directory or named file; warnings, such
+as an unfinished job, do not change it), `odatix stop` when a session
 could not be confirmed stopped, and `odatix replace` when its delimiters match
 nothing (the output is then a plain copy of the input).
 
@@ -349,7 +351,7 @@ removes their files (`stop`). `ls --json` is what a remote `odatix` reads over
 SSH: it holds the session tokens, so do not pipe it anywhere public. All three
 commands accept `-Q/--nobanner` like the others (they print no banner anyway).
 
-Sessions are private to the user who owns them and every request to one is authenticated; see [Sessions & Job Monitor](/docs/sessions/#security).
+Sessions are private to the user who owns them and every request to one is authenticated; see [Sessions & job monitor](/docs/sessions/#security).
 
 ### Results export
 

@@ -120,10 +120,10 @@ Use it to inspect the generated source before launching an expensive run.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix replace \
-  --startdel "// odatix: begin parameters" \
-  --stopdel "// odatix: end parameters" \
-  --input rtl/alu_top.sv \
-  --replace architectures/ALU/16bits.txt \
+  --startdel "#(" \
+  --stopdel ")(" \
+  --input examples/alu_sv/alu_top.sv \
+  --replace odatix_userconfig/architectures/ALU/16bits.txt \
   --output /tmp/alu_top_16bits.sv
 {{< /code >}}
 

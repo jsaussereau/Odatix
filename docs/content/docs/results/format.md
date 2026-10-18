@@ -32,25 +32,35 @@ A result file has three top-level keys:
 schema: 2
 
 units:
-  Frequency: MHz
+  Worst_Slack: ns
   Total_Power: W
 
 results:
+  # ... the "elaboration" and "synthesis" records of the same job come first
   - meta:
       type: custom_freq_synthesis
       target: xc7a100t-csg324-1
-      architecture: Example_ALU_sv
-      configuration: 04bits
+      architecture: Example_Counter_verilog
+      configuration: 08bits
       tool: vivado
-      frequency: 30
-      main: 04bits
-      timestamp: 2026-07-21_09-44-35
+      flow: standard
+      frequency: 100
+      step: pnr
+      _step_index: 2
+      _last_step: true
+      main: 08bits
+      timestamp: 2026-10-18_15-07-53
     metrics:
-      Frequency: 30
-      LUT_count: 28
-      Reg_count: 16
-      Total_Power: 0.092
+      LUT_count: 9
+      Reg_count: 8
+      Worst_Slack: 7.53
+      Total_Power: 0.094
 {{< /code >}}
+
+This is one record of `odatix synth --tool vivado --at 100 -a Example_Counter_verilog/08bits`.
+The frequency the job ran at is a dimension of the record (`meta.frequency`), not a
+metric. Vivado runs in three steps, so the job wrote three records; this one is its
+last step (`_last_step: true`).
 
 | Key | Meaning |
 |-----|---------|
@@ -113,7 +123,8 @@ Keys prefixed with an underscore — `_run_dir`, for instance — are informatio
 
 ## Reading a result file yourself
 
-Since the format is a flat list, consuming it takes a few lines:
+Since the format is a flat list, consuming it takes a few lines. A job split into
+steps has one record per step: keep the last one to get the finished result.
 
 {{< code lang=python filename="read_results.py" >}}
 import yaml
@@ -124,8 +135,13 @@ with open("results/results_vivado.yml") as f:
 for record in data["results"]:
   meta = record["meta"]
   metrics = record["metrics"]
-  print(meta["architecture"], meta["configuration"], metrics.get("Fmax"))
+  if not meta.get("_last_step", True):  # an intermediate step of the job
+    continue
+  print(meta["architecture"], meta["configuration"], meta.get("frequency"), metrics.get("LUT_count"))
 {{< /code >}}
+
+`Fmax` is a metric of `odatix fmax` results only: a fixed-frequency synthesis
+(`odatix synth`) gives its frequency in `meta.frequency` instead.
 
 Inside Odatix, both the exporters and Odatix Explorer go through a single shared module, `odatix.lib.results_schema`, which is the source of truth for reading and writing this format.
 

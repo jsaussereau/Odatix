@@ -142,8 +142,10 @@ changes there.
 {{% tab name="Graphical interface" %}}
 
 Open **Run** → **Fixed-frequency synthesis**. The Vivado card lists its flows:
-pick **Standard**, select `Example_Counter_verilog/08bits` at `100` MHz, stop
-at **synthesis**, and **Start**. Then do the same with **Retiming**.
+pick **Standard** and stop at **synthesis**. Then select `Example_Counter_verilog` and, in its **Preview**, untick every configuration
+but `08bits`. Turn on **Override frequencies**, type `100` in **Target
+frequencies (MHz)**, click **Run jobs**, then **Start** in the popup once the
+check is done. Then do the same with **Retiming**.
 
 Hovering a flow of the card shows its steps: clicking one runs up to it.
 
@@ -167,6 +169,7 @@ for flow in ("standard", "retiming"):
     run.start()
     for job in run.wait():
         print(flow, job["name"], job["status"])
+    run.session.stop()  # each run has its session, which stays open otherwise
 {{< /code >}}
 
 {{% /tab %}}

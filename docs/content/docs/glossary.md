@@ -18,9 +18,10 @@ misread.
 
 | Term | Definition | Not to be confused with |
 |------|------------|-------------------------|
-| <a id="architecture"></a>**Architecture** | A parametrizable RTL design, with its sources and its settings (`_settings.yml`). | "Design" alone, which is a [design point](#design-point) when something is measured. |
-| <a id="configuration"></a>**Configuration** | One set of parameter values of an architecture. | A settings file. |
-| <a id="parameter-domain"></a>**Parameter domain** | A set of parameters that vary together, and combine with the other domains of the architecture. The word of the `param_domains:` key and of the `${domain}` placeholder. | |
+| <a id="architecture"></a>**Architecture** | A parametrizable RTL design, with its sources and its settings (`_settings.yml`). The interface lists them under **RTL architectures**. | "Design" alone, which is a [design point](#design-point) when something is measured. Not shortened to "arch". |
+| <a id="configuration"></a>**Configuration** | One set of parameter values of an architecture or of a [workflow](#workflow), in a parameter file written by hand or generated. | A settings file. Not shortened to "config". |
+| <a id="parameter-domain"></a>**Parameter domain** | A set of parameters that vary together, and combine with the other domains of the architecture or workflow. The word of the `param_domains:` key and of the `${domain}` placeholder. | |
+| <a id="combination"></a>**Combination** | One configuration of each selected parameter domain, taken together: what one job runs when an architecture or workflow is swept over several domains (`Arch + domain/config + ...`). With a single domain, each configuration is a combination. | A [configuration](#configuration), which belongs to one domain. |
 | <a id="design-point"></a>**Design point** | An architecture, with a configuration, a target and a frequency: the unit that is measured. | "Design" for a design point: an exploration evaluates design points. `design_path` and "design files" keep their meaning: the sources of an architecture. |
 | <a id="target"></a>**Target** | The FPGA device or ASIC technology a design point is implemented on. Listed in the target file of each tool (`target_<tool>.yml`). | "Device" or "part", except inside the settings of a tool. |
 | <a id="tool"></a>**Tool** | An EDA tool: Vivado, Yosys, Design Compiler... Each has a directory with its `tool.yml`. | |
@@ -29,7 +30,7 @@ misread.
 | <a id="fmax-synthesis"></a>**Fmax synthesis** | The search for the maximum frequency a design point reaches (`odatix fmax`). | |
 | <a id="fixed-frequency-synthesis"></a>**Fixed-frequency synthesis** | A synthesis at frequencies chosen by the user (`odatix synth`), whose frequencies an architecture gives in its `fixed_freq_synthesis` block. | "Custom frequency synthesis" or "custom-frequency synthesis": its block was called `custom_freq_synthesis`, a name still read for one version. The job type keeps the name `custom_freq_synthesis` in work directories and result files. |
 | <a id="run"></a>**Run** | A command started by the user, from the command line or the GUI, which produces jobs. | A [job](#job). |
-| <a id="job"></a>**Job** | The execution of one design point by one tool. | A *task*, which is a step of a workflow. |
+| <a id="job"></a>**Job** | The execution of one design point by one tool. For a workflow: one run of its tasks, for one of its configurations or combinations. | A *task*, which is a step of a workflow. A [run](#run), which produces jobs. |
 | <a id="session"></a>**Session** | A named group of jobs, run in the background by its own daemon and followed in the monitor. It belongs to the workspace it was started in. | |
 | <a id="daemon"></a>**Daemon** | The process behind one session: it runs the session's jobs (`odatix monitor`, `odatix stop`). Each session has its own. | "Background mode". |
 | <a id="detached"></a>**Detached** | The mode where a run hands its jobs over to the daemon and returns (`-d/--detach`). | "Background", "daemon mode". |

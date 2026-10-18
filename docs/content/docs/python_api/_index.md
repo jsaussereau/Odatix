@@ -57,6 +57,7 @@ like. Pass `required=True` to refuse it instead.
 Collections behave like the mappings they are, and iterate over objects:
 
 {{< code lang=python filename="browse.py" >}}
+# "MyCPU" is created in the next example: run that one first.
 "MyCPU" in ws.architectures        # True / False
 ws.architectures["MyCPU"]          # raises NotFoundError if there is none
 ws.architectures.get("MyCPU")      # None instead
@@ -78,7 +79,10 @@ architecture.settings.rtl_path = "rtl/cpu"
 architecture.settings.top_level_file = "cpu.sv"
 architecture.settings.top_level_module = "cpu"
 architecture.settings.clock_signal = "clk"
-architecture.settings.use_parameters = True
+architecture.settings.reset_signal = "rst"
+# No parameter file yet: set use_parameters (and start_delimiter /
+# stop_delimiter) once the design has configurations.
+architecture.settings.use_parameters = False
 architecture.settings.fmax_synthesis.lower_bound = 50
 architecture.save()
 
@@ -93,10 +97,15 @@ Values are read as their type whatever they come as, so `"Yes"`, `true` and
 
 > [!NOTE]
 > Saving keeps what you put in the file: its comments, its key order, its
-> quoting and every key Odatix does not know about. 
-> Only what actually changed is rewritten, and unknown
-> keys stay reachable through `settings.extra`. A file that does not exist yet
-> is generated with the section comments that make it readable.
+> quoting, its `Yes`/`No`, its `|` blocks and every key Odatix does not know
+> about. Only the values that changed are rewritten, on their own lines and in
+> the style of the file; a key added goes next to the keys of its section, and
+> a setting left at its default is never added. A file saved without a change
+> comes out byte for byte as it was. In a run settings file, an entry taken out
+> of a list is commented out rather than deleted, and a commented-out entry
+> put back is uncommented where it is. Unknown keys stay reachable through
+> `settings.extra`. A file that does not exist yet is generated with the
+> section comments that make it readable.
 
 ## Parameter domains and configurations
 
@@ -196,7 +205,7 @@ and stopping after any of them is a normal thing to do.
 from odatix.workspace import Workspace
 from odatix.run import Run
 
-run = Run(Workspace.open(), "fmax_synthesis", tool="vivado", overwrite=True)
+run = Run(ws, "fmax_synthesis", tool="vivado", overwrite=True)
 
 plan = run.check()      # what would be run, having touched nothing
 print(plan.counts())    # {'new': 12, 'cached': 3, 'error': 0, ...}
@@ -211,7 +220,7 @@ tool="vivado")` is the whole thing in one call.
 
 Every path comes from the workspace. What a run does differently from what its
 settings file says is passed as keyword arguments — the command line flags, by
-name: `overwrite`, `nb_jobs`, `flow`, `until`, `keep`, `lower_bound` /
+name: `overwrite`, `nb_jobs`, `flow`, `until`, `rerun_from`, `keep`, `lower_bound` /
 `upper_bound`, `frequencies`, `architectures`, `detach`, `session`… (every
 setting of [`RunOptions`](/docs/python_api/run/)). A name that is not one of
 them raises `TypeError`, with the closest names: a misspelled option would
@@ -289,6 +298,28 @@ session.stop()
 `sessions(any_workspace=True)` and `Session.find(..., any_workspace=True)` reach
 the sessions of every workspace. A session that does not answer raises
 `SessionError`; a wait that runs out of time raises `TimeoutError`.
+
+## Exporting results
+
+A run exports its results itself. After a metric definition changed, export
+them again with `export_results`, as `odatix results` does:
+
+{{< code lang=python filename="export.py" >}}
+from odatix.run import export_results
+
+report = export_results(ws)                  # every type, as "odatix results"
+report = export_results(ws, "synth", tool="vivado")
+report = export_results(ws, "derived")       # only apply the derived metrics
+
+if not report:                               # false when an error was reported
+    for level, text in report.messages:
+        print(level, text)
+{{< /code >}}
+
+The result types are those of `odatix results`: `all`, `synth`, `sim`,
+`workflow`, `analysis` and `derived`. An unknown one raises `ValueError`. See
+[`export_results`](/docs/python_api/run/)
+for every argument.
 
 ## Errors
 

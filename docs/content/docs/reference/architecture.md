@@ -1,5 +1,5 @@
 ---
-title: "Architecture Settings"
+title: "Architecture settings"
 description: "Every key of architectures/<design>/_settings.yml — sources, top level, parameter replacement, generated RTL, frequency bounds and parameter domains."
 weight: 3
 ---
@@ -53,7 +53,7 @@ themselves are kept.
 
 | Key | Type | Required | Description |
 |-----|------|----------|-------------|
-| `use_parameters` | bool | Yes | Enable replacement from `<configuration>.txt`. |
+| `use_parameters` | bool | No (default `No`) | Enable replacement from `<configuration>.txt`. Without it, the architecture has no configuration: select it by its name alone (`-a MyCounter`, not `MyCounter/*`). A parameter domain defaults to `Yes` instead (see below). |
 | `start_delimiter` | string | If `use_parameters` | Text marking the start of the replaced block. |
 | `stop_delimiter` | string | If `use_parameters` | Text marking its end. |
 | `param_target_file` | path | Conditionally | File the replacement is applied to. Defaults to the top level; **mandatory** with `generate_rtl`. |
@@ -339,10 +339,11 @@ Each domain must replace a **distinct** block of the target file. See
 
 ## In the GUI
 
-**RTL Architectures** (`/architectures`) edits this file field by field, and
-lists the configurations of each parameter domain — written as files or
-described by the rules of the domain, which the **Configuration rules** panel
-of that domain edits. See [The Odatix GUI](/docs/gui/app/).
+**RTL architectures** (`/architectures`) edits this file field by field
+(**Settings** on the card of an architecture), and **Edit configs** lists the
+configurations of each parameter domain — written as files or described by the
+rules of the domain, which its **Variables** tile and **Advanced** section
+edit. See [The Odatix GUI](/docs/gui/app/).
 
 ## See also
 

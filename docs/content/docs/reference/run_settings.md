@@ -1,6 +1,6 @@
 ---
-title: "Run Settings Files"
-description: "The six files that say what each odatix run command executes — plus the selector grammars they use and clean_settings.yml."
+title: "Run settings files"
+description: "The seven files that say what each odatix run command executes — plus the selector grammars they use and clean_settings.yml."
 weight: 2
 ---
 
@@ -283,9 +283,10 @@ remove_list:
 
 ## In the GUI
 
-**Run jobs** builds these files for you: choosing a job type, a tool, targets and
-designs and pressing **Run** writes the corresponding settings file before
-enqueueing the jobs. Everything you set there is the same YAML documented here.
+**Run jobs** edits these files for you: a job type, a tool, targets and designs
+are picked on the page, and **Save all** writes what you changed to the settings
+file documented here, keeping its comments. **Run jobs** runs what the page
+shows, saved or not, from a temporary copy: launching never writes the file.
 See [The Odatix GUI](/docs/gui/app/).
 
 ## See also

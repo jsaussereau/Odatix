@@ -142,7 +142,9 @@ Every key is in the [architecture](/docs/reference/architecture/#frequency-setti
 `odatix-gui` → **Run jobs** → **Fixed-frequency synthesis** walks the same
 path: pick the tool (its card shows the available flows, and the steps you can
 stop at), pick the targets, set the frequency range, the designs and the number
-of parallel jobs, and launch. The run uses what the page shows, saved or not;
+of parallel jobs, and launch. Before anything starts, a window says what the run
+uses (tool, flow, last step, target, work directory) and lists the jobs that will
+run and the ones already done. The run uses what the page shows, saved or not;
 **Save all** writes it to the same settings files the command reads. The page
 then drops you on the Monitor — where a run started from a terminal shows up
 too, since there is one daemon for both.

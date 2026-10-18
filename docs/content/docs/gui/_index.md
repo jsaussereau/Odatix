@@ -1,10 +1,10 @@
 ---
-title: "Graphical User Interface (GUI)"
+title: "Graphical user interface (GUI)"
 description: "The daemon, the Job Monitor, Odatix Explorer, and how to run them on a remote server."
 weight: 3
 ---
 
-# Graphical User Interface (GUI)
+# Graphical user interface (GUI)
 
 Odatix has a graphical application, `odatix-gui`, covering the whole workflow: configuring the workspace, launching jobs, tracking them in the [Job Monitor](/docs/sessions/), and visualizing results in **Odatix Explorer**. Jobs are scheduled by a background **daemon**, shared with the command line.
 

@@ -7,7 +7,7 @@ layout: "faq"
 {{< faq >}}
 {
     "eyebrow": "Support",
-    "title": "Frequently Asked Questions",
+    "title": "Frequently asked questions",
     "description": "Everything people usually ask before running their first jobs with Odatix, from EDA licences to parallelism and result analysis.",
     "categories": [
         {
@@ -15,16 +15,20 @@ layout: "faq"
             "icon": "🚀",
             "questions": [
                 {
-                    "question": "Are EDA tools like Vivado or Design Compiler included ?",
+                    "question": "Are EDA tools like Vivado or Design Compiler included?",
                     "answer": "No, Odatix facilitates the use of FPGA and ASIC tools, but it does not include any EDA tools. Users need to have their own licenses for the EDA tools they wish to use with Odatix."
                 },
                 {
-                    "question": "Can I try Odatix without an EDA licence ?",
+                    "question": "Why does pip install a version without the commands of this documentation?",
+                    "answer": "This documentation describes Odatix 4.0, which is not on PyPI yet: `pip install odatix` still installs Odatix 3.7. `odatix --version` tells which one you have. Until the release, [install Odatix from sources](/install/sources/)."
+                },
+                {
+                    "question": "Can I try Odatix without an EDA licence?",
                     "answer": "Yes! Some examples rely on free and open-source tools."
                 },
                 {
-                    "question": "Does Odatix work on Windows, Linux and MacOS ?",
-                    "answer": "Odatix targets Linux. However, most features may work on Windows and MacOS. Please note some EDA tools may have specific platform requirements, so users should check the compatibility of their EDA tools with their operating system."
+                    "question": "Does Odatix work on Windows, Linux and macOS?",
+                    "answer": "Odatix targets Linux. However, most features may work on Windows and macOS. Please note some EDA tools may have specific platform requirements, so users should check the compatibility of their EDA tools with their operating system."
                 }
             ]
         },
@@ -33,19 +37,19 @@ layout: "faq"
             "icon": "⚙️",
             "questions": [
                 {
-                    "question": "How many parallel jobs should I run ?",
+                    "question": "How many parallel jobs should I run?",
                     "answer": "Set `nb_jobs` according to available CPU, memory and EDA licences. The value `auto` uses the available CPUs minus one, but a smaller value is often safer for memory-heavy implementation flows."
                 },
                 {
-                    "question": "Do I need to run odatix generate ?",
+                    "question": "Do I need to run odatix generate?",
                     "answer": "No. A design or workflow that describes its configurations in a `configurations` block has them resolved when it runs. `odatix generate` only writes them out as files, which is useful to read them or to edit one by hand."
                 },
                 {
-                    "question": "Where do I find a failed job's logs ?",
+                    "question": "Where do I find a failed job's logs?",
                     "answer": "Each job keeps its working directory under `work/`, including `log/` and `report/` subdirectories. Unexpected application errors are also recorded in `odatix_error.log` in the workspace root."
                 },
                 {
-                    "question": "Can I run Odatix on a remote server ?",
+                    "question": "Can I run Odatix on a remote server?",
                     "answer": "Yes. Start a detached session over SSH, reconnect later to monitor it, and access Odatix Explorer through an SSH tunnel. The server and SSH tutorials explain the recommended setup."
                 }
             ]
@@ -55,7 +59,7 @@ layout: "faq"
             "icon": "📊",
             "questions": [
                 {
-                    "question": "How do I join simulation and synthesis results ?",
+                    "question": "How do I join simulation and synthesis results?",
                     "answer": "Export the source result files, define entries in `odatix_userconfig/derived_metrics.yml`, then run `odatix results derived`. Derived metrics can compute values such as runtime or energy from matching records."
                 }
             ]

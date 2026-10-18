@@ -395,7 +395,7 @@ records: see [Metrics files](/docs/reference/metrics/).
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-From the home page, open **Run jobs**, then **Run workflow**. Switch
+From the home page, open **Run jobs**, then **Run a workflow**. Switch
 `sort_bench` on: its two variables are listed with their values, and the
 preview lists the 6 combinations, all checked. The **Default configuration**,
 the workflow without any value, is offered but not checked: its command would
@@ -432,9 +432,10 @@ from odatix.run import Run
 
 ws = Workspace.open()
 run = Run(ws, "workflow", workflows=["sort_bench"])
-plan = run.check()                   # what is going to run
-print(plan.names(colored=False))
+plan = run.check()                   # prints what is going to run
 run.start()                          # hands the jobs to a session, and returns
+run.wait()                           # every job over, however it ended
+run.session.stop()                   # the session outlives the script otherwise
 {{< /code >}}
 
 {{% /tab %}}
@@ -465,19 +466,22 @@ listed under **Existing results** and skipped. `-o/--overwrite` (or
 ## Step 7 — Look at the results
 
 Each job's metrics were exported as it ended, to
-`results/results_workflow.yml`:
+`results/results_workflow.yml`. One entry of its `results:` list:
 
 {{< code lang=yaml filename="results/results_workflow.yml" >}}
-- meta:
-    type: workflow
-    workflow: sort_bench
-    configuration: size/500+algo/merge
-    size: '500'
-    algo: merge
-  metrics:
-    seconds: 0.0016
-    comparisons: 3854
-    comparisons_per_second: 2411944
+schema: 2
+units: ...
+results:
+  - meta:
+      type: workflow
+      workflow: sort_bench
+      configuration: size/500+algo/merge
+      size: '500'
+      algo: merge
+    metrics:
+      seconds: 0.0016
+      comparisons: 3854
+      comparisons_per_second: 2411944
 {{< /code >}}
 
 Open them in the Explorer:

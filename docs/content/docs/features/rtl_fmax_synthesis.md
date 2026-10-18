@@ -131,7 +131,9 @@ every option on the [commands reference](/docs/commands/).
 
 `odatix-gui` → **Run jobs** → **Fmax synthesis** picks the tool and flow, the
 targets, and the designs, with the search bounds editable per target from the
-**RTL Architectures** page. Launching enqueues the jobs in the same daemon and
+**RTL architectures** page; with **Override frequencies** on, the bounds of the page
+apply to every design instead. A window lists the searches about to start, with the
+tool, flow, last step and target they use. Launching enqueues the jobs in the same daemon and
 opens the Monitor, where each binary search reports the frequency it is currently
 probing.
 

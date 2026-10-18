@@ -369,9 +369,11 @@ Keep the object `tool.metrics` returns: each access reads the file again.
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-Open **Run** → **Fixed-frequency synthesis** and pick the **Yosys** card. Select
-`Example_Counter_verilog/08bits`, set the frequency to `100`, and click
-**Start**. The jobs appear in the **Monitor**.
+Open **Run** → **Fixed-frequency synthesis** and pick the **Yosys** card. Then
+select `Example_Counter_verilog` and, in its **Preview**, untick every configuration
+but `08bits`. Turn on **Override frequencies**, type `100` in **Target
+frequencies (MHz)**, click **Run jobs**, then **Start** in the popup once the
+check is done. The jobs appear in the **Monitor**.
 
 {{% /tab %}}
 {{% tab name="YAML files" %}}
@@ -397,6 +399,7 @@ print(run.check().counts())     # what would run, having touched nothing
 run.start()
 for job in run.wait():
     print(job["name"], job["status"])
+run.session.stop()  # the session stays open otherwise ("odatix ls" lists it)
 {{< /code >}}
 
 Run it from the workspace directory.
@@ -432,11 +435,16 @@ A job that went wrong is understood from its directory,
 
 {{< code lang=text filename="A job directory" >}}
 ├── rtl/               # the design, its parameters replaced
-├── scripts/           # the scripts of the tool (yosys_synth.py)
+├── scripts/           # the scripts of the tool (yosys_synth.py), and the common
+│                      # ones Odatix copies into every job (settings.tcl, analysis.yml...)
 ├── log/               # synthesis.log, console.log (what the command printed)
 ├── report/            # stat.txt, ltp.txt
 ├── result/            # netlist.v
 ├── settings.yml       # the design: top level, clock, target frequency...
+├── architecture.txt   # Example_Counter_verilog/08bits
+├── target.txt         # generic
+├── flow.txt           # the flow the job ran
+├── param_domains.yml  # the values of its parameter domains
 ├── frequency.txt      # 100 MHz
 └── constraints.sdc    # create_clock -period 10 [get_ports clock]
 {{< /code >}}

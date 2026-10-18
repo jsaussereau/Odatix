@@ -1,6 +1,6 @@
 ---
 weight: 2
-title: "Install Odatix Offline"
+title: "Install Odatix offline"
 date: 2026-05-15
 author: "Jonathan Saussereau"
 description: "Instructions for installing Odatix offline."
@@ -14,6 +14,14 @@ next_tutorials:
 
 {{< toc >}}
 
+> [!WARNING] Odatix 4.0 is not on PyPI yet
+> PyPI still serves Odatix 3.7, so `pip download odatix` below downloads
+> Odatix 3.7, whose commands differ from the ones this documentation describes.
+> Until Odatix 4.0 is released, clone the repository on the online machine (see
+> [Install from sources](/install/sources/#step-1-clone-the-odatix-repository)),
+> and replace `pip download odatix -d odatix_offline` with
+> `pip wheel ./sources -w odatix_offline`: it builds Odatix 4.0 into the folder,
+> next to its dependencies. The rest of the page is unchanged.
 
 > [!WARNING]
 > Odatix provides partial support for Windows. For a better experience, it is recommended to use Linux.

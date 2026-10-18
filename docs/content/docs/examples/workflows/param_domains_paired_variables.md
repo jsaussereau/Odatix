@@ -13,6 +13,12 @@ workflows:
   - param_domains_paired_variables + max_speed/* + road_length/* + num_vehicles/* + signal_timing/*
 {{< /code >}}
 
+Or name it on the command line, without touching the file:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix workflow -W "param_domains_paired_variables + max_speed/* + road_length/* + num_vehicles/* + signal_timing/*"
+{{< /code >}}
+
 Cross-combining every variable is not always what you want. Here, `max_speed` and `road_length` describe **the same thing** — a road profile — and combining them freely would produce a 35 km/h motorway and a 90 km/h city street, neither of which is worth simulating.
 
 Giving them the same `group` label zips them instead:
@@ -60,7 +66,7 @@ variables:
 <div class="not-prose docs-links">
   <a class="docs-link" href="/docs/examples/workflows/">
     <span class="docs-link__title">All workflow examples</span>
-    <span class="docs-link__text">The nine examples and what each one isolates.</span>
+    <span class="docs-link__text">The ten examples and what each one isolates.</span>
   </a>
   <a class="docs-link" href="/docs/features/workflows/">
     <span class="docs-link__title">Workflows</span>

@@ -285,12 +285,11 @@ metrics:
     format: '%.2f'
 {{< /code >}}
 
-The reported metrics fall into four groups:
+The reported metrics fall into three groups (the configuration itself, `width` and `iterations`, is already in each record as its parameters):
 
-- **Configuration** — `width`, `iterations`, echoed back so results are self-describing.
 - **Accuracy** — `max_error`, `rms_error`, `mean_error` (in LSB), `max_angle_error`, `rms_angle_error` (in degrees), `snr`, `enob`, `worst_case_angle`.
-- **Timing** — `latency` (cycles), `throughput` (samples/cycle), `cycles`.
-- **Checks** — `vectors`, `checks_total`, `checks_passed`, `checks_failed`, `pass_rate`, and the pass/fail verdicts `reset`, `latency_check`, `completeness`, `accuracy`, and the overall `status`.
+- **Timing** — `latency` (cycles), `throughput` (samples/cycle).
+- **Checks** — `vectors`, `checks_total`, `checks_passed`, `checks_failed`, `pass_rate`, the pass/fail verdicts `reset`, `latency_check`, `completeness`, `accuracy`, and the overall `check_status`.
 
 Each run sweeps 512 test vectors spread evenly over a full turn, compares them against a floating-point reference, and checks the error against the **theoretical bound of that configuration** (residual angle after the last rotation, plus the truncation of the per-stage shifts) with a small margin. A configuration is therefore not judged against a fixed threshold, but against what it can legitimately be expected to achieve.
 

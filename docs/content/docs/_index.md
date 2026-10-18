@@ -8,28 +8,29 @@ toc: false
 
 The documentation is organized in three layers, and every page links to its
 counterparts in the other two. Start with a **feature** if you are wondering
-what Odatix can do, a **tutorial** if you want to get something running, and the
+what Odatix can do, a **tutorial** if you want to get something running (new to
+Odatix? [Getting started](/docs/getting-started/) is the first one), and the
 **reference** when you know what you need and want the exact key.
 
-{{< doc-cards cols="2" >}}
+{{< doc-cards cols="3" >}}
 {{< doc-card title="Features" link="/docs/features/" icon="compass" accent="#2563eb" badge="What it does" cta="Tour the features" >}}
 A high-level tour of what Odatix does — architecture exploration, synthesis, Fmax search, simulation, workflows and results exploration.
 {{< /doc-card >}}
 
 {{< doc-card title="Getting started" link="/docs/getting-started/" icon="rocket" accent="#2563eb" badge="Hands on" cta="Run your first job" >}}
-Install Odatix, initialize a workspace, and understand the core concepts — designs, configurations, targets and jobs.
+Install Odatix, initialize a workspace, run a first job, and understand the core concepts — architectures, configurations, targets and jobs.
 {{< /doc-card >}}
 
-<!-- {{< doc-card title="Configuration reference" link="/docs/reference/" icon="book" accent="#a21caf" badge="Exhaustive" cta="Open the reference" >}}
-Every YAML key Odatix reads, and how settings are resolved and overridden across files.
-{{< /doc-card >}} -->
+{{< doc-card title="Configuration file reference" link="/docs/reference/" icon="book" accent="#a21caf" badge="Exhaustive" cta="Open the reference" >}}
+Every configuration file Odatix reads, every key it accepts, and how settings are resolved and overridden across files.
+{{< /doc-card >}}
 {{< /doc-cards >}}
 
 ## By topic
 
 {{< doc-cards cols="3" >}}
 
-{{< doc-card title="Graphical User Interface" link="/docs/gui/" icon="window" accent="#0284c7" >}}
+{{< doc-card title="Graphical user interface" link="/docs/gui/" icon="window" accent="#0284c7" >}}
 Odatix GUI, Odatix Explorer, and how to host them on a server.
 {{< /doc-card >}}
 
@@ -55,10 +56,6 @@ Ready-to-run examples shipped with Odatix — six architectures, from counter to
 
 {{< doc-card title="Python API" link="/docs/python_api/" icon="code" accent="#006dad" >}}
 Programmatic access to Odatix functionality in Python.
-{{< /doc-card >}}
-
-{{< doc-card title="Configuration file reference" link="/docs/reference/" icon="book" accent="#a21caf" >}}
-Every configuration file Odatix reads, and every key it accepts.
 {{< /doc-card >}}
 
 {{< doc-card title="Commands reference" link="/docs/commands/" icon="terminal" accent="#475569" >}}

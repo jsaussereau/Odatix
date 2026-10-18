@@ -44,7 +44,7 @@ $ source odatix_venv/bin/activate
 Create a new directory for the demonstration and move into it. For example:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/odatix_examples && cd ~/odatix_examples
+$ mkdir -p ~/odatix_examples && cd ~/odatix_examples
 {{< /code >}}
 
 Create a new Odatix workspace and copy the built-in examples into it:
@@ -59,8 +59,12 @@ $ odatix init --examples
 ╚██████╔╝ ██████╔╝ ██║  ██║   ██║    ██║ ██╔╝ ██╗
  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝   ╚═╝    ╚═╝ ╚═╝  ╚═╝
 
+<font color="#555753">[odatix init]</font> <font color="#34E2E2">note: This command will create all the configuration files needed by Odatix in the current directory.</font>
+<font color="#555753">[odatix init]</font> Would you like to continue? (Y/n) y
 <font color="#555753">[odatix init]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
+<font color="#555753">[odatix init]</font> Try a first run (with your tool in place of vivado): <b>odatix fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis</b>
 <font color="#555753">[odatix init]</font> Run <b>odatix -h</b> to get a list of useful commands
+<font color="#555753">[odatix init]</font> New to Odatix? Follow https://odatix.readthedocs.io/en/latest/docs/getting-started/
 {{< /code >}}
 
 ### Step 2 — Look at what a workflow is
@@ -142,7 +146,7 @@ $ odatix workflow
 
 Odatix copies the sources into one work directory per configuration under
 `work/workflows/`, runs the task graph there, and attaches the
-[Job Monitor](/docs/sessions/gui_monitor/) — where the progress bar moves as the tasks
+[Job Monitor](/docs/sessions/terminal_monitor/) — where the progress bar moves as the tasks
 write to `progress.txt`, and each job's log is one keystroke away.
 
 To free your terminal instead, run detached and re-attach later:
@@ -232,7 +236,8 @@ $ odatix-gui
 
 **Workflows** shows the same definitions as editable cards — tasks,
 dependencies, variables, metrics — and **Run jobs** → **Workflow** selects what
-to launch. It writes the same YAML files, so you can move between the two freely.
+to launch. **Save all** writes the same YAML files (**Start** alone does not
+write `workflow_settings.yml`), so you can move between the two freely.
 
 ### Step 8 — When there are too many configurations to run them all
 

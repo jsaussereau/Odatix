@@ -268,7 +268,10 @@ def render_section(title, content):
         # A new item names what it documents; anything else continues the
         # previous one, whatever it is indented to
         starts_item = re.match(r"^[\w*]+\s*(\([^)]*\))?\s*:", line.strip())
-        if items and (not starts_item or line.startswith((" ", "\t"))):
+        # A wrapped sentence may put "word:" at the start of a line ("and
+        # rejects / nothing: a typo..."): an item only follows a finished one
+        unfinished = items and not items[-1].rstrip().endswith((".", ":", ")", "`"))
+        if items and (not starts_item or unfinished or line.startswith((" ", "\t"))):
             items[-1] += " " + line.strip()
         else:
             items.append(line.strip())
@@ -460,6 +463,9 @@ def class_members(cls):
         elif callable(value) or kind in ("classmethod", "staticmethod"):
             function = value.__func__ if kind in ("classmethod", "staticmethod") else value
             methods.append((name, kind, function))
+        elif inspect.ismemberdescriptor(value) or inspect.isgetsetdescriptor(value):
+            # A __slots__ entry: its "#:" comment, or nothing (never its repr)
+            attributes.append((name, "", docs.get(name, "")))
         else:
             attributes.append((name, "", docs.get(name, "") or _constant_cell(value)))
     # Attributes a constructor sets, documented by a "#:" comment
@@ -490,6 +496,9 @@ def render_settings_table(cls):
     lines = ["| Setting | Type | Default | What it is |", "|---|---|---|---|"]
     section = None
     for spec in specs:
+        if not getattr(spec, "stored", True):
+            # A former key, still read but never written: not a setting to set
+            continue
         if getattr(spec, "section", None) and spec.section != section:
             section = spec.section
             # A section is also the comment written above its settings in the
