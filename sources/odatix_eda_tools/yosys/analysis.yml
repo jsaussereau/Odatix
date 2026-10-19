@@ -1,0 +1,117 @@
+##################################################
+# RTL analysis: how Yosys reports
+##################################################
+
+# Yosys reads Verilog and SystemVerilog only (VHDL needs its GHDL plugin): a
+# VHDL design is reported as not supported, instead of failing with syntax
+# errors.
+languages: [verilog, systemverilog]
+
+# Where its messages are, relative to the job directory.
+logs:
+  - log/analysis.log
+
+# Lines that are no finding of their own.
+ignore:
+  # What "check -assert" says once the problems themselves are out.
+  - "^ERROR: Found \\d+ problems in 'check"
+
+# The word each message is introduced with.
+severities:
+  error: error
+  warning: warning
+
+# Yosys lists what a check found (the drivers of a signal, the cells of a loop)
+# on the indented lines below it.
+continuation: '^\s'
+
+# Yosys has no message codes: there is no "codes" table.
+
+# The messages of Yosys, tried in order on every line. The patterns are written
+# between single quotes: a backslash is a backslash there. Yosys writes the
+# names of the design with a leading one ("\clk"), left out of the subject.
+#
+# A message located in the sources starts with "<file>:<line>:", the line
+# possibly followed by the columns ("rtl/top.sv:3.14-3.20:").
+messages:
+
+  syntax:
+    pattern: '^(?P<file>[^:\s]+):(?P<line>\d+)(?:\.[\d.-]+)?: ERROR: (?P<message>syntax error.*)'
+    severity: error
+    category: syntax
+
+  missing_module:
+    pattern: '^ERROR: (?P<message>Module `\\?(?P<subject>[^'']+)'' referenced in module .* is not part of the design\.?)'
+    severity: error
+    category: missing_module
+
+  not_a_port:
+    pattern: '^ERROR: (?P<message>Module `\\?[^'']+'' referenced in module .* does not have a port named ''(?P<subject>[^'']+)''\.?)'
+    severity: error
+    category: port_mismatch
+
+  missing_top:
+    pattern: '^ERROR: (?P<message>Module `\\?(?P<subject>[^'']+)'' not found!?)'
+    severity: error
+    category: missing_top
+
+  missing_source:
+    pattern: '^ERROR: (?P<message>File `(?P<subject>[^'']+)'' not found or is a directory)'
+    severity: error
+    category: missing_file
+
+  missing_include:
+    pattern: '^(?:(?P<file>[^:\s]+):(?P<line>\d+)(?:\.[\d.-]+)?: )?ERROR: (?P<message>Can''t open include file `(?P<subject>[^'']+)''!?)'
+    severity: error
+    category: missing_file
+
+  implicit:
+    pattern: '^(?P<file>[^:\s]+):(?P<line>\d+)(?:\.[\d.-]+)?: Warning: (?P<message>Identifier `\\?(?P<subject>[^'']+)'' is implicitly declared\.?)'
+    severity: warning
+    category: undeclared
+
+  out_of_range:
+    pattern: '^(?P<file>[^:\s]+):(?P<line>\d+)(?:\.[\d.-]+)?: Warning: (?P<message>Range .* out of bounds on signal `\\?(?P<subject>[^'']+)''.*)'
+    severity: warning
+    category: width_mismatch
+
+  resized_port:
+    pattern: '^Warning: (?P<message>Resizing cell port (?P<subject>\S+) from \d+ bits to \d+ bits\.?)'
+    severity: warning
+    category: width_mismatch
+
+  # A wire assigned in a procedural block: it should be a variable (logic, reg).
+  wire_in_process:
+    pattern: '^Warning: (?P<message>wire ''\\?(?P<subject>[^'']+)'' is assigned in a block at (?P<file>[^:\s]+):(?P<line>\d+).*)'
+    severity: warning
+    category: type_mismatch
+
+  undriven:
+    pattern: '^Warning: (?P<message>Wire (?:\S+\.)?\\?(?P<subject>[^\s.\\]+)(?: \[\d+\])? is used but has no driver\.?)'
+    severity: warning
+    category: undriven
+
+  multiple_drivers:
+    pattern: '^Warning: (?P<message>multiple conflicting drivers for (?:\S+\.)?\\?(?P<subject>[^\s:\\]+).*)'
+    severity: warning
+    category: multiple_drivers
+
+  logic_loop:
+    pattern: '^Warning: (?P<message>found logic loop in module (?P<subject>\S+?):?)$'
+    severity: warning
+    category: combinational_loop
+
+  latch:
+    pattern: '^Warning: (?P<message>Latch inferred for signal `(?:\\?[^.'']+\.)?\\?(?P<subject>[^'']+)''.*)'
+    severity: warning
+    category: latch
+
+  any_warning:
+    pattern: '^(?:(?P<file>[^:\s]+):(?P<line>\d+)(?:\.[\d.-]+)?: )?Warning: (?P<message>.*)'
+    severity: warning
+    fallback: true
+
+  any_error:
+    pattern: '^(?:(?P<file>[^:\s]+):(?P<line>\d+)(?:\.[\d.-]+)?: )?ERROR: (?P<message>.*)'
+    severity: error
+    fallback: true

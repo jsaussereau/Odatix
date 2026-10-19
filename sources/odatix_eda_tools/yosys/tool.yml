@@ -1,0 +1,64 @@
+##################################################
+# Settings for Yosys (RTL Analysis)
+##################################################
+
+# Display metadata (used by the GUI tool selection page)
+label: "Yosys"
+description: "Open Source Yosys RTL analysis"
+
+process_group: True
+
+# No metrics file: an RTL analysis reports a status, errors and warnings, not
+# metrics read from reports.
+
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: lint
+
+# Yosys reads the design, elaborates it from its top level and checks the logic
+# it makes of it (see _common/rtl_analysis.py). The same script runs everywhere:
+# it needs yosys in the PATH, nothing else.
+unix:
+
+  # Check if Yosys is installed
+  tool_test_command: '"$python" "$eda_tools_path/_common/rtl_analysis.py" yosys --version'
+
+  # RTL Analysis
+  analysis_command:
+    - cd "$work_path" &&
+    - '"$python" "$eda_tools_path/_common/rtl_analysis.py" yosys'
+
+windows:
+
+  tool_test_command: '"$python" "$eda_tools_path/_common/rtl_analysis.py" yosys --version'
+
+  analysis_command:
+    - cd /d "$work_path" &&
+    - '"$python" "$eda_tools_path/_common/rtl_analysis.py" yosys'
+
+##############################################
+# Flows
+##############################################
+# Different ways of running the same job type with this tool. The commands
+# declared in the platform sections above are those of the default flow.
+
+flows:
+  lint:
+    label: "Lint"
+    description: "Yosys elaboration and logic check"
+
+# Log formatting
+format:
+
+  logs:
+    error:         ['<error>', 'ERROR:']
+    warning:       ['<warning>', 'Warning:']
+
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']

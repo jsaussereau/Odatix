@@ -152,7 +152,7 @@ few lines of YAML. See [Analysis definitions](/docs/reference/analysis/).
 Whether a tool supports analysis is a property of the tool: a
 [`tool.yml`](/docs/reference/tools/) supports it when it declares an
 `analysis_command`. Vivado, Quartus, Genus, Design Compiler, Verilator, Icarus
-Verilog and LibreLane all do.
+Verilog, Yosys and LibreLane all do.
 
 An analysis targets no device and no technology: Design Compiler and Genus
 elaborate the design into generic cells, so no PDK and no
