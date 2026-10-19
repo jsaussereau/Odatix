@@ -20,7 +20,7 @@ ASSETS = os.path.join(ODATIX, "gui", "assets")
 
 
 def read(*parts):
-    with open(os.path.join(*parts), "r") as f:
+    with open(os.path.join(*parts), "r", encoding="utf-8") as f:
         return f.read()
 
 

@@ -22,7 +22,7 @@ SIMULATORS = {"ghdl": "ghdl", "verilator": "verilator", "questa": "vsim", "xsim"
 
 
 def example_source(path):
-    with open(os.path.join(EXAMPLES_DIR, "examples", path)) as f:
+    with open(os.path.join(EXAMPLES_DIR, "examples", path), encoding="utf-8") as f:
         return f.read()
 
 
@@ -140,12 +140,12 @@ def generated(work_dir, language, rtl, top, **testbench):
     """Write a design into a work directory, and generate its testbench."""
     path = os.path.join(str(work_dir), "rtl", "top." + ("vhd" if language == "vhdl" else "sv"))
     os.makedirs(os.path.dirname(path))
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(textwrap.dedent(rtl))
     info = design_info.build_info(str(work_dir), top=top, clock="clk", reset="rst_n", testbench=testbench)
     assert info["testbench"]["generated"]
     filename, tb_top, tb_language = testbench_gen.write(info, str(work_dir))
-    with open(os.path.join(str(work_dir), filename)) as f:
+    with open(os.path.join(str(work_dir), filename), encoding="utf-8") as f:
         return f.read(), info
 
 
@@ -212,9 +212,9 @@ class TestGeneration:
 
 def without_testbench(workspace, architecture):
     path = workspace / "odatix_userconfig" / "architectures" / architecture / "_settings.yml"
-    data = yaml.safe_load(path.read_text())
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     data.pop("testbench", None)
-    path.write_text(yaml.dump(data))
+    path.write_text(yaml.dump(data), encoding="utf-8")
 
 
 def run_job(workspace, simulation, architecture):
@@ -225,7 +225,7 @@ def run_job(workspace, simulation, architecture):
         job.command, shell=True, cwd=job.directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         universal_newlines=True,
     )
-    with open(os.path.join(job.directory, "sim_report.yml")) as f:
+    with open(os.path.join(job.directory, "sim_report.yml"), encoding="utf-8") as f:
         return completed, yaml.safe_load(f), job.directory
 
 
@@ -258,7 +258,7 @@ class TestRuns:
         assert report["status"] == "passed"
         assert report["cycles"] == 1000
         assert os.path.getsize(os.path.join(work, "odatix_sim.vcd")) > 0
-        with open(os.path.join(work, "odatix_sim.yml")) as f:
+        with open(os.path.join(work, "odatix_sim.yml"), encoding="utf-8") as f:
             info = yaml.safe_load(f)
         assert info["testbench"]["top"] == "odatix_tb" and info["testbench"]["generated"]
 
@@ -266,9 +266,9 @@ class TestRuns:
     def test_the_architecture_says_how_many_cycles(self, example_workspace):
         needs("icarus")
         path = example_workspace / "odatix_userconfig" / "architectures" / "Example_Counter_sv" / "_settings.yml"
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
         data["testbench"] = {"cycles": 50, "waves": False}
-        path.write_text(yaml.dump(data))
+        path.write_text(yaml.dump(data), encoding="utf-8")
         completed, report, work = run_job(example_workspace, "icarus", "Example_Counter_sv/08bits")
         assert completed.returncode == 0, completed.stdout[-3000:]
         assert report["cycles"] == 50

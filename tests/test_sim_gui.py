@@ -15,7 +15,7 @@ pytest.importorskip("dash_svg")
 import odatix.sim.templates as sim_templates
 from odatix.run import Run
 from odatix.workspace import Workspace
-from sim_fixtures import fake_simulators  # noqa: F401 (fixture)
+from sim_fixtures import fake_program, fake_simulators, write_fake_program  # noqa: F401 (fixture)
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ class TestApi:
         simulation = ws.simulations.create(
             "TB_new", template="questa", testbench={"parameters": {"WIDTH": "${width}"}},
         )
-        written = yaml.safe_load(open(simulation.settings_path).read())
+        written = yaml.safe_load(open(simulation.settings_path, encoding="utf-8").read())
         assert written == {"template": "questa", "testbench": {"parameters": {"WIDTH": "${width}"}}}
         plan = Run(ws, "simulation", simulations=["TB_new"], architectures=["Example_Cordic_vhdl + iterations/12 + width/8"]).check()
         assert [entry["category"] for entry in plan.entries] == ["new"]
@@ -43,7 +43,7 @@ class TestApi:
         simulation = Workspace.open().simulations.create("TB_new", tasks=[{"name": "main", "commands": ["true"]}])
         simulation.metrics.set("cycles", {"type": "yaml", "settings": {"file": "r.yml", "key": "c"}})
         simulation.metrics.save()
-        assert "cycles" in yaml.safe_load(open(simulation.metrics_path).read())["metrics"]
+        assert "cycles" in yaml.safe_load(open(simulation.metrics_path, encoding="utf-8").read())["metrics"]
 
     def test_the_templates_are_listed_apart_from_the_simulations(self, example_workspace):
         simulations = Workspace.open().simulations
@@ -202,8 +202,8 @@ class TestToolsPage:
 
     def test_the_badge_says_whether_it_is_installed(self, tools, fake_simulators):
         assert tools.check_simulator("ghdl") == ("installed", "odx-badge success")
-        (fake_simulators / "ghdl").write_text("#!/bin/sh\nexit 1\n")
+        write_fake_program(fake_simulators, "ghdl", exit_code=1)
         assert tools.check_simulator("ghdl") == ("not installed", "odx-badge caution")
         os.environ["PATH"] = str(fake_simulators)
-        (fake_simulators / "ghdl").unlink()
+        fake_program(fake_simulators, "ghdl").unlink()
         assert tools.check_simulator("ghdl") == ("not installed", "odx-badge caution")

@@ -179,7 +179,7 @@ def _is_completed(job_dir):
     if not os.path.isfile(status_file):
       continue
     try:
-      with open(status_file, "r") as f:
+      with open(status_file, "r", encoding="utf-8") as f:
         if hard_settings.valid_status in f.read():
           return True
     except OSError:

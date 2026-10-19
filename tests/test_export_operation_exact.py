@@ -5,7 +5,7 @@ from odatix.components.export_common import exact_value
 
 
 def _extract(tmp_path, metrics):
-    (tmp_path / "report.txt").write_text("power 0.0004\nluts 12\nregs 30\n")
+    (tmp_path / "report.txt").write_text("power 0.0004\nluts 12\nregs 30\n", encoding="utf-8")
     export_results._reset_banned_lists()
     results, _units, _measured = export_results.extract_metrics(
         {"metrics": metrics}, str(tmp_path / "metrics.yml"), str(tmp_path), "arch", str(tmp_path),

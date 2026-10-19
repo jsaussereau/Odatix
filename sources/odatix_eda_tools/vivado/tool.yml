@@ -164,34 +164,92 @@ unix:
 
 
 windows:
+  # Same commands as the "unix" section, run by cmd.exe
   constants:
     - &vivado_windows vivado.bat
     - &vivado_opt_windows -mode tcl -notrace
+    - &vivado_fmax_opt_windows -log $log_path\fmax_synthesis.log
+    - &vivado_custom_freq_opt_windows -log $log_path\$first_step.log
+    - &vivado_analyze_opt_windows -log $log_path\analysis.log
     - &source_init_script_windows -source $script_path\init_script.tcl
     - &source_analyze_script_windows -source $script_path\analyze_script.tcl
-    - &source_synth_script_windows -source $script_path\synth_script.tcl
-    - &source_synth_freq_script_windows -source $script_path\find_fmax.tcl
+    - &source_elaborate_script_windows -source $script_path\elaborate_script.tcl
     - &source_exit_script_windows -source $script_path\exit.tcl
+    - &vivado_pnr_opt_windows -log $log_path\pnr.log
+    - &vivado_bitstream_opt_windows -log $log_path\bitstream.log
+    - &source_step_elaboration_windows -source $script_path\step_elaboration.tcl
+    - &source_step_synthesis_windows -source $script_path\step_synthesis.tcl
+    - &source_step_pnr_windows -source $script_path\step_pnr.tcl
+    - &source_step_bitstream_windows -source $script_path\step_bitstream.tcl
+    - &source_step_fmax_synthesis_windows -source $script_path\step_fmax_synthesis.tcl
+    - &source_step_fmax_pnr_windows -source $script_path\step_fmax_pnr.tcl
+    - &source_step_fmax_bitstream_windows -source $script_path\step_fmax_bitstream.tcl
 
-  tool_test_command: 
+  # "vivado.bat -version" exits with -1 under Windows, so a script is sourced
+  # instead (and it leaves no log behind)
+  tool_test_command:
     - *vivado_windows
-    - -mode tcl -source 
-    - $eda_tools_path\_common\exit.tcl
+    - -mode tcl -notrace -nolog -nojournal
+    - -source $eda_tools_path\_common\exit.tcl
 
-  fmax_synthesis_command:
+  fmax_synthesis_steps:
+    - name: synthesis
+      command:
+        - *vivado_windows
+        - *vivado_opt_windows
+        - *vivado_fmax_opt_windows
+        - *source_step_fmax_synthesis_windows
+        - *source_exit_script_windows
+    - name: pnr
+      default: true
+      command:
+        - *vivado_windows
+        - *vivado_opt_windows
+        - *vivado_pnr_opt_windows
+        - *source_step_fmax_pnr_windows
+        - *source_exit_script_windows
+    - name: bitstream
+      command:
+        - *vivado_windows
+        - *vivado_opt_windows
+        - *vivado_bitstream_opt_windows
+        - *source_step_fmax_bitstream_windows
+        - *source_exit_script_windows
+
+  custom_freq_synthesis_session:
+    command:
+      - *vivado_windows
+      - *vivado_opt_windows
+      - *vivado_custom_freq_opt_windows
+    end:
+      - *source_exit_script_windows
+
+  custom_freq_synthesis_steps:
+    - name: elaboration
+      args:
+        - *source_init_script_windows
+        - *source_analyze_script_windows
+        - *source_step_elaboration_windows
+    - name: synthesis
+      args:
+        - *source_init_script_windows
+        - *source_analyze_script_windows
+        - *source_step_synthesis_windows
+    - name: pnr
+      default: true
+      args:
+        - *source_step_pnr_windows
+    - name: bitstream
+      args:
+        - *source_step_bitstream_windows
+
+  analysis_command:
     - *vivado_windows
     - *vivado_opt_windows
+    - *vivado_analyze_opt_windows
     - *source_init_script_windows
     - *source_analyze_script_windows
-    - *source_synth_freq_script_windows
-    - *source_exit_script_windows
-
-  custom_freq_synthesis_command:
-    - *vivado_windows
-    - *vivado_opt_windows
-    - *source_init_script_windows
-    - *source_analyze_script_windows
-    - *source_synth_script_windows
+    - *source_elaborate_script_windows
     - *source_exit_script_windows
 
 ##############################################

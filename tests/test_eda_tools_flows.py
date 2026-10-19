@@ -32,6 +32,7 @@ directory naming, and the merge that lets a user tool.yml add a flow to a
 built-in tool without copying its whole definition.
 """
 
+import os
 import textwrap
 
 import pytest
@@ -48,14 +49,14 @@ def user_tools_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(OdatixSettings, "user_tools_path", str(tools_dir))
     # Flows are resolved for the current platform: keep the tests on the "unix"
     # section whatever the platform running them.
-    monkeypatch.setattr(eda_tools, "platform_key", lambda: "unix")
+    monkeypatch.setattr(eda_tools, "platform_key", lambda *args, **kwargs: "unix")
     return tools_dir
 
 
 def write_tool(tools_dir, name, content):
     tool_dir = tools_dir / name
     tool_dir.mkdir(parents=True, exist_ok=True)
-    (tool_dir / "tool.yml").write_text(textwrap.dedent(content))
+    (tool_dir / "tool.yml").write_text(textwrap.dedent(content), encoding="utf-8")
     return tool_dir
 
 
@@ -501,7 +502,7 @@ class TestMetricsFileResolution:
         )
         metrics_file = export_results.resolve_metrics_file("vivado", flow="gate_level_sim")
         assert metrics_file is not None
-        assert metrics_file.endswith("vivado/metrics.yml")
+        assert metrics_file.endswith(os.path.join("vivado", "metrics.yml"))
 
     def test_a_flow_can_ship_its_own_metrics_file(self, user_tools_dir, tmp_path):
         import odatix.components.export_results as export_results
@@ -517,7 +518,7 @@ class TestMetricsFileResolution:
                   custom_freq_synthesis_command: my_custom_command
             """,
         )
-        (tool_dir / "gate_level_metrics.yml").write_text("metrics: {}\n")
+        (tool_dir / "gate_level_metrics.yml").write_text("metrics: {}\n", encoding="utf-8")
 
         # "$tool_path" resolves against the directory shipping the file, even
         # though the tool is also defined in the built-in directory.
@@ -525,7 +526,7 @@ class TestMetricsFileResolution:
         assert metrics_file == str(tool_dir / "gate_level_metrics.yml")
 
         # The other flows keep the built-in metrics file.
-        assert export_results.resolve_metrics_file("vivado", flow="standard").endswith("vivado/metrics.yml")
+        assert export_results.resolve_metrics_file("vivado", flow="standard").endswith(os.path.join("vivado", "metrics.yml"))
 
 
 class TestFlowSteps:
@@ -853,7 +854,7 @@ class TestToolInheritance:
         assert eda_tools.get_tool_dirs("derived") == [
             str(user_tools_dir / "base"), str(user_tools_dir / "derived")
         ]
-        assert eda_tools.get_format_settings_file("derived").endswith("base/tool.yml")
+        assert eda_tools.get_format_settings_file("derived").endswith(os.path.join("base", "tool.yml"))
 
     def test_a_cycle_stops_the_lineage(self, user_tools_dir):
         write_tool(user_tools_dir, "a", "extends: b\n")

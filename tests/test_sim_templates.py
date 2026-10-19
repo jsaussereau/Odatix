@@ -17,7 +17,7 @@ import odatix.sim.templates as sim_templates
 from odatix.sim.runner import SimRunner
 from odatix.run import Run, RunError
 from odatix.workspace import Workspace
-from sim_fixtures import fake_simulators  # noqa: F401 (fixture)
+from sim_fixtures import fake_program, fake_simulators  # noqa: F401 (fixture)
 
 SIMULATORS = {
     "ghdl": "ghdl",
@@ -31,7 +31,7 @@ SIMULATORS = {
 def write(root, relpath, text):
     path = os.path.join(str(root), relpath)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(textwrap.dedent(text))
     return path
 
@@ -124,13 +124,13 @@ def sim_dir(tmp_path, monkeypatch):
             "top": "tb", "files": ["tb/tb.sv"], "languages": ["sv"], "parameters": {"W": "8"}, "include_dirs": ["tb"],
         },
     }
-    (tmp_path / "odatix_sim.yml").write_text(yaml.dump(info))
+    (tmp_path / "odatix_sim.yml").write_text(yaml.dump(info), encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
 
 def report(directory):
-    with open(os.path.join(str(directory), "sim_report.yml")) as f:
+    with open(os.path.join(str(directory), "sim_report.yml"), encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -174,7 +174,7 @@ class TestRunner:
         assert result["simulation_time"] >= 0.2 > result["elaboration_time"]
         assert result["cycles_per_second"] > 0
         assert os.path.isfile(str(sim_dir / "log" / "build.log"))
-        assert (sim_dir / "log" / "progress.log").read_text().strip() == "progress: 100%"
+        assert (sim_dir / "log" / "progress.log").read_text(encoding="utf-8").strip() == "progress: 100%"
 
     def test_an_error_message_fails_it(self, sim_dir):
         sim = SimRunner("x")
@@ -199,7 +199,7 @@ class TestRunner:
                 if name in needs and not os.path.exists(needs[name] + ".done"):
                     print("Error: " + name + " needs " + needs[name])
                     sys.exit(1)
-                open(name + ".done", "w").close()
+                open(name + ".done", "w", encoding="utf-8").close()
         """)
         sim = SimRunner("x")
         sim.compile(["a", "b", "c"], lambda files: compiler + files)
@@ -236,7 +236,7 @@ def template_simulation(workspace, name, template, testbench):
             "parameters": {"WIDTH": "${width}", "ITERATIONS": "${iterations}"},
         },
     }
-    (sims / name / "_settings.yml").write_text(yaml.dump(settings))
+    (sims / name / "_settings.yml").write_text(yaml.dump(settings), encoding="utf-8")
 
 
 def plan_names(plan, category):
@@ -250,15 +250,15 @@ def prepared_info(workspace, simulation, architecture):
         root for root, _dirs, files in os.walk(str(workspace / "work" / "simulations" / simulation))
         if "odatix_sim.yml" in files
     )
-    with open(os.path.join(work, "odatix_sim.yml")) as f:
+    with open(os.path.join(work, "odatix_sim.yml"), encoding="utf-8") as f:
         return work, yaml.safe_load(f)
 
 
 def set_architecture_testbench(workspace, architecture, testbench):
     path = workspace / "odatix_userconfig" / "architectures" / architecture / "_settings.yml"
-    data = yaml.safe_load(path.read_text())
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     data["testbench"] = testbench
-    path.write_text(yaml.dump(data))
+    path.write_text(yaml.dump(data), encoding="utf-8")
 
 
 CORDIC = "Example_Cordic_{} + iterations/12 + width/8"
@@ -283,7 +283,7 @@ class TestRuns:
         assert "cannot compile vhdl, the language of the testbench" in str(error.value)
 
     def test_a_simulator_that_is_not_installed_is_refused_at_check(self, example_workspace, fake_simulators):
-        (fake_simulators / "vsim").unlink()
+        fake_program(fake_simulators, "vsim").unlink()
         os.environ["PATH"] = str(fake_simulators)
         run = Run(Workspace.open(), "simulation", simulations=["questa", "ghdl"], architectures=[CORDIC.format("vhdl")])
         plan = run.check()
@@ -298,13 +298,13 @@ class TestRuns:
     def test_the_work_directory_gets_the_template_then_the_simulation(self, example_workspace, fake_simulators):
         template_simulation(example_workspace, "TB_mine", "questa", "tb_cordic.sv")
         sims = example_workspace / "odatix_userconfig" / "simulations"
-        (sims / "TB_mine" / "run.py").write_text("# mine\n")
-        (sims / "TB_mine" / "_metrics.yml").write_text("metrics: {}\n")
+        (sims / "TB_mine" / "run.py").write_text("# mine\n", encoding="utf-8")
+        (sims / "TB_mine" / "_metrics.yml").write_text("metrics: {}\n", encoding="utf-8")
 
         work, info = prepared_info(example_workspace, "TB_mine", CORDIC.format("sv"))
-        assert open(os.path.join(work, "run.py")).read() == "# mine\n"
+        assert open(os.path.join(work, "run.py"), encoding="utf-8").read() == "# mine\n"
         assert info["testbench"]["parameters"] == {"WIDTH": "8", "ITERATIONS": "12"}
-        with open(os.path.join(work, "sim_meta.yml")) as f:
+        with open(os.path.join(work, "sim_meta.yml"), encoding="utf-8") as f:
             meta = yaml.safe_load(f)
         assert [os.path.basename(os.path.dirname(path)) for path in meta["metrics_files"]] == ["questa", "TB_mine"]
 
@@ -331,8 +331,8 @@ class TestTestbench:
     def test_the_tb_directory_comes_last(self, example_workspace, fake_simulators):
         sims = example_workspace / "odatix_userconfig" / "simulations"
         (sims / "TB_dir" / "tb").mkdir(parents=True)
-        (sims / "TB_dir" / "tb" / "tb_other.sv").write_text("module tb_other; endmodule\n")
-        (sims / "TB_dir" / "_settings.yml").write_text("template: questa\n")
+        (sims / "TB_dir" / "tb" / "tb_other.sv").write_text("module tb_other; endmodule\n", encoding="utf-8")
+        (sims / "TB_dir" / "_settings.yml").write_text("template: questa\n", encoding="utf-8")
 
         _work, info = prepared_info(example_workspace, "TB_dir", CORDIC.format("vhdl"))
         assert info["testbench"]["files"] == ["testbench/tb_cordic.vhdl"]
@@ -346,9 +346,9 @@ class TestTestbench:
     def test_the_layout_of_the_files_is_kept(self, example_workspace, fake_simulators):
         bench = example_workspace / "bench"
         (bench / "inc").mkdir(parents=True)
-        (bench / "tb_cordic.sv").write_text('`include "defs.svh"\nmodule tb_cordic; endmodule\n')
-        (bench / "inc" / "defs.svh").write_text("`define X 1\n")
-        (bench / "inc" / "helper.sv").write_text("module helper; endmodule\n")
+        (bench / "tb_cordic.sv").write_text('`include "defs.svh"\nmodule tb_cordic; endmodule\n', encoding="utf-8")
+        (bench / "inc" / "defs.svh").write_text("`define X 1\n", encoding="utf-8")
+        (bench / "inc" / "helper.sv").write_text("module helper; endmodule\n", encoding="utf-8")
         set_architecture_testbench(example_workspace, "Example_Cordic_sv", {"files": ["bench/*.sv", "bench/inc/*"]})
 
         work, info = prepared_info(example_workspace, "questa", CORDIC.format("sv"))

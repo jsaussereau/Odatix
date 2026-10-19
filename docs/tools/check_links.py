@@ -13,6 +13,7 @@ Exits with 1 and lists the broken links when there are any.
 """
 
 import os
+import posixpath
 import sys
 from html.parser import HTMLParser
 from urllib.parse import unquote, urlsplit
@@ -96,7 +97,8 @@ def check(public):
                 if parts.path.startswith("/"):
                     url_path = parts.path
                 else:
-                    url_path = os.path.normpath(os.path.join(page_url, parts.path))
+                    # A URL, not a file: "/" separators whatever the system
+                    url_path = posixpath.normpath(posixpath.join(page_url, parts.path))
                     if parts.path.endswith("/"):
                         url_path += "/"
                 if url_path.startswith(IGNORED_PREFIXES):

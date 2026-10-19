@@ -25,7 +25,7 @@ class TestClean:
 
     def test_a_pattern_matching_nothing_is_a_note_in_verbose_mode(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(str(tmp_path))
-        (tmp_path / "profile.yml").write_text("remove_list:\n  - ./nothing_here\n")
+        (tmp_path / "profile.yml").write_text("remove_list:\n  - ./nothing_here\n", encoding="utf-8")
         assert clean.main(_clean_args(settings_file="profile.yml", verbose=True), settings=_Settings()) is True
         out = capsys.readouterr().out
         assert "warning" not in out
@@ -33,7 +33,7 @@ class TestClean:
 
     def test_it_says_nothing_of_it_otherwise(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(str(tmp_path))
-        (tmp_path / "profile.yml").write_text("remove_list:\n  - ./nothing_here\n")
+        (tmp_path / "profile.yml").write_text("remove_list:\n  - ./nothing_here\n", encoding="utf-8")
         clean.main(_clean_args(settings_file="profile.yml"), settings=_Settings())
         assert "nothing_here" not in capsys.readouterr().out
 
@@ -54,9 +54,9 @@ class TestSettingsMessages:
 class TestReplace:
     def test_the_failure_message_quotes_the_pattern(self, tmp_path, capsys):
         base = tmp_path / "input.v"
-        base.write_text("nothing to see\n")
+        base.write_text("nothing to see\n", encoding="utf-8")
         replacement = tmp_path / "params.txt"
-        replacement.write_text("x\n")
+        replacement.write_text("x\n", encoding="utf-8")
         found = replace_params.replace_params(
             base_text_file=str(base), replacement_text_file=str(replacement), output_file=str(tmp_path / "out.v"),
             start_delimiter="// <nomatch>", stop_delimiter="// </end>",

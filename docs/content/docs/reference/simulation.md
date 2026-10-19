@@ -37,7 +37,8 @@ from, or which a run can name directly.
 Task entries take exactly the same keys as a
 [workflow's](/docs/reference/workflow/#task-entries): `name`, `commands`,
 `on_failure_commands`, `dependencies`, `path`, `platforms`. Execution always starts at the task named
-**`main`**.
+**`main`**. On Windows, a simulation run in [WSL](/docs/reference/workspace/#wsl-windows)
+runs the implementation of its tasks for `linux`.
 
 {{< code lang=yaml filename="_settings.yml" >}}
 tasks:

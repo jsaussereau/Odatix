@@ -130,7 +130,7 @@ class TestArchitectureResolution:
         for existing in arch_dir.glob("*.txt"):
             existing.unlink()
         settings = arch_dir / "_settings.yml"
-        settings.write_text(settings.read_text() + textwrap.dedent(
+        settings.write_text(settings.read_text(encoding="utf-8") + textwrap.dedent(
             """
 
             configurations:
@@ -177,10 +177,10 @@ class TestArchitectureResolution:
     ])
     def test_a_name_absent_from_the_top_level_file_is_rejected(self, example_workspace, capsys, key, kind):
         settings = example_workspace / "odatix_userconfig" / "architectures" / "Example_Counter_verilog" / "_settings.yml"
-        text = settings.read_text()
+        text = settings.read_text(encoding="utf-8")
         start = text.index(key + ":")
         line = text[start:text.index("\n", start)]
-        settings.write_text(text.replace(line, key + ': "no_such_name"'))
+        settings.write_text(text.replace(line, key + ': "no_such_name"'), encoding="utf-8")
 
         handler = make_arch_handler()
         instances = handler.get_architectures(
@@ -194,10 +194,10 @@ class TestArchitectureResolution:
         from odatix.lib.run_report import Category
 
         settings = example_workspace / "odatix_userconfig" / "architectures" / "Example_Counter_verilog" / "_settings.yml"
-        text = settings.read_text()
+        text = settings.read_text(encoding="utf-8")
         start = text.index("start_delimiter:")
         line = text[start:text.index("\n", start)]
-        settings.write_text(text.replace(line, "start_delimiter: " + value))
+        settings.write_text(text.replace(line, "start_delimiter: " + value), encoding="utf-8")
 
         handler = make_arch_handler()
         instances = handler.get_architectures(
@@ -328,7 +328,7 @@ class TestMissingDesignPath:
         # The packaged example only has the chisel (generate_rtl / design_path)
         # simulation commented out: enable it in a dedicated settings file.
         settings_path = "odatix_userconfig/tmp_simulations_settings.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\n"
                 "ask_continue: No\n"
@@ -571,7 +571,7 @@ class TestSessionAbortsWhenAllJobsFail:
         import odatix.components.run_simulations as run_simulations
 
         settings_path = "odatix_userconfig/tmp_simulations_settings_abort.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\n"
                 "ask_continue: No\n"
@@ -653,7 +653,7 @@ class TestSimulationResolution:
 
     def test_tasks_and_progress_are_read_from_the_settings_file(self, example_workspace):
         os.makedirs("odatix_userconfig/simulations/TB_Tasks", exist_ok=True)
-        with open("odatix_userconfig/simulations/TB_Tasks/_settings.yml", "w") as f:
+        with open("odatix_userconfig/simulations/TB_Tasks/_settings.yml", "w", encoding="utf-8") as f:
             f.write(
                 "use_parameters: No\n"
                 "progress:\n"
@@ -677,7 +677,7 @@ class TestSimulationResolution:
 
     def test_a_simulation_without_task_nor_makefile_is_rejected(self, example_workspace):
         os.makedirs("odatix_userconfig/simulations/TB_Empty", exist_ok=True)
-        with open("odatix_userconfig/simulations/TB_Empty/_settings.yml", "w") as f:
+        with open("odatix_userconfig/simulations/TB_Empty/_settings.yml", "w", encoding="utf-8") as f:
             f.write("use_parameters: No\n")
         handler = self.make_sim_handler()
         assert handler.get_simulations([{"TB_Empty": ["Example_Counter_verilog/04bits"]}]) == []
@@ -693,7 +693,7 @@ class TestSimulationCommand:
         import odatix.lib.simulation_handler as simulation_handler
 
         os.makedirs("odatix_userconfig/simulations/" + sim_name, exist_ok=True)
-        with open("odatix_userconfig/simulations/" + sim_name + "/_settings.yml", "w") as f:
+        with open("odatix_userconfig/simulations/" + sim_name + "/_settings.yml", "w", encoding="utf-8") as f:
             f.write(settings)
         handler = simulation_handler.SimulationHandler(
             work_path="work/simulations",

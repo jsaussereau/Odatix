@@ -474,7 +474,7 @@ def _read_archive(path):
     if cached is not None and cached[0] == modified:
         return cached[1]
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             content = yaml_loader.safe_load(f) or {}
     except Exception:
         return None

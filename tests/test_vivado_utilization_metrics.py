@@ -34,13 +34,13 @@ OLD_REPORT = """\
 
 def metrics():
     path = os.path.join(SOURCES_DIR, "odatix_eda_tools", "vivado", "metrics.yml")
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)["metrics"]
 
 
 def read(tmp_path, text, name):
     report = tmp_path / "utilization.rep"
-    report.write_text(text)
+    report.write_text(text, encoding="utf-8")
     settings = metrics()[name]["settings"]
     return parse_regex(str(report), settings["pattern"], settings["group_id"])
 

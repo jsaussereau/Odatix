@@ -58,7 +58,7 @@ class TestWriteThrough:
         assert len(records) == 1
 
     def test_an_unparsable_file_starts_over(self, results_path):
-        with open(results_path, "w") as file:
+        with open(results_path, "w", encoding="utf-8") as file:
             file.write("results: [oops\n")
         assert cache.load(results_path) == ({}, [])
 

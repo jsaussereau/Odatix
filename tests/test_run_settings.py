@@ -32,7 +32,7 @@ architectures:
 class TestGetSynthSettings:
     def test_full_file(self, tmp_path):
         f = tmp_path / "s.yml"
-        f.write_text(SYNTH_YAML + "exit_when_done: true\nlog_size_limit: 50\n")
+        f.write_text(SYNTH_YAML + "exit_when_done: true\nlog_size_limit: 50\n", encoding="utf-8")
         overwrite, ask, exit_done, log_limit, jobs, archs = get_synth_settings(str(f))
         assert overwrite is False
         assert ask is True
@@ -43,14 +43,14 @@ class TestGetSynthSettings:
 
     def test_optional_keys_default(self, tmp_path):
         f = tmp_path / "s.yml"
-        f.write_text(SYNTH_YAML)
+        f.write_text(SYNTH_YAML, encoding="utf-8")
         _, _, exit_done, log_limit, _, _ = get_synth_settings(str(f))
         assert exit_done == DEFAULT_EXIT_WHEN_DONE
         assert log_limit == DEFAULT_LOG_SIZE_LIMIT
 
     def test_missing_mandatory_key_exits(self, tmp_path):
         f = tmp_path / "s.yml"
-        f.write_text("overwrite: false\n")
+        f.write_text("overwrite: false\n", encoding="utf-8")
         with pytest.raises(SystemExit):
             get_synth_settings(str(f))
 
@@ -64,7 +64,7 @@ class TestGetSynthSettings:
 
     def test_bad_type_exits(self, tmp_path):
         f = tmp_path / "s.yml"
-        f.write_text("overwrite: 12\nask_continue: true\nnb_jobs: 1\narchitectures: []\n")
+        f.write_text("overwrite: 12\nask_continue: true\nnb_jobs: 1\narchitectures: []\n", encoding="utf-8")
         with pytest.raises(SystemExit):
             get_synth_settings(str(f))
 
@@ -72,7 +72,7 @@ class TestGetSynthSettings:
 class TestGetSimAndWorkflowSettings:
     def test_sim_settings(self, tmp_path):
         f = tmp_path / "s.yml"
-        f.write_text("overwrite: true\nask_continue: false\nnb_jobs: 2\nsimulations: [sim1]\n")
+        f.write_text("overwrite: true\nask_continue: false\nnb_jobs: 2\nsimulations: [sim1]\n", encoding="utf-8")
         overwrite, ask, _, _, jobs, sims = get_sim_settings(str(f))
         assert overwrite is True
         assert jobs == 2
@@ -80,7 +80,7 @@ class TestGetSimAndWorkflowSettings:
 
     def test_workflow_settings(self, tmp_path):
         f = tmp_path / "s.yml"
-        f.write_text("overwrite: false\nask_continue: false\nnb_jobs: 8\nworkflows: [wf1, wf2]\n")
+        f.write_text("overwrite: false\nask_continue: false\nnb_jobs: 8\nworkflows: [wf1, wf2]\n", encoding="utf-8")
         _, _, _, _, jobs, workflows = get_workflow_settings(str(f))
         assert jobs == 8
         assert workflows == ["wf1", "wf2"]
@@ -107,12 +107,12 @@ class TestOdatixSettings:
 
     def test_get_settings_file_dict_empty_file(self, tmp_path):
         f = tmp_path / "odatix.yml"
-        f.write_text("")
+        f.write_text("", encoding="utf-8")
         assert OdatixSettings.get_settings_file_dict(str(f)) == {}
 
     def test_get_settings_file_dict_not_a_mapping(self, tmp_path):
         f = tmp_path / "odatix.yml"
-        f.write_text("- a\n- b\n")
+        f.write_text("- a\n- b\n", encoding="utf-8")
         assert OdatixSettings.get_settings_file_dict(str(f)) is None
 
     def test_to_dict_holds_every_path_setting(self, example_workspace):
@@ -195,30 +195,30 @@ my_own_key: [1, 2]  # a key Odatix does not know
 class TestSaveWorkspaceSettings:
     def write(self, tmp_path, text=FULL_SETTINGS_FILE):
         path = tmp_path / "odatix.yml"
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         return str(path)
 
     def test_a_save_that_changes_nothing_leaves_the_file_identical(self, tmp_path):
         path = self.write(tmp_path)
         OdatixSettings.save_dict_to_file({}, path)
-        assert open(path).read() == FULL_SETTINGS_FILE
+        assert open(path, encoding="utf-8").read() == FULL_SETTINGS_FILE
 
     def test_saving_what_the_gui_holds_leaves_the_file_identical(self, tmp_path, monkeypatch):
         # The GUI saves every field of its form, resolved values included.
         path = self.write(tmp_path)
         monkeypatch.chdir(str(tmp_path))
         OdatixSettings.save_dict_to_file(OdatixSettings(silent=True).to_dict(), path)
-        assert open(path).read() == FULL_SETTINGS_FILE
+        assert open(path, encoding="utf-8").read() == FULL_SETTINGS_FILE
 
     def test_only_the_changed_key_moves(self, tmp_path):
         path = self.write(tmp_path)
         OdatixSettings.save_dict_to_file({"sim_path": "other_sims"}, path)
-        assert open(path).read() == FULL_SETTINGS_FILE.replace("sim_path: sims", "sim_path: other_sims")
+        assert open(path, encoding="utf-8").read() == FULL_SETTINGS_FILE.replace("sim_path: sims", "sim_path: other_sims")
 
     def test_an_empty_setting_is_removed_so_that_the_default_applies(self, tmp_path):
         path = self.write(tmp_path)
         OdatixSettings.save_dict_to_file({"tools_path": "", "work_path": None}, path)
-        text = open(path).read()
+        text = open(path, encoding="utf-8").read()
         assert "tools_path" not in text
         assert "work_path: w\n" not in text
         assert "my_own_key: [1, 2]  # a key Odatix does not know" in text
@@ -227,7 +227,7 @@ class TestSaveWorkspaceSettings:
     def test_a_new_file_is_generated_with_its_sections(self, tmp_path):
         path = str(tmp_path / "odatix.yml")
         OdatixSettings.save_dict_to_file({"arch_path": "archs", "work_path": "", "result_path": "res"}, path)
-        text = open(path).read()
+        text = open(path, encoding="utf-8").read()
         assert "# Odatix Workspace Settings" in text
         assert "workspace: odatix" in text
         assert "# Main paths\narch_path: archs" in text
@@ -241,7 +241,7 @@ class TestSaveWorkspaceSettings:
         workspace = Workspace.open(str(tmp_path))
         workspace.save_settings(arch_path="new_archs")
         # The end-of-line comment follows its (longer) value by one column.
-        assert open(str(tmp_path / "odatix.yml")).read() == FULL_SETTINGS_FILE.replace(
+        assert open(str(tmp_path / "odatix.yml"), encoding="utf-8").read() == FULL_SETTINGS_FILE.replace(
             "arch_path: archs  #", "arch_path: new_archs #"
         )
         assert workspace.paths.arch_path == os.path.join(str(tmp_path), "new_archs")
@@ -257,7 +257,7 @@ class TestInitSettingsFile:
         from odatix.lib.settings import OdatixSettings
         from odatix.workspace.core import PATH_SETTINGS, WorkspaceSettings
 
-        with open(os.path.join(OdatixSettings.odatix_init_path, "odatix.yml")) as f:
+        with open(os.path.join(OdatixSettings.odatix_init_path, "odatix.yml"), encoding="utf-8") as f:
             text = f.read()
         defaults = dict((name, getattr(OdatixSettings, attribute)) for name, attribute in PATH_SETTINGS)
         for spec in WorkspaceSettings.specs():

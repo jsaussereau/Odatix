@@ -12,7 +12,7 @@ THEMES = os.path.join(ASSETS, "themes")
 
 
 def _read(*parts):
-    with open(os.path.join(*parts)) as f:
+    with open(os.path.join(*parts), encoding="utf-8") as f:
         return f.read()
 
 

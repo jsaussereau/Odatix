@@ -48,13 +48,13 @@ def width_space(name="${width}bits", template="parameter WIDTH = ${width};"):
 
 def write(directory, name, content):
     path = os.path.join(str(directory), name + ".txt")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
     return path
 
 
 def read(directory, name):
-    with open(os.path.join(str(directory), name + ".txt"), "r") as f:
+    with open(os.path.join(str(directory), name + ".txt"), "r", encoding="utf-8") as f:
         return f.read()
 
 
@@ -481,7 +481,7 @@ class TestManifest:
 
     def test_the_manifest_explains_itself(self, tmpdir):
         ConfigSet(str(tmpdir), width_space()).materialize()
-        with open(Manifest(str(tmpdir)).file) as f:
+        with open(Manifest(str(tmpdir)).file, encoding="utf-8") as f:
             content = f.read()
         assert "odatix generate" in content
         assert "Deleting it is safe" in content

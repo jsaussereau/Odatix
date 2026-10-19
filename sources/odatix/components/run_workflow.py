@@ -482,7 +482,7 @@ def check_settings(
             plan.add(workflow_display_name, Category.ERROR)
             continue
 
-        with open(workflow_settings_file, "r") as f:
+        with open(workflow_settings_file, "r", encoding="utf-8") as f:
             try:
                 workflow_settings = yaml.load(f, Loader=yaml_loader.SafeLoader)
             except Exception as e:
@@ -713,7 +713,7 @@ def check_settings(
         # Write run metadata to make post-processing/export robust.
         workflow_meta_file = os.path.join(workflow_instance.tmp_dir, WORKFLOW_META_FILENAME)
         try:
-            with open(workflow_meta_file, "w") as f:
+            with open(workflow_meta_file, "w", encoding="utf-8") as f:
                 yaml.dump(
                     {
                         "workflow_full": workflow_instance.workflow_full,

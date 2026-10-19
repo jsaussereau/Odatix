@@ -246,12 +246,12 @@ CORNERS = """\
 def write_architecture(root, name, settings, domains=None):
     path = os.path.join(str(root), name)
     os.makedirs(path, exist_ok=True)
-    with open(os.path.join(path, "_settings.yml"), "w") as f:
+    with open(os.path.join(path, "_settings.yml"), "w", encoding="utf-8") as f:
         f.write(textwrap.dedent(settings))
     for domain, content in (domains or {}).items():
         domain_path = os.path.join(path, domain)
         os.makedirs(domain_path, exist_ok=True)
-        with open(os.path.join(domain_path, "_settings.yml"), "w") as f:
+        with open(os.path.join(domain_path, "_settings.yml"), "w", encoding="utf-8") as f:
             f.write(textwrap.dedent(content))
     return path
 
@@ -262,7 +262,7 @@ def workspace_with(tmp_path, settings, domains=None):
     root = tmp_path / "odatix_userconfig" / "architectures"
     root.mkdir(parents=True, exist_ok=True)
     write_architecture(root, "Design", settings, domains=domains)
-    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
     return Workspace(str(tmp_path))
 
 
@@ -356,8 +356,8 @@ class TestSearchedSpace:
 """
         workspace = workspace_with(tmp_path, settings, {"topo": topologies})
         domain = tmp_path / "odatix_userconfig" / "architectures" / "Design" / "topo"
-        (domain / "P-EX1MA1.txt").write_text("stage = 1\n")
-        (domain / "P-EX2MA1.txt").write_text("stage = 2\n")
+        (domain / "P-EX1MA1.txt").write_text("stage = 1\n", encoding="utf-8")
+        (domain / "P-EX2MA1.txt").write_text("stage = 2\n", encoding="utf-8")
 
         architecture = workspace.architectures["Design"]
         space = ArchitectureSpace(

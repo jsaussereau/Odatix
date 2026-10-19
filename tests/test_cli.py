@@ -210,7 +210,7 @@ class TestAnalyzeCommand:
         import odatix.components.run_analysis as run_analysis
 
         settings = tmp_path / "analysis_settings.yml"
-        settings.write_text("tools:\n  - vivado\n  - design_compiler\n  - openlane\n")
+        settings.write_text("tools:\n  - vivado\n  - design_compiler\n  - openlane\n", encoding="utf-8")
         assert run_analysis.get_analysis_tools_from_settings(str(settings)) == [
             "vivado", "design_compiler", "openlane",
         ]
@@ -219,14 +219,14 @@ class TestAnalyzeCommand:
         import odatix.components.run_analysis as run_analysis
 
         settings = tmp_path / "analysis_settings.yml"
-        settings.write_text("tools: verilator\n")
+        settings.write_text("tools: verilator\n", encoding="utf-8")
         assert run_analysis.get_analysis_tools_from_settings(str(settings)) == ["verilator"]
 
     def test_tools_missing_key_defaults(self, tmp_path):
         import odatix.components.run_analysis as run_analysis
 
         settings = tmp_path / "analysis_settings.yml"
-        settings.write_text("architectures:\n  - Foo/8bits\n")
+        settings.write_text("architectures:\n  - Foo/8bits\n", encoding="utf-8")
         assert run_analysis.get_analysis_tools_from_settings(str(settings)) == run_analysis.DEFAULT_ANALYSIS_TOOLS
 
     def test_tools_missing_file_defaults(self):
@@ -492,6 +492,8 @@ def run_cli(*argv, cwd=None):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
+        # What Odatix prints, whatever the encoding of the console
+        encoding="utf-8",
         cwd=cwd or SOURCES_DIR,
         env=env,
         timeout=120,
@@ -533,7 +535,7 @@ class TestCliSubprocess:
             "odatix_userconfig/architectures/Example_Config_Generation/01_Range/config_10.txt"
         )
         assert generated.is_file()
-        assert "parameter VALUE = 10;" in generated.read_text()
+        assert "parameter VALUE = 10;" in generated.read_text(encoding="utf-8")
 
     def test_generate_twice_changes_nothing(self, example_workspace):
         """Generating what is already there is a no-op, not an error."""
@@ -542,11 +544,11 @@ class TestCliSubprocess:
         )
         first = run_cli("generate", "-y", "-Q", cwd=str(example_workspace))
         assert first.returncode == 0
-        before = generated.read_text()
+        before = generated.read_text(encoding="utf-8")
 
         second = run_cli("generate", "-y", "-Q", cwd=str(example_workspace))
         assert second.returncode == 0
-        assert generated.read_text() == before
+        assert generated.read_text(encoding="utf-8") == before
 
     def test_generate_leaves_an_edited_configuration_alone(self, example_workspace):
         """An edit survives a second generation: that is what the manifest is for."""
@@ -554,13 +556,13 @@ class TestCliSubprocess:
             "odatix_userconfig/architectures/Example_Config_Generation/01_Range/config_10.txt"
         )
         assert run_cli("generate", "-y", "-Q", cwd=str(example_workspace)).returncode == 0
-        generated.write_text("parameter VALUE = 42;\n")
+        generated.write_text("parameter VALUE = 42;\n", encoding="utf-8")
 
         assert run_cli("generate", "-y", "-Q", cwd=str(example_workspace)).returncode == 0
-        assert generated.read_text() == "parameter VALUE = 42;\n"
+        assert generated.read_text(encoding="utf-8") == "parameter VALUE = 42;\n"
 
         assert run_cli("generate", "-y", "-Q", "-o", cwd=str(example_workspace)).returncode == 0
-        assert "parameter VALUE = 10;" in generated.read_text()
+        assert "parameter VALUE = 10;" in generated.read_text(encoding="utf-8")
 
     def test_generate_twice_with_overwrite_succeeds(self, example_workspace):
         first = run_cli("generate", "-y", "-Q", cwd=str(example_workspace))
@@ -570,9 +572,9 @@ class TestCliSubprocess:
 
     def test_replace_end_to_end(self, tmp_path):
         base = tmp_path / "top.v"
-        base.write_text("module m #(\n  parameter W = 4\n)();\nendmodule\n")
+        base.write_text("module m #(\n  parameter W = 4\n)();\nendmodule\n", encoding="utf-8")
         replacement = tmp_path / "params.txt"
-        replacement.write_text("\n  parameter W = 32\n")
+        replacement.write_text("\n  parameter W = 32\n", encoding="utf-8")
         output = tmp_path / "out.v"
 
         result = run_cli(
@@ -582,7 +584,7 @@ class TestCliSubprocess:
             cwd=str(tmp_path),
         )
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "parameter W = 32" in output.read_text()
+        assert "parameter W = 32" in output.read_text(encoding="utf-8")
 
 
 ######################################
@@ -602,7 +604,7 @@ class TestExitCodes:
         assert result.returncode == 0, result.stdout + result.stderr
 
     def test_clean_fails_on_an_invalid_settings_file(self, example_workspace):
-        (example_workspace / "bad.yml").write_text("remove_list: [\n")
+        (example_workspace / "bad.yml").write_text("remove_list: [\n", encoding="utf-8")
         assert run_cli("clean", "-Q", "-i", "bad.yml", cwd=str(example_workspace)).returncode != 0
 
     @pytest.mark.parametrize("command", ["res_synth", "res_workflow", "res_simulation", "results"])
@@ -618,7 +620,7 @@ class TestExitCodes:
     def test_a_results_file_that_cannot_be_written_fails(self, example_workspace, command):
         # A run to export: with none, nothing is written at all
         (example_workspace / "empty_work" / "a" / "b" / "c").mkdir(parents=True)
-        (example_workspace / "a_file").write_text("")
+        (example_workspace / "a_file").write_text("", encoding="utf-8")
         result = run_cli(command, "-Q", "-w", "empty_work", "-r", "a_file/out", cwd=str(example_workspace))
         assert result.returncode != 0
 
@@ -630,7 +632,7 @@ class TestExitCodes:
         assert run_cli("res_derived", "-Q", "-r", "out", "-d", "none.yml", cwd=str(example_workspace)).returncode != 0
 
     def test_res_derived_fails_on_an_invalid_file(self, example_workspace):
-        (example_workspace / "bad.yml").write_text("derived_metrics: [\n")
+        (example_workspace / "bad.yml").write_text("derived_metrics: [\n", encoding="utf-8")
         result = run_cli("res_derived", "-Q", "-r", "out", "-d", "bad.yml", cwd=str(example_workspace))
         assert result.returncode != 0
 
@@ -643,9 +645,9 @@ class TestExitCodes:
 
     def test_replace_fails_when_the_delimiters_match_nothing(self, tmp_path):
         base = tmp_path / "top.v"
-        base.write_text("module m();\nendmodule\n")
+        base.write_text("module m();\nendmodule\n", encoding="utf-8")
         replacement = tmp_path / "params.txt"
-        replacement.write_text("parameter W = 32\n")
+        replacement.write_text("parameter W = 32\n", encoding="utf-8")
         result = run_cli(
             "replace", "-Q", "-s", "#(", "-S", ")(",
             "-i", str(base), "-o", str(tmp_path / "out.v"), "-r", str(replacement),

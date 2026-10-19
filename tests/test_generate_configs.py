@@ -57,7 +57,7 @@ def generation_tree(request, tmp_path):
     """A workspace describing the same three configurations, in each form."""
     domain = tmp_path / "arch" / "main"
     domain.mkdir(parents=True)
-    (domain / "_settings.yml").write_text(request.param)
+    (domain / "_settings.yml").write_text(request.param, encoding="utf-8")
     return tmp_path
 
 
@@ -85,7 +85,7 @@ class TestCollectConfigs:
 
     def test_an_edited_file_is_kept_without_overwrite(self, generation_tree):
         domain = generation_tree / "arch" / "main"
-        (domain / "08bits.txt").write_text("old content")
+        (domain / "08bits.txt").write_text("old content", encoding="utf-8")
         plan = collect_configs(str(generation_tree), overwrite=False)
         assert basenames(plan.edited) == ["08bits.txt"]
         assert plan.overwrite == []
@@ -93,7 +93,7 @@ class TestCollectConfigs:
 
     def test_an_edited_file_is_replaced_with_the_flag(self, generation_tree):
         domain = generation_tree / "arch" / "main"
-        (domain / "08bits.txt").write_text("old content")
+        (domain / "08bits.txt").write_text("old content", encoding="utf-8")
         plan = collect_configs(str(generation_tree), overwrite=True)
         assert basenames(plan.overwrite) == ["08bits.txt"]
         assert plan.edited == []
@@ -102,7 +102,7 @@ class TestCollectConfigs:
     def test_a_domain_describing_nothing_is_ignored(self, tmp_path):
         domain = tmp_path / "arch" / "main"
         domain.mkdir(parents=True)
-        (domain / "_settings.yml").write_text("use_parameters: false\n")
+        (domain / "_settings.yml").write_text("use_parameters: false\n", encoding="utf-8")
         plan = collect_configs(str(tmp_path), overwrite=False)
         assert (plan.existing, plan.overwrite, plan.new, plan.errors, plan.valid) == ([], [], [], [], [])
 
@@ -115,39 +115,39 @@ class TestWriteConfigs:
     def test_writes_generated_files(self, generation_tree):
         write_configs(collect_configs(str(generation_tree), overwrite=False).valid)
         domain = generation_tree / "arch" / "main"
-        assert (domain / "08bits.txt").read_text().strip() == "parameter WIDTH = 08"
-        assert (domain / "16bits.txt").read_text().strip() == "parameter WIDTH = 16"
-        assert (domain / "32bits.txt").read_text().strip() == "parameter WIDTH = 32"
+        assert (domain / "08bits.txt").read_text(encoding="utf-8").strip() == "parameter WIDTH = 08"
+        assert (domain / "16bits.txt").read_text(encoding="utf-8").strip() == "parameter WIDTH = 16"
+        assert (domain / "32bits.txt").read_text(encoding="utf-8").strip() == "parameter WIDTH = 32"
 
     def test_an_edit_survives_a_second_generation(self, generation_tree):
         domain = generation_tree / "arch" / "main"
         write_configs(collect_configs(str(generation_tree), overwrite=False).valid)
-        (domain / "08bits.txt").write_text("edited by hand")
+        (domain / "08bits.txt").write_text("edited by hand", encoding="utf-8")
 
         write_configs(collect_configs(str(generation_tree), overwrite=False).valid)
-        assert (domain / "08bits.txt").read_text() == "edited by hand"
+        assert (domain / "08bits.txt").read_text(encoding="utf-8") == "edited by hand"
 
     def test_overwrite_replaces_content(self, generation_tree):
         domain = generation_tree / "arch" / "main"
-        (domain / "08bits.txt").write_text("old content")
+        (domain / "08bits.txt").write_text("old content", encoding="utf-8")
         write_configs(collect_configs(str(generation_tree), overwrite=True).valid, overwrite=True)
-        assert "old content" not in (domain / "08bits.txt").read_text()
+        assert "old content" not in (domain / "08bits.txt").read_text(encoding="utf-8")
 
     def test_clean_removes_only_what_generation_left_behind(self, generation_tree):
         domain = generation_tree / "arch" / "main"
         write_configs(collect_configs(str(generation_tree), overwrite=False).valid)
-        (domain / "by_hand.txt").write_text("mine")
+        (domain / "by_hand.txt").write_text("mine", encoding="utf-8")
 
         # The rules no longer describe 32 bits.
-        settings = (domain / "_settings.yml").read_text().replace("to: 32", "to: 16")
-        (domain / "_settings.yml").write_text(settings)
+        settings = (domain / "_settings.yml").read_text(encoding="utf-8").replace("to: 32", "to: 16")
+        (domain / "_settings.yml").write_text(settings, encoding="utf-8")
 
         plan = collect_configs(str(generation_tree), overwrite=False, clean=True)
         assert basenames(plan.leftovers) == ["32bits.txt"]
 
         write_configs(plan.valid, clean=True)
         assert not (domain / "32bits.txt").exists()
-        assert (domain / "by_hand.txt").read_text() == "mine"
+        assert (domain / "by_hand.txt").read_text(encoding="utf-8") == "mine"
 
 
 class TestMotd:

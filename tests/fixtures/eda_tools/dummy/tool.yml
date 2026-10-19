@@ -69,6 +69,27 @@ unix:
     - name: signoff
       command: tclsh $script_path/step_pnr_signoff.tcl $work_path
 
+# Same as above, run by cmd.exe: tclsh takes the same paths
+windows:
+  tool_test_command: echo exit 0| tclsh
+  fmax_synthesis_command: tclsh $script_path/find_fmax.tcl
+  custom_freq_synthesis_session:
+    command: tclsh $script_path/session.tcl $work_path
+  custom_freq_synthesis_steps:
+    - name: synthesis
+      args: synthesis
+    - name: pnr
+      args: pnr
+    - name: bitstream
+      args: bitstream
+  pnr_steps:
+    - name: place
+      command: tclsh $script_path/step_pnr_place.tcl $work_path
+    - name: route
+      command: tclsh $script_path/step_pnr_route.tcl $work_path
+    - name: signoff
+      command: tclsh $script_path/step_pnr_signoff.tcl $work_path
+
 ##############################################
 # Flows
 ##############################################
@@ -87,6 +108,8 @@ flows:
     label: "Quick"
     description: "Simulated synthesis in one go, without resumable steps"
     unix:
+      custom_freq_synthesis_command: tclsh $script_path/custom_freq_synth_script.tcl
+    windows:
       custom_freq_synthesis_command: tclsh $script_path/custom_freq_synth_script.tcl
 
 # Log formatting

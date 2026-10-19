@@ -13,14 +13,14 @@ def architectures(tmp_path):
     counter = tmp_path / "counter"
     (counter / "corner").mkdir(parents=True)
     for name in ("04bits", "08bits", "16bits"):
-        (counter / (name + ".txt")).write_text("WIDTH = 8")
+        (counter / (name + ".txt")).write_text("WIDTH = 8", encoding="utf-8")
     for name in ("tt", "ff", "ss"):
-        (counter / "corner" / (name + ".txt")).write_text("CORNER")
+        (counter / "corner" / (name + ".txt")).write_text("CORNER", encoding="utf-8")
     for arch in ("adder", "Broken_a", "Broken_b"):
         (tmp_path / arch).mkdir()
-    (tmp_path / "adder" / "08bits.txt").write_text("WIDTH = 8")
-    (tmp_path / "Broken_a" / "1.txt").write_text("")
-    (tmp_path / "Broken_b" / "2.txt").write_text("")
+    (tmp_path / "adder" / "08bits.txt").write_text("WIDTH = 8", encoding="utf-8")
+    (tmp_path / "Broken_a" / "1.txt").write_text("", encoding="utf-8")
+    (tmp_path / "Broken_b" / "2.txt").write_text("", encoding="utf-8")
     return tmp_path
 
 
@@ -65,7 +65,7 @@ def test_a_literal_selection_is_unchanged(architectures):
 def test_an_architecture_without_main_configurations_points_at_its_domains(tmp_path):
     cordic = tmp_path / "cordic"
     (cordic / "width").mkdir(parents=True)
-    (cordic / "width" / "8.txt").write_text("")
+    (cordic / "width" / "8.txt").write_text("", encoding="utf-8")
     expanded, messages = expand(["cordic/*"], tmp_path)
     assert expanded == []
     hints = [hint for message in messages for hint in (message.hints or [])]

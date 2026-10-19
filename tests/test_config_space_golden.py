@@ -49,7 +49,7 @@ import snapshot_config_space  # noqa: E402
 def reference():
     if not os.path.isfile(snapshot_config_space.REFERENCE):
         pytest.skip("no recorded reference for the parameter spaces")
-    with open(snapshot_config_space.REFERENCE, "r") as f:
+    with open(snapshot_config_space.REFERENCE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 

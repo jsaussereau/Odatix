@@ -266,7 +266,7 @@ def domain_number(source):
     text = str(source)
     if os.path.isfile(text):
         try:
-            with open(text, "r") as f:
+            with open(text, "r", encoding="utf-8") as f:
                 text = f.read()
         except Exception:
             return None

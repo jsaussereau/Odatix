@@ -24,7 +24,7 @@ def test_job_status_says_whether_the_tool_ran():  # AP-02
 
 
 def test_verilator_makefile_keeps_exit_code():  # AP-02
-  text = open(os.path.join(ROOT, "verilator", "makefile.mk")).read()
+  text = open(os.path.join(ROOT, "verilator", "makefile.mk"), encoding="utf-8").read()
   assert "pipefail" in text and "SHELL := /bin/bash" in text
 
 
@@ -41,7 +41,7 @@ def test_long_detail_is_kept_with_omitted_count(tmp_path):  # AP-04
 
 
 def test_finding_detail_is_monospaced():  # AP-04
-  css = open(os.path.join(os.path.dirname(__file__), "..", "sources", "odatix", "gui", "assets", "explorer.css")).read()
+  css = open(os.path.join(os.path.dirname(__file__), "..", "sources", "odatix", "gui", "assets", "explorer.css"), encoding="utf-8").read()
   block = css.split(".xpa-finding-detail {", 1)[1].split("}", 1)[0]
   assert "monospace" in block
 
@@ -49,7 +49,7 @@ def test_finding_detail_is_monospaced():  # AP-04
 def test_pnr_metrics_match_synthesis_names():  # AP-06
   for tool in ("innovus",):
     path = os.path.join(ROOT, tool, "metrics.yml")
-    metrics = yaml.safe_load(open(path))["pnr_metrics"]
+    metrics = yaml.safe_load(open(path, encoding="utf-8"))["pnr_metrics"]
     assert "Cell_Area" in metrics and "Total_Power" in metrics
     assert "Total_area" not in metrics and "Total_power" not in metrics
     for spec in metrics.values():

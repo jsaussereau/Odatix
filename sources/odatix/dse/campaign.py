@@ -1287,7 +1287,7 @@ class Exploration(object):
             directory = os.path.dirname(self.progress_file)
             if directory:
                 os.makedirs(directory, exist_ok=True)
-            with open(self.progress_file, "w") as f:
+            with open(self.progress_file, "w", encoding="utf-8") as f:
                 f.write("{0}\n".format(percentage))
         except OSError:
             # How far along it is, is not worth stopping an exploration for.

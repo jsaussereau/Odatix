@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -24,7 +25,7 @@ def test_daemon_session_names_paths_and_workspace_detection(tmp_path, monkeypatc
     workspace = tmp_path / "workspace"
     nested = workspace / "a" / "b"
     nested.mkdir(parents=True)
-    (workspace / "odatix.yml").write_text("{}")
+    (workspace / "odatix.yml").write_text("{}", encoding="utf-8")
 
     assert daemon_control.detect_workspace_root(str(nested)) == str(workspace)
     assert daemon_control._session_slug(" tty / 2 @ host ") == "tty-2-host"
@@ -107,7 +108,7 @@ def test_daemon_liveness_counts_a_refused_token_as_alive(monkeypatch):
 
 def test_parallel_job_extracts_progress_and_scales_steps(tmp_path):
     progress_file = tmp_path / "progress.log"
-    progress_file.write_text("progress=12\nprogress=150\n")
+    progress_file.write_text("progress=12\nprogress=150\n", encoding="utf-8")
     job = _job(progress_file=str(progress_file))
     ParallelJob.set_patterns(re.compile(r"progress=(\d+)"))
     job.step_names = ["prepare", "run", "report"]
@@ -123,18 +124,19 @@ def test_parallel_job_extracts_progress_and_scales_steps(tmp_path):
 def test_parallel_job_reads_fmax_and_ignores_stale_status_files(tmp_path):
     status_file = tmp_path / "status.log"
     progress_file = tmp_path / "progress.log"
-    status_file.write_text("fmax state 40 2 4\n")
-    progress_file.write_text("progress=80\n")
+    status_file.write_text("fmax state 40 2 4\n", encoding="utf-8")
+    progress_file.write_text("progress=80\n", encoding="utf-8")
     job = _job(progress_file=str(progress_file), status_file=str(status_file))
     job.progress_mode = "fmax"
     ParallelJob.set_patterns(re.compile(r"progress=(\d+)"), re.compile(r"fmax (state) (\d+) (\d+) (\d+)"))
 
-    assert ParallelJob._extract_fmax_status(status_file.read_text(), ParallelJob.status_file_pattern) == (40, 2, 4)
+    assert ParallelJob._extract_fmax_status(status_file.read_text(encoding="utf-8"), ParallelJob.status_file_pattern) == (40, 2, 4)
     assert job.get_progress_fmax() == 60
     job.current_step_started_at = os.path.getmtime(status_file) + 1
     assert job._read_status_file(str(status_file)) is None
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="no SIGSTOP/SIGCONT on Windows")
 def test_parallel_job_pause_and_resume_send_process_group_signals(monkeypatch):
     job = _job()
     job.process = SimpleNamespace(pid=123, poll=lambda: None)

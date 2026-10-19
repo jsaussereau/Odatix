@@ -125,6 +125,7 @@ import os
 import sys
 
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.wsl as wsl
 import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
@@ -313,7 +314,7 @@ def _read_yaml(path):
   import yaml
 
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       data = yaml.load(f, Loader=yaml_loader.SafeLoader)
   except Exception:
     return {}
@@ -498,9 +499,17 @@ JOB_TYPE_SESSION_KEYS = {
 }
 
 
-def platform_key():
-  """The tool.yml section holding the commands of the current platform."""
-  return "windows" if sys.platform == "win32" else "unix"
+def platform_key(tool=None, tool_settings=None):
+  """
+  The tool.yml section holding the commands of a tool on this system: "unix",
+  or on Windows "windows", unless the tool runs in WSL (see odatix.lib.wsl),
+  with its "unix" commands. `tool_settings` is its tool.yml when already read.
+  """
+  if not wsl.is_windows():
+    return "unix"
+  if tool is not None and wsl.runs_in_wsl(tool, tool_settings):
+    return "unix"
+  return "windows"
 
 
 def get_tool_label(tool):
@@ -789,7 +798,7 @@ def list_flows(tool, job_type=None, settings=None):
           re-reading tool.yml.
   """
   data = load_tool_settings(tool) if settings is None else settings
-  section = platform_key()
+  section = platform_key(tool, data)
 
   default_name = data.get("default_flow")
   default_name = default_name.strip() if isinstance(default_name, str) and default_name.strip() else DEFAULT_FLOW_NAME
@@ -1214,7 +1223,8 @@ def tool_test_command(tool, tool_install_path="", flow=None):
   resolved = get_flow(tool, flow=flow)
   command = resolved.get("tool_test_command") if resolved is not None else None
   if command is None:
-    command = (load_tool_settings(tool).get(platform_key()) or {}).get("tool_test_command")
+    data = load_tool_settings(tool)
+    command = (data.get(platform_key(tool, data)) or {}).get("tool_test_command")
   if not command:
     return None
   if isinstance(command, list):
@@ -1222,10 +1232,13 @@ def tool_test_command(tool, tool_install_path="", flow=None):
   install_path = str(tool_install_path or "").strip()
   if install_path:
     install_path = os.path.realpath(os.path.expanduser(install_path))
+  in_wsl = wsl.runs_in_wsl(tool)
   variables = Variables(
     tool_install_path=install_path,
     odatix_path=OdatixSettings.odatix_path,
     odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
     tool_path=get_tool_dir(tool),
+    wsl=in_wsl,
   )
-  return replace_variables(str(command), variables)
+  command = replace_variables(str(command), variables)
+  return wsl.command(command) if in_wsl else command

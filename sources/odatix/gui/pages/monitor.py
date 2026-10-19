@@ -24,6 +24,7 @@ from dash import html, dcc, Input, Output, State, ctx, ClientsideFunction
 from typing import Optional#, Literal
 import itertools
 import os
+import re
 import socket
 import threading
 import time
@@ -520,7 +521,7 @@ def _in_workspace(daemon, workspace_root: Optional[str]) -> bool:
     if workspace_root is None:
         return True
     root = _session_workspace(daemon)
-    return root is None or root == workspace_root
+    return root is None or daemon_control.same_workspace(root, workspace_root)
 
 
 def _sort_sessions(daemons, workspace_root: Optional[str]):
@@ -548,7 +549,9 @@ def _short_workspace(path: str, max_length: int = 32) -> str:
         path = "~" + path[len(home):]
     if len(path) <= max_length:
         return path
-    parts = [part for part in path.rstrip(os.sep).split(os.sep) if part]
+    # Windows takes both separators
+    separators = "[" + re.escape(os.sep + (os.altsep or "")) + "]"
+    parts = [part for part in re.split(separators, path) if part]
     short = "…/" + parts[-1] if parts else path
     for count in range(2, len(parts)):
         candidate = "…/" + "/".join(parts[-count:])
@@ -1535,7 +1538,7 @@ def _stop_all_message(running, queued, session: str, session_root: Optional[str]
         else:
             message = "Close session {0}? No job is running or queued.".format(session)
     session_root = _normalize_optional_str(session_root)
-    if session_root is not None and workspace_root is not None and os.path.realpath(session_root) != workspace_root:
+    if session_root is not None and workspace_root is not None and not daemon_control.same_workspace(session_root, workspace_root):
         message += "\n\nThis session belongs to another workspace: {0}".format(session_root)
     return message
 

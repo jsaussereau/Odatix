@@ -129,7 +129,7 @@ def _parse_theme(name, path, source):
   """Read a theme file's `odatix-theme` header. Missing fields get defaults."""
   fields = {}
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       # The header sits at the top of the file, after the license banner; no
       # need to read a few hundred lines of declarations to find it.
       head = f.read(4096)
@@ -266,7 +266,7 @@ def user_stylesheet():
     if theme.source != "user":
       continue
     try:
-      with open(theme.path, "r") as f:
+      with open(theme.path, "r", encoding="utf-8") as f:
         parts.append("/* {0} */\n{1}".format(theme.path, f.read()))
     except OSError:
       pass

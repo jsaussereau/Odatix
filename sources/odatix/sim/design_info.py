@@ -154,7 +154,7 @@ def read_filelist(path, root, _seen=None):
     return entry
 
   tokens = []
-  with open(path, "r") as f:
+  with open(path, "r", encoding="utf-8") as f:
     for line in f:
       line = re.split(r"//|#", line, maxsplit=1)[0]
       tokens.extend(line.split())
@@ -241,7 +241,7 @@ _SV_MODULES = re.compile(r"\b(?:module|program)\s+(?:automatic\s+|static\s+)?(\w
 
 def _read_source(path):
   try:
-    with open(path, "r", errors="replace") as f:
+    with open(path, "r", errors="replace", encoding="utf-8") as f:
       return f.read()
   except (IOError, OSError):
     return ""
@@ -631,10 +631,10 @@ def filelist_lines(info):
 
 def write_info(work_dir, info):
   """Write "odatix_sim.yml" and "odatix_sim.f" into the work directory."""
-  with open(os.path.join(work_dir, SIM_INFO_FILENAME), "w") as f:
+  with open(os.path.join(work_dir, SIM_INFO_FILENAME), "w", encoding="utf-8") as f:
     f.write(_HEADER_COMMENT)
     yaml.dump(info, f, default_flow_style=False, sort_keys=False)
-  with open(os.path.join(work_dir, SIM_FILELIST_FILENAME), "w") as f:
+  with open(os.path.join(work_dir, SIM_FILELIST_FILENAME), "w", encoding="utf-8") as f:
     f.write("\n".join(filelist_lines(info)) + "\n")
 
 
@@ -643,7 +643,7 @@ def read_info(work_dir):
   path = os.path.join(work_dir, SIM_INFO_FILENAME)
   if not os.path.isfile(path):
     return {}
-  with open(path, "r") as f:
+  with open(path, "r", encoding="utf-8") as f:
     data = yaml.safe_load(f)
   return data if isinstance(data, dict) else {}
 

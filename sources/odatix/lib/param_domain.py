@@ -185,7 +185,7 @@ class ParamDomain:
       return None
 
     # Load settings file
-    with open(settings_file, 'r') as f: 
+    with open(settings_file, 'r', encoding="utf-8") as f: 
       try:
         settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
       except Exception as e:

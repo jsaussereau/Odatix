@@ -58,6 +58,7 @@ provides.
 
 import copy
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -65,6 +66,7 @@ import tempfile
 import yaml
 
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.wsl as wsl
 import odatix.lib.yaml_loader as yaml_loader
 
 TEMPLATE_KEY = "template"
@@ -118,7 +120,7 @@ def read_settings(directory):
   if not os.path.isfile(path):
     return {}
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       data = yaml.load(f, Loader=yaml_loader.SafeLoader)
   except yaml.YAMLError as e:
     raise TemplateError('Settings file "' + path + '" is not a valid YAML file: ' + str(e))
@@ -250,13 +252,24 @@ def is_installed(name, timeout=15):
   if not command:
     return None
   command = [str(part) for part in command]
-  if shutil.which(command[0]) is None:
-    return False
+  in_wsl = runs_in_wsl(name)
+  if in_wsl:
+    # Checked where it runs: in WSL (see odatix.lib.wsl)
+    if wsl.which(command[0]) is None:
+      return False
+    command = wsl.command(" ".join(shlex.quote(part) for part in command))
+  else:
+    program = shutil.which(command[0])
+    if program is None:
+      return False
+    # As found in the PATH: Windows does not look for a ".cmd" or ".bat" itself
+    command[0] = program
   # Some simulators write a log where they run: not in the workspace.
   scratch = tempfile.mkdtemp(prefix="odatix_check_")
   try:
     returncode = subprocess.call(
       command, cwd=scratch, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout,
+      shell=in_wsl,
     )
   except (OSError, subprocess.TimeoutExpired):
     return False
@@ -265,18 +278,37 @@ def is_installed(name, timeout=15):
   return returncode == 0
 
 
+def runs_in_wsl(name):
+  """Whether the simulator of a template runs in WSL rather than on Windows (see odatix.lib.wsl)."""
+  directory = list_templates().get(name)
+  if directory is None:
+    return False
+  try:
+    program = test_program(read_settings(directory))
+  except TemplateError:
+    return False
+  return wsl.simulation_runs_in_wsl([name], program)
+
+
+def test_program(settings):
+  """The program a simulation's "test_command" runs, or None when it says no command."""
+  command = settings.get(TEST_COMMAND_KEY)
+  if isinstance(command, str):
+    command = command.split()
+  if not command:
+    return None
+  return str(command[0])
+
+
 def missing_executable(settings):
   """
   The program a simulation's "test_command" runs, when it is not in the PATH:
   a quick check, done when a run is checked (see is_installed for the full
   one). None when it is there, or when the simulation says no command.
   """
-  command = settings.get(TEST_COMMAND_KEY)
-  if isinstance(command, str):
-    command = command.split()
-  if not command:
+  program = test_program(settings)
+  if program is None:
     return None
-  program = str(command[0])
   return None if shutil.which(program) else program
 
 

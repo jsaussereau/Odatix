@@ -47,6 +47,7 @@ from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadV
 from odatix.lib.utils import ask_yes_no, YAML_BOOL, copytree
 from odatix.lib.doc_links import GETTING_STARTED_URL, OWN_DESIGNS_URL
 import odatix.lib.yaml_loader as yaml_loader
+import odatix.lib.wsl as wsl
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 script_name = os.path.basename(__file__)
@@ -94,13 +95,13 @@ class OdatixSettings:
     DEFAULT_WORKFLOW_WORK_PATH = "workflows"
     DEFAULT_RESULT_PATH = "results"
     DEFAULT_USERCONFIG_PATH = "odatix_userconfig"
-    DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
-    DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
-    DEFAULT_TOOLS_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "tools")
-    DEFAULT_WORKFLOW_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "workflows")
+    DEFAULT_ARCH_PATH = DEFAULT_USERCONFIG_PATH + "/architectures"
+    DEFAULT_SIM_PATH = DEFAULT_USERCONFIG_PATH + "/simulations"
+    DEFAULT_TOOLS_PATH = DEFAULT_USERCONFIG_PATH + "/tools"
+    DEFAULT_WORKFLOW_PATH = DEFAULT_USERCONFIG_PATH + "/workflows"
     # User-defined GUI themes (one .css file per theme, see odatix.gui.themes)
-    DEFAULT_GUI_THEME_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "themes", "gui")
-    DEFAULT_TARGET_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "targets")
+    DEFAULT_GUI_THEME_PATH = DEFAULT_USERCONFIG_PATH + "/themes/gui"
+    DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH + "/targets"
     # Target definition files not found in the configured target_path are also
     # looked up in this directory (the userconfig root), so workspaces created
     # before target_path defaulted to "<userconfig>/targets" keep working.
@@ -111,21 +112,21 @@ class OdatixSettings:
     DEFAULT_CPU_LIMIT = 98.0
     DEFAULT_MEM_LIMIT = 98.0
     # A settings file is named after the command that reads it.
-    DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean_settings.yml")
-    DEFAULT_SIM_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "sim_settings.yml")
-    DEFAULT_FMAX_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_settings.yml")
-    DEFAULT_SYNTH_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "synth_settings.yml")
-    DEFAULT_PNR_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "pnr_settings.yml")
-    DEFAULT_ANALYZE_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "analyze_settings.yml")
+    DEFAULT_CLEAN_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/clean_settings.yml"
+    DEFAULT_SIM_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/sim_settings.yml"
+    DEFAULT_FMAX_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/fmax_settings.yml"
+    DEFAULT_SYNTH_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/synth_settings.yml"
+    DEFAULT_PNR_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/pnr_settings.yml"
+    DEFAULT_ANALYZE_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/analyze_settings.yml"
     # What those of them that were renamed used to be called. A workspace that
     # still has a file of the former name, and names none in odatix.yml, keeps
     # reading it until "odatix migrate" renames it.
     FORMER_DEFAULT_SETTINGS_FILES = {
-        "clean_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml"),
-        "sim_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml"),
-        "fmax_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml"),
-        "synth_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml"),
-        "analyze_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "analysis_settings.yml"),
+        "clean_settings_file": DEFAULT_USERCONFIG_PATH + "/clean.yml",
+        "sim_settings_file": DEFAULT_USERCONFIG_PATH + "/simulations_settings.yml",
+        "fmax_settings_file": DEFAULT_USERCONFIG_PATH + "/fmax_synthesis_settings.yml",
+        "synth_settings_file": DEFAULT_USERCONFIG_PATH + "/custom_freq_synthesis_settings.yml",
+        "analyze_settings_file": DEFAULT_USERCONFIG_PATH + "/analysis_settings.yml",
     }
     # The keys of odatix.yml that named the settings files before they were
     # named after their command, and the key each one became. Still read.
@@ -135,10 +136,10 @@ class OdatixSettings:
         "custom_freq_synthesis_settings_file": "synth_settings_file",
         "analysis_settings_file": "analyze_settings_file",
     }
-    DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
-    DEFAULT_DSE_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "dse_settings.yml")
-    DEFAULT_DSE_CAMPAIGN_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "dse_campaigns")
-    DEFAULT_DERIVED_METRICS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "derived_metrics.yml")
+    DEFAULT_WORKFLOW_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/workflow_settings.yml"
+    DEFAULT_DSE_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/dse_settings.yml"
+    DEFAULT_DSE_CAMPAIGN_PATH = DEFAULT_USERCONFIG_PATH + "/dse_campaigns"
+    DEFAULT_DERIVED_METRICS_FILE = DEFAULT_USERCONFIG_PATH + "/derived_metrics.yml"
 
     odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
     odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
@@ -161,6 +162,10 @@ class OdatixSettings:
     # None until a settings file has been read (the handler then uses the
     # DEFAULT_* values above).
     resource_guard_settings = None
+    # WSL settings of the workspace (a wsl.WslSettings), latched when the
+    # settings file is read, like user_tools_path: they say which tools and
+    # simulators run in WSL on Windows (see odatix.lib.wsl). The defaults until then.
+    wsl_settings = wsl.DEFAULTS
     odatix_init_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_init"))
     odatix_examples_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_examples"))
 
@@ -198,7 +203,7 @@ class OdatixSettings:
                 printc.note("Odatix settings file \"" + settings_filename + "\" does not exist.", script_name=script_name)
             settings_data = {}
         else:
-            with open(settings_filename, "r") as f:
+            with open(settings_filename, "r", encoding="utf-8") as f:
                 try:
                     settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
                 except Exception as e:
@@ -300,6 +305,7 @@ class OdatixSettings:
         self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, silent=silent, script_name=script_name)
         self.resource_guard, self.cpu_limit, self.mem_limit = OdatixSettings.read_resource_guard(settings_data, settings_filename)
         OdatixSettings.resource_guard_settings = (self.resource_guard, self.cpu_limit, self.mem_limit)
+        OdatixSettings.wsl_settings = wsl.read_settings(settings_data)
         self.clean_settings_file, _ = get_from_dict("clean_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("clean_settings_file"), silent=silent, script_name=script_name)
         self.sim_settings_file, _ = get_from_dict("sim_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("sim_settings_file"), silent=silent, script_name=script_name)
         self.fmax_settings_file, _ = get_from_dict("fmax_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("fmax_settings_file") , silent=silent, script_name=script_name)

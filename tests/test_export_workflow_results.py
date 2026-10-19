@@ -9,7 +9,7 @@ import odatix.components.export_workflow_results as ewr
 
 def _write(path, content):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
 
@@ -21,23 +21,23 @@ class TestParsers:
     def test_parse_csv_skips_leading_space_in_header_and_values(self, tmp_path):
         # header "EBNO, FER" has a space after the comma
         csv = tmp_path / "results.csv"
-        csv.write_text("EBNO, FER\n1, 0.5\n2, 0.25\n")
+        csv.write_text("EBNO, FER\n1, 0.5\n2, 0.25\n", encoding="utf-8")
         assert ewr.parse_csv(str(csv), "FER") == "0.5"
 
     def test_parse_csv_all_returns_every_row(self, tmp_path):
         csv = tmp_path / "results.csv"
-        csv.write_text("EBNO, FER\n1, 0.5\n2, 0.25\n3, 0.1\n")
+        csv.write_text("EBNO, FER\n1, 0.5\n2, 0.25\n3, 0.1\n", encoding="utf-8")
         assert ewr.parse_csv_all(str(csv), "FER") == ["0.5", "0.25", "0.1"]
         assert ewr.parse_csv_all(str(csv), "EBNO") == ["1", "2", "3"]
 
     def test_parse_csv_all_missing_key(self, tmp_path):
         csv = tmp_path / "results.csv"
-        csv.write_text("EBNO, FER\n1, 0.5\n")
+        csv.write_text("EBNO, FER\n1, 0.5\n", encoding="utf-8")
         assert ewr.parse_csv_all(str(csv), "NOPE", error_if_missing=False) == []
 
     def test_parse_regex_all_returns_every_match(self, tmp_path):
         txt = tmp_path / "out.txt"
-        txt.write_text("val: 1\nval: 2\nval: 3\n")
+        txt.write_text("val: 1\nval: 2\nval: 3\n", encoding="utf-8")
         assert ewr.parse_regex_all(str(txt), r"val: (\d+)", 1) == ["1", "2", "3"]
 
 
@@ -61,7 +61,7 @@ class TestLoadMetrics:
     def test_top_level_metrics_have_no_metadata(self, tmp_path):
         # metrics defined at top level (legacy style) -> metadata is empty
         f = tmp_path / "_metrics.yml"
-        f.write_text("word:\n  type: regex\n  settings: {file: out.txt, pattern: 'x (.*)', group_id: 1}\n")
+        f.write_text("word:\n  type: regex\n  settings: {file: out.txt, pattern: 'x (.*)', group_id: 1}\n", encoding="utf-8")
         metrics, metadata = ewr._load_metrics(str(f))
         assert "word" in metrics
         assert metadata == {}

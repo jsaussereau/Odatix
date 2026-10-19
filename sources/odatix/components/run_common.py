@@ -496,7 +496,7 @@ def replace_and_write_param_domains(
     if point:
         domain_dict[design_point.POINT_KEY] = point
 
-    with open(os.path.join(tmp_dir, hard_settings.param_domains_filename), "w") as param_domains_file:
+    with open(os.path.join(tmp_dir, hard_settings.param_domains_filename), "w", encoding="utf-8") as param_domains_file:
         yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)
 
 

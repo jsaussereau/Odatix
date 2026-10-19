@@ -125,7 +125,7 @@ def write_pnr_source_file(arch_instance, source, tool, flow):
         "tool": tool,
         "flow": flow,
     }
-    with open(os.path.join(arch_instance.tmp_dir, hard_settings.pnr_source_filename), "w") as f:
+    with open(os.path.join(arch_instance.tmp_dir, hard_settings.pnr_source_filename), "w", encoding="utf-8", newline="\n") as f:
         yaml.dump(payload, f, default_flow_style=False, sort_keys=False)
 
 
@@ -138,7 +138,7 @@ def read_pnr_source_file(job_dir):
     if not os.path.isfile(path):
         return {}
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception:
         return {}
@@ -209,15 +209,15 @@ def build_prepare_pnr_job(
         write_pnr_source_file(arch_instance, source, tool, flow)
 
         tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
-        edit_config_file(arch_instance, tcl_config_file, eda_tools.get_flow_parameters(tool, flow))
-        edit_pnr_config_file(arch_instance, source, tcl_config_file)
+        edit_config_file(arch_instance, tcl_config_file, eda_tools.get_flow_parameters(tool, flow), tool=tool)
+        edit_pnr_config_file(arch_instance, source, tcl_config_file, tool=tool)
 
         from odatix.lib.architecture_handler import Architecture
 
         yaml_config_file = os.path.join(arch_instance.tmp_dir, hard_settings.yaml_config_filename)
         Architecture.write_yaml(arch_instance, yaml_config_file)
 
-        rewrite_tcl_source_paths(arch_instance, check_cancel)
+        rewrite_tcl_source_paths(arch_instance, check_cancel, tool=tool)
 
         variables = build_job_variables(
             arch_instance,

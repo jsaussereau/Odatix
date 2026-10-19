@@ -35,12 +35,12 @@ def make(tmp_path, exclusions=None):
     }
     if exclusions:
         settings["exclusions"] = exclusions
-    (arch / "_settings.yml").write_text(yaml.safe_dump(settings))
+    (arch / "_settings.yml").write_text(yaml.safe_dump(settings), encoding="utf-8")
     (arch / "Regs" / "_settings.yml").write_text(yaml.safe_dump({
         "use_parameters": True, "start_delimiter": "// <r>", "stop_delimiter": "// </r>",
     }))
-    (arch / "Regs" / "On.txt").write_text("\n  localparam R = 1;\n")
-    (arch / "Regs" / "Off.txt").write_text("\n  localparam R = 0;\n")
+    (arch / "Regs" / "On.txt").write_text("\n  localparam R = 1;\n", encoding="utf-8")
+    (arch / "Regs" / "Off.txt").write_text("\n  localparam R = 0;\n", encoding="utf-8")
     return ArchitectureCollection(None, str(root))["adder"]
 
 
@@ -143,7 +143,7 @@ class TestEditor:
 
         # Emptied, the block leaves the file.
         page.apply_form_settings(reread, {"exclusions": []})
-        with open(reread.settings_path) as handle:
+        with open(reread.settings_path, encoding="utf-8") as handle:
             assert "exclusions" not in handle.read()
 
 

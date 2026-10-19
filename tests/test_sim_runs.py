@@ -18,7 +18,7 @@ from sim_fixtures import fake_simulators  # noqa: F401 (fixture)
 
 def write(path, text):
     os.makedirs(os.path.dirname(str(path)), exist_ok=True)
-    with open(str(path), "w") as f:
+    with open(str(path), "w", encoding="utf-8") as f:
         f.write(text)
 
 
@@ -36,7 +36,7 @@ class TestJobCategory:
         # failed, or stopped: run again
         assert simulation_handler.job_category(str(job), overwrite=False) == Category.INCOMPLETE
         assert simulation_handler.job_category(str(job), overwrite=False, resume=True) == Category.RESUME
-        (job / simulation_handler.SIM_DONE_FILENAME).write_text("done\n")
+        (job / simulation_handler.SIM_DONE_FILENAME).write_text("done\n", encoding="utf-8")
         assert simulation_handler.job_category(str(job), overwrite=False) == Category.CACHED
         assert simulation_handler.job_category(str(job), overwrite=True) == Category.OVERWRITE
 
@@ -99,7 +99,7 @@ class TestPreparation:
         # "__main__" with only a target file: the configuration itself is what
         # is written there, with the delimiters of the architecture.
         job = _counter_run().prepare().job_list[0]
-        with open(os.path.join(job.tmp_dir, "tb", "tb_counter.vhdl")) as f:
+        with open(os.path.join(job.tmp_dir, "tb", "tb_counter.vhdl"), encoding="utf-8") as f:
             assert "BITS : integer := 16" in f.read()
 
     def test_a_design_is_copied_into_the_simulation_directory(self, example_workspace):
@@ -110,7 +110,7 @@ class TestPreparation:
         job = run.prepare().job_list[0]
         source = os.path.join(job.tmp_dir, "src", "main", "scala", "counter.scala")
         # The design is there, with the configuration written into it
-        with open(source) as f:
+        with open(source, encoding="utf-8") as f:
             assert "new Counter(BITS = 16)" in f.read()
         assert os.path.isfile(os.path.join(job.tmp_dir, "build.sbt"))
 

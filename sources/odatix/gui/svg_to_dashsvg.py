@@ -139,5 +139,5 @@ if __name__ == "__main__":
     if args.output is None:
         print(code)
     else:
-        with open(args.output, "w") as f:
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(code)

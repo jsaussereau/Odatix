@@ -63,7 +63,7 @@ def describing_examples():
     """The example settings files that actually describe configurations."""
     describing = []
     for path in example_settings_files():
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         if config_set_rules(data).generates:
             describing.append(path)
@@ -85,7 +85,7 @@ def test_the_examples_cover_the_migration():
 @pytest.mark.parametrize("path", DESCRIBING, ids=label)
 class TestRoundTrip:
     def resolved(self, path):
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         space = config_set_rules(data, source=path)
         return {point.name: point.content for point in space.points()}
@@ -94,7 +94,7 @@ class TestRoundTrip:
         """The same settings file, read and saved back by Odatix."""
         target = os.path.join(str(tmpdir), hard_settings.param_settings_filename)
         shutil.copyfile(path, target)
-        with open(target) as f:
+        with open(target, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         settings = ArchitectureSettings.from_dict(data)
         save_settings(settings, target)
@@ -116,7 +116,7 @@ class TestRoundTrip:
         assert before  # and it described something in the first place
 
     def test_saving_drops_the_keys_that_no_longer_say_anything(self, path, tmpdir):
-        with open(self.saved_copy(path, tmpdir)) as f:
+        with open(self.saved_copy(path, tmpdir), encoding="utf-8") as f:
             written = f.read()
         assert "generate_configurations" not in written
         assert "configurations:" in written
@@ -124,13 +124,13 @@ class TestRoundTrip:
     def test_saving_twice_changes_nothing_more(self, path, tmpdir):
         """The rewrite happens once: a converted file is left alone from then on."""
         once = self.saved_copy(path, tmpdir)
-        with open(once) as f:
+        with open(once, encoding="utf-8") as f:
             after_first = f.read()
 
-        with open(once) as f:
+        with open(once, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         save_settings(ArchitectureSettings.from_dict(data), once)
-        with open(once) as f:
+        with open(once, encoding="utf-8") as f:
             after_second = f.read()
 
         assert after_second == after_first
@@ -148,11 +148,11 @@ class TestTheNewFormIsWritten:
         )
         target = os.path.join(str(tmpdir), hard_settings.param_settings_filename)
         shutil.copyfile(source, target)
-        with open(target) as f:
+        with open(target, encoding="utf-8") as f:
             settings = ArchitectureSettings.from_dict(yaml.safe_load(f))
         save_settings(settings, target)
 
-        with open(target) as f:
+        with open(target, encoding="utf-8") as f:
             written = f.read()
 
         assert "configurations:" in written
@@ -166,7 +166,7 @@ class TestTheNewFormIsWritten:
         file written by hand, and configurations that resolve from it.
         """
         directory = str(tmpdir)
-        with open(os.path.join(directory, hard_settings.param_settings_filename), "w") as f:
+        with open(os.path.join(directory, hard_settings.param_settings_filename), "w", encoding="utf-8") as f:
             f.write(
                 "top_level_file: alu.sv\n"
                 "\n"
@@ -183,7 +183,7 @@ class TestTheNewFormIsWritten:
                 "      step: 8\n"
             )
 
-        with open(os.path.join(directory, hard_settings.param_settings_filename)) as f:
+        with open(os.path.join(directory, hard_settings.param_settings_filename), encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         config_set = ConfigSet(directory, config_set_rules(data, source=directory))
@@ -217,22 +217,24 @@ class TestLegacyRulesAreCarriedOver:
     )
 
     def points(self, path):
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         space = config_set_rules(data, source=path)
         return {point.name: point.content for point in space.points()}
 
     def test_saving_keeps_the_blacklist_and_the_constraints(self, tmpdir):
         target = os.path.join(str(tmpdir), hard_settings.param_settings_filename)
-        with open(target, "w") as f:
+        with open(target, "w", encoding="utf-8") as f:
             f.write(self.LEGACY)
         before = self.points(target)
         assert sorted(before) == ["24bits", "8bits"]
 
-        with open(target) as f:
-            save_settings(ArchitectureSettings.from_dict(yaml.safe_load(f)), target)
+        # Closed before saving: Windows cannot replace a file that is open
+        with open(target, encoding="utf-8") as f:
+            settings = ArchitectureSettings.from_dict(yaml.safe_load(f))
+        save_settings(settings, target)
 
-        with open(target) as f:
+        with open(target, encoding="utf-8") as f:
             written = f.read()
         assert "generate_configurations" not in written
         assert "blacklist" in written and "too narrow" in written

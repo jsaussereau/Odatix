@@ -62,6 +62,19 @@ YAML_BOOL = ('true', 'false', 'yes', 'no', 'on', 'off')
 # number of parallel jobs be computed automatically from the available CPUs.
 AUTO_NB_JOBS_KEYWORD = "auto"
 
+def native_path(path):
+  """
+  A path written with "/" (in a settings file, or a name like "arch/config"),
+  with the separators of this system: unchanged except under Windows.
+  """
+  return path.replace("/", os.sep) if os.sep != "/" else path
+
+
+def posix_path(path):
+  """A path with "/" separators, as written in names and settings files."""
+  return path.replace(os.sep, "/") if os.sep != "/" else path
+
+
 def is_auto_nb_jobs(value):
     """Return True if `value` requests the automatic number of parallel jobs."""
     return isinstance(value, str) and value.strip().lower() == AUTO_NB_JOBS_KEYWORD
@@ -371,7 +384,7 @@ def internal_error(e, error_logfile, script_name):
         "Python Version": platform.python_version(),
         "Machine": platform.machine(),
     }
-    with open(error_logfile, "w") as log_file:
+    with open(error_logfile, "w", encoding="utf-8") as log_file:
         log_file.write("Date and Time: " + current_time + "\n\n")
         log_file.write("System Information:\n")
         for key, value in system_info.items():

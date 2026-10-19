@@ -1,4 +1,6 @@
 """Regression tests of the 2nd new-user pass, tools/targets domain."""
+import sys
+
 import dash
 import pytest
 
@@ -49,9 +51,12 @@ def test_install_path_only_for_tools_reading_it():
 
 
 def test_passed_check_is_cached():
+    # Python commands: the same in sh and cmd.exe
+    passing = '"{}" -c "pass"'.format(sys.executable)
+    failing = '"{}" -c "import sys; print(\'boom\', file=sys.stderr); sys.exit(3)"'.format(sys.executable)
     check_tool.forget_passed_checks()
-    assert check_tool.probe("true") == (True, "")
-    assert check_tool.recently_passed("true")
-    ok, reason = check_tool.probe("echo boom >&2; exit 3")
+    assert check_tool.probe(passing) == (True, "")
+    assert check_tool.recently_passed(passing)
+    ok, reason = check_tool.probe(failing)
     assert ok is False and reason == "boom"
     check_tool.forget_passed_checks()

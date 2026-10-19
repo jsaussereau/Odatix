@@ -81,7 +81,7 @@ def _declarations(path):
   if key not in _declarations_cache:
     declared = {}
     try:
-      with open(path, "r") as f:
+      with open(path, "r", encoding="utf-8") as f:
         for name, value in _DECLARATION_RE.findall(f.read()):
           declared.setdefault(name, value.strip())
     except OSError:

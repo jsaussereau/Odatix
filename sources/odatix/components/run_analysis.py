@@ -39,12 +39,13 @@ from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.check_tool import start_tool_check, ToolCheck
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
+import odatix.lib.wsl as wsl
 
 import odatix.run.cli as run_cli
 from odatix.components.cli_options import add_options
 from odatix.run.options import RunOptions
 from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, abort_if_empty_job_list, run_prepare_loop
-from odatix.components.synthesis_common import build_prepare_synthesis_job
+from odatix.components.synthesis_common import announce_location, build_prepare_synthesis_job
 from odatix.components.export_analysis import configure_analysis_job_exports
 import odatix.components.export_derived_metrics as exp_derived
 import odatix.lib.analysis as analysis
@@ -151,7 +152,7 @@ def get_analysis_tools_from_settings(settings_filename):
   if not settings_filename or not os.path.isfile(settings_filename):
     return list(DEFAULT_ANALYSIS_TOOLS)
 
-  with open(settings_filename, "r") as f:
+  with open(settings_filename, "r", encoding="utf-8") as f:
     try:
       settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception:
@@ -184,7 +185,7 @@ def analysis_install_path(tool, target_path):
   if not os.path.isfile(target_file):
     return "/"
   try:
-    with open(target_file, "r") as f:
+    with open(target_file, "r", encoding="utf-8") as f:
       settings_data = yaml.safe_load(f)
   except Exception:
     return "/"
@@ -247,15 +248,20 @@ def load_tool_context(tool, target_path, flow=None):
     tool_test_command = " ".join(map(str, tool_test_command))
 
   # Define user accessible variables
+  in_wsl = wsl.runs_in_wsl(tool)
+  announce_location(tool, in_wsl, script_name)
   variables = Variables(
     tool_install_path=os.path.realpath(install_path),
     odatix_path=OdatixSettings.odatix_path,
     odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
     tool_path=eda_tool_dir,
+    wsl=in_wsl,
   )
 
   # Replace variables in command
   tool_test_command = replace_variables(tool_test_command, variables)
+  if in_wsl:
+    tool_test_command = wsl.command(tool_test_command)
 
   return {
     "eda_target_filename": None,
@@ -723,7 +729,7 @@ def read_run_expectations(settings_filename):
   if not settings_filename or not os.path.isfile(settings_filename):
     return None
   try:
-    with open(settings_filename, "r") as f:
+    with open(settings_filename, "r", encoding="utf-8") as f:
       settings_data = yaml_loader.safe_load(f)
   except Exception:
     return None

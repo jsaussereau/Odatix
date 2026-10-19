@@ -567,7 +567,7 @@ def load_results_file(path):
       OSError: If the file cannot be read.
       yaml.YAMLError: If the file is not valid YAML.
   """
-  with open(path, "r") as file:
+  with open(path, "r", encoding="utf-8") as file:
     payload = yaml.load(file, Loader=_YamlLoader)
   return load_results_payload(payload, path=path)
 
@@ -589,7 +589,7 @@ def dump_results_file(path, units, records):
   # followed by os.replace() makes the new content appear in one step.
   temporary_path = path + ".tmp." + str(os.getpid())
   try:
-    with open(temporary_path, "w") as file:
+    with open(temporary_path, "w", encoding="utf-8") as file:
       yaml.dump(
         {"schema": SCHEMA_VERSION, "units": units if units else {}, "results": records if records else []},
         file,

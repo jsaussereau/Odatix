@@ -69,7 +69,7 @@ class TestState:
 
         path = job_steps.state_file(job_dir)
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write("{{{ not yaml")
         assert job_steps.completed_step_names(job_dir) == []
 

@@ -138,7 +138,7 @@ class TestFrequencyOptions:
     ])
     def test_the_settings_file_is_checked_the_same_way(self, tmp_path, frequencies):
         settings = tmp_path / "synth_settings.yml"
-        settings.write_text("frequencies:\n" + frequencies)
+        settings.write_text("frequencies:\n" + frequencies, encoding="utf-8")
         with pytest.raises(SystemExit):
             run_fixed_freq_synthesis._load_settings_custom_frequencies(str(settings))
 

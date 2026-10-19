@@ -47,6 +47,7 @@ from odatix.run.options import RunOptions
 from odatix.run.planner import leave_jobs_to_sessions
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.virtual_param_domain as virtual_param_domain
+import odatix.lib.wsl as wsl
 import odatix.sim.design_info as design_info
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
@@ -95,11 +96,13 @@ def default_simulation_task(sim_instance):
     simulation that defines no "tasks" in its settings file keeps running
     through its Makefile's "sim" rule, exactly as before.
     """
+    # The paths of WSL for a simulation run there
+    path = wsl.linux_path if getattr(sim_instance, "wsl", False) else (lambda value: value)
     command = (
         "make {}".format(sim_rule)
         + ' RTL_DIR="{}"'.format(hard_settings.work_rtl_path)
-        + ' ODATIX_DIR="{}"'.format(OdatixSettings.odatix_path)
-        + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(sim_instance.tmp_dir, hard_settings.work_log_path)))
+        + ' ODATIX_DIR="{}"'.format(path(OdatixSettings.odatix_path))
+        + ' LOG_DIR="{}"'.format(path(os.path.realpath(os.path.join(sim_instance.tmp_dir, hard_settings.work_log_path))))
         + ' CLOCK_SIGNAL="{}"'.format(sim_instance.architecture.clock_signal)
         + ' TOP_LEVEL_MODULE="{}"'.format(sim_instance.architecture.top_level_module)
         + " --no-print-directory"
@@ -146,7 +149,36 @@ def build_simulation_command_substitutions(sim_instance):
     substitutions.update(configuration_variables(sim_instance))
     substitutions.update(domain_values(architecture))
 
+    if getattr(sim_instance, "wsl", False):
+        # The simulator runs in WSL: the paths it is given are those of WSL, and
+        # ${python} is the Python of the distribution (see odatix.lib.wsl)
+        for name in WSL_PATH_SUBSTITUTIONS:
+            substitutions[name] = wsl.linux_path(substitutions.get(name))
+        substitutions["python"] = wsl.PYTHON
+
     return substitutions
+
+
+#: The substitutions of a simulation command holding a path of Windows
+WSL_PATH_SUBSTITUTIONS = ("work_path", "sim_path", "design_path", "odatix_path", "odatix_dir")
+
+
+def for_wsl(tasks):
+    """
+    The tasks of a simulation run in WSL: each of their commands is run there,
+    through wsl.exe, while what Odatix chains around them (marking the job
+    done) stays on Windows. The directory a task runs in is a path of Windows:
+    WSL starts there.
+    """
+    wrapped = []
+    for task in tasks:
+        task = dict(task) if isinstance(task, dict) else task
+        if isinstance(task, dict):
+            for key in ("commands", "on_failure_commands"):
+                if isinstance(task.get(key), list):
+                    task[key] = [wsl.command(command) for command in task[key]]
+        wrapped.append(task)
+    return wrapped
 
 
 def configuration_variables(sim_instance):
@@ -672,7 +704,7 @@ def write_simulation_meta(sim_instance):
     """
     meta_file = os.path.join(sim_instance.tmp_dir, SIMULATION_META_FILENAME)
     try:
-        with open(meta_file, "w") as f:
+        with open(meta_file, "w", encoding="utf-8") as f:
             yaml.dump(
                 {
                     "simulation": sim_instance.sim_name,
@@ -733,12 +765,17 @@ def build_simulation_command(sim_instance):
         could not be built (the job is then skipped).
     """
     tasks = sim_instance.tasks if sim_instance.tasks else default_simulation_task(sim_instance)
+    in_wsl = getattr(sim_instance, "wsl", False)
+    # A simulation run in WSL runs the implementation of its tasks for Linux
+    platform = "linux" if in_wsl else sys.platform
 
     try:
-        selected_tasks = task_common.select_platform_task_implementations(tasks, sys.platform)
+        selected_tasks = task_common.select_platform_task_implementations(tasks, platform)
         substitutions = build_simulation_command_substitutions(sim_instance)
         resolved_tasks = resolve_simulation_tasks(selected_tasks, substitutions)
-        task_common.validate_selected_tasks(resolved_tasks, sys.platform)
+        task_common.validate_selected_tasks(resolved_tasks, platform)
+        if in_wsl:
+            resolved_tasks = for_wsl(resolved_tasks)
     except ValueError as e:
         printc.error(
             "Invalid tasks for simulation \"" + sim_instance.sim_display_name + "\": " + str(e),

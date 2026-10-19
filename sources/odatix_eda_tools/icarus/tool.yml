@@ -30,6 +30,16 @@ unix:
     - cd $work_path;
     - make -f $eda_tools_path/icarus/makefile.mk analyze
 
+# Windows has neither make nor a POSIX shell: a script does what the makefile
+# does. It needs Icarus Verilog (iverilog) in the PATH.
+windows:
+
+  tool_test_command: '"$python" "$eda_tools_path/_common/rtl_analysis.py" icarus --version'
+
+  analysis_command:
+    - cd /d "$work_path" &&
+    - '"$python" "$eda_tools_path/_common/rtl_analysis.py" icarus'
+
 ##############################################
 # Flows
 ##############################################

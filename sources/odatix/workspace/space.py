@@ -258,7 +258,7 @@ class Manifest(object):
         if not self.exists:
             return self
         try:
-            with open(self.file, "r") as f:
+            with open(self.file, "r", encoding="utf-8") as f:
                 data = yaml_loader.safe_load(f)
         except Exception as e:
             printc.warning(
@@ -681,7 +681,7 @@ class ConfigSet(object):
             full = os.path.join(self.path, entry)
             if not os.path.isfile(full):
                 continue
-            with open(full, "r") as f:
+            with open(full, "r", encoding="utf-8") as f:
                 found[entry[:-len(CONFIG_EXTENSION)]] = f.read()
         return found
 
@@ -913,7 +913,7 @@ class ConfigSet(object):
         cache = os.path.join(self.path, CACHE_DIRNAME)
         path = os.path.join(cache, name + CONFIG_EXTENSION)
         if os.path.isfile(path):
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 if not _differs(f.read(), point.content):
                     return path
 
@@ -1105,7 +1105,7 @@ def load_domain_settings(path):
     if not os.path.isfile(settings_file):
         return {}
     try:
-        with open(settings_file, "r") as f:
+        with open(settings_file, "r", encoding="utf-8") as f:
             data = yaml_loader.safe_load(f)
     except Exception as e:
         printc.warning(

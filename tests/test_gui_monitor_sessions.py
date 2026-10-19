@@ -8,6 +8,7 @@ a session stopped from the page leaves the list and the selection at once, and
 the page keeps the session list on screen when the session cannot be monitored.
 """
 
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -26,8 +27,9 @@ def monitor():
     return monitor
 
 
-HERE = "/work/here"
-ELSEWHERE = "/work/elsewhere"
+# Native paths, as a session records the realpath of its workspace
+HERE = os.path.realpath(os.path.join(os.sep, "work", "here"))
+ELSEWHERE = os.path.realpath(os.path.join(os.sep, "work", "elsewhere"))
 
 
 def session(pid, name, root, started_at=0):

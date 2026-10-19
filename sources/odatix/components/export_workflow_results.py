@@ -81,7 +81,7 @@ def _load_metrics(metrics_file):
     """
     if not os.path.isfile(metrics_file):
         return None, None
-    with open(metrics_file, "r") as f:
+    with open(metrics_file, "r", encoding="utf-8") as f:
         try:
             data = yaml_loader.safe_load(f)
         except yaml.YAMLError as e:
@@ -326,7 +326,7 @@ def _read_param_domains(run_dir):
     if not os.path.isfile(path):
         return None
     try:
-        with open(path, "r") as param_domains_file:
+        with open(path, "r", encoding="utf-8") as param_domains_file:
             loaded = yaml_loader.safe_load(param_domains_file)
     except Exception:
         return None

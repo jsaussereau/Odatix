@@ -20,13 +20,14 @@ Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command 
 
 #### EDA tools
 
-- New synthesis and implementation tools: **Cadence Genus**, **Cadence Innovus**, **Synopsys IC Compiler II**, **Design Compiler NXT** (`dc_nxt`), **LibreLane** (open-source RTL to GDSII on sky130, gf180mcu, ihp_sg13g2) and **Quartus Prime Pro** (Agilex). **Verilator** is available for RTL analysis
+- New synthesis and implementation tools: **Cadence Genus**, **Cadence Innovus**, **Synopsys IC Compiler II**, **Design Compiler NXT** (`dc_nxt`), **LibreLane** (open-source RTL to GDSII on sky130, gf180mcu, ihp_sg13g2) and **Quartus Prime Pro** (Agilex). **Verilator** and **Yosys** are available for RTL analysis
 - `odatix pnr`: place & route from a completed synthesis, possibly made by another tool (e.g. Design Compiler or Genus, then Innovus or ICC2)
 - **Flows**: several strategies per tool, chosen with `-f/--flow`, each with its own work directory (`<tool>@<flow>`) and `parameters` passed to the scripts. Built-in flows for Vivado (`runtime`, `performance`, `area`, `power_opt`), Design Compiler (`high_effort`, `ultra`, ...), Genus and Innovus
 - **Steps**: jobs are split into resumable steps (Vivado: `synthesis`, `pnr`, `bitstream`). `-u/--until <step>` stops at a step, a later run resumes from there, `--rerun-from <step>` restarts from one. Metrics are exported per step
 - **User-defined tools**: a directory with a `tool.yml` in `odatix_userconfig/tools/` adds a tool or extends a built-in one (`extends`), and a workspace `metrics.yml` adds, overrides or removes metrics
 - User constraint files (`.xdc`, `.sdc`, floorplans) declared under `constraints` in a target file or an architecture, per stage (`synthesis`, `pnr`)
 - Support for `filelist.f` files
+- **Windows**: Verilator, Icarus Verilog and Yosys run RTL analyses natively (no `make` nor shell needed), and Vivado runs its steps and RTL analysis as on Linux. EDA tools and simulators installed in **WSL** run there: Odatix chooses (a tool with Linux commands only, a simulator installed in WSL only), the workspace decides (`wsl`, `wsl_distribution`, `wsl_tools` and `windows_tools` in `odatix.yml`), and a run says where each one runs
 
 #### Design space exploration
 
@@ -78,6 +79,7 @@ Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command 
 - Synthesis jobs run in their own directory (no more `.Xil` or `vivado.jou` at the workspace root)
 - Odatix Explorer: IP address retrieval on some systems, records sharing an x value drawn as one point
 - `odatix-gui` and `odatix-explorer` crashing or using 100 % CPU when started without a terminal
+- Windows: a run losing its session as soon as it started ("No session matches"), configuration names written with `\` (`MyCounter\32bits`, then not found), files read with the encoding of the console instead of UTF-8, simulators installed as batch files (`xelab.bat`) not found or given their arguments split on `=`, and the job files a tool reads (`settings.tcl`, `target.txt`...) written with `\r\n` line endings
 
 ## [3.7.3] - 2026-03-23
 

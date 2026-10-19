@@ -86,7 +86,7 @@ def read_command_parameter_value(param_file):
     if param_file is None or not os.path.isfile(param_file):
         return None
 
-    with open(param_file, "r") as f:
+    with open(param_file, "r", encoding="utf-8") as f:
         content = f.read().strip()
 
     if content == "":
@@ -174,7 +174,7 @@ def load_instance_settings(base_path, param_dir, param_settings_filename=hard_se
     if not os.path.isfile(settings_file):
         return None
     try:
-        with open(settings_file, "r") as f:
+        with open(settings_file, "r", encoding="utf-8") as f:
             settings = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception:
         return None

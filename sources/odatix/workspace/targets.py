@@ -286,7 +286,7 @@ class TargetFile(object):
         entries = []
         if os.path.isfile(path):
             try:
-                with open(path, "r") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     entries = _scan_targets_block(f.read())
             except OSError:
                 entries = []

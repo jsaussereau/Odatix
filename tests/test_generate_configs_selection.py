@@ -30,7 +30,7 @@ variables:
 def tree(tmp_path):
     for arch in ("MyAdder", "Other"):
         (tmp_path / "architectures" / arch).mkdir(parents=True)
-        (tmp_path / "architectures" / arch / "_settings.yml").write_text(SETTINGS)
+        (tmp_path / "architectures" / arch / "_settings.yml").write_text(SETTINGS, encoding="utf-8")
     (tmp_path / "workflows").mkdir()
     return tmp_path
 
@@ -48,7 +48,7 @@ def test_one_architecture_only(tree, monkeypatch):
 def test_a_pattern_of_architectures(tree, monkeypatch):
     monkeypatch.chdir(tree)
     plan = collect_configs("architectures", overwrite=False, entries=["My*"])
-    assert all("/MyAdder/" in "/" + path + "/" for path in plan.new)
+    assert all("/MyAdder/" in "/" + path.replace(os.sep, "/") + "/" for path in plan.new)
     assert len(plan.new) == 2
 
 

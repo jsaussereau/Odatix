@@ -77,7 +77,7 @@ def test_init_creates_the_directories_of_the_designs(tmp_path, monkeypatch):
 def test_init_warns_of_overwriting_only_a_workspace(tmp_path, monkeypatch, capsys, existing):
     monkeypatch.chdir(str(tmp_path))
     if existing:
-        (tmp_path / "odatix.yml").write_text(u"default_tool: vivado\n")
+        (tmp_path / "odatix.yml").write_text(u"default_tool: vivado\n", encoding="utf-8")
     answers = iter([False])
     monkeypatch.setattr(settings_module, "ask_yes_no", lambda: next(answers))
     assert OdatixSettings.init_directory_dialog(include_examples=False, prog="odatix") is False
@@ -95,7 +95,7 @@ def _init_output_pages():
         for name in files:
             if name.endswith(".md"):
                 path = os.path.join(root, name)
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     text = f.read()
                 if "$ odatix init" in text and "can now be used by Odatix" in text:
                     pages.append((path, text))
@@ -121,17 +121,17 @@ def test_the_documentation_shows_the_output_of_init_as_it_is(capsys):
 def test_the_tutorials_create_their_directory_even_if_it_exists():
     for root, _dirs, files in os.walk(os.path.join(DOCS_DIR, "tutorials", "run_examples")):
         for name in files:
-            with open(os.path.join(root, name)) as f:
+            with open(os.path.join(root, name), encoding="utf-8") as f:
                 assert "$ mkdir ~/odatix_examples" not in f.read(), name
-    with open(os.path.join(DOCS_DIR, "docs", "getting-started.md")) as f:
+    with open(os.path.join(DOCS_DIR, "docs", "getting-started.md"), encoding="utf-8") as f:
         assert "$ mkdir ~/odatix_examples" not in f.read()
 
 
 def test_the_installation_pages_say_that_pypi_serves_odatix_3():
     for page in ("_index.md", "pypi.md", "offline.md"):
-        with open(os.path.join(DOCS_DIR, "install", page)) as f:
+        with open(os.path.join(DOCS_DIR, "install", page), encoding="utf-8") as f:
             assert "Odatix 4.0 is not on PyPI yet" in f.read(), page
-    with open(os.path.join(DOCS_DIR, "docs", "getting-started.md")) as f:
+    with open(os.path.join(DOCS_DIR, "docs", "getting-started.md"), encoding="utf-8") as f:
         assert "Odatix 4.0 is not on PyPI yet" in f.read()
 
 

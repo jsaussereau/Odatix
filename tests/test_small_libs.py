@@ -19,19 +19,19 @@ import odatix.lib.wosit as wosit
 class TestGetReGroupFromFile:
     def test_match(self, tmp_path):
         report = tmp_path / "report.txt"
-        report.write_text("some line\nFrequency: 450.5 MHz\nother\n")
+        report.write_text("some line\nFrequency: 450.5 MHz\nother\n", encoding="utf-8")
         pattern = re.compile(r"Frequency: ([0-9.]+) MHz")
         assert get_re_group_from_file(str(report), pattern, 1) == "450.5"
 
     def test_first_match_wins(self, tmp_path):
         report = tmp_path / "report.txt"
-        report.write_text("LUT: 10\nLUT: 20\n")
+        report.write_text("LUT: 10\nLUT: 20\n", encoding="utf-8")
         pattern = re.compile(r"LUT: ([0-9]+)")
         assert get_re_group_from_file(str(report), pattern, 1) == "10"
 
     def test_no_match_returns_bad_value(self, tmp_path):
         report = tmp_path / "report.txt"
-        report.write_text("nothing here\n")
+        report.write_text("nothing here\n", encoding="utf-8")
         pattern = re.compile(r"Frequency: ([0-9.]+)")
         assert get_re_group_from_file(str(report), pattern, 1) == BAD_VALUE
 
@@ -172,7 +172,7 @@ def test_raw_mode_leaves_a_stdin_that_is_not_a_terminal_alone(monkeypatch):
     # "termios.error: Inappropriate ioctl for device".
     from odatix.lib import term_mode
 
-    with open(os.devnull) as devnull:
+    with open(os.devnull, encoding="utf-8") as devnull:
         monkeypatch.setattr(sys, "stdin", devnull)
         assert not term_mode.has_terminal()
         assert term_mode.set_raw_mode() is None

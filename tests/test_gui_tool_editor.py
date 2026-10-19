@@ -35,7 +35,7 @@ def workspace(tmp_path):
 def write_tool(workspace, name, content):
     path = workspace.tools.entry(name).path
     os.makedirs(path, exist_ok=True)
-    with open(os.path.join(path, "tool.yml"), "w") as handle:
+    with open(os.path.join(path, "tool.yml"), "w", encoding="utf-8") as handle:
         handle.write(textwrap.dedent(content))
     return path
 

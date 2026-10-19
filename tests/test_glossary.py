@@ -86,7 +86,7 @@ def gui_labels():
             if not name.endswith(".py"):
                 continue
             path = os.path.join(directory, name)
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 tree = ast.parse(f.read(), path)
             relative = os.path.relpath(path, GUI_DIR)
             for node in ast.walk(tree):
@@ -124,7 +124,7 @@ def gui_strings():
             if not name.endswith(".py"):
                 continue
             path = os.path.join(directory, name)
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 tree = ast.parse(f.read(), path)
             docstrings = set()
             for node in ast.walk(tree):
@@ -170,7 +170,7 @@ def docs_text():
         for name in files:
             if name.endswith(".md"):
                 path = os.path.join(directory, name)
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     for number, line in enumerate(f, 1):
                         found.append((os.path.relpath(path, DOCS_DIR), number, line))
     return found
@@ -223,11 +223,11 @@ def test_the_labels_are_found():
 
 
 def test_the_glossary_is_published_and_linked():
-    with open(os.path.join(DOCS_DIR, "docs", "glossary.md")) as f:
+    with open(os.path.join(DOCS_DIR, "docs", "glossary.md"), encoding="utf-8") as f:
         glossary = f.read()
     for term in ("Architecture", "Configuration", "Design point", "Target", "Tool", "Job", "Session", "Campaign"):
         assert "**" + term + "**" in glossary
-    with open(os.path.join(DOCS_DIR, "docs", "getting-started.md")) as f:
+    with open(os.path.join(DOCS_DIR, "docs", "getting-started.md"), encoding="utf-8") as f:
         assert "/docs/glossary/" in f.read()
     assert odatix_main.GLOSSARY_URL.endswith("/docs/glossary/")
 
@@ -240,7 +240,7 @@ def test_the_glossary_is_published_and_linked():
 PROPER_NOUNS = set(
     "Odatix Fmax RTL EDA Vivado Explorer GUI DSE MHz HLS CSV YAML JSON XML Python "
     "Verilator Quartus Genus Innovus LibreLane OpenLane ICC2 Pareto CPU ID UUID "
-    "Dhrystone Chisel VHDL Verilog SystemVerilog TCL Tcl DC NXT Monte Carlo".split()
+    "Dhrystone Chisel VHDL Verilog SystemVerilog TCL Tcl DC NXT Monte Carlo Windows Linux".split()
 )
 
 #: Not labels but examples of what a user types (metric names, patterns).

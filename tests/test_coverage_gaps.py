@@ -30,7 +30,7 @@ def test_edit_config_file_replaces_all_synthesis_settings(tmp_path):
 
     prepare_work.edit_config_file(arch, str(config))
 
-    content = config.read_text()
+    content = config.read_text(encoding="utf-8")
     assert "set top_level_module top" in content
     assert "set reset_signal \n" in content
     assert "set target_frequency 250" in content
@@ -52,7 +52,7 @@ def test_edit_pnr_config_file_quotes_source_metadata(tmp_path):
 
     prepare_work.edit_pnr_config_file(None, source, str(config))
 
-    content = config.read_text()
+    content = config.read_text(encoding="utf-8")
     assert 'set source_flow ""' in content
     assert 'set source_tool "tool"' in content
     assert 'set constraints_file "' in content
@@ -61,9 +61,9 @@ def test_edit_pnr_config_file_quotes_source_metadata(tmp_path):
 
 def test_clean_removes_requested_files_and_refuses_dangerous_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "remove-me.txt").write_text("temporary")
+    (tmp_path / "remove-me.txt").write_text("temporary", encoding="utf-8")
     settings = tmp_path / "clean.yml"
-    settings.write_text("remove_list:\n  - remove-me.txt\n")
+    settings.write_text("remove_list:\n  - remove-me.txt\n", encoding="utf-8")
 
     clean.clean(str(settings), quiet=True)
     clean.remove_path(".", force=False, quiet=True)
@@ -74,7 +74,7 @@ def test_clean_removes_requested_files_and_refuses_dangerous_path(tmp_path, monk
 
 def test_clean_rejects_a_malformed_remove_list(tmp_path):
     settings = tmp_path / "clean.yml"
-    settings.write_text("remove_list: remove-me.txt\n")
+    settings.write_text("remove_list: remove-me.txt\n", encoding="utf-8")
 
     with pytest.raises(SystemExit):
         clean.clean(str(settings), quiet=True)

@@ -20,7 +20,7 @@ from sim_fixtures import fake_simulators  # noqa: F401 (fixture)
 def write(root, relpath, text):
     path = os.path.join(str(root), relpath)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(textwrap.dedent(text))
     return path
 
@@ -193,7 +193,7 @@ class TestInformationFile:
         assert design_info.read_info(str(tmp_path)) == info
         assert info["dut"]["languages"] == ["vhdl"]
         assert info["param_domains"] == {"width": "8"}
-        with open(os.path.join(str(tmp_path), design_info.SIM_FILELIST_FILENAME)) as f:
+        with open(os.path.join(str(tmp_path), design_info.SIM_FILELIST_FILENAME), encoding="utf-8") as f:
             lines = [line.strip() for line in f if not line.startswith("//")]
         assert lines == info["sources"]["vhdl"] + ["tb/tb_a_top.sv"]
 
@@ -249,16 +249,17 @@ class TestSimulationJobs:
 
     def test_the_commands_get_the_placeholders(self, example_workspace, fake_simulators):
         settings = example_workspace / "odatix_userconfig" / "simulations" / "TB_Example_Cordic_QuestaSim" / "_settings.yml"
-        data = yaml.safe_load(settings.read_text())
+        data = yaml.safe_load(settings.read_text(encoding="utf-8"))
         data["tasks"] = [{"name": "main", "commands": ["echo ${tb_top} ${languages} ${vhdl_files} ${tb_files} ${reset_signal} ${width}"]}]
-        settings.write_text(yaml.dump(data))
+        settings.write_text(yaml.dump(data), encoding="utf-8")
 
         run = Run(
             Workspace.open(), "simulation", simulations=["TB_Example_Cordic_QuestaSim"],
             architectures=["Example_Cordic_vhdl + iterations/12 + width/8"], noask=True,
         )
         jobs = run.prepare().job_list
-        assert [job.command.split("\n")[0] for job in jobs] == ["(echo tb_cordic vhdl rtl/cordic.vhdl testbench/tb_cordic.vhdl reset 8"]
+        # cmd.exe has no comment to end: the done mark follows on the same line
+        assert [job.command.split("\n")[0].split(") && ")[0] for job in jobs] == ["(echo tb_cordic vhdl rtl/cordic.vhdl testbench/tb_cordic.vhdl reset 8"]
 
     def test_every_placeholder_is_offered_by_the_editors(self):
         from odatix.gui.builtin_variables import BUILTIN_VARIABLES, DEPRECATED_VARIABLES

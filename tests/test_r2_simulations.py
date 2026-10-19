@@ -45,7 +45,7 @@ class TestSimulationEditor:
                 "template": "ghdl", "testbench": {"top": top}, "progress": {"file": log, "regex": "r"},
             })
             editor.save_simulation(simulation, settings)
-        written = yaml.safe_load(open(simulation.settings_path).read())
+        written = yaml.safe_load(open(simulation.settings_path, encoding="utf-8").read())
         assert written["testbench"] == {"top": "tb_b"}
         assert written["progress"]["file"] == "b.log"
 
@@ -74,7 +74,7 @@ class TestSimulationEditor:
         assert "Nothing to run" in editor.run_warning("", [], str(tmp_path))
         assert editor.run_warning("ghdl", [], str(tmp_path)) == ""
         assert editor.run_warning("", ["main"], str(tmp_path)) == ""
-        (tmp_path / "Makefile").write_text("sim:\n")
+        (tmp_path / "Makefile").write_text("sim:\n", encoding="utf-8")
         assert editor.run_warning("", [], str(tmp_path)) == ""
 
     def test_architectures_the_template_cannot_compile_are_greyed(self, editor, example_workspace):
@@ -99,7 +99,7 @@ class TestRunner:
         sim = SimRunner("x")
         with pytest.raises(SystemExit):
             sim.finish()
-        report = yaml.safe_load((tmp_path / "sim_report.yml").read_text())
+        report = yaml.safe_load((tmp_path / "sim_report.yml").read_text(encoding="utf-8"))
         assert report["elaboration_time"] is None and report["compile_time"] is None
 
     def test_the_cores_are_shared_among_the_jobs(self, tmp_path, monkeypatch):
@@ -108,15 +108,15 @@ class TestRunner:
 
     def test_verilator_does_not_take_every_core(self):
         run_py = os.path.join(os.path.dirname(__file__), "..", "sources", "odatix_sim_templates", "verilator", "run.py")
-        text = open(run_py).read()
+        text = open(run_py, encoding="utf-8").read()
         assert '"-j", "0"' not in text and "sim.build_jobs" in text
-        metrics = yaml.safe_load(open(os.path.join(os.path.dirname(run_py), "_metrics.yml")))["metrics"]
+        metrics = yaml.safe_load(open(os.path.join(os.path.dirname(run_py), "_metrics.yml"), encoding="utf-8"))["metrics"]
         assert "elaboration_time" not in metrics
 
 
 def test_cordic_examples_do_not_repeat_status_or_dimensions():
     """SIM-116."""
     for name in ("Verilator", "GHDL", "QuestaSim", "Vivado"):
-        metrics = yaml.safe_load(open(os.path.join(EXAMPLES, "TB_Example_Cordic_" + name, "_metrics.yml")))["metrics"]
+        metrics = yaml.safe_load(open(os.path.join(EXAMPLES, "TB_Example_Cordic_" + name, "_metrics.yml"), encoding="utf-8"))["metrics"]
         assert "status" not in metrics and "check_status" in metrics
         assert not {"width", "iterations", "cycles"} & set(metrics)

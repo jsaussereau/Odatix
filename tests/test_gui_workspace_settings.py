@@ -52,7 +52,7 @@ cpu_limit: 90
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    (tmp_path / "odatix.yml").write_text(SETTINGS_FILE)
+    (tmp_path / "odatix.yml").write_text(SETTINGS_FILE, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -84,7 +84,10 @@ def save(page, monkeypatch, values, initial, saving=False):
 
 class TestEveryKeyHasAField:
     def test_every_setting_of_odatix_yml_is_listed(self, page):
-        expected = set(name for name, _default in PATH_SETTINGS) | {"default_tool", "resource_guard", "cpu_limit", "mem_limit", "session_access"}
+        expected = set(name for name, _default in PATH_SETTINGS) | {
+            "default_tool", "resource_guard", "cpu_limit", "mem_limit", "session_access",
+            "wsl", "wsl_distribution", "wsl_tools", "windows_tools",
+        }
         assert set(page.setting_keys()) == expected
         declared = [spec.key or spec.name for spec in WorkspaceSettings.specs()]
         assert set(declared) - set(page.setting_keys()) == {"workspace"}
@@ -146,7 +149,7 @@ class TestSaving:
         class_name, _tooltip, store, saved, feedback = save(page, monkeypatch, edited, initial=values, saving=True)
         assert "disabled" in class_name.split()
         assert feedback.className == "odx-message success"
-        text = (workspace / "odatix.yml").read_text()
+        text = (workspace / "odatix.yml").read_text(encoding="utf-8")
         assert "workflow_path: flows" in text
         assert "work_path: work" not in text
         assert "# arch_path: odatix_userconfig/architectures" in text
@@ -156,10 +159,10 @@ class TestSaving:
 
     def test_saving_what_the_file_says_leaves_it_as_it_is(self, page, workspace, monkeypatch):
         before = SETTINGS_FILE.replace("fmax_synthesis_settings_file: old_fmax.yml\n", "")
-        (workspace / "odatix.yml").write_text(before)
+        (workspace / "odatix.yml").write_text(before, encoding="utf-8")
         values = page.read_settings()
         save(page, monkeypatch, values, initial=values, saving=True)
-        assert (workspace / "odatix.yml").read_text() == before
+        assert (workspace / "odatix.yml").read_text(encoding="utf-8") == before
 
     def test_reset_empties_every_field(self, page):
         ids = [page.field_id(key) for key in page.setting_keys()]

@@ -51,7 +51,7 @@ class TestMissingTool:
     def test_is_a_tool_failure(self, tmp_path, tool, log, console):
         job = make_job(tmp_path, "D", log, complete=log is not None)
         if console is not None:
-            with open(os.path.join(job, "log", hard_settings.console_log_filename), "w") as f:
+            with open(os.path.join(job, "log", hard_settings.console_log_filename), "w", encoding="utf-8") as f:
                 f.write(console)
         result = result_of(tool, job)
         assert result.status == analysis.STATUS_TOOL_FAILURE
@@ -115,7 +115,7 @@ class TestFinishedAnalysis:
     def finish(self, workspace):
         job = analysis_job_dir(workspace, "verilator", "Example_Counter_sv", "08bits")
         (job / "log").mkdir(parents=True)
-        (job / "log" / hard_settings.synth_status_filename).write_text(hard_settings.valid_status + "\n")
+        (job / "log" / hard_settings.synth_status_filename).write_text(hard_settings.valid_status + "\n", encoding="utf-8")
 
     def test_a_new_analysis_runs(self, example_workspace):
         assert self.plan().counts().get(Category.NEW) == 1
@@ -133,7 +133,7 @@ class TestFinishedAnalysis:
     def test_an_unfinished_one_runs_again(self, example_workspace):
         job = analysis_job_dir(example_workspace, "verilator", "Example_Counter_sv", "08bits")
         (job / "log").mkdir(parents=True)
-        (job / "log" / hard_settings.synth_status_filename).write_text("Running\n")
+        (job / "log" / hard_settings.synth_status_filename).write_text("Running\n", encoding="utf-8")
         assert self.plan().counts().get(Category.INCOMPLETE) == 1
 
 
@@ -148,18 +148,18 @@ def shipped(*path):
 class TestShippedSettings:
     @pytest.mark.parametrize("root", [OdatixSettings.odatix_init_path, OdatixSettings.odatix_examples_path])
     def test_place_and_route_takes_every_completed_synthesis(self, root):
-        with open(shipped(root, "odatix_userconfig", "pnr_settings.yml")) as f:
+        with open(shipped(root, "odatix_userconfig", "pnr_settings.yml"), encoding="utf-8") as f:
             sources = yaml.safe_load(f)["sources"]
         assert "custom_freq_synthesis/*/*/*/*" in sources
         assert "fmax_synthesis/*/*/*/*" in sources
 
     def test_the_analysis_of_a_bare_workspace_names_no_design_it_lacks(self):
-        with open(shipped(OdatixSettings.odatix_init_path, "odatix_userconfig", "analyze_settings.yml")) as f:
+        with open(shipped(OdatixSettings.odatix_init_path, "odatix_userconfig", "analyze_settings.yml"), encoding="utf-8") as f:
             assert not yaml.safe_load(f)["architectures"]
 
     def test_the_example_analysis_names_existing_designs(self):
         root = OdatixSettings.odatix_examples_path
-        with open(shipped(root, "odatix_userconfig", "analyze_settings.yml")) as f:
+        with open(shipped(root, "odatix_userconfig", "analyze_settings.yml"), encoding="utf-8") as f:
             text = f.read()
         architectures = os.listdir(shipped(root, "odatix_userconfig", "architectures"))
         named = [line.split("-", 1)[1].strip().split("/")[0] for line in text.splitlines()
@@ -175,9 +175,9 @@ def completed_source(work_root, tool="design_compiler", target="AMS_c35_1V8"):
     job_dir = work_root / "custom_freq_synthesis" / tool / target / "counter" / "8bits" / "100MHz"
     (job_dir / hard_settings.work_result_path).mkdir(parents=True)
     (job_dir / hard_settings.work_log_path).mkdir(parents=True)
-    (job_dir / hard_settings.work_log_path / hard_settings.synth_status_filename).write_text(hard_settings.valid_status)
+    (job_dir / hard_settings.work_log_path / hard_settings.synth_status_filename).write_text(hard_settings.valid_status, encoding="utf-8")
     for filename in (hard_settings.pnr_netlist_filename, hard_settings.pnr_sdc_filename, hard_settings.pnr_sdf_filename):
-        (job_dir / hard_settings.work_result_path / filename).write_text("handoff")
+        (job_dir / hard_settings.work_result_path / filename).write_text("handoff", encoding="utf-8")
     return job_dir
 
 

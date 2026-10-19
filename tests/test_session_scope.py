@@ -37,7 +37,7 @@ def machine(tmp_path, monkeypatch):
     here, there = tmp_path / "here", tmp_path / "there"
     for root in (here, there):
         root.mkdir()
-        (root / "odatix.yml").write_text("{}")
+        (root / "odatix.yml").write_text("{}", encoding="utf-8")
     daemons = [
         _daemon(11, "nightly", here),
         _daemon(12, "build", here),

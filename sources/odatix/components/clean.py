@@ -113,7 +113,7 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
     if not os.path.isfile(settings_filename):
       printc.error("There is no default Odatix clean settings file \"" + settings_filename, script_name)
       sys.exit(-1)
-  with open(settings_filename, "r") as f:
+  with open(settings_filename, "r", encoding="utf-8") as f:
     try:
       settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception as e:

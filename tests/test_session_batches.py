@@ -139,7 +139,7 @@ class TestTheSessionRunsIt:
         import odatix.components.export_derived_metrics as exp_derived
 
         derived = tmp_path / "derived.yml"
-        derived.write_text("{}")
+        derived.write_text("{}", encoding="utf-8")
         applied = []
         monkeypatch.setattr(exp_derived, "apply_derived_metrics", lambda *args: applied.append(args))
         handler = handler_core.ParallelJobHandler([], nb_jobs=1, format_yaml="")

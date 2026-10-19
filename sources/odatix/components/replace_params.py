@@ -60,7 +60,7 @@ def parse_arguments():
 def read_file(file_path):
     """Reads the contents of a text file and returns it as a string."""
     try:
-        with open(file_path, 'r') as file:
+        with open(file_path, 'r', encoding="utf-8") as file:
             return file.read()
     except Exception:
         printc.error("Could not open input file \"" + file_path + "\"", script_name)
@@ -69,7 +69,7 @@ def read_file(file_path):
 def write_file(file_path, content):
     """Writes content to a specified text file."""
     try:
-        with open(file_path, 'w') as file:
+        with open(file_path, 'w', encoding="utf-8") as file:
             file.write(content)
     except Exception as e:
         printc.error("Could not write output file \"" + file_path + "\": " + str(e), script_name)

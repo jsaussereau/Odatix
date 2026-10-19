@@ -54,8 +54,8 @@ def _alive(pid):
 def _wait_for_file(path, timeout=5.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if os.path.isfile(path) and open(path).read().strip():
-            return open(path).read().strip()
+        if os.path.isfile(path) and open(path, encoding="utf-8").read().strip():
+            return open(path, encoding="utf-8").read().strip()
         time.sleep(0.02)
     raise AssertionError("{} was never written".format(path))
 

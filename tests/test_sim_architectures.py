@@ -141,7 +141,7 @@ class TestSimulationHandlerReadsIt:
 
     def _write(self, sim, settings):
         os.makedirs("odatix_userconfig/simulations/" + sim, exist_ok=True)
-        with open("odatix_userconfig/simulations/" + sim + "/_settings.yml", "w") as f:
+        with open("odatix_userconfig/simulations/" + sim + "/_settings.yml", "w", encoding="utf-8") as f:
             f.write(settings)
 
     TASKS = "tasks:\n  - name: main\n    commands:\n      - 'echo hello'\n"
@@ -231,9 +231,9 @@ class TestSubstitutions:
 
 class TestResolveParamFile:
     def _sim(self, tmp_path):
-        (tmp_path / "fixed.txt").write_text("parameter SEED = 1;")
+        (tmp_path / "fixed.txt").write_text("parameter SEED = 1;", encoding="utf-8")
         (tmp_path / "stimuli").mkdir()
-        (tmp_path / "stimuli" / "8bits.txt").write_text("localparam TB_WIDTH = 8;")
+        (tmp_path / "stimuli" / "8bits.txt").write_text("localparam TB_WIDTH = 8;", encoding="utf-8")
         return str(tmp_path)
 
     def test_nothing_named_resolves_to_nothing(self, tmp_path):
@@ -253,7 +253,7 @@ class TestResolveParamFile:
 
     def test_a_configuration_described_by_a_rule_is_resolved(self, tmp_path):
         sim = self._sim(tmp_path)
-        with open(os.path.join(sim, "stimuli", "_settings.yml"), "w") as f:
+        with open(os.path.join(sim, "stimuli", "_settings.yml"), "w", encoding="utf-8") as f:
             f.write(
                 "configurations:\n"
                 "  name: \"${width}bits\"\n"
@@ -265,7 +265,7 @@ class TestResolveParamFile:
             )
         resolved = sim_architectures.resolve_param_file({"param_dir": "stimuli"}, sim, "16bits")
         assert resolved is not None
-        with open(resolved) as f:
+        with open(resolved, encoding="utf-8") as f:
             assert f.read().strip() == "localparam TB_WIDTH = 16;"
 
     def test_a_configuration_the_directory_does_not_hold_is_reported(self, tmp_path):
@@ -344,9 +344,9 @@ class TestWhatARunSubstitutes(TestSimulationHandlerReadsIt):
             "        width:\n" + overrides + self.TASKS,
         )
         os.makedirs("odatix_userconfig/simulations/TB_Combining/tb_params", exist_ok=True)
-        with open("odatix_userconfig/simulations/TB_Combining/tb_params/8.txt", "w") as f:
+        with open("odatix_userconfig/simulations/TB_Combining/tb_params/8.txt", "w", encoding="utf-8") as f:
             f.write("localparam TB_WIDTH = 8;")
-        with open("odatix_userconfig/simulations/TB_Combining/fixed.txt", "w") as f:
+        with open("odatix_userconfig/simulations/TB_Combining/fixed.txt", "w", encoding="utf-8") as f:
             f.write("localparam TB_SEED = 1;")
 
         simulations = self._handler().get_simulations([{"TB_Combining": [self.SELECTION]}])
@@ -469,10 +469,10 @@ class TestTheDirectorySaysHowItIsWritten(TestSimulationHandlerReadsIt):
             '          param_dir: "tb_params"\n' + self.TASKS,
         )
         os.makedirs("odatix_userconfig/simulations/TB_Directory/tb_params", exist_ok=True)
-        with open("odatix_userconfig/simulations/TB_Directory/tb_params/8.txt", "w") as f:
+        with open("odatix_userconfig/simulations/TB_Directory/tb_params/8.txt", "w", encoding="utf-8") as f:
             f.write("localparam TB_WIDTH = 8;")
         if directory_settings is not None:
-            with open("odatix_userconfig/simulations/TB_Directory/tb_params/_settings.yml", "w") as f:
+            with open("odatix_userconfig/simulations/TB_Directory/tb_params/_settings.yml", "w", encoding="utf-8") as f:
                 f.write(directory_settings)
         simulations = self._handler().get_simulations([{"TB_Directory": [self.SELECTION]}])
         assert len(simulations) == 1
@@ -508,9 +508,9 @@ class TestTheDirectorySaysHowItIsWritten(TestSimulationHandlerReadsIt):
             '          param_target_file: "tb/from_entry.sv"\n' + self.TASKS,
         )
         os.makedirs("odatix_userconfig/simulations/TB_Legacy/tb_params", exist_ok=True)
-        with open("odatix_userconfig/simulations/TB_Legacy/tb_params/8.txt", "w") as f:
+        with open("odatix_userconfig/simulations/TB_Legacy/tb_params/8.txt", "w", encoding="utf-8") as f:
             f.write("localparam TB_WIDTH = 8;")
-        with open("odatix_userconfig/simulations/TB_Legacy/tb_params/_settings.yml", "w") as f:
+        with open("odatix_userconfig/simulations/TB_Legacy/tb_params/_settings.yml", "w", encoding="utf-8") as f:
             f.write("param_target_file: tb/from_directory.sv\n")
         simulations = self._handler().get_simulations([{"TB_Legacy": [self.SELECTION]}])
         assert len(simulations) == 1

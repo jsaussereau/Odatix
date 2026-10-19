@@ -14,7 +14,7 @@ def _write(path, text):
     directory = os.path.dirname(str(path))
     if directory and not os.path.isdir(directory):
         os.makedirs(directory)
-    with open(str(path), "w") as handle:
+    with open(str(path), "w", encoding="utf-8") as handle:
         handle.write(text)
 
 
@@ -202,4 +202,4 @@ class TestNestedBlockFromADict:
         save_settings(settings, path)
         saved = load_settings(FmaxSynthesisJobSettings, path).fmax_synthesis
         assert (saved.override, saved.lower_bound, saved.upper_bound) == (True, 100, 900)
-        assert "# keep" in open(path).read()
+        assert "# keep" in open(path, encoding="utf-8").read()

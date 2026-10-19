@@ -116,7 +116,7 @@ def print_copyright():
 def read_version():
   """Reads and returns the current installed version of Odatix."""
   try:
-    with open(version_file, 'r') as file:
+    with open(version_file, 'r', encoding="utf-8") as file:
       return file.read().strip()
   except:
     printc.warning("Could not read version file \"" + version_file + "\"")

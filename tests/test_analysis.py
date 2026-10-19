@@ -35,13 +35,13 @@ def make_job(root, name, log="", top="top", complete=True, sources=("top.sv",), 
     (job / "log").mkdir(parents=True)
     (job / "rtl").mkdir()
     for source in sources:
-        (job / "rtl" / source).write_text("")
-    (job / hard_settings.arch_filename).write_text(name + "/" + (configuration or name) + "\n")
-    (job / hard_settings.yaml_config_filename).write_text(yaml.safe_dump({"top_level_module": top}))
+        (job / "rtl" / source).write_text("", encoding="utf-8")
+    (job / hard_settings.arch_filename).write_text(name + "/" + (configuration or name) + "\n", encoding="utf-8")
+    (job / hard_settings.yaml_config_filename).write_text(yaml.safe_dump({"top_level_module": top}), encoding="utf-8")
     if log is not None:
-        (job / "log" / log_name).write_text(log)
+        (job / "log" / log_name).write_text(log, encoding="utf-8")
     if complete:
-        (job / "log" / hard_settings.synth_status_filename).write_text(hard_settings.valid_status + "\n")
+        (job / "log" / hard_settings.synth_status_filename).write_text(hard_settings.valid_status + "\n", encoding="utf-8")
     return str(job)
 
 
@@ -165,6 +165,57 @@ class TestIcarus:
     def test_a_vhdl_design_is_not_supported(self, tmp_path):
         log = "rtl/top.vhd:1: error: No architectures to choose from for entity e.\n"
         result = result_of("icarus", make_job(tmp_path, "D", log, sources=("top.vhd",)))
+        assert result.status == analysis.STATUS_UNSUPPORTED
+
+
+# Raw: Yosys writes the names of the design with a leading backslash
+YOSYS_LOG = r"""rtl/top.sv:4: Warning: Identifier `\implicit_net' is implicitly declared.
+rtl/top.sv:5: Warning: Range [4:0] select out of bounds on signal `\r': Setting 1 MSB bits to undef.
+Warning: Resizing cell port top.u.x from 4 bits to 2 bits.
+Warning: Wire top.\undriven is used but has no driver.
+Warning: multiple conflicting drivers for top.\b:
+    module input b[0]
+    module input a[0]
+Warning: found logic loop in module top:
+    cell $rtl/top.sv:3$xor$1 ($xor) source: rtl/top.sv:3.14-3.20
+      A[0] --> Y[0]
+Warning: Latch inferred for signal `\top.\q' from process `\top.$rtl/top.sv:2$proc$1': $auto$proc_dlatch.cc:559:proc_dlatch$15
+ERROR: Module `\sub_missing' referenced in module `\top' in cell `\m' is not part of the design.
+"""
+
+
+class TestYosys:
+    def test_findings(self, tmp_path):
+        result = result_of("yosys", make_job(tmp_path, "D", YOSYS_LOG))
+        assert result.status == analysis.STATUS_FAILED
+        main = result.main_finding
+        assert (main.severity, main.category, main.subject) == ("error", "missing_module", "sub_missing")
+        found = {finding.category: finding for finding in result.findings}
+        assert (found["undeclared"].subject, found["undeclared"].location) == ("implicit_net", "rtl/top.sv:4")
+        assert found["undriven"].subject == "undriven"
+        assert found["multiple_drivers"].subject == "b"
+        assert [line.strip() for line in found["multiple_drivers"].detail] == ["module input b[0]", "module input a[0]"]
+        assert found["combinational_loop"].subject == "top"
+        assert found["latch"].subject == "q"
+        assert sorted(finding.category for finding in result.findings if finding.category == "width_mismatch") == [
+            "width_mismatch", "width_mismatch",
+        ]
+
+    @pytest.mark.parametrize("log, category, subject", [
+        ("rtl/top.sv:2: ERROR: syntax error, unexpected ';'\n", "syntax", None),
+        ("ERROR: Module `nosuch' not found!\n", "missing_top", "nosuch"),
+        ("ERROR: File `rtl/none.sv' not found or is a directory\n", "missing_file", "rtl/none.sv"),
+        ("ERROR: Can't open include file `nohdr.svh'!\n", "missing_file", "nohdr.svh"),
+        ("ERROR: Module `sub' referenced in module `top' in cell `u' does not have a port named 'nope'.\n",
+         "port_mismatch", "nope"),
+    ])
+    def test_errors(self, tmp_path, log, category, subject):
+        result = result_of("yosys", make_job(tmp_path, "D", log))
+        assert [(finding.category, finding.subject) for finding in result.findings] == [(category, subject)]
+
+    def test_a_vhdl_design_is_not_supported(self, tmp_path):
+        log = "ERROR: File `rtl/top.vhd' not found or is a directory\n"
+        result = result_of("yosys", make_job(tmp_path, "D", log, sources=("top.vhd",)))
         assert result.status == analysis.STATUS_UNSUPPORTED
 
 
@@ -321,9 +372,9 @@ class TestGenus:
     def job(self, tmp_path, log=GENUS_LOG, checkout=GENUS_CHECKOUT, latches="inst:top/q_reg[0]\ninst:top/q_reg[1]\n"):
         job = make_job(tmp_path, "D", log)
         os.makedirs(os.path.join(job, "report"))
-        with open(os.path.join(job, "report", "checkout.rep"), "w") as f:
+        with open(os.path.join(job, "report", "checkout.rep"), "w", encoding="utf-8") as f:
             f.write(checkout)
-        with open(os.path.join(job, "report", "latches.rep"), "w") as f:
+        with open(os.path.join(job, "report", "latches.rep"), "w", encoding="utf-8") as f:
             f.write(latches)
         return job
 
@@ -367,8 +418,8 @@ class TestRules:
 
     def definition(self, user_tools_dir, data):
         (user_tools_dir / "mylint").mkdir()
-        (user_tools_dir / "mylint" / "tool.yml").write_text("unix:\n  analysis_command: [true]\n")
-        (user_tools_dir / "mylint" / "analysis.yml").write_text(yaml.safe_dump(data))
+        (user_tools_dir / "mylint" / "tool.yml").write_text("unix:\n  analysis_command: [true]\n", encoding="utf-8")
+        (user_tools_dir / "mylint" / "analysis.yml").write_text(yaml.safe_dump(data), encoding="utf-8")
         return analysis.load_definition("mylint")
 
     def test_a_secondary_message_goes_when_one_as_severe_is_there(self, user_tools_dir, tmp_path):
@@ -406,7 +457,7 @@ class TestStatus:
     def test_a_tool_that_could_not_run_is_a_tool_failure(self, tmp_path):
         # No license: Design Compiler writes no log, the job output says why.
         job = make_job(tmp_path, "D", None, complete=False)
-        with open(os.path.join(job, "log", hard_settings.console_log_filename), "w") as f:
+        with open(os.path.join(job, "log", hard_settings.console_log_filename), "w", encoding="utf-8") as f:
             f.write("Fatal: Design Compiler is not enabled. (DCSH-1)\n")
         result = result_of("design_compiler", job)
         assert result.status == analysis.STATUS_TOOL_FAILURE
@@ -455,7 +506,7 @@ class TestExpectations:
 ######################################
 
 class TestDefinitions:
-    @pytest.mark.parametrize("tool", ["verilator", "icarus", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "librelane"])
+    @pytest.mark.parametrize("tool", ["verilator", "icarus", "yosys", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "librelane"])
     def test_every_category_a_definition_names_exists(self, tool):
         definition = analysis.load_definition(tool)
         assert definition.rules
@@ -485,7 +536,7 @@ class TestDefinitions:
 
     def test_a_tool_of_the_workspace_has_the_shared_vocabulary(self, user_tools_dir):
         (user_tools_dir / "mylint").mkdir()
-        (user_tools_dir / "mylint" / "tool.yml").write_text("unix:\n  analysis_command: [true]\n")
+        (user_tools_dir / "mylint" / "tool.yml").write_text("unix:\n  analysis_command: [true]\n", encoding="utf-8")
         definition = analysis.load_definition("mylint")
         assert "missing_module" in definition.categories
         assert [rule.name for rule in definition.rules if rule.name.startswith("odatix_")]
@@ -624,7 +675,7 @@ class TestDaemonExport:
 
         assert exported == [job]
         assert job.status == "failed"
-        assert "oops" in open(job.console_log).read()
+        assert "oops" in open(job.console_log, encoding="utf-8").read()
 
 
 class TestCommands:

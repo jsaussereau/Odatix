@@ -491,7 +491,7 @@ class TestExport:
       [simulation_record(metrics={"Cycles": 1000}, invariant_domains=["MEM"])],
     )
     definitions = tmp_path / "derived_metrics.yml"
-    definitions.write_text(definitions_yaml)
+    definitions.write_text(definitions_yaml, encoding="utf-8")
     return str(results), str(definitions)
 
   def test_a_metric_crosses_result_files(self, tmp_path):
@@ -524,7 +524,7 @@ class TestExport:
     apply_derived_metrics(results, definitions)
     assert results_schema.load_results_file(os.path.join(results, "results_vivado.yml")).units["Cycles"] == "cycles"
 
-    with open(definitions, "w") as f:
+    with open(definitions, "w", encoding="utf-8") as f:
       f.write("derived_metrics: {}\n")
     apply_derived_metrics(results, definitions)
 
@@ -540,11 +540,11 @@ class TestExport:
     results, definitions = self.write_workspace(
       tmp_path, "derived_metrics:\n  Cycles:\n    from: simulation\n"
     )
-    with open(os.path.join(results, "notes.yml"), "w") as f:
+    with open(os.path.join(results, "notes.yml"), "w", encoding="utf-8") as f:
       f.write("something: else\n")
 
     assert apply_derived_metrics(results, definitions)
-    with open(os.path.join(results, "notes.yml")) as f:
+    with open(os.path.join(results, "notes.yml"), encoding="utf-8") as f:
       assert f.read() == "something: else\n"
 
 
@@ -625,14 +625,14 @@ class TestUnreadableDefinitions:
     from odatix.components.export_derived_metrics import apply_derived_metrics
 
     path = tmp_path / "derived_metrics.yml"
-    path.write_text(content)
+    path.write_text(content, encoding="utf-8")
     assert derived_metrics.load_derived_metrics(str(path)).valid is False
     assert apply_derived_metrics(str(tmp_path), str(path)) is False
 
   def test_a_missing_or_empty_file_derives_nothing(self, tmp_path):
     assert derived_metrics.load_derived_metrics(str(tmp_path / "none.yml")).valid is True
     empty = tmp_path / "derived_metrics.yml"
-    empty.write_text("")
+    empty.write_text("", encoding="utf-8")
     assert derived_metrics.load_derived_metrics(str(empty)).valid is True
 
 
@@ -735,8 +735,8 @@ def test_end_of_run_derivation_reads_the_workspace_derived_metrics_file(tmp_path
   """The file named by "derived_metrics_file" in odatix.yml, not the default path (C-04)."""
   from odatix.components.export_derived_metrics import configure_post_batch_derivation
 
-  (tmp_path / "odatix.yml").write_text("derived_metrics_file: my_derived.yml\n")
-  (tmp_path / "my_derived.yml").write_text("derived_metrics:\n  X: {type: operation, op: 'a * 2'}\n")
+  (tmp_path / "odatix.yml").write_text("derived_metrics_file: my_derived.yml\n", encoding="utf-8")
+  (tmp_path / "my_derived.yml").write_text("derived_metrics:\n  X: {type: operation, op: 'a * 2'}\n", encoding="utf-8")
   monkeypatch.chdir(tmp_path)
 
   class Handler(object):

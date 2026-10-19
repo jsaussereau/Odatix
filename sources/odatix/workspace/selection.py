@@ -749,7 +749,7 @@ def _match_configurations(request, root, messages):
                 request.text, entry_path
             ), hints=hints)
         )
-    return [os.path.join(request.entry, name) for name in names]
+    return [request.entry + "/" + name for name in names]
 
 
 def _match_domains(request, root, messages):

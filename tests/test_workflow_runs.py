@@ -17,7 +17,7 @@ from odatix.lib.run_report import Category, JobPlan
 
 def _write(path, content):
     os.makedirs(os.path.dirname(str(path)), exist_ok=True)
-    with open(str(path), "w") as f:
+    with open(str(path), "w", encoding="utf-8") as f:
         f.write(content)
 
 
@@ -71,7 +71,7 @@ class TestTaskPath:
 
 class TestPhony:
     def test_tasks_are_phony_by_default(self, tmp_path):
-        (tmp_path / "built.txt").write_text("")
+        (tmp_path / "built.txt").write_text("", encoding="utf-8")
         tasks = [
             {"name": "built.txt", "commands": ["touch built.txt"]},
             {"name": "main", "dependencies": ["built.txt"], "commands": ["true"]},
@@ -84,7 +84,7 @@ class TestPhony:
             {"name": "main", "dependencies": ["built.txt"], "commands": ["true"]},
         ]
         assert _stage_names(wosit.createTaskGraph(tasks), tmp_path) == [["built.txt"], ["main"]]
-        (tmp_path / "built.txt").write_text("")
+        (tmp_path / "built.txt").write_text("", encoding="utf-8")
         assert _stage_names(wosit.createTaskGraph(tasks), tmp_path) == [["main"]]
 
     def test_its_file_is_read_in_its_own_directory(self, tmp_path):
@@ -92,10 +92,10 @@ class TestPhony:
             {"name": "built.txt", "path": "sub", "phony": False, "commands": ["touch built.txt"]},
             {"name": "main", "dependencies": ["built.txt"], "commands": ["true"]},
         ]
-        (tmp_path / "built.txt").write_text("")
+        (tmp_path / "built.txt").write_text("", encoding="utf-8")
         assert _stage_names(wosit.createTaskGraph(tasks), tmp_path) == [[os.path.join("sub", "built.txt")], ["main"]]
         (tmp_path / "sub").mkdir()
-        (tmp_path / "sub" / "built.txt").write_text("")
+        (tmp_path / "sub" / "built.txt").write_text("", encoding="utf-8")
         assert _stage_names(wosit.createTaskGraph(tasks), tmp_path) == [["main"]]
 
     def test_phony_must_be_yes_or_no(self):
@@ -136,7 +136,7 @@ class TestJobCategory:
         assert run_workflow.job_category(str(tmp_path / "nope"), overwrite=False) == Category.NEW
 
     def test_done_is_skipped_unless_overwritten(self, tmp_path):
-        (tmp_path / run_workflow.WORKFLOW_DONE_FILENAME).write_text("done")
+        (tmp_path / run_workflow.WORKFLOW_DONE_FILENAME).write_text("done", encoding="utf-8")
         assert run_workflow.job_category(str(tmp_path), overwrite=False) == Category.CACHED
         assert run_workflow.job_category(str(tmp_path), overwrite=True) == Category.OVERWRITE
 
@@ -174,7 +174,7 @@ def _instance(tmp_path, **kwargs):
 class TestPlaceholders:
     def test_the_configuration_reaches_the_commands_without_use_parameters(self, tmp_path):
         config = tmp_path / "default.txt"
-        config.write_text("balanced profile\n")
+        config.write_text("balanced profile\n", encoding="utf-8")
         instance = _instance(tmp_path, use_parameters=False, command_param_file=str(config))
         substitutions = run_workflow._build_workflow_command_substitutions(instance)
         assert substitutions["cli_profile"] == "balanced profile"
@@ -272,7 +272,7 @@ class TestExport:
         assert not (tmp_path / "results").exists()
 
     def test_an_operation_computes_on_the_values_before_their_format(self, tmp_path):
-        (tmp_path / "out.txt").write_text("comparisons: 19900\nseconds: 0.016404\n")
+        (tmp_path / "out.txt").write_text("comparisons: 19900\nseconds: 0.016404\n", encoding="utf-8")
         metrics = {
             "comparisons": {"type": "regex", "settings": {"file": "out.txt", "pattern": "comparisons: (.*)", "group_id": 1}},
             "seconds": {"type": "regex", "settings": {"file": "out.txt", "pattern": "seconds: (.*)", "group_id": 1}, "format": "%.0f"},
@@ -398,7 +398,7 @@ class TestWorkflowMetricsApi:
         assert workflow.metrics is workflow.metrics
         workflow.metrics.set("seconds", {"type": "json", "settings": {"file": "r.json", "key": "seconds"}})
         workflow.metrics.save()
-        with open(workflow.metrics_path) as f:
+        with open(workflow.metrics_path, encoding="utf-8") as f:
             assert "seconds" in yaml.safe_load(f)["metrics"]
 
 

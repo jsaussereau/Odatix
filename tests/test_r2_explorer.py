@@ -94,5 +94,5 @@ def test_heartbeat_ignores_timeouts():
     import os
     import odatix.gui
     path = os.path.join(os.path.dirname(odatix.gui.__file__), "assets", "server_heartbeat.js")
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     assert "if (timedOut) return;" in text and "if (pending) return;" in text

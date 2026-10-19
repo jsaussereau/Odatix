@@ -73,7 +73,7 @@ class Campaign(object):
         return
       self._read = True
       try:
-        with open(self.path, "r") as file:
+        with open(self.path, "r", encoding="utf-8") as file:
           data = yaml.load(file, Loader=_YamlLoader) or {}
         if isinstance(data, dict):
           self._data = data

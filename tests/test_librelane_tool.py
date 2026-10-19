@@ -53,7 +53,7 @@ def write_step(run_dir, index, name, metrics, views=None):
   step_dir.mkdir(parents=True)
   state = dict(views or {})
   state["metrics"] = metrics
-  (step_dir / "state_out.json").write_text(json.dumps(state))
+  (step_dir / "state_out.json").write_text(json.dumps(state), encoding="utf-8")
   return step_dir
 
 
@@ -85,7 +85,7 @@ class TestCollect:
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == str(last / "state_out.json")
 
-    metrics = json.loads((report / "metrics.json").read_text())
+    metrics = json.loads((report / "metrics.json").read_text(encoding="utf-8"))
     assert metrics["Cell_Area"] == 544.272
     assert metrics["Cell_count"] == 51
     # Power in mW, as the other ASIC tools of Odatix report it
@@ -93,10 +93,10 @@ class TestCollect:
     assert metrics["Worst_Slack"] == -0.25
     assert "Die_area" not in metrics
 
-    raw = json.loads((report / "librelane_metrics.json").read_text())
+    raw = json.loads((report / "librelane_metrics.json").read_text(encoding="utf-8"))
     assert raw["design__instance__count"] == 51
-    assert json.loads(state_copy.read_text())["metrics"]["timing__setup__ws"] == -0.25
-    assert "setup_ws: -0.25" in (report / "timing.rep").read_text()
+    assert json.loads(state_copy.read_text(encoding="utf-8"))["metrics"]["timing__setup__ws"] == -0.25
+    assert "setup_ws: -0.25" in (report / "timing.rep").read_text(encoding="utf-8")
 
   def test_cell_area_leaves_out_the_cells_filling_the_rows(self, tmp_path):
     run_dir = tmp_path / "run"
@@ -120,7 +120,7 @@ class TestCollect:
       "design__instance__count__class:timing_repair_buffer": 13,
     })
     assert run_state_script("collect", run_dir, tmp_path / "report").returncode == 0
-    metrics = json.loads((tmp_path / "report" / "metrics.json").read_text())
+    metrics = json.loads((tmp_path / "report" / "metrics.json").read_text(encoding="utf-8"))
     assert metrics["Cell_Area"] == pytest.approx(740.7098)
     assert metrics["Cell_count"] == 67
     assert metrics["Total_Cell_Area"] == 1066.02
@@ -140,9 +140,9 @@ class TestCollect:
     write_step(run_dir, 1, "sta", {"timing__setup__ws": float("inf")})
     result = run_state_script("collect", run_dir, tmp_path / "report")
     assert result.returncode == 0
-    assert "setup_ws: inf" in (tmp_path / "report" / "timing.rep").read_text()
+    assert "setup_ws: inf" in (tmp_path / "report" / "timing.rep").read_text(encoding="utf-8")
     # No value is better than an infinite one in the results
-    assert "Worst_Slack" not in json.loads((tmp_path / "report" / "metrics.json").read_text())
+    assert "Worst_Slack" not in json.loads((tmp_path / "report" / "metrics.json").read_text(encoding="utf-8"))
 
   def test_a_run_without_any_completed_step_is_an_error(self, tmp_path):
     result = run_state_script("collect", tmp_path / "missing", tmp_path / "report")
@@ -150,14 +150,14 @@ class TestCollect:
 
   def test_view_prints_the_path_of_a_view(self, tmp_path):
     state = tmp_path / "state.json"
-    state.write_text(json.dumps({"nl": "/runs/x/counter.nl.v", "spef": {"nom_*": "/runs/x/nom.spef"}, "def": None}))
+    state.write_text(json.dumps({"nl": "/runs/x/counter.nl.v", "spef": {"nom_*": "/runs/x/nom.spef"}, "def": None}), encoding="utf-8")
     assert run_state_script("view", state, "nl").stdout.strip() == "/runs/x/counter.nl.v"
     assert run_state_script("view", state, "spef").stdout.strip() == "/runs/x/nom.spef"
     assert run_state_script("view", state, "def").stdout.strip() == ""
 
 
 def read_tcl_step_ranges():
-  with open(os.path.join(TCL_DIR, "librelane_common.tcl")) as f:
+  with open(os.path.join(TCL_DIR, "librelane_common.tcl"), encoding="utf-8") as f:
     content = f.read()
   block = re.search(r"set librelane_step_ranges \[dict create(.*?)\n\]", content, re.S).group(1)
   ranges = re.findall(r"^\s*(\w+)\s+\[list\s+\"([^\"]*)\"\s+\"([^\"]*)\"\]", block, re.M)
@@ -168,7 +168,7 @@ def read_tcl_step_ranges():
 class TestSteps:
 
   def test_every_custom_freq_step_has_a_range_in_the_classic_flow(self):
-    with open(os.path.join(TOOL_DIR, "tool.yml")) as f:
+    with open(os.path.join(TOOL_DIR, "tool.yml"), encoding="utf-8") as f:
       tool = yaml.safe_load(f)
     declared = [step["name"] for step in tool["unix"]["custom_freq_synthesis_steps"]]
     ranges, order = read_tcl_step_ranges()
@@ -189,7 +189,7 @@ class TestTclScripts:
 
   def run_tcl(self, tmp_path, script):
     path = tmp_path / "test.tcl"
-    path.write_text(script)
+    path.write_text(script, encoding="utf-8")
     result = subprocess.run(
       ["tclsh", str(path)], cwd=str(tmp_path),
       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True,
@@ -215,7 +215,7 @@ class TestTclScripts:
     ("", 0, 0),
   ])
   def test_is_slack_met_reads_the_worst_setup_slack(self, tmp_path, content, met, inf):
-    (tmp_path / "timing.rep").write_text(content)
+    (tmp_path / "timing.rep").write_text(content, encoding="utf-8")
     output = self.run_tcl(tmp_path, (
       "source {%s}\n" % os.path.join(TCL_DIR, "is_slack_met.tcl")
       + "puts \"[is_slack_met . timing.rep] [is_slack_inf . timing.rep]\"\n"
@@ -226,7 +226,7 @@ class TestTclScripts:
     scripts = tmp_path / "scripts"
     shutil.copytree(TCL_DIR, str(scripts))
     shutil.copy(os.path.join(OdatixSettings.odatix_eda_tools_path, "_common", "settings.tcl"), str(scripts))
-    (tmp_path / "period.json").write_text('{"CLOCK_PERIOD": 5.0}')
+    (tmp_path / "period.json").write_text('{"CLOCK_PERIOD": 5.0}', encoding="utf-8")
     output = self.run_tcl(tmp_path, (
       "source scripts/librelane_common.tcl\n"
       "set constraints_file period.json\n"
@@ -242,11 +242,11 @@ class TestAnalysisInstallPath:
   def test_reads_the_install_path_of_the_target_file(self, tmp_path):
     install = tmp_path / "librelane"
     install.mkdir()
-    (tmp_path / "target_librelane.yml").write_text("tool_install_path: " + str(install) + "\n")
+    (tmp_path / "target_librelane.yml").write_text("tool_install_path: " + str(install) + "\n", encoding="utf-8")
     assert analysis_install_path("librelane", str(tmp_path)) == os.path.realpath(str(install))
 
   def test_defaults_to_the_path(self, tmp_path, monkeypatch):
     monkeypatch.setattr(OdatixSettings, "DEFAULT_TARGET_FALLBACK_PATH", str(tmp_path / "nowhere"), raising=False)
     assert analysis_install_path("librelane", str(tmp_path)) == "/"
-    (tmp_path / "target_librelane.yml").write_text("tool_install_path: " + str(tmp_path / "missing") + "\n")
+    (tmp_path / "target_librelane.yml").write_text("tool_install_path: " + str(tmp_path / "missing") + "\n", encoding="utf-8")
     assert analysis_install_path("librelane", str(tmp_path)) == "/"

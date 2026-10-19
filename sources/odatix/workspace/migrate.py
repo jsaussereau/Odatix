@@ -173,7 +173,7 @@ def _former_metrics_layout(data):
 ######################################
 
 def _read_text(path):
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
 

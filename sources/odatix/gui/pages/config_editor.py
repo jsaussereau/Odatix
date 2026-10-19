@@ -35,6 +35,7 @@ import odatix.gui.sim_domains as sim_domains
 from odatix.gui.utils import get_instance_mode, get_instance_collection_context, get_key_from_url, get_workspace
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
+from odatix.lib.utils import native_path
 import odatix.components.replace_params as replace_params
 import odatix.workspace.sim_architectures as sim_architectures
 from odatix.workspace.domains import ParameterDomain
@@ -777,15 +778,15 @@ def resolve_preview_file(base_path, param_target_file):
             prefix = prefix.strip("/") + "/"
             if not param_target_file.replace(os.sep, "/").startswith(prefix):
                 continue
-            candidate = os.path.join(base, param_target_file.replace(os.sep, "/")[len(prefix):])
+            candidate = os.path.join(base, native_path(param_target_file.replace(os.sep, "/")[len(prefix):]))
         else:
-            candidate = os.path.join(base, param_target_file)
+            candidate = os.path.join(base, native_path(param_target_file))
         if os.path.isfile(candidate):
             return candidate
     first = bases[0]
     if isinstance(first, tuple):
         first = first[0]
-    return os.path.join(first, param_target_file)
+    return os.path.join(first, native_path(param_target_file))
 
 
 def default_param_text(sim_dir, param_file):

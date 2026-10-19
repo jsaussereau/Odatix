@@ -23,7 +23,7 @@ def write(path, content):
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(textwrap.dedent(content))
     return path
 
@@ -74,10 +74,8 @@ class TestParameterDirectories:
 
     def test_the_directories_are_listed_in_order_without_repetition(self, workspace_with_simulation):
         simulation = workspace_with_simulation.simulations["tb_cordic"]
-        assert simulation.param_dirs == [
-            os.path.join("tb_params", "width"),
-            os.path.join("tb_params", "iterations"),
-        ]
+        # As written in the settings file, whatever the system
+        assert simulation.param_dirs == ["tb_params/width", "tb_params/iterations"]
 
     def test_a_domain_substituted_from_a_file_is_not_a_directory(self, workspace_with_simulation):
         simulation = workspace_with_simulation.simulations["tb_cordic"]
@@ -119,7 +117,7 @@ class TestDirectoriesAsDomains:
         simulation = workspace_with_simulation.simulations["tb_cordic"]
         domain = simulation.domains[os.path.join("tb_params", "width")]
         domain.configs.write("16.txt", "localparam WIDTH = 16;\n")
-        with open(os.path.join(domain.path, "16.txt")) as f:
+        with open(os.path.join(domain.path, "16.txt"), encoding="utf-8") as f:
             assert f.read() == "localparam WIDTH = 16;\n"
 
 

@@ -108,7 +108,8 @@ class ToolCheck:
       error_message = ""
       if self.stderr_file is not None:
         self.stderr_file.seek(0)
-        error_message = self.stderr_file.read().decode("utf-8", errors="replace")
+        # A tool of Windows ends its lines with "\r\n"
+        error_message = self.stderr_file.read().decode("utf-8", errors="replace").replace("\r\n", "\n")
         self.stderr_file.close()
         self.stderr_file = None
       self._result = (self.process.returncode == 0, error_message.strip())

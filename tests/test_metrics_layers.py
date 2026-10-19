@@ -49,7 +49,7 @@ def tools_dirs(tmp_path, monkeypatch):
     user_dir.mkdir()
     monkeypatch.setattr(OdatixSettings, "odatix_eda_tools_path", str(builtin_dir))
     monkeypatch.setattr(OdatixSettings, "user_tools_path", str(user_dir))
-    monkeypatch.setattr(eda_tools, "platform_key", lambda: "unix")
+    monkeypatch.setattr(eda_tools, "platform_key", lambda *args, **kwargs: "unix")
     return builtin_dir, user_dir
 
 
@@ -101,7 +101,7 @@ def write_workspace_metrics(user_dir, content, name="acme"):
     tool_dir = user_dir / name
     tool_dir.mkdir(parents=True, exist_ok=True)
     path = tool_dir / "metrics.yml"
-    path.write_text(textwrap.dedent(content))
+    path.write_text(textwrap.dedent(content), encoding="utf-8")
     return path
 
 
@@ -195,7 +195,7 @@ class TestLoadMetrics:
         write_builtin_tool(builtin_dir)
         write_workspace_metrics(user_dir, "metrics:\n  Mine:\n    type: operation\n")
         custom = tmp_path / "custom.yml"
-        custom.write_text("metrics:\n  Only:\n    type: operation\n    settings:\n      op: 1\n")
+        custom.write_text("metrics:\n  Only:\n    type: operation\n    settings:\n      op: 1\n", encoding="utf-8")
 
         data, source = metrics_lib.load_metrics("acme", custom_metrics_file=str(custom))
 

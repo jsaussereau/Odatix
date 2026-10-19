@@ -35,7 +35,7 @@ def write_results(workspace, tool, records):
     """A results file of the workspace, as a run exports it."""
     path = os.path.join(workspace.paths.result_path, "results_{0}.yml".format(tool))
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         yaml.safe_dump({"schema": 2, "units": {}, "results": records}, f)
     return path
 
@@ -182,7 +182,7 @@ class TestMetricNames:
         from odatix.dse.settings import CampaignSettings, DseSettings
         from odatix.workspace import Workspace
 
-        with open(os.path.join(workflow.path, "_metrics.yml"), "w") as f:
+        with open(os.path.join(workflow.path, "_metrics.yml"), "w", encoding="utf-8") as f:
             f.write("metrics:\n  bitrate_bpp: {type: json}\n  psnr_db: {type: json}\n")
         campaign_file = CampaignSettings.from_dict({
             "run": "workflow", "tool": "",
@@ -287,7 +287,7 @@ class TestResumeAnotherQuestion:
         assert len(archive.measured) == 4
         assert archive.front()
 
-        written = yaml.safe_load(open(archive.path).read())
+        written = yaml.safe_load(open(archive.path, encoding="utf-8").read())
         assert not any(record.get("failed") for record in written["evaluations"])
 
     def test_the_same_question_reads_again_only_what_was_unmeasured(self, architecture, tmp_path):
@@ -335,7 +335,7 @@ class TestArchiveContent:
         settings = campaign_settings(name="my_campaign")
         evaluator = FakeEvaluator(settings.objective_list(), lambda d: {"speed": 1, "area": d.values["width"]})
         archive = Campaign(Workspace(str(tmp_path)), architecture, settings, evaluator=evaluator).run()
-        written = yaml.safe_load(open(archive.path).read())
+        written = yaml.safe_load(open(archive.path, encoding="utf-8").read())
         assert written["campaign"] == "my_campaign"
         assert written["architecture"] == "Design"
 
@@ -356,7 +356,7 @@ class TestArchiveContent:
         space = ArchitectureSpace(architecture)
         objectives = Objectives.from_list(["area"])
         path = str(tmp_path / "old.yml")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             yaml.safe_dump({
                 "architecture": "c", "objectives": objectives.to_list(),
                 "evaluations": [{"genome": [0, 0], "metrics": {"area": 1}, "batch": 1}],
@@ -408,7 +408,7 @@ class TestSessions:
 def _write_dse_workspace(root, objectives, campaign="camp"):
     from test_dse import PARAMETERIZED, write_architecture
 
-    (root / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+    (root / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
     arch_root = root / "odatix_userconfig" / "architectures"
     if not (arch_root / "Design").exists():
         arch_root.mkdir(parents=True, exist_ok=True)

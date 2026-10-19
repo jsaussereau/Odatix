@@ -114,12 +114,12 @@ class TestGetParamDomain:
 class TestFileChecks:
     def test_check_parameter_file(self, tmp_path):
         target = tmp_path / "p.txt"
-        target.write_text("x")
+        target.write_text("x", encoding="utf-8")
         assert ParamDomain.check_parameter_file(str(target), str(tmp_path))
         assert not ParamDomain.check_parameter_file(str(tmp_path / "missing.txt"), str(tmp_path))
 
     def test_check_settings_file(self, tmp_path):
         target = tmp_path / "_settings.yml"
-        target.write_text("use_parameters: false")
+        target.write_text("use_parameters: false", encoding="utf-8")
         assert ParamDomain.check_settings_file(str(target), str(tmp_path))
         assert not ParamDomain.check_settings_file(str(tmp_path / "missing.yml"), str(tmp_path))

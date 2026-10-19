@@ -22,14 +22,14 @@ TARGETS = ("xc7s25-csga225-1", "xc7a100t-csg324-1", "other")
 
 def write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(textwrap.dedent(text).lstrip("\n"))
+    path.write_text(textwrap.dedent(text).lstrip("\n"), encoding="utf-8")
     return path
 
 
 @pytest.fixture
 def workspace_dir(tmp_path, monkeypatch):
     """A workspace holding only what each test writes into it."""
-    (tmp_path / "odatix.yml").write_text("workspace: odatix\n")
+    (tmp_path / "odatix.yml").write_text("workspace: odatix\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -94,13 +94,13 @@ class TestFinding:
         assert workspace_migrate.plan(Workspace.open()) == []
 
     def test_former_files_are_found_without_being_touched(self, architecture, domain):
-        before = architecture.read_text(), domain.read_text()
+        before = architecture.read_text(encoding="utf-8"), domain.read_text(encoding="utf-8")
         paths = [os.path.realpath(path) for path, _keys in workspace_migrate.pending(Workspace.open())]
         assert os.path.realpath(str(architecture)) in paths
         assert os.path.realpath(str(domain)) in paths
 
         migrations = workspace_migrate.migrate(Workspace.open(), dry_run=True)
-        assert (architecture.read_text(), domain.read_text()) == before
+        assert (architecture.read_text(encoding="utf-8"), domain.read_text(encoding="utf-8")) == before
         assert all(migration.changed for migration in migrations)
         assert not any(os.path.exists(str(path) + ".bak") for path in (architecture, domain))
 
@@ -118,7 +118,7 @@ class TestArchitectureBounds:
 
     def test_the_file_keeps_its_layout(self, architecture):
         workspace_migrate.migrate(Workspace.open())
-        text = architecture.read_text()
+        text = architecture.read_text(encoding="utf-8")
         assert "fmax_lower_bound" not in text and "fmax_upper_bound" not in text
         assert text.startswith("# my old architecture\n")
         assert "  # slow target\n  - targets: xc7s25-csga225-1\n    fmax_synthesis:\n      upper_bound: 400\n" in text
@@ -126,15 +126,15 @@ class TestArchitectureBounds:
         assert text.index("fmax_synthesis:\n  lower_bound: 100\n  upper_bound: 900\n\noverrides:") > 0
 
     def test_the_former_version_is_kept(self, architecture):
-        original = architecture.read_text()
+        original = architecture.read_text(encoding="utf-8")
         migration, = [m for m in workspace_migrate.migrate(Workspace.open()) if m.kind == "architecture"]
         assert os.path.realpath(migration.backup) == os.path.realpath(str(architecture) + ".bak")
-        assert open(migration.backup).read() == original
+        assert open(migration.backup, encoding="utf-8").read() == original
 
     def test_a_backup_already_there_is_not_overwritten(self, architecture):
-        (architecture.parent / "_settings.yml.bak").write_text("older\n")
+        (architecture.parent / "_settings.yml.bak").write_text("older\n", encoding="utf-8")
         workspace_migrate.migrate(Workspace.open())
-        assert (architecture.parent / "_settings.yml.bak").read_text() == "older\n"
+        assert (architecture.parent / "_settings.yml.bak").read_text(encoding="utf-8") == "older\n"
         assert (architecture.parent / "_settings.yml.bak.1").exists()
 
     def test_former_keys_in_rules_next_to_modern_rules_are_left_to_the_user(self, workspace_dir):
@@ -150,7 +150,7 @@ class TestArchitectureBounds:
         before = bounds(path)
         migration, = workspace_migrate.migrate(Workspace.open())
         assert any("fmax_lower_bound" in reason for reason in migration.left)
-        assert "fmax_lower_bound: 42" in path.read_text()
+        assert "fmax_lower_bound: 42" in path.read_text(encoding="utf-8")
         assert bounds(path) == before
 
     def test_former_keys_a_modern_root_block_hides_are_dropped(self, workspace_dir):
@@ -165,7 +165,7 @@ class TestArchitectureBounds:
         before = bounds(path)
         migration, = workspace_migrate.migrate(Workspace.open())
         assert migration.left == []
-        assert "fmax_lower_bound" not in path.read_text()
+        assert "fmax_lower_bound" not in path.read_text(encoding="utf-8")
         assert bounds(path) == before
 
 
@@ -173,7 +173,7 @@ class TestDomains:
     def test_the_generation_is_carried_over(self, domain):
         rules = config_set_rules(read_yaml(str(domain)))
         workspace_migrate.migrate(Workspace.open())
-        text = domain.read_text()
+        text = domain.read_text(encoding="utf-8")
         assert "generate_configurations" not in text
         assert text.startswith("# width domain\n")
         migrated = config_set_rules(read_yaml(str(domain)))
@@ -194,7 +194,7 @@ class TestTargets:
         before = [(target.name, target.enabled) for target in Workspace.open().targets["vivado"].targets]
         migration, = workspace_migrate.migrate(Workspace.open())
         assert migration.kind == "targets"
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         assert "disabled_targets" not in text
         assert "  # - xc7z020-clg400-1" in text
         after = [(target.name, target.enabled) for target in Workspace.open().targets["vivado"].targets]
@@ -236,11 +236,11 @@ class TestLayout:
 
     def test_a_save_keeps_the_lists_and_the_leading_blank_line(self, tmp_path):
         path = tmp_path / "f.yml"
-        path.write_text("\n# header\nkey: 1\nlist:\n  - a\n  - b\n")
+        path.write_text("\n# header\nkey: 1\nlist:\n  - a\n  - b\n", encoding="utf-8")
         document = read_document(str(path))
         document["key"] = 2
         write_document(str(path), document)
-        assert path.read_text() == "\n# header\nkey: 2\nlist:\n  - a\n  - b\n"
+        assert path.read_text(encoding="utf-8") == "\n# header\nkey: 2\nlist:\n  - a\n  - b\n"
 
 
 ######################################
@@ -254,16 +254,16 @@ class TestCommand:
         assert result.returncode == 0, result.stdout + result.stderr
 
     def test_a_dry_run_writes_nothing(self, architecture):
-        original = architecture.read_text()
+        original = architecture.read_text(encoding="utf-8")
         result = run_cli("migrate", "-Q", "--dry-run", cwd=str(architecture.parents[3]))
         assert result.returncode == 0, result.stdout + result.stderr
         assert "fmax_lower_bound" in result.stdout
-        assert architecture.read_text() == original
+        assert architecture.read_text(encoding="utf-8") == original
 
     def test_a_migration_rewrites_the_files(self, architecture):
         result = run_cli("migrate", "-Q", "--no-backup", cwd=str(architecture.parents[3]))
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "fmax_lower_bound" not in architecture.read_text()
+        assert "fmax_lower_bound" not in architecture.read_text(encoding="utf-8")
         assert not os.path.exists(str(architecture) + ".bak")
 
     def test_what_is_left_to_the_user_fails_the_command(self, workspace_dir):
@@ -287,7 +287,7 @@ class TestSettingsFileNames:
     def test_a_former_key_of_odatix_yml_is_still_read_and_said(self, workspace_dir, capsys):
         from odatix.lib.settings import OdatixSettings
 
-        (workspace_dir / "odatix.yml").write_text("workspace: odatix\nfmax_synthesis_settings_file: my_fmax.yml\n")
+        (workspace_dir / "odatix.yml").write_text("workspace: odatix\nfmax_synthesis_settings_file: my_fmax.yml\n", encoding="utf-8")
         assert Workspace.open().paths.fmax_settings_file.endswith("my_fmax.yml")
         assert OdatixSettings().fmax_settings_file == "my_fmax.yml"
         assert '"fmax_settings_file"' in capsys.readouterr().out
@@ -310,9 +310,9 @@ class TestSettingsFileNames:
         assert len(workspace_migrate.pending(Workspace.open())) == 2
 
         workspace_migrate.migrate(Workspace.open())
-        assert (workspace_dir / "odatix_userconfig" / "clean_settings.yml").read_text() == "remove_list: [work]\n"
+        assert (workspace_dir / "odatix_userconfig" / "clean_settings.yml").read_text(encoding="utf-8") == "remove_list: [work]\n"
         assert not (workspace_dir / "odatix_userconfig" / "clean.yml").exists()
-        settings = (workspace_dir / "odatix.yml").read_text()
+        settings = (workspace_dir / "odatix.yml").read_text(encoding="utf-8")
         assert "# where the simulations are set\nsim_settings_file: odatix_userconfig/my_sims.yml" in settings
         assert "simulation_settings_file" not in settings
         # named in odatix.yml: left where it is
@@ -335,7 +335,7 @@ class TestFixedFrequencyKey:
         before = resolve_frequencies(read_yaml(str(path)), target="a", mode="custom_freq").frequencies
         migration, = workspace_migrate.migrate(Workspace.open())
         assert "custom_freq_synthesis" in migration.former_keys
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         assert "custom_freq_synthesis" not in text
         assert "# frequencies of every job\nfixed_freq_synthesis:" in text
         assert resolve_frequencies(read_yaml(str(path)), target="a", mode="custom_freq").frequencies == before == [70]

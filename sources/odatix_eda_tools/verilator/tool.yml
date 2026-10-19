@@ -31,6 +31,16 @@ unix:
     - cd $work_path;
     - make -f $eda_tools_path/verilator/makefile.mk analyze
 
+# Windows has neither make nor a POSIX shell: a script does what the makefile
+# does. It needs Verilator (verilator, or verilator_bin as OSS CAD Suite ships it) in the PATH.
+windows:
+
+  tool_test_command: '"$python" "$eda_tools_path/_common/rtl_analysis.py" verilator --version'
+
+  analysis_command:
+    - cd /d "$work_path" &&
+    - '"$python" "$eda_tools_path/_common/rtl_analysis.py" verilator'
+
 ##############################################
 # Flows
 ##############################################

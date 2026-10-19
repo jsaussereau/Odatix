@@ -1,0 +1,5 @@
+# The files an EDA tool runs keep their LF line endings on every system: a tool
+# of Linux run in WSL from a Windows checkout (see sources/odatix/lib/wsl.py)
+# reads them as they are, and make and bash refuse CRLF.
+sources/odatix_eda_tools/** text=auto eol=lf
+tests/fixtures/eda_tools/** text=auto eol=lf

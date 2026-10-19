@@ -127,7 +127,7 @@ class Configuration(object):
         """The parameters held by this configuration, as text ("" when it does not exist)."""
         if not self.exists:
             return ""
-        with open(self.path, "r") as f:
+        with open(self.path, "r", encoding="utf-8") as f:
             return f.read()
 
     def write(self, content):

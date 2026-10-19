@@ -36,9 +36,9 @@ def test_progress_reaches_100_only_at_the_very_end(tmp_path):
     exploration.progress_file = str(tmp_path / "progress.txt")
     exploration._total = 6
     exploration.report_progress(6)
-    assert open(exploration.progress_file).read().strip() == "99"
+    assert open(exploration.progress_file, encoding="utf-8").read().strip() == "99"
     exploration.report_progress(6, final=True)
-    assert open(exploration.progress_file).read().strip() == "100"
+    assert open(exploration.progress_file, encoding="utf-8").read().strip() == "100"
 
 
 def test_the_driver_carries_the_summary_marker():

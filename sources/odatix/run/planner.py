@@ -267,7 +267,7 @@ class JobPlanner(object):
                 state = steps_decision
         elif isdir(tmp_dir) and isfile(status_file):
             # Check whether the previous run completed.
-            with open(status_file, "r") as sf:
+            with open(status_file, "r", encoding="utf-8") as sf:
                 completed = self.valid_status in sf.read()
             if completed:
                 if self.overwrite:

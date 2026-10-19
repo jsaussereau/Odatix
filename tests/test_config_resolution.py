@@ -41,7 +41,7 @@ def domain(tmp_path):
     """An architecture whose configurations are described, and never generated."""
     path = tmp_path / "arch" / "counter"
     path.mkdir(parents=True)
-    (path / "_settings.yml").write_text(RULES)
+    (path / "_settings.yml").write_text(RULES, encoding="utf-8")
     return path
 
 
@@ -54,7 +54,7 @@ class TestNamesWithoutGenerating:
         assert sorted(os.listdir(str(domain))) == ["_settings.yml"]
 
     def test_a_hand_written_file_is_held_too(self, domain):
-        (domain / "64bits.txt").write_text("parameter WIDTH = 64;")
+        (domain / "64bits.txt").write_text("parameter WIDTH = 64;", encoding="utf-8")
         assert "64bits" in space.resolved_names(str(domain))
 
 
@@ -62,7 +62,7 @@ class TestFileOnDemand:
     def test_a_described_configuration_resolves_to_a_file(self, domain):
         path = space.config_file(str(domain), "16bits")
         assert path is not None
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             assert f.read() == "parameter WIDTH = 16;"
 
     def test_it_is_written_outside_of_what_the_user_keeps(self, domain):
@@ -71,10 +71,10 @@ class TestFileOnDemand:
         assert not (domain / "16bits.txt").exists()
 
     def test_a_file_of_the_domain_always_wins(self, domain):
-        (domain / "16bits.txt").write_text("edited by hand")
+        (domain / "16bits.txt").write_text("edited by hand", encoding="utf-8")
         path = space.config_file(str(domain), "16bits")
         assert path == str(domain / "16bits.txt")
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             assert f.read() == "edited by hand"
 
     def test_a_configuration_nothing_describes_has_no_file(self, domain):
@@ -82,12 +82,12 @@ class TestFileOnDemand:
 
     def test_the_cache_follows_a_change_of_the_rules(self, domain):
         first = space.config_file(str(domain), "16bits")
-        settings = (domain / "_settings.yml").read_text()
-        (domain / "_settings.yml").write_text(settings.replace("WIDTH = ", "W = "))
+        settings = (domain / "_settings.yml").read_text(encoding="utf-8")
+        (domain / "_settings.yml").write_text(settings.replace("WIDTH = ", "W = "), encoding="utf-8")
 
         second = space.config_file(str(domain), "16bits")
         assert second == first
-        with open(second) as f:
+        with open(second, encoding="utf-8") as f:
             assert f.read() == "parameter W = 16;"
 
 
@@ -101,19 +101,19 @@ class TestParamDomain:
     def test_a_parameter_domain_needs_nothing_generated(self, tmp_path):
         instance = tmp_path / "arch" / "counter"
         (instance / "corner").mkdir(parents=True)
-        (instance / "corner" / "_settings.yml").write_text(RULES)
+        (instance / "corner" / "_settings.yml").write_text(RULES, encoding="utf-8")
 
         resolved = ParamDomain.get_param_domain(
             "corner/16bits", "counter", arch_path=str(tmp_path / "arch"), param_domain_def=True,
         )
         assert resolved is not None
-        with open(resolved.param_file) as f:
+        with open(resolved.param_file, encoding="utf-8") as f:
             assert f.read() == "parameter WIDTH = 16;"
 
     def test_a_configuration_that_does_not_exist_is_reported(self, tmp_path):
         instance = tmp_path / "arch" / "counter"
         (instance / "corner").mkdir(parents=True)
-        (instance / "corner" / "_settings.yml").write_text(RULES)
+        (instance / "corner" / "_settings.yml").write_text(RULES, encoding="utf-8")
 
         assert ParamDomain.get_param_domain(
             "corner/64bits", "counter", arch_path=str(tmp_path / "arch"), param_domain_def=True,

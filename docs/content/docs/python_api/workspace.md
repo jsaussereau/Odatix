@@ -196,6 +196,11 @@ Declared settings:
 | `mem_limit` | `any` |  | Memory usage (%) above which jobs are paused. |
 | **Sessions** | | | |
 | `session_access` | `str` |  | Who may use the sessions started in this workspace besides their owner: "user" (nobody, the default), "group" (the group of the workspace directory) or "other" (every user). Using a session is running commands as its owner. |
+| **WSL (Windows)** | | | |
+| `wsl` | `str` |  | On Windows, whether Odatix may run tools and simulators in WSL (the Windows Subsystem for Linux): "auto" (the default) runs there the tools that only have Linux commands and the simulators installed in WSL only, besides those of "wsl_tools"; "never" runs nothing there. |
+| `wsl_distribution` | `str` |  | The WSL distribution tools and simulators run in (the default one when empty). |
+| `wsl_tools` | `any` |  | Tools and simulations always run in WSL. |
+| `windows_tools` | `any` |  | Tools and simulations always run on Windows, never in WSL. |
 
 ### `open_workspace(root='.', required=False)`
 

@@ -151,6 +151,77 @@ you trust. `--session-access` on a run command overrides this key for the
 session that run starts. See
 [sessions of other users](/docs/sessions/#sessions-of-other-users).
 
+## WSL (Windows)
+
+On Windows, an EDA tool or a simulator installed in
+[WSL](https://learn.microsoft.com/en-us/windows/wsl/install), the Windows
+Subsystem for Linux, runs there: Genus, Innovus or Quartus installed in a Linux
+distribution, a Verilator simulation, which needs `make` and a C++ compiler.
+
+**What runs where.** Only the command of a job runs in WSL: the tool, or the
+simulation. Odatix itself always runs on Windows: it prepares the jobs, runs the
+session and the monitor, generates the RTL a job needs, and reads and exports
+the results, from the work directory of Windows the job wrote them in.
+
+**Who decides.** The workspace, with these keys. A name in `wsl_tools` or
+`windows_tools` is that of an EDA tool, of a simulation, or of the
+[template](/docs/reference/simulation/#templates) a simulation starts from
+(`verilator` covers every simulation starting from that template, and the
+Verilator of RTL analysis).
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `wsl` | `auto` or `never` | `auto` | Whether Odatix may run anything in WSL. `never`: nothing runs there. |
+| `wsl_distribution` | string | the default distribution | The distribution tools and simulators run in, as `wsl -l` names it. |
+| `wsl_tools` | list of names | `[]` | Tools and simulations that always run in WSL. |
+| `windows_tools` | list of names | `[]` | Tools and simulations that always run on Windows, never in WSL. |
+
+For what neither list names, `wsl: auto` lets Odatix choose, when WSL is
+installed:
+
+- an EDA tool runs in WSL when its [`tool.yml`](/docs/reference/tools/) only
+  has Linux commands (a `unix` section, no `windows` one);
+- a simulation runs in WSL when its simulator (the program of its
+  `test_command`) is not installed on Windows but is in WSL.
+
+**Said before anything runs.** When a run is checked, Odatix says where each
+tool and each simulation runs:
+
+{{< code lang=text filename="Terminal" >}}
+[odatix sim] note: "TB_Example_Cordic_Verilator" runs in WSL (Ubuntu)
+[odatix sim] note: "TB_Example_Cordic_GHDL" runs on Windows
+{{< /code >}}
+
+The **Tools** page of the GUI says it on the badge of each tool and simulator
+("installed in WSL (Ubuntu)").
+
+**What a command run in WSL is given.** The paths of the job as WSL sees them
+(`/mnt/c/...`): `$work_path`, `$script_path` and the other
+[variables](/docs/reference/tools/) of `tool.yml`, `${work_path}` and the other
+[placeholders](/docs/reference/simulation/#what-odatix-tells-the-simulation) of
+a simulation, and the paths Odatix writes in the scripts of the job. `$python`
+and `${python}` are the `python3` of the distribution. A simulation runs the
+implementation of its tasks for `linux` (see `platforms`). The command runs in
+a login shell, so it finds the tools the profile of the user puts in the `PATH`
+(`~/.bashrc`, `~/.profile`).
+
+> [!NOTE]
+> The simulation templates of Odatix run a Python script, which needs PyYAML in
+> the distribution: `sudo apt install python3-yaml`, or
+> `sudo dnf install python3-pyyaml`. A run checks it, and says so when it is
+> missing.
+
+These keys have no effect on Linux and macOS.
+
+{{< code lang=yaml filename="odatix.yml" >}}
+# Genus, Innovus and Verilator are installed in the "Ubuntu" distribution, and
+# so is a Vivado: run it there rather than the one of Windows. GHDL is
+# installed on both: keep it on Windows.
+wsl_distribution: Ubuntu
+wsl_tools: [vivado]
+windows_tools: [ghdl]
+{{< /code >}}
+
 ## Example
 
 {{< code lang=yaml filename="odatix.yml" >}}
@@ -168,8 +239,8 @@ default_tool: genus
 
 **Workspace Settings** (`/workspace`) edits this file directly — every key
 above has a field (except the `workspace` marker), grouped as in the file:
-Tools, Main paths, Settings files, Work directories, Results and Resource
-guard. A field left empty means the default shown in it; saving writes only
+Tools, Main paths, Settings files, Work directories, Results, Resource
+guard, Sessions and WSL (Windows). A field left empty means the default shown in it; saving writes only
 what changed in `odatix.yml`, and a key emptied is removed from it. See
 [The Odatix GUI](/docs/gui/app/).
 

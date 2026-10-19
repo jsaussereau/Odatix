@@ -77,10 +77,16 @@ if not hasattr(curses, "BUTTON5_PRESSED"):
 
 if sys.platform == "win32":
     ENCODING = "utf-8"
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding=ENCODING, errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding=ENCODING, errors="replace")
+    # Reconfigured in place: a second wrapper around the same buffer closes it
+    # when either one is collected (pytest's capture file, for instance).
+    for _name in ("stdout", "stderr"):
+        _stream = getattr(sys, _name)
+        if _stream is None:
+            continue
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding=ENCODING, errors="replace")
+        else:  # Python 3.6
+            setattr(sys, _name, io.TextIOWrapper(_stream.buffer, encoding=ENCODING, errors="replace"))
 
 ######################################
 # Settings

@@ -74,7 +74,7 @@ def read_state(tmp_dir):
   if not os.path.isfile(path):
     return empty
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       data = yaml.load(f, Loader=yaml_loader.SafeLoader)
   except Exception:
     return empty
@@ -121,7 +121,7 @@ def record_completed_step(tmp_dir, step_name, flow=None, timestamp=None):
 
   path = state_file(tmp_dir)
   os.makedirs(os.path.dirname(path), exist_ok=True)
-  with open(path, "w") as f:
+  with open(path, "w", encoding="utf-8", newline="\n") as f:
     yaml.dump(
       {"flow": flow if flow is not None else state["flow"], "completed": completed},
       f,
@@ -242,7 +242,7 @@ def forget_steps_from(tmp_dir, index=0):
       pass
     return dropped
 
-  with open(path, "w") as f:
+  with open(path, "w", encoding="utf-8", newline="\n") as f:
     yaml.dump(
       {"flow": state["flow"], "completed": kept},
       f,

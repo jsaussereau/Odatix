@@ -23,7 +23,7 @@ def _load_check_links():
 def _write(root, relpath, html):
     path = os.path.join(str(root), relpath)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(html)
 
 
@@ -62,7 +62,7 @@ class TestPackageData:
         Dash loads by path): setup.py has to list its files, or the wheel ships
         a GUI without its pages.
         """
-        with open(os.path.join(SOURCES_DIR, "setup.py")) as f:
+        with open(os.path.join(SOURCES_DIR, "setup.py"), encoding="utf-8") as f:
             setup_py = f.read()
         listed = set(re.findall(r"package_files\('odatix', '([^']+)'\)", setup_py))
 
@@ -78,7 +78,7 @@ class TestPackageData:
 
     def test_manifest_names_existing_paths(self):
         """A recursive-include of a directory that does not exist ships nothing."""
-        with open(os.path.join(SOURCES_DIR, "MANIFEST.in")) as f:
+        with open(os.path.join(SOURCES_DIR, "MANIFEST.in"), encoding="utf-8") as f:
             lines = f.read().splitlines()
         for line in lines:
             words = line.split()
@@ -87,9 +87,9 @@ class TestPackageData:
 
     def test_data_directories_are_shipped(self):
         """Directories Odatix reads at run time, with no Python package of their own."""
-        with open(os.path.join(SOURCES_DIR, "setup.py")) as f:
+        with open(os.path.join(SOURCES_DIR, "setup.py"), encoding="utf-8") as f:
             setup_py = f.read()
-        with open(os.path.join(SOURCES_DIR, "MANIFEST.in")) as f:
+        with open(os.path.join(SOURCES_DIR, "MANIFEST.in"), encoding="utf-8") as f:
             manifest = f.read()
         for directory in ("odatix_eda_tools", "odatix_sim_templates", "odatix_examples", "odatix_init"):
             assert "package_files('" + directory + "')" in setup_py, directory

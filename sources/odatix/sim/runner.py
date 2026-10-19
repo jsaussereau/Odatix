@@ -48,6 +48,7 @@ failed; so does an error message in what the simulation printed.
 import multiprocessing
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -84,6 +85,33 @@ CYCLES_PATTERN = re.compile(r"odatix_cycles\s*[:=]\s*([0-9]+)")
 
 class SimulationFailed(Exception):
   pass
+
+
+def program_path(program):
+  """
+  The program a command starts with, as the system runs it. Windows only looks
+  for an ".exe" when a process is started without a shell: a simulator
+  installed as a batch file (xvhdl.bat, xelab.bat) is found through the PATH
+  and its extensions instead. Anywhere else, the program is left as it is.
+  """
+  if os.name != "nt":
+    return program
+  return shutil.which(program) or program
+
+
+def _batch_command(command):
+  """
+  The command line of a batch file: cmd.exe splits its arguments on "=", ","
+  and ";" as well as spaces ("-generic_top WIDTH=8" would reach xelab as
+  "WIDTH 8"), so an argument holding one is quoted. None for a program that is
+  not a batch file, run from its list of arguments as usual.
+  """
+  if os.name != "nt" or not command[0].lower().endswith((".bat", ".cmd")):
+    return None
+  return subprocess.list2cmdline(command[:1]) + "".join(
+    " " + ('"' + part + '"' if re.search(r"[=,;]", part) and '"' not in part else subprocess.list2cmdline([part]))
+    for part in command[1:]
+  )
 
 
 class SimRunner(object):
@@ -269,7 +297,7 @@ class SimRunner(object):
 
   def progress(self, percent):
     try:
-      with open(os.path.join(self.work_dir, PROGRESS_FILENAME), "w") as f:
+      with open(os.path.join(self.work_dir, PROGRESS_FILENAME), "w", encoding="utf-8") as f:
         f.write("progress: " + str(int(percent)) + "%\n")
     except (IOError, OSError):
       pass
@@ -292,6 +320,8 @@ class SimRunner(object):
     if stage not in STAGES:
       raise ValueError("unknown stage: " + str(stage))
     command = [str(part) for part in command]
+    executable = [program_path(command[0])] + command[1:]
+    executable = _batch_command(executable) or executable
     log_path = self._log_path(log or stage)
     print("> " + " ".join(_quote(part) for part in command))
     sys.stdout.flush()
@@ -303,13 +333,13 @@ class SimRunner(object):
       full_env.update({str(key): str(value) for key, value in env.items()})
     try:
       process = subprocess.Popen(
-        command, cwd=self.work_dir, env=full_env,
+        executable, cwd=self.work_dir, env=full_env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, errors="replace",
       )
     except OSError as e:
       self.fail('cannot run "' + command[0] + '": ' + str(e))
     elaborated = None
-    with open(log_path, "w") as log_file:
+    with open(log_path, "w", encoding="utf-8") as log_file:
       for line in process.stdout:
         if elaborated is None and elaborated_mark and elaborated_mark in line:
           elaborated = time.time() - start
@@ -426,7 +456,7 @@ class SimRunner(object):
     cycles = self.report.get("cycles")
     if cycles and (self.report["simulation_time"] or 0) > 0:
       self.report["cycles_per_second"] = round(cycles / self.report["simulation_time"], 1)
-    with open(os.path.join(self.work_dir, REPORT_FILENAME), "w") as f:
+    with open(os.path.join(self.work_dir, REPORT_FILENAME), "w", encoding="utf-8") as f:
       yaml.dump(self.report, f, default_flow_style=False, sort_keys=False)
 
   def _log_path(self, name, new=True):

@@ -120,7 +120,7 @@ def validate_tool_settings(file_path):
   if not os.path.isfile(file_path):
     printc.error('Tool settings file "' + os.path.realpath(file_path) + '" does not exist', script_name)
     return None
-  with open(file_path, "r") as file:
+  with open(file_path, "r", encoding="utf-8") as file:
     try:
       tool_settings = yaml_loader.safe_load(file)
       return tool_settings
@@ -146,7 +146,7 @@ def resolve_metrics_file(tool, custom_metrics_file=None, flow=None):
 
 def load_metrics_file(metrics_file):
   """Load a metrics definition file, or None when it is not valid YAML."""
-  with open(metrics_file, "r") as file:
+  with open(metrics_file, "r", encoding="utf-8") as file:
     try:
       metrics_data = yaml_loader.safe_load(file)
     except yaml.YAMLError as e:
@@ -480,7 +480,7 @@ def find_status_log(job_dir, type):
 def is_marked_done(status_log):
   """Whether a status file holds the "Done: 100%" completion marker."""
   try:
-    with open(status_log, "r", errors="ignore") as f:
+    with open(status_log, "r", errors="ignore", encoding="utf-8") as f:
       return status_done in f.read()
   except (IOError, OSError):
     return False
@@ -506,7 +506,7 @@ def mark_job_done(job_dir, type):
   try:
     if not os.path.isdir(os.path.dirname(status_log)):
       os.makedirs(os.path.dirname(status_log))
-    with open(status_log, "a") as f:
+    with open(status_log, "a", encoding="utf-8") as f:
       f.write(status_done + "\n")
   except (IOError, OSError) as e:
     printc.warning('Could not write "' + status_log + '": ' + str(e), script_name)
@@ -627,7 +627,7 @@ def process_configuration(input, target, architecture, configuration, frequency,
     flow_file = os.path.join(cur_path, hard_settings.flow_filename)
     if os.path.isfile(flow_file):
       try:
-        with open(flow_file, "r") as f:
+        with open(flow_file, "r", encoding="utf-8") as f:
           flow = f.read().strip() or None
       except OSError:
         flow = None

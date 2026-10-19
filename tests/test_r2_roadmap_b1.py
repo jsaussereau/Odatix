@@ -45,7 +45,7 @@ def test_job_left_to_a_session_is_not_called_a_daemon_job():
 @pytest.mark.parametrize("path", ["run/planner.py", "lib/architecture_handler.py", "lib/simulation_handler.py"])
 def test_no_note_repeats_the_checklist(path):
     """The checklist lists the jobs already done: no per-job note says it again (AP-14)."""
-    with open(os.path.join(SOURCES, path)) as f:
+    with open(os.path.join(SOURCES, path), encoding="utf-8") as f:
         source = f.read()
     for text in ("Found existing daemon job", "previously failed/canceled daemon", "Found cached results",
                  "Every requested step is already done"):
@@ -86,7 +86,7 @@ def test_explorer_reads_the_result_path_of_the_settings_file(tmp_path):
     from odatix.odatix_explorer import result_directory
 
     config = tmp_path / "odatix.yml"
-    config.write_text("workspace: odatix\nresult_path: my_results\n")
+    config.write_text("workspace: odatix\nresult_path: my_results\n", encoding="utf-8")
     assert result_directory(None, str(config)) == os.path.join(str(tmp_path), "my_results")
     assert result_directory("other", str(config)) == "other"
     assert result_directory(None, str(tmp_path / "missing.yml")) == "results"
@@ -175,6 +175,6 @@ def test_a_tool_without_format_is_not_noted(tmp_path, capsys):
     from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 
     tool_file = tmp_path / "tool.yml"
-    tool_file.write_text("label: x\n")
+    tool_file.write_text("label: x\n", encoding="utf-8")
     JobOutputFormatter(str(tool_file))
     assert "format" not in capsys.readouterr().out

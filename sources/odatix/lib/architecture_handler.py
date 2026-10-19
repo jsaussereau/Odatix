@@ -188,7 +188,7 @@ class Architecture:
             'job_path': os.path.realpath(arch.tmp_dir) if arch.tmp_dir else "",
         }
             
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding="utf-8") as f:
             yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
 
     @staticmethod
@@ -226,7 +226,7 @@ class Architecture:
             printc.error("Settings file \"" + config_file + "\" does not exist", script_name)
             return None
 
-        with open(config_file, 'r') as f:
+        with open(config_file, 'r', encoding="utf-8") as f:
             yaml_data = yaml_loader.safe_load(f)
 
         try:
@@ -472,7 +472,7 @@ class ArchitectureHandler:
             target_settings = {}
             base_constraints = []
         else:
-            with open(self.eda_target_filename, 'r') as f:
+            with open(self.eda_target_filename, 'r', encoding="utf-8") as f:
                 try:
                     settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
                 except Exception as e:
@@ -903,7 +903,7 @@ class ArchitectureHandler:
 
             # check that the top level module, clock and reset names occur in the
             # top level file, at least
-            with open(top_level, "r") as f:
+            with open(top_level, "r", encoding="utf-8") as f:
                 top_level_content = f.read()
             for kind, name in (
                 ("top level module name", top_level_module),
@@ -1072,9 +1072,9 @@ class ArchitectureHandler:
                         local_state = steps_decision
                 elif isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
                     # check if the previous synth_fmax has completed
-                    sf = open(fmax_status_file, "r")
+                    sf = open(fmax_status_file, "r", encoding="utf-8")
                     if self.valid_status in sf.read():
-                        ff = open(frequency_search_file, "r")
+                        ff = open(frequency_search_file, "r", encoding="utf-8")
                         if self.valid_frequency_search in ff.read():
                             if self.overwrite:
                                 local_state = "overwrite"
@@ -1279,9 +1279,9 @@ class ArchitectureHandler:
                 continue
             warned.add(key)
             try:
-                with open(path, "r") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     base_text = f.read()
-                with open(param_file, "r") as f:
+                with open(param_file, "r", encoding="utf-8") as f:
                     replacement_text = f.read()
             except (OSError, UnicodeDecodeError):
                 continue

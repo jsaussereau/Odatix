@@ -70,6 +70,7 @@ BUILTIN_VARIABLES = {
         ("first_step", "Steps only: the first step this process runs."),
         ("last_step", "Steps only: the last step this process runs."),
         ("steps", "Steps only: every step this process runs, joined with \"-\"."),
+        ("python", "The Python interpreter running Odatix."),
     ],
     "simulation": [
         ("simulation", "Name of this simulation."),

@@ -63,22 +63,22 @@ def synthesis_record(configuration, metrics, frequency=100):
 class TestNullIsNotMissing:
     def test_yaml_null_value_is_no_error(self, tmp_path, collected):
         report = tmp_path / "sim_report.yml"
-        report.write_text("cycles: null\nstatus: failed\n")
+        report.write_text("cycles: null\nstatus: failed\n", encoding="utf-8")
         assert export_common.parse_yaml(str(report), "cycles") is None
         assert collected.of("error") == []
 
     def test_yaml_missing_key_is_still_an_error(self, tmp_path, collected):
         report = tmp_path / "sim_report.yml"
-        report.write_text("status: failed\n")
+        report.write_text("status: failed\n", encoding="utf-8")
         assert export_common.parse_yaml(str(report), "cycles") is None
         assert len(collected.of("error")) == 1 and '"cycles"' in collected.of("error")[0]
 
     def test_json_null_value_is_no_error(self, tmp_path, collected):
         report = tmp_path / "report.json"
-        report.write_text(json.dumps({"cycles": None}))
+        report.write_text(json.dumps({"cycles": None}), encoding="utf-8")
         assert export_common.parse_json(str(report), "cycles") is None
         assert collected.of("error") == []
-        report.write_text(json.dumps({}))
+        report.write_text(json.dumps({}), encoding="utf-8")
         export_common.parse_json(str(report), "cycles")
         assert len(collected.of("error")) == 1
 
@@ -90,7 +90,7 @@ class TestNullIsNotMissing:
 def test_a_metric_that_does_not_match_is_named(tmp_path, collected):
     job = tmp_path / "job"
     (job / "report").mkdir(parents=True)
-    (job / "report" / "stat.txt").write_text("   42 cells\n")
+    (job / "report" / "stat.txt").write_text("   42 cells\n", encoding="utf-8")
     metrics_data = {
         "metrics": {
             "Cells": {"type": "regex", "settings": {"file": "report/stat.txt", "pattern": "^ +([0-9]+) +cellz$", "group_id": 1}},
@@ -108,7 +108,7 @@ def test_a_shared_report_is_reported_once_per_job(tmp_path, collected):
     # Every step of a job reads the same report: the job says it once.
     job = tmp_path / "job"
     (job / "report").mkdir(parents=True)
-    (job / "report" / "stat.txt").write_text("nothing\n")
+    (job / "report" / "stat.txt").write_text("nothing\n", encoding="utf-8")
     metrics_data = {"metrics": {"Cells": {"type": "regex", "settings": {"file": "report/stat.txt", "pattern": "cells", "group_id": 0}}}}
     exp_res._reset_banned_lists()
     exp_res.extract_metrics(metrics_data, "metrics.yml", str(job), "A", "A", step="synthesis", report_shared=False)
@@ -123,7 +123,7 @@ def test_a_shared_report_is_reported_once_per_job(tmp_path, collected):
 
 def _config(tmp_path, text):
     path = tmp_path / "derived_metrics.yml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return derived_metrics.load_derived_metrics(str(path))
 
 
@@ -264,7 +264,7 @@ DERIVED = (
 
 @pytest.fixture
 def results_workspace(example_workspace):
-    (example_workspace / "odatix_userconfig" / "derived_metrics.yml").write_text(DERIVED)
+    (example_workspace / "odatix_userconfig" / "derived_metrics.yml").write_text(DERIVED, encoding="utf-8")
     results = example_workspace / "results"
     results.mkdir(exist_ok=True)
     path = str(results / "results_vivado.yml")
@@ -312,7 +312,7 @@ class TestCleanCommand:
     def test_nothing_to_clean_is_said(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(str(tmp_path))
         settings = tmp_path / "clean.yml"
-        settings.write_text("remove_list:\n  - .Xil\n  - '*.jou'\n")
+        settings.write_text("remove_list:\n  - .Xil\n  - '*.jou'\n", encoding="utf-8")
         assert cln.clean(str(settings)) is True
         out = capsys.readouterr().out
         assert "Nothing to clean" in out and "2 patterns" in out
@@ -321,7 +321,7 @@ class TestCleanCommand:
         monkeypatch.chdir(str(tmp_path))
         (tmp_path / ".Xil").mkdir()
         settings = tmp_path / "clean.yml"
-        settings.write_text("remove_list:\n  - .Xil\n")
+        settings.write_text("remove_list:\n  - .Xil\n", encoding="utf-8")
         cln.clean(str(settings))
         out = capsys.readouterr().out
         assert 'Removed ".Xil" (directory)' in out

@@ -14,7 +14,7 @@ def _files(tmp_path, *names):
     for name in names:
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("# " + name + "\n")
+        path.write_text("# " + name + "\n", encoding="utf-8")
         made.append(str(path))
     return made
 
@@ -124,7 +124,7 @@ class TestWorkDirectory:
             "set user_constraints_pnr       [list]\n"
         )
         edit_config_file(arch, str(config))
-        written = config.read_text()
+        written = config.read_text(encoding="utf-8")
 
         assert 'set user_constraints_synthesis [list "$tmp_path/constraints/pinout.xdc" "$tmp_path/constraints/exceptions.xdc"]' in written
         assert 'set user_constraints_pnr       [list "$tmp_path/constraints/pinout.xdc"]' in written
@@ -144,4 +144,4 @@ class TestWorkDirectory:
         )
         edit_config_file(arch, str(config))
 
-        assert "set user_constraints_synthesis [list]" in config.read_text()
+        assert "set user_constraints_synthesis [list]" in config.read_text(encoding="utf-8")

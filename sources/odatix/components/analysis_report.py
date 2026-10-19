@@ -332,7 +332,7 @@ def print_report(results, **kwargs):
 
 def _read_identity(path):
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       return f.read().strip()
   except OSError:
     return ""

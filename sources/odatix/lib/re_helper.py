@@ -26,7 +26,7 @@ BAD_VALUE = ' /   '
 
 def get_re_group_from_file(file, pattern, group_id, bad_value=BAD_VALUE):
   if os.path.exists(file):
-    for i, line in enumerate(open(file)):
+    for i, line in enumerate(open(file, encoding="utf-8")):
       for match in re.finditer(pattern, line):
         parts = pattern.search(match.group())
         if group_id <= len(parts.groups()):

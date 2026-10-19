@@ -21,11 +21,11 @@ needs_tclsh = pytest.mark.skipif(shutil.which("tclsh") is None, reason="the dumm
 
 def workspace_with(tmp_path, monkeypatch, settings="", target_files=()):
     """A workspace whose odatix.yml says `settings`, with a target file per tool given."""
-    (tmp_path / "odatix.yml").write_text("workspace: odatix\n" + settings)
+    (tmp_path / "odatix.yml").write_text("workspace: odatix\n" + settings, encoding="utf-8")
     targets = tmp_path / "odatix_userconfig" / "targets"
     targets.mkdir(parents=True)
     for tool in target_files:
-        (targets / ("target_" + tool + ".yml")).write_text("targets:\n  - some_target\n")
+        (targets / ("target_" + tool + ".yml")).write_text("targets:\n  - some_target\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return Workspace.open()
 
@@ -158,7 +158,7 @@ class TestRunTool:
     @needs_tclsh
     def test_a_run_uses_the_default_tool(self, dummy_workspace):
         settings = dummy_workspace / "odatix.yml"
-        settings.write_text(settings.read_text().replace("default_tool: vivado", "default_tool: dummy"))
+        settings.write_text(settings.read_text(encoding="utf-8").replace("default_tool: vivado", "default_tool: dummy"), encoding="utf-8")
         run = Run(Workspace.open(), "custom_freq_synthesis")
         assert run.check().run_count() > 0
         assert run.options.tool == "dummy"
@@ -211,8 +211,8 @@ class TestArchitectures:
     @needs_tclsh
     def test_a_file_without_architectures_runs_those_named(self, dummy_workspace):
         settings = dummy_workspace / "odatix_userconfig" / "synth_settings.yml"
-        text = settings.read_text()
-        settings.write_text(text[:text.index("architectures:")] + "architectures:\n")
+        text = settings.read_text(encoding="utf-8")
+        settings.write_text(text[:text.index("architectures:")] + "architectures:\n", encoding="utf-8")
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy", architectures=["Example_Counter_sv/04bits"])
         assert run.check().run_count() > 0
 
@@ -400,7 +400,7 @@ class TestDseConfig:
         from odatix.components.run_dse import refuse_former_config
 
         settings = tmp_path / "dse_settings.yml"
-        settings.write_text("campaigns: [fir]\nnb_jobs: 4\n")
+        settings.write_text("campaigns: [fir]\nnb_jobs: 4\n", encoding="utf-8")
         with pytest.raises(SystemExit):
             refuse_former_config(str(settings))
         assert "-i/--input" in capsys.readouterr().out
@@ -409,7 +409,7 @@ class TestDseConfig:
         from odatix.components.run_dse import refuse_former_config
 
         settings = tmp_path / "odatix.yml"
-        settings.write_text("workspace: odatix\n")
+        settings.write_text("workspace: odatix\n", encoding="utf-8")
         refuse_former_config(str(settings))
 
 

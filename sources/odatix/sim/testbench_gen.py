@@ -72,7 +72,7 @@ def find_top(info, work_dir="."):
   candidates += [(path, "sv") for path in sources.get("verilog", []) + sources.get("sv", [])]
   for path, language in candidates:
     try:
-      with open(os.path.join(work_dir, path), "r", errors="replace") as f:
+      with open(os.path.join(work_dir, path), "r", errors="replace", encoding="utf-8") as f:
         text = f.read()
     except (IOError, OSError):
       continue
@@ -395,6 +395,6 @@ def write(info, work_dir="."):
     path, language, text = TOP + ".vhd", "vhdl", generate_vhdl(header, **options)
   else:
     path, language, text = TOP + ".sv", "sv", generate_sv(header, **options)
-  with open(os.path.join(work_dir, path), "w") as f:
+  with open(os.path.join(work_dir, path), "w", encoding="utf-8") as f:
     f.write(text)
   return path, TOP, language

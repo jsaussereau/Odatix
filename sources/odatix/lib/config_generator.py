@@ -410,7 +410,7 @@ class ConfigGenerator:
       sys.exit(-1)
 
     try:
-      with open(self.yaml_file, "r") as f:
+      with open(self.yaml_file, "r", encoding="utf-8") as f:
         data = yaml_loader.safe_load(f)
         if data is None:
           printc.error(f"YAML file \"{self.yaml_file}\" is empty!")

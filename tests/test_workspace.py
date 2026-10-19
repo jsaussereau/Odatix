@@ -130,17 +130,17 @@ class TestWriting:
 
         path = tmp_path / "a" / "b" / "file.yml"
         write_text(str(path), "x: 1\n")
-        assert path.read_text() == "x: 1\n"
+        assert path.read_text(encoding="utf-8") == "x: 1\n"
         assert os.listdir(str(path.parent)) == ["file.yml"]  # no temporary left behind
 
     def test_a_failed_write_leaves_the_previous_file_in_place(self, tmp_path):
         from odatix.workspace.yaml_io import write_document
 
         path = tmp_path / "odatix.yml"
-        path.write_text("arch_path: archs\n")
+        path.write_text("arch_path: archs\n", encoding="utf-8")
         with pytest.raises(Exception):
             write_document(str(path), {"unserializable": object()})
-        assert path.read_text() == "arch_path: archs\n"
+        assert path.read_text(encoding="utf-8") == "arch_path: archs\n"
         assert os.listdir(str(tmp_path)) == ["odatix.yml"]
 
     @pytest.mark.skipif(not hasattr(os, "symlink") or os.name == "nt", reason="symbolic links")
@@ -149,19 +149,19 @@ class TestWriting:
 
         real = tmp_path / "shared" / "odatix.yml"
         real.parent.mkdir()
-        real.write_text("old\n")
+        real.write_text("old\n", encoding="utf-8")
         link = tmp_path / "odatix.yml"
         os.symlink(str(real), str(link))
         write_text(str(link), "new\n")
         assert os.path.islink(str(link))
-        assert real.read_text() == "new\n"
+        assert real.read_text(encoding="utf-8") == "new\n"
 
     @pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
     def test_the_permissions_of_the_replaced_file_are_kept(self, tmp_path):
         from odatix.workspace.yaml_io import write_text
 
         path = tmp_path / "odatix.yml"
-        path.write_text("old\n")
+        path.write_text("old\n", encoding="utf-8")
         os.chmod(str(path), 0o640)
         write_text(str(path), "new\n")
         assert os.stat(str(path)).st_mode & 0o777 == 0o640
@@ -244,7 +244,7 @@ class TestArchitectureSettings:
 
     def test_unknown_keys_are_kept(self, architectures):
         architecture = architectures.create("archA")
-        with open(architecture.settings_path, "w") as f:
+        with open(architecture.settings_path, "w", encoding="utf-8") as f:
             f.write("rtl_path: rtl\nxc7a100t:\n  fmax_synthesis:\n    lower_bound: 100\n")
 
         architecture = architectures["archA"]
@@ -258,14 +258,14 @@ class TestArchitectureSettings:
 
     def test_saving_keeps_comments_and_untouched_values(self, architectures):
         architecture = architectures.create("archA")
-        with open(architecture.settings_path, "w") as f:
+        with open(architecture.settings_path, "w", encoding="utf-8") as f:
             f.write("# my own comment\nrtl_path: \"rtl/archA\"\ntop_level_module: top\n")
 
         architecture = architectures["archA"]
         architecture.settings.top_level_module = "other"
         architecture.save()
 
-        content = open(architecture.settings_path).read()
+        content = open(architecture.settings_path, encoding="utf-8").read()
         assert "# my own comment" in content
         assert 'rtl_path: "rtl/archA"' in content  # untouched, quoting included
         assert "top_level_module: other" in content
@@ -274,7 +274,7 @@ class TestArchitectureSettings:
         architecture = architectures.create("archA")
         architecture.settings.rtl_path = "rtl"
         architecture.save()
-        content = open(architecture.settings_path).read()
+        content = open(architecture.settings_path, encoding="utf-8").read()
         assert "# Settings for archA" in content
         assert "# Source files" in content
         assert "# Signals" in content
@@ -467,7 +467,7 @@ class TestConfigurationGeneration:
         architecture.settings.generate_configurations_settings.template = "W = ${w}"
         architecture.settings.set_variable("w", "list", {"list": [1, 2]})
         architecture.save()
-        assert "list: [1, 2]" in open(architecture.settings_path).read()
+        assert "list: [1, 2]" in open(architecture.settings_path, encoding="utf-8").read()
 
     def test_variables_are_written_at_the_root_of_the_settings_file(self, architectures):
         architecture = architectures.create("archA")
@@ -477,14 +477,14 @@ class TestConfigurationGeneration:
         architecture.settings.set_variable("w", "list", {"list": [1, 2]})
         architecture.save()
 
-        written = open(architecture.settings_path).read()
+        written = open(architecture.settings_path, encoding="utf-8").read()
         assert "\nvariables:" in written
         assert architectures.entry("archA").settings.variable_names() == ["w"]
 
     def test_variables_of_the_former_location_are_read_and_moved(self, architectures):
         """A settings file written the way Odatix used to write them."""
         architecture = architectures.create("archA")
-        with open(architecture.settings_path, "w") as settings_file:
+        with open(architecture.settings_path, "w", encoding="utf-8") as settings_file:
             settings_file.write(
                 "top_level_file: top.sv\n"
                 "generate_configurations: Yes\n"
@@ -505,7 +505,7 @@ class TestConfigurationGeneration:
         # Saving moves them where they now belong, and drops the keys that no
         # longer say anything.
         reloaded.save()
-        written = open(reloaded.settings_path).read()
+        written = open(reloaded.settings_path, encoding="utf-8").read()
         assert "\nvariables:" in written
         assert "  variables:" not in written
         assert "generate_configurations" not in written
@@ -579,7 +579,7 @@ class TestSimulations:
 
     def test_legacy_metrics_layout_is_migrated_on_write(self, simulations):
         simulation = simulations.create("TB_X")
-        with open(simulation.metrics_path, "w") as f:
+        with open(simulation.metrics_path, "w", encoding="utf-8") as f:
             f.write("cycles:\n  type: csv\n")
         metrics = simulation.metrics
         assert metrics.metrics == {"cycles": {"type": "csv"}}
@@ -675,7 +675,7 @@ class TestJobConfigs:
 
     def test_a_scalar_tools_key_is_read_as_a_list(self, tmp_path):
         path = tmp_path / "analysis_settings.yml"
-        path.write_text("tools: verilator\n")
+        path.write_text("tools: verilator\n", encoding="utf-8")
         assert job_config(str(path), "analysis").settings.tools == ["verilator"]
 
     def test_a_missing_file_reads_as_defaults(self, tmp_path):
@@ -725,7 +725,7 @@ class TestJobConfigs:
         config.save()
         data = read_yaml(path)
         assert data["fmax_synthesis"]["lower_bound"] == ""
-        assert "override: Yes" in open(path).read()
+        assert "override: Yes" in open(path, encoding="utf-8").read()
 
     def test_an_unknown_mode_still_selects_architectures(self, tmp_path):
         config = JobConfig(None, "something_else", str(tmp_path / "x.yml"))
@@ -766,7 +766,7 @@ targets:
 
 @pytest.fixture
 def target_file(tmp_path):
-    (tmp_path / "target_vivado.yml").write_text(TARGET_FILE_CONTENT)
+    (tmp_path / "target_vivado.yml").write_text(TARGET_FILE_CONTENT, encoding="utf-8")
     return TargetFile(None, "vivado", target_path=str(tmp_path))
 
 
@@ -786,7 +786,7 @@ class TestTargets:
             target_file["nope"]
 
     def test_commented_entries_are_disabled_targets(self, tmp_path):
-        (tmp_path / "target_vivado.yml").write_text(COMMENTED_TARGET_FILE_CONTENT)
+        (tmp_path / "target_vivado.yml").write_text(COMMENTED_TARGET_FILE_CONTENT, encoding="utf-8")
         targets = TargetFile(None, "vivado", target_path=str(tmp_path))
         assert [(target.name, target.enabled) for target in targets] == [
             ("xc7s6-cpga196-1", False),
@@ -801,35 +801,35 @@ class TestTargets:
         # the run flow only sees the enabled target...
         assert read_yaml(target_file.path)["targets"] == ["xc7a100t-csg324-1"]
         # ...but the disabled one stays as a commented-out entry
-        assert "# - xc7k70t-fbg676-2" in open(target_file.path).read()
+        assert "# - xc7k70t-fbg676-2" in open(target_file.path, encoding="utf-8").read()
 
         target_file.reload().enable("xc7k70t-fbg676-2")
         assert read_yaml(target_file.path)["targets"] == ["xc7a100t-csg324-1", "xc7k70t-fbg676-2"]
-        assert "# - xc7k70t-fbg676-2" not in open(target_file.path).read()
+        assert "# - xc7k70t-fbg676-2" not in open(target_file.path, encoding="utf-8").read()
 
     def test_saving_without_a_change_is_stable(self, tmp_path):
-        (tmp_path / "target_vivado.yml").write_text(COMMENTED_TARGET_FILE_CONTENT)
+        (tmp_path / "target_vivado.yml").write_text(COMMENTED_TARGET_FILE_CONTENT, encoding="utf-8")
         target_file = TargetFile(None, "vivado", target_path=str(tmp_path))
         before = [target.to_dict() for target in target_file]
         target_file.save()
         assert [target.to_dict() for target in target_file.reload()] == before
 
-        content = (tmp_path / "target_vivado.yml").read_text()
+        content = (tmp_path / "target_vivado.yml").read_text(encoding="utf-8")
         assert "# FPGA target" in content
         assert content.count("# - xc7s6-cpga196-1") == 1
 
     def test_legacy_disabled_targets_key_is_read_and_migrated(self, tmp_path):
-        (tmp_path / "target_vivado.yml").write_text("targets:\n  - a\ndisabled_targets:\n  - b\n")
+        (tmp_path / "target_vivado.yml").write_text("targets:\n  - a\ndisabled_targets:\n  - b\n", encoding="utf-8")
         target_file = TargetFile(None, "vivado", target_path=str(tmp_path))
         assert [(target.name, target.enabled) for target in target_file] == [("a", True), ("b", False)]
 
         target_file.save()
         assert "disabled_targets" not in read_yaml(target_file.path)
-        assert "# - b" in (tmp_path / "target_vivado.yml").read_text()
+        assert "# - b" in (tmp_path / "target_vivado.yml").read_text(encoding="utf-8")
 
     def test_saving_preserves_the_rest_of_the_file(self, target_file):
         target_file.save()
-        content = open(target_file.path).read()
+        content = open(target_file.path, encoding="utf-8").read()
         assert "constraint_file: constraints.xdc" in content
         assert "# Target settings for vivado" in content
         assert 'tool_install_path: ""' in content
@@ -1018,8 +1018,9 @@ class TestWorkspace:
         assert workspace.paths.arch_path == os.path.join(str(tmp_path), "my_archs")
 
     def test_absolute_paths_are_left_alone(self, tmp_path):
-        workspace = Workspace.from_dict({"arch_path": "/somewhere/archs"}, root=str(tmp_path))
-        assert workspace.paths.arch_path == "/somewhere/archs"
+        elsewhere = os.path.join(os.path.abspath(os.sep), "somewhere", "archs")
+        workspace = Workspace.from_dict({"arch_path": elsewhere}, root=str(tmp_path))
+        assert workspace.paths.arch_path == elsewhere
 
     def test_everything_hangs_off_the_workspace(self, tmp_path):
         workspace = Workspace.open(str(tmp_path))
@@ -1039,11 +1040,11 @@ class TestWorkspace:
         from odatix.lib.settings import OdatixSettings
 
         monkeypatch.setattr(OdatixSettings, "user_tools_path", None)
-        (tmp_path / "odatix.yml").write_text("tools_path: my_tools\n")
+        (tmp_path / "odatix.yml").write_text("tools_path: my_tools\n", encoding="utf-8")
         workspace = Workspace.open(str(tmp_path))
         assert OdatixSettings.user_tools_path == os.path.realpath(str(tmp_path / "my_tools"))
 
-        (tmp_path / "odatix.yml").write_text("tools_path: other_tools\n")
+        (tmp_path / "odatix.yml").write_text("tools_path: other_tools\n", encoding="utf-8")
         workspace.reload()
         assert OdatixSettings.user_tools_path == os.path.realpath(str(tmp_path / "other_tools"))
 
@@ -1129,7 +1130,7 @@ def test_a_run_settings_file_is_the_same_object_until_saved(tmp_path):
     # is the documented way to change a run settings file.
     from odatix.workspace import Workspace
 
-    (tmp_path / "odatix.yml").write_text("")
+    (tmp_path / "odatix.yml").write_text("", encoding="utf-8")
     ws = Workspace.open(str(tmp_path))
     ws.jobs.simulation.settings.nb_jobs = 7
     ws.jobs.simulation.save()

@@ -69,5 +69,5 @@ def test_saving_keeps_the_comments_of_unchanged_metrics(tmp_path):
     derived = Workspace.open(str(tmp_path)).derived_metrics
     derived.set("Ratio", {"type": "operation", "op": "LUT_count / meta.frequency"})
     derived.save()
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert "# what P&R did to the estimate" in text and "Ratio" in text

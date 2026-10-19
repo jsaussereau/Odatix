@@ -108,7 +108,7 @@ class TestWorkspaceGuard:
 
     def _prepared(self, example_workspace, settings):
         path = example_workspace / "odatix.yml"
-        path.write_text(path.read_text() + "\n" + settings + "\n")
+        path.write_text(path.read_text(encoding="utf-8") + "\n" + settings + "\n", encoding="utf-8")
         run = Run(Workspace.open(), "fmax_synthesis")
         handler = handler_core.ParallelJobHandler([], format_yaml="")
         return run._with_workspace_guard(handler)
@@ -159,7 +159,7 @@ class _FakeSession(object):
 
 @pytest.fixture
 def fake_session(tmp_path, monkeypatch):
-    (tmp_path / "odatix.yml").write_text("{}")
+    (tmp_path / "odatix.yml").write_text("{}", encoding="utf-8")
     jobs = [
         {"display_name": "old/a", "status": "failed", "tmp_dir": "work/a", "progress": 10, "elapsed_time": "00:00:05"},
         {"display_name": "b", "status": "running", "tmp_dir": "work/b", "progress": 40, "elapsed_time": "00:00:09"},

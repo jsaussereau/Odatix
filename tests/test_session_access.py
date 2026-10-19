@@ -76,15 +76,15 @@ class TestFiles:
 
 class TestWorkspaceSetting:
     def test_it_is_read_from_odatix_yml(self, tmp_path):
-        (tmp_path / "odatix.yml").write_text("workspace: odatix\nsession_access: group\n")
+        (tmp_path / "odatix.yml").write_text("workspace: odatix\nsession_access: group\n", encoding="utf-8")
         assert daemon_control.workspace_session_access(str(tmp_path)) == "group"
 
     def test_without_it_sessions_are_private(self, tmp_path):
-        (tmp_path / "odatix.yml").write_text("workspace: odatix\n")
+        (tmp_path / "odatix.yml").write_text("workspace: odatix\n", encoding="utf-8")
         assert daemon_control.workspace_session_access(str(tmp_path)) == "user"
 
     def test_a_wrong_value_is_an_error_not_a_guess(self, tmp_path):
-        (tmp_path / "odatix.yml").write_text("session_access: everybody\n")
+        (tmp_path / "odatix.yml").write_text("session_access: everybody\n", encoding="utf-8")
         with pytest.raises(daemon_control.DaemonControlError, match="Unknown session access"):
             daemon_control.workspace_session_access(str(tmp_path))
 
@@ -130,7 +130,7 @@ class TestRealSession:
         pytest.importorskip("uvicorn")
         workspace = tmp_path / "ws"
         workspace.mkdir()
-        (workspace / "odatix.yml").write_text("workspace: odatix\nsession_access: group\n")
+        (workspace / "odatix.yml").write_text("workspace: odatix\nsession_access: group\n", encoding="utf-8")
         monkeypatch.chdir(str(workspace))
         state = daemon_control.ensure_daemon_running(workspace_root=str(workspace), session="shared_test")
         yield workspace, state

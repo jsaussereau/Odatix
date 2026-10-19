@@ -114,9 +114,9 @@ class TestCommentedOutConfiguration:
 
     def test_the_replace_command_warns(self, tmp_path, capsys):
         base = tmp_path / "a.v"
-        base.write_text(self.BASE)
+        base.write_text(self.BASE, encoding="utf-8")
         config = tmp_path / "c.txt"
-        config.write_text("  localparam X = 0;\n")
+        config.write_text("  localparam X = 0;\n", encoding="utf-8")
         assert replace_params(str(base), str(config), str(tmp_path / "o.v"), "  // <regs>", "  // </regs>")
         assert "ends up commented out" in capsys.readouterr().out
 
@@ -133,41 +133,41 @@ class TestGetFirstAppearance:
 class TestReplaceParamsFiles:
     def test_end_to_end(self, tmp_path):
         base = tmp_path / "top.v"
-        base.write_text(VERILOG)
+        base.write_text(VERILOG, encoding="utf-8")
         replacement = tmp_path / "params.txt"
-        replacement.write_text("\n  parameter WIDTH = 32\n")
+        replacement.write_text("\n  parameter WIDTH = 32\n", encoding="utf-8")
         output = tmp_path / "out.v"
 
         found = replace_params(str(base), str(replacement), str(output), "counter #(", ")(", silent=True)
         assert found
-        assert "parameter WIDTH = 32" in output.read_text()
+        assert "parameter WIDTH = 32" in output.read_text(encoding="utf-8")
 
     def test_in_place(self, tmp_path):
         base = tmp_path / "top.v"
-        base.write_text(VERILOG)
+        base.write_text(VERILOG, encoding="utf-8")
         replacement = tmp_path / "params.txt"
-        replacement.write_text("\n  parameter WIDTH = 64\n")
+        replacement.write_text("\n  parameter WIDTH = 64\n", encoding="utf-8")
 
         found = replace_params(str(base), str(replacement), str(base), "counter #(", ")(", silent=True)
         assert found
-        assert "parameter WIDTH = 64" in base.read_text()
+        assert "parameter WIDTH = 64" in base.read_text(encoding="utf-8")
 
     def test_pattern_not_found(self, tmp_path):
         base = tmp_path / "top.v"
-        base.write_text("no delimiters here")
+        base.write_text("no delimiters here", encoding="utf-8")
         replacement = tmp_path / "params.txt"
-        replacement.write_text("X")
+        replacement.write_text("X", encoding="utf-8")
         output = tmp_path / "out.v"
 
         found = replace_params(str(base), str(replacement), str(output), "counter #(", ")(", silent=True)
         assert not found
-        assert output.read_text() == "no delimiters here"
+        assert output.read_text(encoding="utf-8") == "no delimiters here"
 
 
 class TestReplaceParamDomains:
     def make_domain(self, tmp_path, value="16", use_parameters=True):
         param_file = tmp_path / f"{value}.txt"
-        param_file.write_text(f"\n  parameter WIDTH = {value}\n")
+        param_file.write_text(f"\n  parameter WIDTH = {value}\n", encoding="utf-8")
         return ParamDomain(
             domain="main",
             domain_value=value,
@@ -179,19 +179,19 @@ class TestReplaceParamDomains:
         )
 
     def test_replace_param_domain(self, tmp_path):
-        (tmp_path / "top.v").write_text(VERILOG)
+        (tmp_path / "top.v").write_text(VERILOG, encoding="utf-8")
         domain = self.make_domain(tmp_path)
         assert replace_param_domain(domain, str(tmp_path), silent=True)
-        assert "parameter WIDTH = 16" in (tmp_path / "top.v").read_text()
+        assert "parameter WIDTH = 16" in (tmp_path / "top.v").read_text(encoding="utf-8")
 
     def test_use_parameters_false_is_noop(self, tmp_path):
-        (tmp_path / "top.v").write_text(VERILOG)
+        (tmp_path / "top.v").write_text(VERILOG, encoding="utf-8")
         domain = self.make_domain(tmp_path, use_parameters=False)
         assert not replace_param_domain(domain, str(tmp_path), silent=True)
-        assert "parameter WIDTH = 4" in (tmp_path / "top.v").read_text()
+        assert "parameter WIDTH = 4" in (tmp_path / "top.v").read_text(encoding="utf-8")
 
     def test_replace_param_domains_returns_domain_dict(self, tmp_path):
-        (tmp_path / "top.v").write_text(VERILOG)
+        (tmp_path / "top.v").write_text(VERILOG, encoding="utf-8")
         domain = self.make_domain(tmp_path)
         result = replace_param_domains([domain], str(tmp_path), timestamp="2026-01-01", silent=True)
         assert result["main"] == "16"
@@ -207,9 +207,9 @@ class TestRunCheckWarnsAboutCommentedConfigurations:
         from odatix.lib.architecture_handler import ArchitectureHandler
 
         (tmp_path / "rtl").mkdir()
-        (tmp_path / "rtl" / "adder.v").write_text(TestCommentedOutConfiguration.BASE)
+        (tmp_path / "rtl" / "adder.v").write_text(TestCommentedOutConfiguration.BASE, encoding="utf-8")
         config = tmp_path / "Off.txt"
-        config.write_text("  localparam X = 0;\n")
+        config.write_text("  localparam X = 0;\n", encoding="utf-8")
         handler = SimpleNamespace()
         substitution = (True, "adder.v", "  // <regs>", "  // </regs>", str(config))
         for _ in range(2):

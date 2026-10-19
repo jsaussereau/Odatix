@@ -20,6 +20,7 @@
 #
 
 import os
+import shutil
 import yaml
 
 from os.path import isfile
@@ -37,6 +38,7 @@ import odatix.lib.yaml_loader as yaml_loader
 import odatix.sim.design_info as design_info
 from odatix.sim.design_info import check_testbench
 import odatix.sim.templates as sim_templates
+import odatix.lib.wsl as wsl
 from odatix.workspace.space import selected_config_file
 
 script_name = os.path.basename(__file__)
@@ -277,6 +279,7 @@ class SimulationHandler:
     self._invariant_domains_cache = {}
     self._definitions_cache = {}
     self._warned_missing = set()
+    self._wsl_simulations = {}
     self._noted_generated = set()
     self._architectures_cache = {}
     self._warned_unlisted = set()
@@ -398,13 +401,17 @@ class SimulationHandler:
     definition_dirs, merged_settings = definition
     source_sim_dir = definition_dirs[-1]
 
+    # where the simulation runs: on Windows, or in WSL (see odatix.lib.wsl)
+    in_wsl = self.runs_in_wsl(sim, definition_dirs, merged_settings)
+
     # a simulator that is not installed would fail every job of the simulation
-    missing = sim_templates.missing_executable(merged_settings)
-    if missing is not None:
+    problem = self.missing_simulator(sim, merged_settings, in_wsl)
+    if problem is not None:
       if sim not in self._warned_missing:
         self._warned_missing.add(sim)
-        printc.error("\"" + sim + "\" runs \"" + missing + "\", which is not in the PATH", script_name)
-        printc.note("Install the simulator, or add its directory to the PATH", script_name)
+        message, hint = problem
+        printc.error(message, script_name)
+        printc.note(hint, script_name)
       self.plan.add(sim_display_name, Category.ERROR)
       return None
 
@@ -834,8 +841,54 @@ class SimulationHandler:
       definition_dirs = definition_dirs,
       metrics_files = sim_templates.metrics_files(definition_dirs),
     )
+    # Its simulator runs in WSL: its commands are given the paths of WSL
+    sim_instance.wsl = in_wsl
 
     return sim_instance
+
+  def runs_in_wsl(self, sim, definition_dirs, settings):
+    """
+    Whether a simulation runs in WSL rather than on Windows, decided once per
+    simulation and said when the run is checked: what runs where is never a
+    surprise. The workspace chooses it by the name of the simulation or of the
+    template it starts from (see odatix.lib.wsl).
+    """
+    if sim not in self._wsl_simulations:
+      names = [sim] + [os.path.basename(os.path.normpath(directory)) for directory in definition_dirs]
+      in_wsl = wsl.simulation_runs_in_wsl(names, sim_templates.test_program(settings))
+      self._wsl_simulations[sim] = in_wsl
+      if wsl.is_installed():
+        printc.note('"' + sim + '" runs ' + wsl.location(in_wsl), script_name)
+    return self._wsl_simulations[sim]
+
+  def missing_simulator(self, sim, settings, in_wsl):
+    """
+    What keeps a simulation from running where it runs, as (error, hint), or
+    None: its simulator is not in the PATH there, or, in WSL, the Python of the
+    distribution cannot run the scripts of Odatix.
+    """
+    program = sim_templates.test_program(settings)
+    if not in_wsl:
+      if program is None or shutil.which(program):
+        return None
+      return (
+        '"' + sim + '" runs "' + program + '", which is not in the PATH',
+        "Install the simulator, or add its directory to the PATH",
+      )
+    where = wsl.location(True)
+    if program is not None and wsl.which(program) is None:
+      return (
+        '"' + sim + '" runs "' + program + '", which is not in the PATH ' + where,
+        "Install the simulator in WSL, or add it to \"windows_tools\" in odatix.yml to run it on Windows",
+      )
+    problem = wsl.python_problem()
+    if problem is not None:
+      return (
+        '"' + sim + '" runs ' + where + ", but " + problem,
+        "Install PyYAML there (\"sudo apt install python3-yaml\", \"sudo dnf install python3-pyyaml\"): "
+        "the scripts of Odatix a simulation runs need it",
+      )
+    return None
 
   def print_summary(self):
     self.plan.print_summary(noun="simulations")

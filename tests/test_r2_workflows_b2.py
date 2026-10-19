@@ -81,7 +81,7 @@ class TestMetricEditor:
         # SIM-109: a simulation starting from the ghdl template shows its metrics.
         sim = tmp_path / "sims" / "tb"
         sim.mkdir(parents=True)
-        (sim / "_settings.yml").write_text("template: ghdl\n")
+        (sim / "_settings.yml").write_text("template: ghdl\n", encoding="utf-8")
         inherited = editor._template_metrics("tb", str(tmp_path / "sims"))
         assert "sim_status" in inherited["metrics"]
 
@@ -96,9 +96,9 @@ def test_editors_use_flex_columns():
     here = os.path.dirname(os.path.abspath(__file__))
     pages = os.path.join(here, "..", "sources", "odatix", "gui", "pages")
     for name in ("workflow_editor.py", "tool_editor.py"):
-        with open(os.path.join(pages, name)) as f:
+        with open(os.path.join(pages, name), encoding="utf-8") as f:
             text = f.read()
         assert 'className="tiles-container config",\n        style=' not in text, name
         assert "flex-form-column" in text
-    with open(os.path.join(pages, "..", "assets", "style.css")) as f:
+    with open(os.path.join(pages, "..", "assets", "style.css"), encoding="utf-8") as f:
         assert ".tiles-container.config.flex-form" in f.read()

@@ -232,7 +232,7 @@ def finished(progress_file):
     :meth:`odatix.dse.campaign.Exploration.report_progress`).
     """
     try:
-        with open(progress_file, "r") as f:
+        with open(progress_file, "r", encoding="utf-8") as f:
             return f.read().strip() == "100"
     except (IOError, OSError):
         return False

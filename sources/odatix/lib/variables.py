@@ -20,6 +20,7 @@
 #
 
 import os
+import sys
 import odatix.lib.printc as printc
 
 script_name = os.path.basename(__file__)
@@ -45,6 +46,7 @@ class Variables:
     tool = None,
     source_work_path = None,
     source_tool = None,
+    wsl = False,
   ):
     self.odatix_path = odatix_path
     self.odatix_eda_tools_path = odatix_eda_tools_path
@@ -66,6 +68,16 @@ class Variables:
     # $work_path is already taken and means *this* job's directory.
     self.source_work_path = source_work_path
     self.source_tool = source_tool
+    # The command runs in WSL (see odatix.lib.wsl): its paths are given as WSL
+    # sees them, and $python is the Python of the distribution
+    self.wsl = wsl
+
+#: The variables holding a path, given as WSL sees it to a command run in WSL
+_PATH_VARIABLES = (
+  "$odatix_path", "$eda_tools_path", "$tool_path", "$work_path", "$tool_install_path", "$script_path",
+  "$log_path", "$rtl_path", "$report_path", "$result_path", "$source_work_path",
+)
+
 
 def replace_variables(command, variables):
   if variables is None:
@@ -91,7 +103,15 @@ def replace_variables(command, variables):
       "$tool": variables.tool,
       "$source_work_path": variables.source_work_path,
       "$source_tool": variables.source_tool,
+      # The interpreter running Odatix, for the helper scripts of a tool
+      "$python": sys.executable,
     }
+    if getattr(variables, "wsl", False):
+      import odatix.lib.wsl as wsl
+
+      for key in _PATH_VARIABLES:
+        replacements[key] = wsl.linux_path(replacements[key])
+      replacements["$python"] = wsl.PYTHON
     # Longest name first: a plain replace of "$tool" would otherwise eat the
     # beginning of "$tool_path" and "$tool_install_path".
     for key, value in sorted(replacements.items(), key=lambda item: -len(item[0])):

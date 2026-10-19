@@ -121,7 +121,7 @@ generate_configurations_settings:
 def write_architecture(arch_path, name, command):
     arch_dir = os.path.join(arch_path, name)
     os.makedirs(arch_dir, exist_ok=True)
-    with open(os.path.join(arch_dir, hard_settings.param_settings_filename), "w") as f:
+    with open(os.path.join(arch_dir, hard_settings.param_settings_filename), "w", encoding="utf-8") as f:
         f.write(SETTINGS_WITH_VARIABLES.format(command=command))
     return arch_dir
 
@@ -129,9 +129,9 @@ def write_architecture(arch_path, name, command):
 def write_param_domain(arch_dir, domain, value, content):
     domain_dir = os.path.join(arch_dir, domain)
     os.makedirs(domain_dir, exist_ok=True)
-    with open(os.path.join(domain_dir, hard_settings.param_settings_filename), "w") as f:
+    with open(os.path.join(domain_dir, hard_settings.param_settings_filename), "w", encoding="utf-8") as f:
         yaml.safe_dump({"use_parameters": False}, f)
-    with open(os.path.join(domain_dir, value + ".txt"), "w") as f:
+    with open(os.path.join(domain_dir, value + ".txt"), "w", encoding="utf-8") as f:
         f.write(content)
 
 
@@ -212,7 +212,7 @@ class TestArchitectureExpansion:
     def test_an_architecture_without_variables_is_untouched(self, arch_handler):
         arch_dir = os.path.join(arch_handler.arch_path, "plain")
         os.makedirs(arch_dir)
-        with open(os.path.join(arch_dir, hard_settings.param_settings_filename), "w") as f:
+        with open(os.path.join(arch_dir, hard_settings.param_settings_filename), "w", encoding="utf-8") as f:
             yaml.safe_dump({"rtl_path": "rtl", "top_level_file": "top.v"}, f)
 
         assert arch_handler.expand_virtual_param_domains(["plain"]) == [("plain", {})]
@@ -327,12 +327,12 @@ class TestCommandFieldHighlighting:
         arch_path = str(tmp_path / "architectures")
         arch_dir = write_architecture(arch_path, "gen", "make WIDTH=${width}")
         settings_file = os.path.join(arch_dir, hard_settings.param_settings_filename)
-        with open(settings_file) as f:
+        with open(settings_file, encoding="utf-8") as f:
             settings = yaml.safe_load(f)
         settings["generate_configurations"] = True
         settings["generate_configurations_settings"]["name"] = "cfg_${width}"
         settings["generate_configurations_settings"]["template"] = "parameter W = ${width};"
-        with open(settings_file, "w") as f:
+        with open(settings_file, "w", encoding="utf-8") as f:
             yaml.safe_dump(settings, f)
 
         _domains, variables = architecture_editor.update_arch_highlight_names(

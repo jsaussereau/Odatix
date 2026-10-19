@@ -44,6 +44,7 @@ import odatix.gui.navigation as navigation
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.check_tool as check_tool
 import odatix.sim.templates as sim_templates
+import odatix.lib.wsl as wsl
 from odatix.gui.utils import get_workspace
 from odatix.lib.utils import open_path_in_explorer
 from odatix.gui.page_scope import page_callback, scoped
@@ -417,11 +418,13 @@ def check_tool_installed(name, odatix_settings):
     except Exception:
         install_path = ""
     installed, reason = check_tool.probe(eda_tools.tool_test_command(name, install_path))
+    # Where it runs, when that is WSL: said on the badge itself
+    where = " " + wsl.location(True) if wsl.runs_in_wsl(name) else ""
     if installed is None:
         return "not checked", "odx-badge", reason
     if installed:
-        return "installed", "odx-badge success", "The tool starts: its tool_test_command passed"
-    return "not installed", "odx-badge caution", "Could not launch it: " + reason
+        return "installed" + where, "odx-badge success", "The tool starts" + where + ": its tool_test_command passed"
+    return "not installed" + where, "odx-badge caution", "Could not launch it" + where + ": " + reason
 
 
 @page_callback(PAGE_SCOPE,
@@ -436,11 +439,13 @@ def check_simulator(name):
     callback per card, so a slow simulator does not hold the others.
     """
     installed = sim_templates.is_installed(name)
+    # Where it runs, when that is WSL: said on the badge itself
+    where = " " + wsl.location(True) if sim_templates.runs_in_wsl(name) else ""
     if installed is None:
         return "not checked", "odx-badge"
     if installed:
-        return "installed", "odx-badge success"
-    return "not installed", "odx-badge caution"
+        return "installed" + where, "odx-badge success"
+    return "not installed" + where, "odx-badge caution"
 
 @page_callback(PAGE_SCOPE,
     Output("tool-cards-matrix", "children", allow_duplicate=True),

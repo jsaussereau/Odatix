@@ -36,6 +36,8 @@ one gives access to all of them::
 import os
 
 from odatix.lib.settings import OdatixSettings
+from odatix.lib.utils import native_path
+import odatix.lib.wsl as wsl
 from odatix.workspace.architectures import ArchitectureCollection
 from odatix.workspace.clean import CleanSettingsFile
 from odatix.workspace.derived import DerivedMetricsFile
@@ -151,6 +153,27 @@ class WorkspaceSettings(Settings):
         ),
     )
 
+    wsl = Setting(
+        "", type="str", skip_if_empty=True, section="WSL (Windows)",
+        doc=(
+            "On Windows, whether Odatix may run tools and simulators in WSL (the Windows Subsystem for Linux): "
+            "\"auto\" (the default) runs there the tools that only have Linux commands and the simulators "
+            "installed in WSL only, besides those of \"wsl_tools\"; \"never\" runs nothing there."
+        ),
+    )
+    wsl_distribution = Setting(
+        "", type="str", skip_if_empty=True,
+        doc="The WSL distribution tools and simulators run in (the default one when empty).",
+    )
+    wsl_tools = Setting(
+        "", type="any", skip_if_empty=True,
+        doc="Tools and simulations always run in WSL.",
+    )
+    windows_tools = Setting(
+        "", type="any", skip_if_empty=True,
+        doc="Tools and simulations always run on Windows, never in WSL.",
+    )
+
     def normalize(self):
         """Read a former settings file key as the current one (see :attr:`moved_keys`)."""
         for former, key in self.moved_keys:
@@ -241,7 +264,7 @@ class WorkspacePaths(object):
             return path
         if os.path.isabs(path) or self.root in ("", "."):
             return path
-        return os.path.join(self.root, path)
+        return os.path.join(self.root, native_path(path))
 
     def to_dict(self):
         return dict((name, getattr(self, name)) for name, _default in PATH_SETTINGS)
@@ -379,11 +402,13 @@ class Workspace(object):
 
     def _latch_tools_path(self):
         """
-        Tell the tool resolution helpers where this workspace keeps its tools.
-        They are reached from everywhere and hold no workspace, so the path
-        lives on the settings class, exactly as reading a settings file sets it.
+        Tell the tool resolution helpers where this workspace keeps its tools,
+        and which of them run in WSL. They are reached from everywhere and hold
+        no workspace, so this lives on the settings class, exactly as reading a
+        settings file sets it.
         """
         OdatixSettings.user_tools_path = os.path.realpath(self._paths.tools_path)
+        OdatixSettings.wsl_settings = wsl.read_settings(self.settings)
 
     def reload(self):
         """Read the settings file again, and resolve the paths anew."""

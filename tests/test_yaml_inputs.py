@@ -36,28 +36,28 @@ class TestJobSettingsFiles:
     ])
     def test_empty_file_exits_cleanly(self, tmp_path, getter, key):
         f = tmp_path / "s.yml"
-        f.write_text("")
+        f.write_text("", encoding="utf-8")
         with pytest.raises(SystemExit):
             getter(str(f))
 
     @pytest.mark.parametrize("getter", [get_synth_settings, get_sim_settings, get_workflow_settings])
     def test_invalid_yaml_exits_cleanly(self, tmp_path, getter):
         f = tmp_path / "s.yml"
-        f.write_text("key: [unclosed\n  bad indent: ][")
+        f.write_text("key: [unclosed\n  bad indent: ][", encoding="utf-8")
         with pytest.raises(SystemExit):
             getter(str(f))
 
     @pytest.mark.parametrize("getter", [get_synth_settings, get_sim_settings, get_workflow_settings])
     def test_scalar_document_exits_cleanly(self, tmp_path, getter):
         f = tmp_path / "s.yml"
-        f.write_text("just a string\n")
+        f.write_text("just a string\n", encoding="utf-8")
         with pytest.raises(SystemExit):
             getter(str(f))
 
     def test_yaml_boolean_variants(self, tmp_path):
         # YAML 1.1 booleans: yes/no/on/off/true/false are all valid
         f = tmp_path / "s.yml"
-        f.write_text("overwrite: On\nask_continue: off\nnb_jobs: 4\narchitectures: [a/b]\n")
+        f.write_text("overwrite: On\nask_continue: off\nnb_jobs: 4\narchitectures: [a/b]\n", encoding="utf-8")
         overwrite, ask, _, _, _, _ = get_synth_settings(str(f))
         assert overwrite is True
         assert ask is False
@@ -65,7 +65,7 @@ class TestJobSettingsFiles:
     def test_architectures_null_is_accepted(self, tmp_path):
         # 'architectures:' with no entries loads as None (no type constraint)
         f = tmp_path / "s.yml"
-        f.write_text("overwrite: no\nask_continue: no\nnb_jobs: 1\narchitectures:\n")
+        f.write_text("overwrite: no\nask_continue: no\nnb_jobs: 1\narchitectures:\n", encoding="utf-8")
         *_, archs = get_synth_settings(str(f))
         assert archs is None
 
@@ -73,7 +73,7 @@ class TestJobSettingsFiles:
         # The tutorials used to show a selection alone: the error must say what
         # the file still needs, not just which key is missing.
         f = tmp_path / "s.yml"
-        f.write_text("nb_jobs: 4\nworkflows:\n  - basic/default\n")
+        f.write_text("nb_jobs: 4\nworkflows:\n  - basic/default\n", encoding="utf-8")
         with pytest.raises(SystemExit):
             get_workflow_settings(str(f))
         out = capsys.readouterr().out
@@ -82,7 +82,7 @@ class TestJobSettingsFiles:
 
     def test_nb_jobs_as_string_exits(self, tmp_path):
         f = tmp_path / "s.yml"
-        f.write_text('overwrite: no\nask_continue: no\nnb_jobs: "8"\narchitectures: []\n')
+        f.write_text('overwrite: no\nask_continue: no\nnb_jobs: "8"\narchitectures: []\n', encoding="utf-8")
         with pytest.raises(SystemExit):
             get_synth_settings(str(f))
 
@@ -108,7 +108,7 @@ GEN_YAML = textwrap.dedent(
 
 class TestConfigGeneratorFiles:
     def write_settings(self, tmp_path, content):
-        (tmp_path / "_settings.yml").write_text(content)
+        (tmp_path / "_settings.yml").write_text(content, encoding="utf-8")
         return str(tmp_path)
 
     def test_valid_file(self, tmp_path):
@@ -275,7 +275,7 @@ class TestCustomFrequencySettings:
         from odatix.components.run_fixed_freq_synthesis import _load_settings_custom_frequencies
 
         f = tmp_path / "custom_freq_synthesis_settings.yml"
-        f.write_text(text)
+        f.write_text(text, encoding="utf-8")
         return _load_settings_custom_frequencies(str(f))
 
     def test_list_and_range(self, tmp_path):
@@ -330,13 +330,13 @@ class TestOdatixSettingsFiles:
 
     def test_invalid_yaml_is_invalid(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "odatix.yml").write_text("a: [unclosed")
+        (tmp_path / "odatix.yml").write_text("a: [unclosed", encoding="utf-8")
         settings = OdatixSettings(silent=True)
         assert not settings.valid
 
     def test_empty_file_uses_defaults(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "odatix.yml").write_text("")
+        (tmp_path / "odatix.yml").write_text("", encoding="utf-8")
         settings = OdatixSettings(silent=True)
         assert settings.valid
         assert settings.work_path == OdatixSettings.DEFAULT_WORK_PATH
@@ -344,13 +344,13 @@ class TestOdatixSettingsFiles:
 
     def test_deprecated_keys_still_valid(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "odatix.yml").write_text("sim_work_path: old\nfmax_work_path: old\n")
+        (tmp_path / "odatix.yml").write_text("sim_work_path: old\nfmax_work_path: old\n", encoding="utf-8")
         settings = OdatixSettings(silent=True)
         assert settings.valid  # only a deprecation warning
 
     def test_the_former_benchmark_keys_are_ignored(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "odatix.yml").write_text("use_benchmark: yes\nbenchmark_file: b.yml\n")
+        (tmp_path / "odatix.yml").write_text("use_benchmark: yes\nbenchmark_file: b.yml\n", encoding="utf-8")
         settings = OdatixSettings(silent=True)
         assert settings.valid
         assert not hasattr(settings, "use_benchmark")
@@ -364,8 +364,8 @@ class TestParamDomainSettingsFiles:
     def write_domain(self, tmp_path, settings_content, config_name="default"):
         domain_dir = tmp_path / "archs" / "arch" / "dom"
         domain_dir.mkdir(parents=True)
-        (domain_dir / "_settings.yml").write_text(settings_content)
-        (domain_dir / f"{config_name}.txt").write_text("params")
+        (domain_dir / "_settings.yml").write_text(settings_content, encoding="utf-8")
+        (domain_dir / f"{config_name}.txt").write_text("params", encoding="utf-8")
         return str(tmp_path / "archs")
 
     def get(self, arch_path):
@@ -411,14 +411,14 @@ class TestParamDomainSettingsFiles:
 class TestResultsFiles:
     def test_empty_file(self, tmp_path):
         f = tmp_path / "results.yml"
-        f.write_text("")
+        f.write_text("", encoding="utf-8")
         loaded = schema.load_results_file(str(f))
         assert loaded.schema_detected == schema.FORMAT_UNKNOWN
         assert loaded.records == []
 
     def test_invalid_yaml_raises(self, tmp_path):
         f = tmp_path / "results.yml"
-        f.write_text("a: [unclosed")
+        f.write_text("a: [unclosed", encoding="utf-8")
         with pytest.raises(yaml.YAMLError):
             schema.load_results_file(str(f))
 
@@ -428,7 +428,7 @@ class TestResultsFiles:
 
     def test_scalar_document(self, tmp_path):
         f = tmp_path / "results.yml"
-        f.write_text("42\n")
+        f.write_text("42\n", encoding="utf-8")
         loaded = schema.load_results_file(str(f))
         assert loaded.schema_detected == schema.FORMAT_UNKNOWN
 
@@ -452,7 +452,7 @@ class TestResultsFiles:
 
     def test_v2_with_null_metrics(self, tmp_path):
         f = tmp_path / "results.yml"
-        f.write_text("schema: 2\nresults:\n  - meta: {type: x}\n    metrics:\n")
+        f.write_text("schema: 2\nresults:\n  - meta: {type: x}\n    metrics:\n", encoding="utf-8")
         loaded = schema.load_results_file(str(f))
         assert loaded.records[0]["metrics"] == {}
 
@@ -467,12 +467,12 @@ TARGET = "xc7a100t-csg324-1"
 
 
 def load_arch_yaml():
-    with open(ARCH_SETTINGS) as f:
+    with open(ARCH_SETTINGS, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def save_arch_yaml(data):
-    with open(ARCH_SETTINGS, "w") as f:
+    with open(ARCH_SETTINGS, "w", encoding="utf-8") as f:
         yaml.dump(data, f)
 
 
@@ -486,12 +486,12 @@ class TestArchitectureSettingsVariations:
         return handler, instances
 
     def test_empty_settings_rejects_architecture(self, example_workspace):
-        open(ARCH_SETTINGS, "w").close()
+        open(ARCH_SETTINGS, "w", encoding="utf-8").close()
         _, instances = self.resolve()
         assert instances == []
 
     def test_invalid_yaml_rejects_architecture(self, example_workspace):
-        with open(ARCH_SETTINGS, "w") as f:
+        with open(ARCH_SETTINGS, "w", encoding="utf-8") as f:
             f.write("a: [unclosed")
         _, instances = self.resolve()
         assert instances == []
@@ -565,14 +565,14 @@ class TestTargetFileVariations:
         return handler.get_architectures(ARCH_REQUEST, [TARGET], run_mode="fmax", timestamp="ts")
 
     def test_script_copy_missing_source_is_disabled(self, example_workspace):
-        with open(TARGET_FILE, "w") as f:
+        with open(TARGET_FILE, "w", encoding="utf-8") as f:
             f.write("script_copy_enable: yes\nscript_copy_source: /does/not/exist\ntargets: [%s]\n" % TARGET)
         instances = self.resolve()
         assert len(instances) == 1
         assert instances[0].script_copy_enable is False
 
     def test_minimal_target_file(self, example_workspace):
-        with open(TARGET_FILE, "w") as f:
+        with open(TARGET_FILE, "w", encoding="utf-8") as f:
             f.write("targets: [%s]\n" % TARGET)
         instances = self.resolve()
         assert len(instances) == 1
@@ -585,18 +585,18 @@ class TestTargetFileVariations:
 class TestWorkspaceYamlFiles:
     def test_load_yaml_invalid_returns_default(self, tmp_path):
         f = tmp_path / "f.yml"
-        f.write_text("a: [unclosed")
+        f.write_text("a: [unclosed", encoding="utf-8")
         assert read_yaml(str(f), default={"fallback": True}) == {"fallback": True}
 
     def test_load_yaml_empty_returns_default(self, tmp_path):
         f = tmp_path / "f.yml"
-        f.write_text("")
+        f.write_text("", encoding="utf-8")
         assert read_yaml(str(f), default={"d": 1}) == {"d": 1}
 
     def test_load_architecture_settings_empty_file(self, tmp_path):
         arch_root = tmp_path / "archs"
         (arch_root / "archA").mkdir(parents=True)
-        (arch_root / "archA" / "_settings.yml").write_text("")
+        (arch_root / "archA" / "_settings.yml").write_text("", encoding="utf-8")
         assert ArchitectureCollection(None, str(arch_root))["archA"].settings == ArchitectureSettings()
 
     def test_load_architecture_settings_missing_file(self, tmp_path):

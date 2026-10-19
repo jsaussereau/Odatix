@@ -134,7 +134,7 @@ def list_views(result_path):
     if not entry.is_file() or not entry.name.endswith(".json"):
       continue
     try:
-      with open(entry.path, "r") as f:
+      with open(entry.path, "r", encoding="utf-8") as f:
         view = json.load(f)
       if not isinstance(view, dict) or VIEW_SCHEMA_KEY not in view:
         continue
@@ -209,7 +209,7 @@ def load_view(result_path, name):
     raise ValueError("unknown view " + str(name))
   path = os.path.join(directory, slug + ".json")
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       view = json.load(f)
   except OSError:
     raise ValueError('view file not found: "' + slug + '.json"')

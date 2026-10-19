@@ -82,7 +82,7 @@ def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix="")
             report_missing_file(file, error_prefix)
         return None
 
-    with open(file, "r") as f:
+    with open(file, "r", encoding="utf-8") as f:
         try:
             content = f.read()
             match = re.search(pattern, content, REGEX_FLAGS)
@@ -104,7 +104,7 @@ def parse_regex_all(file, pattern, group_id, error_if_missing=True, error_prefix
             report_missing_file(file, error_prefix)
         return None
 
-    with open(file, "r") as f:
+    with open(file, "r", encoding="utf-8") as f:
         try:
             content = f.read()
             values = [match.group(group_id) for match in re.finditer(pattern, content, REGEX_FLAGS)]
@@ -124,7 +124,7 @@ def parse_csv(file, key, error_if_missing=True, error_prefix=""):
             report_missing_file(file, error_prefix)
         return None
 
-    with open(file, mode="r") as csv_file:
+    with open(file, mode="r", encoding="utf-8") as csv_file:
         try:
             reader = csv.DictReader(csv_file, skipinitialspace=True)
             for row in reader:
@@ -147,7 +147,7 @@ def parse_csv_all(file, key, error_if_missing=True, error_prefix=""):
         return None
 
     values = []
-    with open(file, mode="r") as csv_file:
+    with open(file, mode="r", encoding="utf-8") as csv_file:
         try:
             reader = csv.DictReader(csv_file, skipinitialspace=True)
             for row in reader:
@@ -169,7 +169,7 @@ def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
             report_missing_file(file, error_prefix)
         return None
 
-    with open(file, "r") as yaml_file:
+    with open(file, "r", encoding="utf-8") as yaml_file:
         try:
             data = yaml_loader.safe_load(yaml_file)
         except yaml.YAMLError as e:
@@ -197,7 +197,7 @@ def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
             report_missing_file(file, error_prefix)
         return None
 
-    with open(file, "r") as json_file:
+    with open(file, "r", encoding="utf-8") as json_file:
         try:
             data = json.load(json_file)
         except json.JSONDecodeError as e:

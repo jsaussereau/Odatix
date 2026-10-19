@@ -85,9 +85,9 @@ def test_ar25_a_domain_without_delimiters_replaces_nothing(ce):
 def test_ar22_replace_without_match_is_an_error(tmp_path, capsys):
     from odatix.components.replace_params import replace_params
     src = tmp_path / "in.v"
-    src.write_text("module m; endmodule\n")
+    src.write_text("module m; endmodule\n", encoding="utf-8")
     rep = tmp_path / "r.txt"
-    rep.write_text("x\n")
+    rep.write_text("x\n", encoding="utf-8")
     out = tmp_path / "out.v"
     assert not replace_params(str(src), str(rep), str(out), "#(", ")(", missing_is_error=True)
     printed = capsys.readouterr().out

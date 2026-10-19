@@ -451,7 +451,7 @@ def definition_files(tool, tools_path=None):
 
 def _read_definition_file(path):
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       data = yaml_loader.safe_load(f)
   except Exception as e:
     printc.error('Analysis definition file "' + path + '" is not a valid YAML file: ' + str(e), script_name)
@@ -686,7 +686,7 @@ class LogReader(object):
   def read(self, path, relative_path):
     rules = [rule for rule in self.definition.rules if rule.applies_to(relative_path)]
     try:
-      with open(path, "r", errors="ignore") as f:
+      with open(path, "r", errors="ignore", encoding="utf-8") as f:
         lines = [clean_line(line) for line in f]
     except OSError:
       return
@@ -793,7 +793,7 @@ def _job_settings(job_dir):
   """The settings a job directory was prepared with (its settings.yml)."""
   path = os.path.join(job_dir, hard_settings.yaml_config_filename)
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       data = yaml_loader.safe_load(f)
   except Exception:
     return {}
@@ -801,13 +801,17 @@ def _job_settings(job_dir):
 
 
 def _relative_to(path, job_dir):
-  """A path the tool printed, relative to the job directory when it is in it."""
+  """
+  A path the tool printed, relative to the job directory when it is in it,
+  with "/" separators whatever the system, like a path the tool printed
+  relative to it.
+  """
   if not path or not os.path.isabs(path):
     return path
   job_dir = os.path.realpath(job_dir)
   real = os.path.realpath(path)
   if real == job_dir or real.startswith(job_dir + os.sep):
-    return os.path.relpath(real, job_dir)
+    return os.path.relpath(real, job_dir).replace(os.sep, "/")
   return path
 
 
@@ -819,7 +823,7 @@ def is_complete(job_dir):
   """
   status_file = os.path.join(job_dir, hard_settings.work_log_path, hard_settings.synth_status_filename)
   try:
-    with open(status_file, "r", errors="ignore") as f:
+    with open(status_file, "r", errors="ignore", encoding="utf-8") as f:
       return hard_settings.valid_status in f.read()
   except OSError:
     return False

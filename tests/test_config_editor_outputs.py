@@ -96,7 +96,7 @@ class TestPreviewOfANewDomain:
         assert "commented out" in repr(notices[0])
 
     def test_the_pane_carries_what_the_section_needs(self, editor, tmp_path):
-        (tmp_path / "adder.v").write_text("module a;\n  // <regs>\n  localparam X = 1;\n  // </regs>\nendmodule\n")
+        (tmp_path / "adder.v").write_text("module a;\n  // <regs>\n  localparam X = 1;\n  // </regs>\nendmodule\n", encoding="utf-8")
         pane = editor.preview_pane(
             MAIN, "arch", {"rtl_path": str(tmp_path), "top_level_file": "adder.v"},
             {"use_parameters": True, "param_target_file": "adder.v",
@@ -206,7 +206,7 @@ class TestNewDomain:
 
         root = tmp_path / "architectures"
         (root / "arch").mkdir(parents=True)
-        (root / "arch" / "_settings.yml").write_text(yaml.safe_dump({"rtl_path": "rtl"}))
+        (root / "arch" / "_settings.yml").write_text(yaml.safe_dump({"rtl_path": "rtl"}), encoding="utf-8")
         instances = ArchitectureCollection(None, str(root))
         monkeypatch.setattr(
             editor, "get_instance_collection_context", lambda search, settings: ("arch", "arch", instances),

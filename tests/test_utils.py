@@ -27,9 +27,9 @@ from odatix.lib.utils import (
 def source_tree(tmp_path):
     src = tmp_path / "src"
     (src / "sub").mkdir(parents=True)
-    (src / "a.txt").write_text("a")
+    (src / "a.txt").write_text("a", encoding="utf-8")
     (src / "b.log").write_text("b")
-    (src / "sub" / "c.txt").write_text("c")
+    (src / "sub" / "c.txt").write_text("c", encoding="utf-8")
     return src
 
 
@@ -37,8 +37,8 @@ class TestCopytree:
     def test_full_copy(self, source_tree, tmp_path):
         dst = tmp_path / "dst"
         copytree(str(source_tree), str(dst))
-        assert (dst / "a.txt").read_text() == "a"
-        assert (dst / "sub" / "c.txt").read_text() == "c"
+        assert (dst / "a.txt").read_text(encoding="utf-8") == "a"
+        assert (dst / "sub" / "c.txt").read_text(encoding="utf-8") == "c"
 
     def test_existing_destination_raises(self, source_tree, tmp_path):
         dst = tmp_path / "dst"
@@ -71,7 +71,7 @@ class TestCopytree:
 
     def test_whitelisted_directory_copies_its_subtree(self, source_tree, tmp_path):
         (source_tree / "sub" / "deep").mkdir()
-        (source_tree / "sub" / "deep" / "d.v").write_text("d")
+        (source_tree / "sub" / "deep" / "d.v").write_text("d", encoding="utf-8")
         dst = tmp_path / "dst"
         copytree(str(source_tree), str(dst), whitelist=["sub", "b.log"])
         assert (dst / "sub" / "c.txt").exists()
@@ -80,7 +80,7 @@ class TestCopytree:
         assert not (dst / "a.txt").exists()
 
     def test_whitelist_nested_path(self, source_tree, tmp_path):
-        (source_tree / "sub" / "other.txt").write_text("o")
+        (source_tree / "sub" / "other.txt").write_text("o", encoding="utf-8")
         dst = tmp_path / "dst"
         copytree(str(source_tree), str(dst), whitelist=["./sub/c.txt"])
         assert (dst / "sub" / "c.txt").exists()
@@ -89,7 +89,7 @@ class TestCopytree:
 
     def test_whitelist_prefix_is_not_a_directory_match(self, source_tree, tmp_path):
         (source_tree / "subx").mkdir()
-        (source_tree / "subx" / "e.txt").write_text("e")
+        (source_tree / "subx" / "e.txt").write_text("e", encoding="utf-8")
         dst = tmp_path / "dst"
         copytree(str(source_tree), str(dst), whitelist=["sub"])
         assert (dst / "sub" / "c.txt").exists()
@@ -103,34 +103,39 @@ class TestCopytree:
 
     def test_keeps_permission_bits_and_mtime(self, source_tree, tmp_path):
         script = source_tree / "run.sh"
-        script.write_text("#!/bin/sh\n")
+        script.write_text("#!/bin/sh\n", encoding="utf-8")
         os.chmod(str(script), 0o750)
         os.utime(str(script), (1000000000, 1000000000))
         dst = tmp_path / "dst"
         copytree(str(source_tree), str(dst))
         copied = os.stat(str(dst / "run.sh"))
-        assert copied.st_mode & 0o777 == 0o750
+        if os.name == "posix":
+            # Windows only has a read-only bit
+            assert copied.st_mode & 0o777 == 0o750
         assert int(copied.st_mtime) == 1000000000
 
     def test_slow_file_system_copies_in_parallel(self, source_tree, tmp_path, monkeypatch):
         import odatix.lib.utils as utils
         for i in range(40):
-            (source_tree / "sub" / ("f%d.v" % i)).write_text(str(i))
+            (source_tree / "sub" / ("f%d.v" % i)).write_text(str(i), encoding="utf-8")
         # Every file looks slow: the probe switches to the thread pool
         monkeypatch.setattr(utils, "COPYTREE_SLOW_FILE_SECONDS", -1)
         monkeypatch.setattr(utils, "COPYTREE_PROBE_FILES", 2)
         dst = tmp_path / "dst"
         copytree(str(source_tree), str(dst), blacklist=["*.log"])
         for i in range(40):
-            assert (dst / "sub" / ("f%d.v" % i)).read_text() == str(i)
+            assert (dst / "sub" / ("f%d.v" % i)).read_text(encoding="utf-8") == str(i)
         assert (dst / "a.txt").exists()
         assert not (dst / "b.log").exists()
 
     def test_parallel_copy_error_is_raised(self, source_tree, tmp_path, monkeypatch):
         import odatix.lib.utils as utils
         for i in range(10):
-            (source_tree / ("f%d.v" % i)).write_text(str(i))
-        os.symlink(str(source_tree / "missing"), str(source_tree / "zz_broken"))
+            (source_tree / ("f%d.v" % i)).write_text(str(i), encoding="utf-8")
+        try:
+            os.symlink(str(source_tree / "missing"), str(source_tree / "zz_broken"))
+        except OSError:
+            pytest.skip("symbolic links need a privilege on Windows")
         monkeypatch.setattr(utils, "COPYTREE_SLOW_FILE_SECONDS", -1)
         monkeypatch.setattr(utils, "COPYTREE_PROBE_FILES", 1)
         with pytest.raises(OSError):
@@ -180,7 +185,7 @@ class TestCreateDir:
     def test_replaces_existing(self, tmp_path):
         target = tmp_path / "d"
         target.mkdir()
-        (target / "leftover.txt").write_text("x")
+        (target / "leftover.txt").write_text("x", encoding="utf-8")
         create_dir(str(target))
         assert target.is_dir()
         assert not (target / "leftover.txt").exists()

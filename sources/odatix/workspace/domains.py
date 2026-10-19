@@ -38,7 +38,7 @@ import shutil
 from natsort import natsorted
 
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.utils import copytree
+from odatix.lib.utils import copytree, native_path
 from odatix.workspace.configs import (
     CONFIGURATIONS_KEY,
     LEGACY_CONFIGURATION_KEYS,
@@ -153,7 +153,7 @@ class ParameterDomain(object):
         """Directory holding the settings and the configurations of this domain."""
         if self.is_main:
             return self.instance.path
-        return os.path.join(self.instance.path, self.name)
+        return os.path.join(self.instance.path, native_path(self.name))
 
     @property
     def settings_path(self):
@@ -365,7 +365,7 @@ class ParameterDomain(object):
         if new_name == self.name:
             return self
         self.require()
-        target = os.path.join(self.instance.path, new_name)
+        target = os.path.join(self.instance.path, native_path(new_name))
         if os.path.exists(target):
             raise AlreadyExistsError("A parameter domain named '{0}' already exists.".format(new_name))
         os.rename(self.path, target)

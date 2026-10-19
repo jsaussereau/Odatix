@@ -120,3 +120,22 @@ default_tool: vivado  # overridden by -t / --tool
 # who may use the sessions started here besides their owner:
 # user (nobody), group (the group of the workspace) or other (every user)
 # session_access: user
+
+#--------------------------------------------#
+# WSL (Windows)
+#--------------------------------------------#
+
+# on Windows, whether tools and simulators may run in WSL (the Windows
+# Subsystem for Linux): auto (the EDA tools that only have Linux commands, and
+# the simulators installed in WSL only) or never. Odatix itself always runs on
+# Windows.
+# wsl: auto
+
+# the WSL distribution they run in (the default one when empty)
+# wsl_distribution: ""
+
+# tools and simulations always run in WSL
+# wsl_tools: []
+
+# tools and simulations always run on Windows, never in WSL
+# windows_tools: []

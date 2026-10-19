@@ -25,13 +25,13 @@ def test_an_existing_view_is_not_replaced_without_asking(tmp_path):
     with pytest.raises(views.ViewExistsError) as error:
         views.save_view(str(tmp_path), "mine", _view("radar"))
     assert error.value.slug == "mine"
-    assert json.loads((tmp_path / "explorer_views" / "mine.json").read_text())["kind"] == "lines"
+    assert json.loads((tmp_path / "explorer_views" / "mine.json").read_text(encoding="utf-8"))["kind"] == "lines"
 
 
 def test_replacing_is_explicit(tmp_path):
     views.save_view(str(tmp_path), "mine", _view("lines"))
     views.save_view(str(tmp_path), "mine", _view("radar"), overwrite=True)
-    assert json.loads((tmp_path / "explorer_views" / "mine.json").read_text())["kind"] == "radar"
+    assert json.loads((tmp_path / "explorer_views" / "mine.json").read_text(encoding="utf-8"))["kind"] == "radar"
 
 
 def test_a_slug_collision_counts_as_the_same_view(tmp_path):

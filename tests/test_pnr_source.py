@@ -1,5 +1,6 @@
 """Tests for PnR source discovery, matching and job enumeration."""
 
+import os
 from types import SimpleNamespace
 
 import odatix.lib.hard_settings as hard_settings
@@ -13,9 +14,9 @@ def _completed_source(tmp_path, frequency="100MHz"):
     log_dir = job_dir / hard_settings.work_log_path
     result_dir.mkdir(parents=True)
     log_dir.mkdir(parents=True)
-    (log_dir / hard_settings.synth_status_filename).write_text(hard_settings.valid_status)
+    (log_dir / hard_settings.synth_status_filename).write_text(hard_settings.valid_status, encoding="utf-8")
     for filename in (hard_settings.pnr_netlist_filename, hard_settings.pnr_sdc_filename, hard_settings.pnr_sdf_filename):
-        (result_dir / filename).write_text("handoff")
+        (result_dir / filename).write_text("handoff", encoding="utf-8")
     return job_dir
 
 
@@ -42,7 +43,7 @@ def test_pnr_handler_turns_a_source_into_a_parameter_free_job(tmp_path, monkeypa
     job_dir = _completed_source(tmp_path)
     source = pnr_source.discover_sources(str(tmp_path))[0]
     settings_file = job_dir / hard_settings.yaml_config_filename
-    settings_file.write_text("placeholder")
+    settings_file.write_text("placeholder", encoding="utf-8")
     source_architecture = SimpleNamespace(install_path="synth-install", constraint_filename="synth.sdc")
     monkeypatch.setattr(pnr_handler.Architecture, "read_yaml", staticmethod(lambda _: source_architecture))
 
@@ -60,7 +61,7 @@ def test_pnr_handler_turns_a_source_into_a_parameter_free_job(tmp_path, monkeypa
     assert instance.use_parameters is False
     assert instance.param_domains == []
     assert instance.install_path == "pnr-install"
-    assert instance.tmp_dir.endswith("vivado@timing/xc7/counter/fast/100MHz")
+    assert instance.tmp_dir.endswith(os.path.join("vivado@timing", "xc7", "counter", "fast", "100MHz"))
 
 def _handler(tmp_path, target_file):
     return pnr_handler.PnrJobHandler(
@@ -73,14 +74,14 @@ def _handler(tmp_path, target_file):
 def test_pnr_jobs_copy_the_technology_script_of_their_target(tmp_path, monkeypatch):
     job_dir = _completed_source(tmp_path)
     source = pnr_source.discover_sources(str(tmp_path))[0]
-    (job_dir / hard_settings.yaml_config_filename).write_text("placeholder")
+    (job_dir / hard_settings.yaml_config_filename).write_text("placeholder", encoding="utf-8")
     monkeypatch.setattr(
         pnr_handler.Architecture, "read_yaml",
         staticmethod(lambda _: SimpleNamespace(install_path="", constraint_filename="")),
     )
 
     tech = tmp_path / "technology_setup.tcl"
-    tech.write_text("# tech")
+    tech.write_text("# tech", encoding="utf-8")
     target_file = tmp_path / "target_pnr.yml"
     target_file.write_text(
         "script_copy_enable: No\n"
@@ -107,8 +108,8 @@ def test_pnr_jobs_copy_the_technology_script_of_their_target(tmp_path, monkeypat
 
 def test_pnr_jobs_fall_back_to_the_global_technology_script(tmp_path):
     tech = tmp_path / "technology_setup.tcl"
-    tech.write_text("# tech")
+    tech.write_text("# tech", encoding="utf-8")
     target_file = tmp_path / "target_pnr.yml"
-    target_file.write_text("script_copy_enable: Yes\nscript_copy_source: " + str(tech) + "\ntargets: [xc7]\n")
+    target_file.write_text("script_copy_enable: Yes\nscript_copy_source: " + str(tech) + "\ntargets: [xc7]\n", encoding="utf-8")
 
     assert _handler(tmp_path, target_file)._read_target_scripts(install_path="") == {"": str(tech)}

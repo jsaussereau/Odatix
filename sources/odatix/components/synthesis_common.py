@@ -21,6 +21,7 @@ from odatix.lib.check_tool import start_tool_check
 from odatix.workspace.space import selected_config_file
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
+import odatix.lib.wsl as wsl
 import odatix.lib.job_steps as job_steps
 import odatix.lib.constraint_files as constraint_files
 import odatix.lib.yaml_loader as yaml_loader
@@ -160,7 +161,7 @@ def load_synthesis_context(
     # keeping the bare tool name.
     work_path = os.path.join(work_path, eda_tools.tool_work_dirname(tool, flow_name, job_type=synth_type))
 
-    with open(eda_target_filename, "r") as f:
+    with open(eda_target_filename, "r", encoding="utf-8") as f:
         try:
             settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
         except Exception as e:
@@ -227,13 +228,18 @@ def load_synthesis_context(
 
     from odatix.lib.settings import OdatixSettings
 
+    in_wsl = wsl.runs_in_wsl(tool)
+    announce_location(tool, in_wsl, script_name)
     variables = Variables(
         tool_install_path=os.path.realpath(install_path) if install_path else "",
         odatix_path=OdatixSettings.odatix_path,
         odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         tool_path=eda_tool_dir,
+        wsl=in_wsl,
     )
     tool_test_command = replace_variables(tool_test_command, variables)
+    if in_wsl:
+        tool_test_command = wsl.command(tool_test_command)
 
     # The tool check runs in the background: the caller keeps building its
     # architecture list while the tool starts up, and waits for the outcome
@@ -367,36 +373,50 @@ def write_job_identity_files(arch_instance, flow=None):
     architecture, and the flow it ran with (so a later full re-export can tag
     the results with it).
     """
-    with open(os.path.join(arch_instance.tmp_dir, hard_settings.target_filename), "w") as f:
+    # "\n" line endings on every system: a tool run in WSL reads them as written
+    with open(os.path.join(arch_instance.tmp_dir, hard_settings.target_filename), "w", encoding="utf-8", newline="\n") as f:
         print(arch_instance.target, file=f)
-    with open(os.path.join(arch_instance.tmp_dir, hard_settings.arch_filename), "w") as f:
+    with open(os.path.join(arch_instance.tmp_dir, hard_settings.arch_filename), "w", encoding="utf-8", newline="\n") as f:
         print(arch_instance.arch_name, file=f)
     if flow:
-        with open(os.path.join(arch_instance.tmp_dir, hard_settings.flow_filename), "w") as f:
+        with open(os.path.join(arch_instance.tmp_dir, hard_settings.flow_filename), "w", encoding="utf-8", newline="\n") as f:
             print(flow, file=f)
 
 
-def rewrite_tcl_source_paths(arch_instance, check_cancel=None):
+def rewrite_tcl_source_paths(arch_instance, check_cancel=None, tool=None):
     """
     Rewrite the "source scripts/<x>.tcl" lines of every tcl script of a job into
     absolute paths, so a script keeps sourcing its siblings whatever directory
-    the tool runs from.
+    the tool runs from. They are the paths `tool` sees: those of WSL for a tool
+    that runs there (see odatix.lib.wsl).
     """
+    script_path = os.path.realpath(arch_instance.tmp_script_path)
+    if tool is not None and wsl.runs_in_wsl(tool):
+        script_path = wsl.linux_path(script_path)
     for filename in os.listdir(arch_instance.tmp_script_path):
         if not filename.endswith(".tcl"):
             continue
         if check_cancel is not None:
             check_cancel()
-        with open(os.path.join(arch_instance.tmp_script_path, filename), "r") as f:
+        with open(os.path.join(arch_instance.tmp_script_path, filename), "r", encoding="utf-8") as f:
             tcl_content = f.read()
         pattern = re.escape(hard_settings.source_tcl) + r"(.+?\.tcl)"
 
         def replace_path(match):
-            return "source " + os.path.join(os.path.realpath(arch_instance.tmp_script_path), match.group(1)).replace('\\', '/')
+            return "source " + (script_path + "/" + match.group(1)).replace('\\', '/')
 
         tcl_content = re.sub(pattern, replace_path, tcl_content)
-        with open(os.path.join(arch_instance.tmp_script_path, filename), "w") as f:
+        with open(os.path.join(arch_instance.tmp_script_path, filename), "w", encoding="utf-8", newline="\n") as f:
             f.write(tcl_content)
+
+
+def announce_location(tool, in_wsl, script_name=""):
+    """
+    Say where a tool runs, on Windows when WSL is there: in WSL, or on Windows.
+    What runs where is chosen in odatix.yml, and never left to guess.
+    """
+    if wsl.is_installed():
+        printc.note('"' + str(tool) + '" runs ' + wsl.location(in_wsl), script_name)
 
 
 def build_job_variables(arch_instance, tool, **extra):
@@ -427,6 +447,7 @@ def build_job_variables(arch_instance, tool, **extra):
         architecture=arch_instance.arch_name,
         target=arch_instance.target,
         tool=tool,
+        wsl=wsl.runs_in_wsl(tool),
         **extra,
     )
 
@@ -492,6 +513,10 @@ def build_job_command(command, steps, variables, start_index=0):
             text = text.replace(key, value)
         return text
 
+    def _for_system(text):
+        # A tool of WSL is run through wsl.exe (see odatix.lib.wsl)
+        return wsl.command(text) if getattr(variables, "wsl", False) else text
+
     if steps:
         remaining = steps[max(0, int(start_index or 0)):]
         pipeline = {}
@@ -500,10 +525,12 @@ def build_job_command(command, steps, variables, start_index=0):
             pipeline[index] = [{
                 "name": " + ".join(names),
                 "steps": names,
-                "command": _replace_step_variables(replace_variables(_flatten(group_command(group)), variables), names),
+                "command": _for_system(
+                    _replace_step_variables(replace_variables(_flatten(group_command(group)), variables), names)
+                ),
             }]
         return pipeline
-    return replace_variables(_flatten(command), variables)
+    return _for_system(replace_variables(_flatten(command), variables))
 
 
 def build_parallel_job(
@@ -671,12 +698,12 @@ def build_prepare_synthesis_job(
             return
 
         tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
-        edit_config_file(arch_instance, tcl_config_file, eda_tools.get_flow_parameters(tool, flow))
+        edit_config_file(arch_instance, tcl_config_file, eda_tools.get_flow_parameters(tool, flow), tool=tool)
 
         yaml_config_file = os.path.join(arch_instance.tmp_dir, hard_settings.yaml_config_filename)
         Architecture.write_yaml(arch_instance, yaml_config_file)
 
-        rewrite_tcl_source_paths(arch_instance, check_cancel)
+        rewrite_tcl_source_paths(arch_instance, check_cancel, tool=tool)
 
         variables = build_job_variables(arch_instance, tool)
         command = build_job_command(arch_handler.command, steps, variables, start_index=resume_index)

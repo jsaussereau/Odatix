@@ -87,7 +87,7 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
   if not settings_data:
     # The tool could not be resolved by name (e.g. an out-of-tree settings
     # file): fall back to reading the given file alone.
-    with open(tool_settings_file, "r") as f:
+    with open(tool_settings_file, "r", encoding="utf-8") as f:
       try:
         settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
       except Exception as e:
@@ -101,8 +101,9 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
   # Only exporting the results needs metrics, and it says so when there are none.
   default_metrics_file, _ = get_from_dict("default_metrics_file", settings_data, tool_settings_file, silent=True, script_name=script_name)
 
-  # Determine the current platform (Unix or Windows)
-  platform_key = "windows" if sys.platform == 'win32' else "unix"
+  # The section of tool.yml this system runs: "unix", or "windows" on Windows
+  # unless the tool runs in WSL (see odatix.lib.wsl)
+  platform_key = eda_tools.platform_key(tool, settings_data)
 
   # Ensure the corresponding section exists in the configuration file
   if platform_key not in settings_data:
@@ -112,6 +113,12 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
       '"tool_test_command" and the command of each job type go',
       script_name,
     )
+    if platform_key == "windows" and "unix" in settings_data:
+      printc.note(
+        'Its "unix" commands can run in WSL (the Windows Subsystem for Linux): install WSL, '
+        'and leave "wsl" of odatix.yml to "auto"',
+        script_name,
+      )
     sys.exit(-1)
 
   platform_settings = settings_data[platform_key]

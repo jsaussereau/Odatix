@@ -87,7 +87,7 @@ class TestSecretFiles:
         path = tmp_path / "state.json"
         auth_module.write_secret_json(str(path), {"token": "secret"})
 
-        assert json.loads(path.read_text())["token"] == "secret"
+        assert json.loads(path.read_text(encoding="utf-8"))["token"] == "secret"
         if sys.platform != "win32":
             mode = stat.S_IMODE(os.stat(str(path)).st_mode)
             assert mode == 0o600, oct(mode)
@@ -97,7 +97,7 @@ class TestSecretFiles:
         auth_module.write_secret_json(str(path), {"a": 1})
         auth_module.write_secret_json(str(path), {"a": 2})
 
-        assert json.loads(path.read_text()) == {"a": 2}
+        assert json.loads(path.read_text(encoding="utf-8")) == {"a": 2}
         assert os.listdir(str(tmp_path)) == ["state.json"]
 
     @pytest.mark.skipif(sys.platform == "win32", reason="POSIX modes")

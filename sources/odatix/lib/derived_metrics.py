@@ -668,7 +668,7 @@ def load_derived_metrics(path):
     return DerivedMetricsConfig(path=str(path or ""))
 
   try:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
       data = yaml_loader.safe_load(f)
   except Exception as e:
     printc.error('Derived metrics file "' + path + '" is not a valid YAML file', script_name)

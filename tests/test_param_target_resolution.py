@@ -53,9 +53,9 @@ def write_architecture(root, settings, config="config"):
     arch_path = os.path.join(root, "architectures")
     arch_dir = os.path.join(arch_path, "counter")
     os.makedirs(arch_dir)
-    with open(os.path.join(arch_dir, "_settings.yml"), "w") as settings_file:
+    with open(os.path.join(arch_dir, "_settings.yml"), "w", encoding="utf-8") as settings_file:
         yaml.dump(settings, settings_file)
-    with open(os.path.join(arch_dir, config + ".txt"), "w") as param_file:
+    with open(os.path.join(arch_dir, config + ".txt"), "w", encoding="utf-8") as param_file:
         param_file.write("parameter WIDTH = 8;\n")
 
     handler = architecture_handler.ArchitectureHandler(
@@ -87,7 +87,7 @@ def write_architecture(root, settings, config="config"):
 def rtl_dir(tmp_path):
     rtl_path = tmp_path / "rtl"
     rtl_path.mkdir()
-    (rtl_path / TOP_LEVEL).write_text(TOP_LEVEL_SOURCE)
+    (rtl_path / TOP_LEVEL).write_text(TOP_LEVEL_SOURCE, encoding="utf-8")
     return rtl_path
 
 
@@ -147,7 +147,7 @@ class TestJobResolution:
         """
         work_dir = tmp_path / "work"
         (work_dir / hard_settings.work_rtl_path).mkdir(parents=True)
-        (work_dir / hard_settings.work_rtl_path / TOP_LEVEL).write_text(TOP_LEVEL_SOURCE)
+        (work_dir / hard_settings.work_rtl_path / TOP_LEVEL).write_text(TOP_LEVEL_SOURCE, encoding="utf-8")
 
         resolved = resolve_param_target_file(str(work_dir), TOP_LEVEL, generate_rtl=False)
 
@@ -160,7 +160,7 @@ class TestJobResolution:
         """
         work_dir = tmp_path / "work"
         (work_dir / "generated").mkdir(parents=True)
-        (work_dir / "generated" / TOP_LEVEL).write_text(TOP_LEVEL_SOURCE)
+        (work_dir / "generated" / TOP_LEVEL).write_text(TOP_LEVEL_SOURCE, encoding="utf-8")
 
         resolved = resolve_param_target_file(
             str(work_dir), os.path.join("generated", TOP_LEVEL), generate_rtl=True
@@ -177,13 +177,13 @@ class TestJobResolution:
         """
         target = os.path.join("core", "counter.sv")
         (rtl_dir / "core").mkdir()
-        (rtl_dir / "core" / "counter.sv").write_text("module counter;\nendmodule\n")
+        (rtl_dir / "core" / "counter.sv").write_text("module counter;\nendmodule\n", encoding="utf-8")
 
         preview_file = os.path.join(str(rtl_dir), target)
 
         work_dir = tmp_path / "work"
         os.makedirs(str(work_dir / hard_settings.work_rtl_path / "core"))
-        (work_dir / hard_settings.work_rtl_path / "core" / "counter.sv").write_text("module counter;\nendmodule\n")
+        (work_dir / hard_settings.work_rtl_path / "core" / "counter.sv").write_text("module counter;\nendmodule\n", encoding="utf-8")
         job_file = resolve_param_target_file(str(work_dir), target, generate_rtl=False)
 
         assert os.path.isfile(preview_file)

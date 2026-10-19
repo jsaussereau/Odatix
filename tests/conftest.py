@@ -109,7 +109,7 @@ def arch_dir(tmp_path):
             """
         )
     )
-    (domain_dir / "default.txt").write_text("parameter WIDTH = 8\n")
+    (domain_dir / "default.txt").write_text("parameter WIDTH = 8\n", encoding="utf-8")
     return tmp_path / "architectures"
 
 

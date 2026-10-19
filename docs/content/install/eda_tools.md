@@ -229,8 +229,11 @@ $ sudo pacman -S verilator --noconfirm
 
 {{% tab name="Windows" %}}
 
-Verilator is not natively supported on Windows.
-Consider using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) to install Verilator.
+The [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build) ships
+Verilator, Icarus Verilog and Yosys for Windows: extract it and add its `bin`
+and `lib` directories to the `PATH`. Its Verilator runs RTL analyses; a
+Verilator simulation needs a C++ compiler and `make`, simpler to get in
+[WSL](#tools-of-linux-on-windows-wsl).
 
 {{% /tab %}}
 
@@ -311,11 +314,87 @@ $ sudo pacman -S iverilog --noconfirm
 
 {{% tab name="Windows" %}}
 
-Install the [Icarus Verilog Windows binaries](https://bleyer.org/icarus/).
+Install the [Icarus Verilog Windows binaries](https://bleyer.org/icarus/), or the
+[OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), which ships it.
 
 {{% /tab %}}
 
 {{< /tabs >}}
+
+
+## Install Yosys
+
+Yosys is a free and open-source synthesis suite for Verilog and part of
+SystemVerilog. Odatix runs it for [RTL analysis](/docs/features/analysis/): it
+elaborates the design from its top level and checks the logic it makes of it
+(undriven signals, multiple drivers, combinational loops, latches).
+
+{{< tabs >}}
+
+{{% tab name="Ubuntu/Debian" %}}
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ sudo apt install -y yosys
+{{< /code >}}
+
+{{% /tab %}}
+
+{{% tab name="Fedora/AlmaLinux/RHEL" %}}
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ sudo dnf install -y yosys
+{{< /code >}}
+
+{{% /tab %}}
+
+{{% tab name="Arch Linux" %}}
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ sudo pacman -S yosys --noconfirm
+{{< /code >}}
+
+{{% /tab %}}
+
+{{% tab name="Windows" %}}
+
+Install the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), and
+add its `bin` and `lib` directories to the `PATH`.
+
+{{% /tab %}}
+
+{{< /tabs >}}
+
+The [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build) packages
+recent builds of Yosys, Verilator and Icarus Verilog for Linux, macOS and
+Windows alike.
+
+
+# Tools of Linux on Windows (WSL)
+
+On Windows, a tool Odatix only knows the Linux commands of (Genus, Innovus,
+Design Compiler, Quartus, LibreLane...), or a simulator only installed in Linux,
+runs in [WSL](https://learn.microsoft.com/en-us/windows/wsl/install), the
+Windows Subsystem for Linux: install WSL and a distribution, then the tool in
+that distribution, as on Linux. Odatix finds it there by itself, and says where
+each tool and simulation runs when a run is checked. Odatix itself stays on
+Windows.
+
+{{< code lang=powershell filename="PowerShell" prompt="true" >}}
+$ wsl --install -d Ubuntu
+{{< /code >}}
+
+The tool has to be in the `PATH` of a login shell of the distribution (set it
+in `~/.bashrc` or `~/.profile`). A simulation also needs PyYAML there, for the
+scripts of Odatix it runs:
+
+{{< code lang=bash filename="Terminal (WSL)" prompt="true" >}}
+$ sudo apt install -y python3-yaml verilator iverilog ghdl make g++
+{{< /code >}}
+
+`wsl_tools` and `windows_tools` choose where a tool or a simulation runs when
+it is installed on both sides, and `wsl_distribution` a distribution other than
+the default one. See [the WSL keys of
+`odatix.yml`](/docs/reference/workspace/#wsl-windows).
 
 
 ## Questa, ModelSim and the Vivado simulator

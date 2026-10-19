@@ -53,6 +53,7 @@ import os
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.printc as printc
 from odatix.lib.settings import OdatixSettings
+from odatix.lib.utils import native_path
 from odatix.lib.variables import replace_variables, Variables
 import odatix.lib.yaml_loader as yaml_loader
 
@@ -124,7 +125,7 @@ def _read_yaml(path):
   """Load a metrics file into a dict. Returns None when it cannot be parsed."""
   import yaml
 
-  with open(path, "r") as file:
+  with open(path, "r", encoding="utf-8") as file:
     try:
       data = yaml_loader.safe_load(file)
     except yaml.YAMLError as e:
@@ -198,14 +199,14 @@ def metrics_files(tool, flow=None, missing_ok=False, tools_path=None):
   files = []
   declared = []
   for tool_dir in search_dirs:
-    resolved = replace_variables(
+    resolved = native_path(replace_variables(
       template,
       Variables(
         odatix_path=OdatixSettings.odatix_path,
         odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         tool_path=tool_dir,
       ),
-    )
+    ))
     if resolved in declared:
       continue
     declared.append(resolved)

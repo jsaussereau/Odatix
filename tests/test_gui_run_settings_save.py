@@ -50,14 +50,14 @@ architectures:
 def test_save_all_keeps_the_comments_of_a_run_settings_file(tmp_path, filename, mode):
     path = str(tmp_path / filename)
     shutil.copy(os.path.join(EXAMPLES_DIR, "odatix_userconfig", filename), path)
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         before = f.read()
     payload = dict(read_yaml(path, default={}))
     payload.update({"architectures": ["Example_Counter_verilog/08bits"], "nb_jobs": 3})
 
     write_run_settings(path, payload, mode)
 
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         after = f.read()
     saved = read_yaml(path, default={})
     assert saved["architectures"] == ["Example_Counter_verilog/08bits"]
@@ -76,7 +76,7 @@ def test_save_all_keeps_the_header_of_a_run_settings_file(tmp_path):
     payload = dict(read_yaml(path, default={}))
     payload["nb_jobs"] = 3
     write_run_settings(path, payload, "fmax_synthesis")
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         assert "# Odatix settings for Fmax synthesis\n" in f.read()
 
 

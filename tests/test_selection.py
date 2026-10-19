@@ -83,11 +83,11 @@ def architectures(tmp_path):
     counter = tmp_path / "counter"
     (counter / "corner").mkdir(parents=True)
     for name in ("04bits", "08bits", "16bits"):
-        (counter / (name + ".txt")).write_text("WIDTH = 8")
+        (counter / (name + ".txt")).write_text("WIDTH = 8", encoding="utf-8")
     for name in ("tt", "ff"):
-        (counter / "corner" / (name + ".txt")).write_text("CORNER")
+        (counter / "corner" / (name + ".txt")).write_text("CORNER", encoding="utf-8")
     (tmp_path / "adder").mkdir()
-    (tmp_path / "adder" / "08bits.txt").write_text("WIDTH = 8")
+    (tmp_path / "adder" / "08bits.txt").write_text("WIDTH = 8", encoding="utf-8")
     return tmp_path
 
 
@@ -104,7 +104,7 @@ class TestExpand:
 
     def test_natural_order(self, architectures):
         for name in ("2bits", "10bits"):
-            (architectures / "counter" / (name + ".txt")).write_text("")
+            (architectures / "counter" / (name + ".txt")).write_text("", encoding="utf-8")
         expanded = selection.expand(["counter/*"], str(architectures))
         assert expanded == [
             "counter/2bits", "counter/04bits", "counter/08bits", "counter/10bits", "counter/16bits",

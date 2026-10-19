@@ -448,7 +448,7 @@ class TestUpdateParamDomainsWithWildcards:
     def test_bare_main_domain_wildcard_checks_everything(self, jobs_config_module, example_workspace):
         arch_name = "Example_Counter_verilog"
         settings_path = "odatix_userconfig/tmp_wildcard_settings.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\nforce_single_thread: No\n"
@@ -474,7 +474,7 @@ class TestUpdateParamDomainsWithWildcards:
     def test_multi_domain_wildcard_checks_everything(self, jobs_config_module, example_workspace):
         arch_name = "Example_Rom_Chisel"
         settings_path = "odatix_userconfig/tmp_wildcard_settings2.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\nforce_single_thread: No\n"
@@ -603,7 +603,7 @@ class TestSavedBaselineOnLoad:
 
     def test_fmax_no_false_unsaved(self, example_workspace):
         settings_path = "odatix_userconfig/fmax_settings.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\nforce_single_thread: No\n"
@@ -623,7 +623,7 @@ class TestSavedBaselineOnLoad:
         # Reproduces the reported case: file has tools:[] but ?tool=vivado, and
         # architectures selected; a refresh must not show "Unsaved changes".
         settings_path = "odatix_userconfig/analyze_settings.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\nforce_single_thread: No\n"
@@ -646,7 +646,7 @@ class TestSavedBaselineOnLoad:
         # A saved wildcard entry expands in the widgets; the baseline must use
         # the same expanded form so no false "unsaved changes" on load.
         settings_path = "odatix_userconfig/fmax_settings.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\nforce_single_thread: No\n"
@@ -665,7 +665,7 @@ class TestSavedBaselineOnLoad:
         jc = import_jobs_config()
 
         settings_path = "odatix_userconfig/fmax_settings.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\nforce_single_thread: No\n"
@@ -708,7 +708,7 @@ class TestSavedBaselineOnLoad:
         import dash as _dash
 
         settings_path = "odatix_userconfig/analyze_settings.yml"
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\nforce_single_thread: No\n"
@@ -844,7 +844,7 @@ class TestSimulationListedArchitectures:
             save_clicks=1, sections=sections,
         )
         assert tooltip == "Nothing to save"
-        assert "Example_Counter_verilog" not in path.read_text()
+        assert "Example_Counter_verilog" not in path.read_text(encoding="utf-8")
         entries = jc.sim_architectures.parse(
             jc.get_workspace(odatix_settings).simulations.entry(self.SIM).settings.architectures
         )
@@ -869,7 +869,7 @@ class TestSimulationListedArchitectures:
         assert tooltip == "Unsaved changes!"
         assert "warning" in className
         assert store is dash.no_update
-        assert "Example_Counter_verilog" not in path.read_text()
+        assert "Example_Counter_verilog" not in path.read_text(encoding="utf-8")
 
         # ... and Save is what reaches the simulation's settings file.
         className, tooltip, store, _feedback = self._save(
@@ -1470,7 +1470,7 @@ class TestChooseEdaToolPage:
         tools_dir.mkdir()
         install_dummy_tool(tools_dir)
         monkeypatch.setattr(OdatixSettings, "user_tools_path", str(tools_dir))
-        monkeypatch.setattr(eda_tools, "platform_key", lambda: "unix")
+        monkeypatch.setattr(eda_tools, "platform_key", lambda *args, **kwargs: "unix")
         return choose_eda_tool
 
     def links(self, page, job_type, className=None):
@@ -1590,7 +1590,7 @@ class TestStepSelectionReachesTheRun:
         import os
 
         if not os.path.isfile("odatix.yml"):
-            open("odatix.yml", "w").close()
+            open("odatix.yml", "w", encoding="utf-8").close()
         jobs_config_module.start_check(mode, Workspace.open(), **options)
 
     def test_custom_freq_passes_the_last_step_to_the_runner(self, jobs_config_module, monkeypatch, in_tmp_dir):
@@ -1921,18 +1921,18 @@ class TestSimulationRunMode:
 
         root = os.path.join("odatix_userconfig/architectures", name)
         os.makedirs(root, exist_ok=True)
-        with open(os.path.join(root, "_settings.yml"), "w") as f:
+        with open(os.path.join(root, "_settings.yml"), "w", encoding="utf-8") as f:
             f.write("use_parameters: Yes\nparam_target_file: rtl/top.v\n")
         for index in range(main_configs):
-            with open(os.path.join(root, "cfg%d.txt" % index), "w") as f:
+            with open(os.path.join(root, "cfg%d.txt" % index), "w", encoding="utf-8") as f:
                 f.write("parameter = %d\n" % index)
         for domain in range(domains):
             domain_dir = os.path.join(root, "domain%d" % domain)
             os.makedirs(domain_dir, exist_ok=True)
-            with open(os.path.join(domain_dir, "_settings.yml"), "w") as f:
+            with open(os.path.join(domain_dir, "_settings.yml"), "w", encoding="utf-8") as f:
                 f.write("use_parameters: Yes\nparam_target_file: rtl/top.v\n")
             for value in range(values):
-                with open(os.path.join(domain_dir, "v%d.txt" % value), "w") as f:
+                with open(os.path.join(domain_dir, "v%d.txt" % value), "w", encoding="utf-8") as f:
                     f.write("value = %d\n" % value)
         return name
 
@@ -1984,7 +1984,7 @@ class TestSimulationRunMode:
         # that is listed: it must survive the round-trip instead of being
         # silently dropped on the next save.
         self._make_huge_architecture()
-        with open("odatix_userconfig/sim_settings.yml", "w") as f:
+        with open("odatix_userconfig/sim_settings.yml", "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\n"
@@ -2000,7 +2000,7 @@ class TestSimulationRunMode:
         assert "Huge_Arch+domain0/*" in baseline["simulations"]["TB_Example_Counter_GHDL"]
 
     def test_a_wildcard_entry_is_expanded_on_load(self, jobs_config_module, example_workspace):
-        with open("odatix_userconfig/sim_settings.yml", "w") as f:
+        with open("odatix_userconfig/sim_settings.yml", "w", encoding="utf-8") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\n"
@@ -2309,9 +2309,9 @@ class TestConfigurationRules:
         root = tmp_path / "architectures"
         path = root / "arch"
         path.mkdir(parents=True, exist_ok=True)
-        (path / "_settings.yml").write_text(yaml.safe_dump(settings or {}))
+        (path / "_settings.yml").write_text(yaml.safe_dump(settings or {}), encoding="utf-8")
         for name, content in (files or {}).items():
-            (path / name).write_text(content)
+            (path / name).write_text(content, encoding="utf-8")
         return ArchitectureCollection(None, str(root))["arch"].main_domain
 
     ######################################
@@ -2420,7 +2420,7 @@ class TestConfigurationRules:
         root = tmp_path / "architectures"
         path = root / "arch"
         path.mkdir(parents=True)
-        (path / "_settings.yml").write_text(yaml.safe_dump(self.RULES))
+        (path / "_settings.yml").write_text(yaml.safe_dump(self.RULES), encoding="utf-8")
         instances = ArchitectureCollection(None, str(root))
         monkeypatch.setattr(
             pages.editor, "get_instance_collection_context",
@@ -2471,7 +2471,7 @@ class TestConfigurationRules:
         stores, counters, _rows = pages.editor.toggle_generated_configuration_blacklist(
             [2], blacklisted_metadata, domain_metadata, stores, counters, "normal", "?arch=arch", {},
         )
-        written = yaml.safe_load((path / "_settings.yml").read_text())
+        written = yaml.safe_load((path / "_settings.yml").read_text(encoding="utf-8"))
         assert "blacklist" not in stores[0]["configurations"]
         assert "blacklist" not in written["configurations"]
         domain.reload()
@@ -2485,7 +2485,7 @@ class TestConfigurationRules:
         root = tmp_path / "architectures"
         path = root / "arch"
         path.mkdir(parents=True)
-        (path / "_settings.yml").write_text(yaml.safe_dump({}))
+        (path / "_settings.yml").write_text(yaml.safe_dump({}), encoding="utf-8")
         instances = ArchitectureCollection(None, str(root))
         monkeypatch.setattr(
             pages.rules, "get_instance_collection_context",
@@ -2510,7 +2510,7 @@ class TestConfigurationRules:
             [saved], [0], "?arch=arch", {},
         )
 
-        written = yaml.safe_load((path / "_settings.yml").read_text())
+        written = yaml.safe_load((path / "_settings.yml").read_text(encoding="utf-8"))
         assert written["configurations"]["enabled"] is True
         assert stores[0]["configurations"]["enabled"] is True
         assert bumps == [1]
@@ -3094,7 +3094,7 @@ class TestConfigurationRules:
         root = tmp_path / "architectures"
         for domain in ("arch", "arch/depth"):
             (root / domain).mkdir(parents=True)
-            (root / domain / "_settings.yml").write_text(yaml.safe_dump({}))
+            (root / domain / "_settings.yml").write_text(yaml.safe_dump({}), encoding="utf-8")
 
         instances = ArchitectureCollection(None, str(root))
         monkeypatch.setattr(
@@ -3122,12 +3122,12 @@ class TestConfigurationRules:
             *fields,
             metadata, [None, None], [0, 0], "?arch=arch", {},
         )
-        written = yaml.safe_load((root / "arch" / "_settings.yml").read_text())
+        written = yaml.safe_load((root / "arch" / "_settings.yml").read_text(encoding="utf-8"))
         assert written["configurations"]["name"] == "${width}bits"
         assert list(written["variables"]) == ["width"]
         # The other domain was left alone, and only the saved one asks for its
         # configurations to be read again.
-        assert yaml.safe_load((root / "arch" / "depth" / "_settings.yml").read_text()) == {}
+        assert yaml.safe_load((root / "arch" / "depth" / "_settings.yml").read_text(encoding="utf-8")) == {}
         assert bumps[0] == 1
         assert bumps[1] is dash.no_update
 
@@ -3139,7 +3139,7 @@ class TestConfigurationRules:
         root = tmp_path / "architectures"
         for domain in ("arch", "arch/depth"):
             (root / domain).mkdir(parents=True)
-            (root / domain / "_settings.yml").write_text(yaml.safe_dump({}))
+            (root / domain / "_settings.yml").write_text(yaml.safe_dump({}), encoding="utf-8")
 
         instances = ArchitectureCollection(None, str(root))
         monkeypatch.setattr(
@@ -3167,8 +3167,8 @@ class TestConfigurationRules:
             *fields,
             metadata, [None, None], [0, 0], "?arch=arch", {},
         )
-        assert yaml.safe_load((root / "arch" / "_settings.yml").read_text())["configurations"]["name"] == "${width}bits"
-        assert yaml.safe_load((root / "arch" / "depth" / "_settings.yml").read_text())["configurations"]["name"] == "d${depth}"
+        assert yaml.safe_load((root / "arch" / "_settings.yml").read_text(encoding="utf-8"))["configurations"]["name"] == "${width}bits"
+        assert yaml.safe_load((root / "arch" / "depth" / "_settings.yml").read_text(encoding="utf-8"))["configurations"]["name"] == "d${depth}"
 
     def test_the_save_button_of_a_domain_lights_up_only_for_its_own_change(self, pages, monkeypatch):
         variables = {"main-uuid": ["width"], "depth-uuid": ["depth"]}
@@ -3311,9 +3311,9 @@ class TestConfigurationPaging:
         root = tmp_path / "architectures"
         path = root / "arch"
         path.mkdir(parents=True, exist_ok=True)
-        (path / "_settings.yml").write_text(yaml.safe_dump({}))
+        (path / "_settings.yml").write_text(yaml.safe_dump({}), encoding="utf-8")
         for index in range(count):
-            (path / f"config{index:03d}.txt").write_text(f"WIDTH = {index}")
+            (path / f"config{index:03d}.txt").write_text(f"WIDTH = {index}", encoding="utf-8")
         return ArchitectureCollection(None, str(root))
 
     def cards_of(self, row):
@@ -3497,7 +3497,7 @@ class TestTaskEditor:
 
         from conftest import EXAMPLES_DIR
 
-        with open(os.path.join(EXAMPLES_DIR, "odatix_userconfig", "workflows", "tensorflow", "_settings.yml")) as f:
+        with open(os.path.join(EXAMPLES_DIR, "odatix_userconfig", "workflows", "tensorflow", "_settings.yml"), encoding="utf-8") as f:
             tasks = yaml.safe_load(f)["tasks"]
         assert any("on_failure_commands" in task for task in tasks)
 

@@ -33,7 +33,7 @@ def write(path, content):
     directory = os.path.dirname(str(path))
     if directory and not os.path.isdir(directory):
         os.makedirs(directory)
-    with open(str(path), "w") as handle:
+    with open(str(path), "w", encoding="utf-8") as handle:
         handle.write(textwrap.dedent(content))
 
 
@@ -71,17 +71,17 @@ class TestCompletionMarker(object):
         job_dir = self._job(tmp_path)
         assert not is_marked_done(find_status_log(str(job_dir), "custom_freq_synthesis"))
         assert mark_job_done(str(job_dir), "custom_freq_synthesis")
-        assert (job_dir / "log" / "synth_status.log").read_text().strip() == "Done: 100%"
+        assert (job_dir / "log" / "synth_status.log").read_text(encoding="utf-8").strip() == "Done: 100%"
         # Idempotent: a marker already there is not written twice.
         mark_job_done(str(job_dir), "custom_freq_synthesis")
-        assert (job_dir / "log" / "synth_status.log").read_text().count("Done: 100%") == 1
+        assert (job_dir / "log" / "synth_status.log").read_text(encoding="utf-8").count("Done: 100%") == 1
 
     def test_an_fmax_job_is_marked_in_its_own_status_file(self, tmp_path):
         from odatix.components.export_results import mark_job_done
 
         job_dir = tmp_path / "job"
         mark_job_done(str(job_dir), "fmax_synthesis")
-        assert "Done: 100%" in (job_dir / "log" / "status.log").read_text()
+        assert "Done: 100%" in (job_dir / "log" / "status.log").read_text(encoding="utf-8")
 
     def test_the_per_job_export_keeps_the_results_of_a_tool_writing_no_status(self, tmp_path, monkeypatch):
         import odatix.components.export_results as export_results
@@ -119,8 +119,8 @@ class TestCompletionMarker(object):
         )
         assert records is None
         out = capsys.readouterr().out
-        assert "mytool/generic/Arch/cfg/100MHz" in out
-        assert 'log/synth_status.log does not contain "Done: 100%"' in out
+        assert os.path.join("mytool", "generic", "Arch", "cfg", "100MHz") in out
+        assert os.path.join("log", "synth_status.log") + ' does not contain "Done: 100%"' in out
 
 
 ######################################
@@ -139,8 +139,8 @@ class TestJobFiles(object):
         from odatix.lib.prepare_work import write_frequency_files
 
         write_frequency_files(self._arch(tmp_path))
-        assert (tmp_path / "frequency.txt").read_text() == "100 MHz\n"
-        assert (tmp_path / "constraints.sdc").read_text() == "create_clock -period 10 [get_ports clk]\n"
+        assert (tmp_path / "frequency.txt").read_text(encoding="utf-8") == "100 MHz\n"
+        assert (tmp_path / "constraints.sdc").read_text(encoding="utf-8") == "create_clock -period 10 [get_ports clk]\n"
 
     def test_files_already_there_are_kept(self, tmp_path):
         # A job resuming after a completed step keeps what its tool wrote.
@@ -148,7 +148,7 @@ class TestJobFiles(object):
 
         write(tmp_path / "constraints.sdc", "100\n")
         write_frequency_files(self._arch(tmp_path))
-        assert (tmp_path / "constraints.sdc").read_text() == "100\n"
+        assert (tmp_path / "constraints.sdc").read_text(encoding="utf-8") == "100\n"
 
     def test_an_fmax_search_gets_none(self, tmp_path):
         from odatix.lib.prepare_work import write_frequency_files
@@ -227,9 +227,9 @@ class TestTargetFiles(object):
 
     def test_an_existing_file_keeps_its_comments(self, workspace):
         target_file = workspace.targets["vivado"]
-        before = open(target_file.path).read()
+        before = open(target_file.path, encoding="utf-8").read()
         target_file.update(tool_install_path="/opt/Xilinx")
-        after = open(target_file.path).read()
+        after = open(target_file.path, encoding="utf-8").read()
         assert "/opt/Xilinx" in after
         assert after.count("\n#") >= before.count("\n#") - 1
 
@@ -273,7 +273,7 @@ class TestBuiltinCopies(object):
         assert os.path.isfile(os.path.join(copy.path, "tcl", "step_common.tcl"))
         assert "Mine" in copy.metrics.sections["metrics"]
         assert "LUT_count" in str(copy.metrics.sections)
-        assert "$eda_tools_path/vivado/" not in open(copy.settings_path).read()
+        assert "$eda_tools_path/vivado/" not in open(copy.settings_path, encoding="utf-8").read()
 
     def test_the_copy_gets_the_targets(self, workspace):
         workspace.tools.import_builtin("vivado", "vivado_mine")

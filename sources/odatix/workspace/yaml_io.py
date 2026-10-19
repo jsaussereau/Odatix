@@ -115,7 +115,7 @@ def read_yaml(path, default=None):
     if not path or not os.path.isfile(path):
         return copy.deepcopy(default)
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = yaml_loader.safe_load(f)
     except Exception:
         return copy.deepcopy(default)
@@ -145,7 +145,7 @@ def read_mapping(path):
     if not os.path.isfile(path):
         raise InvalidSettingsError('Settings file "{0}" does not exist.'.format(path), path=path)
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = yaml_loader.safe_load(f)
     except Exception as error:
         raise InvalidSettingsError(
@@ -216,7 +216,7 @@ def write_text(path, text):
         dir=directory or ".", prefix="." + os.path.basename(target) + ".", suffix=".tmp"
     )
     try:
-        with os.fdopen(handle, "w") as f:
+        with os.fdopen(handle, "w", encoding="utf-8") as f:
             f.write(text)
         if os.path.exists(target):
             # Keep the permissions of the file being replaced, not those of a
@@ -274,7 +274,7 @@ def read_text(path):
     if not path or not os.path.isfile(path):
         return ""
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return f.read()
     except OSError:
         return ""

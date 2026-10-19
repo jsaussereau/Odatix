@@ -88,7 +88,7 @@ class TestTargets:
 
     def two_targets(self, dummy_workspace):
         path = dummy_workspace / "odatix_userconfig" / "targets" / "target_dummy.yml"
-        path.write_text(path.read_text().replace(
+        path.write_text(path.read_text(encoding="utf-8").replace(
             "  - dummy_target", "  - dummy_target\n  - other_target"
         ))
         return Workspace.open()
@@ -182,7 +182,7 @@ class TestJobPlanner:
         directory = tmp_path / "job"
         (directory / "log").mkdir(parents=True)
         if status is not None:
-            (directory / "log" / "status.log").write_text(status)
+            (directory / "log" / "status.log").write_text(status, encoding="utf-8")
         return str(directory)
 
     def test_a_directory_that_does_not_exist_is_a_new_job(self, tmp_path):

@@ -254,12 +254,12 @@ def write_architecture(root, name, settings, domains=None):
     """An architecture directory, as a workspace holds it."""
     path = os.path.join(str(root), name)
     os.makedirs(path, exist_ok=True)
-    with open(os.path.join(path, "_settings.yml"), "w") as f:
+    with open(os.path.join(path, "_settings.yml"), "w", encoding="utf-8") as f:
         f.write(textwrap.dedent(settings))
     for domain, content in (domains or {}).items():
         domain_path = os.path.join(path, domain)
         os.makedirs(domain_path, exist_ok=True)
-        with open(os.path.join(domain_path, "_settings.yml"), "w") as f:
+        with open(os.path.join(domain_path, "_settings.yml"), "w", encoding="utf-8") as f:
             f.write(textwrap.dedent(content))
     return path
 
@@ -318,7 +318,7 @@ def architecture(tmp_path):
     root = tmp_path / "odatix_userconfig" / "architectures"
     root.mkdir(parents=True)
     write_architecture(root, "Design", PARAMETERIZED)
-    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
     workspace = Workspace(str(tmp_path))
     return workspace.architectures["Design"]
 
@@ -331,7 +331,7 @@ def hls_architecture(tmp_path):
     root = tmp_path / "odatix_userconfig" / "architectures"
     root.mkdir(parents=True)
     write_architecture(root, "Filter", HLS)
-    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
     workspace = Workspace(str(tmp_path))
     return workspace.architectures["Filter"]
 
@@ -362,7 +362,7 @@ def multi_domain_architecture(tmp_path):
     root = tmp_path / "odatix_userconfig" / "architectures"
     root.mkdir(parents=True)
     write_architecture(root, "Design", PARAMETERIZED, domains={"corner": CORNERS})
-    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
     return Workspace(str(tmp_path)).architectures["Design"]
 
 
@@ -382,7 +382,7 @@ def constrained_architecture(tmp_path):
     root = tmp_path / "odatix_userconfig" / "architectures"
     root.mkdir(parents=True)
     write_architecture(root, "Design", CONSTRAINED)
-    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+    (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
     return Workspace(str(tmp_path)).architectures["Design"]
 
 
@@ -493,7 +493,7 @@ class TestSpace:
         write_architecture(root, "Fixed", HLS.replace("list: [8, 16, 32]", "list: [8]").replace(
             "list: [1, 2]", "list: [1]"
         ))
-        (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+        (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
         space = ArchitectureSpace(Workspace(str(tmp_path)).architectures["Fixed"])
         with pytest.raises(EmptySpaceError):
             space.require_choice()
@@ -614,9 +614,9 @@ class TestDesignPoint:
             param_target_file: "rtl/top.v"
         """)
         for name in ("small", "big"):
-            with open(os.path.join(path, name + ".txt"), "w") as f:
+            with open(os.path.join(path, name + ".txt"), "w", encoding="utf-8") as f:
                 f.write("parameter WIDTH = 8;")
-        (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n")
+        (tmp_path / "odatix.yml").write_text("arch_path: odatix_userconfig/architectures\n", encoding="utf-8")
         space = ArchitectureSpace(Workspace(str(tmp_path)).architectures["Design"])
 
         design = space.design((1,))
@@ -1245,7 +1245,7 @@ class TestCampaign:
 
         # The closest it got, on record as not being an answer.
         assert archive.front()
-        with open(archive.path) as f:
+        with open(archive.path, encoding="utf-8") as f:
             written = yaml.safe_load(f)
         assert written["feasible"] is False
         assert written["front"][0]["unmet"] == ["slack >= 0.0 (measured -1.0)"]
@@ -1502,7 +1502,7 @@ def tool_workspace(tmp_path):
         ("toolB", "default_flow: synthesis\nunix:\n  tool_test_command: \"true\"\n", ["tiny"]),
     ):
         (tools / name).mkdir(parents=True)
-        (tools / name / "tool.yml").write_text(flows)
+        (tools / name / "tool.yml").write_text(flows, encoding="utf-8")
         (targets / "target_{0}.yml".format(name)).write_text(
             "constraint_file: constraints.txt\ntargets:\n"
             + "".join("  - {0}\n".format(target) for target in enabled)
@@ -1839,7 +1839,7 @@ class TestSimulations:
 
         derived = workspace.paths.derived_metrics_file
         os.makedirs(os.path.dirname(derived), exist_ok=True)
-        with open(derived, "w") as f:
+        with open(derived, "w", encoding="utf-8") as f:
             f.write("derived_metrics:\n  Cycles:\n    from: simulation\n")
 
         settings = campaign_settings(
@@ -1900,7 +1900,7 @@ class TestArchive:
         archive.save()
         import yaml
 
-        with open(archive.path) as f:
+        with open(archive.path, encoding="utf-8") as f:
             written = yaml.safe_load(f)
         assert written["evaluated"] == 3
         assert [entry["configuration"] for entry in written["front"]] == ["a"]
@@ -2009,10 +2009,10 @@ class TestResume:
         archive = first.run()
 
         # The architecture gained a parameter since: nothing is where it was.
-        written = yaml.safe_load(open(archive.path).read())
+        written = yaml.safe_load(open(archive.path, encoding="utf-8").read())
         for record in written["evaluations"]:
             record["genome"] = list(record["genome"]) + [0]
-        with open(archive.path, "w") as f:
+        with open(archive.path, "w", encoding="utf-8") as f:
             yaml.safe_dump(written, f)
 
         second, evaluator = self._campaign(architecture, tmp_path, search=search)
@@ -2219,7 +2219,7 @@ class TestCampaignFiles:
         directory = tmp_path / "odatix_userconfig" / "dse_campaigns"
         directory.mkdir(parents=True, exist_ok=True)
         for name, body in campaigns.items():
-            (directory / "{0}.yml".format(name)).write_text(yaml.safe_dump(body))
+            (directory / "{0}.yml".format(name)).write_text(yaml.safe_dump(body), encoding="utf-8")
         return Workspace(str(tmp_path))
 
     def _body(self, **overrides):
@@ -2587,7 +2587,7 @@ class TestExport:
         import yaml
 
         archive, _ = _exported_archive(tmp_path)
-        with open(archive.path) as f:
+        with open(archive.path, encoding="utf-8") as f:
             written = yaml.safe_load(f.read())
         history = written["history"]
         assert [entry["batch"] for entry in history] == [1, 2]
@@ -2638,7 +2638,7 @@ class TestExport:
         from odatix.explorer.core.dse import CampaignStore
 
         _, result_path = _exported_archive(tmp_path)
-        with open(os.path.join(result_path, "dse", "Broken.yml"), "w") as f:
+        with open(os.path.join(result_path, "dse", "Broken.yml"), "w", encoding="utf-8") as f:
             f.write("architecture: [unclosed\n")
 
         campaigns = {campaign.name: campaign for campaign in CampaignStore().campaigns(result_path)}
@@ -2680,7 +2680,7 @@ def workflow(tmp_path):
     root = tmp_path / "odatix_userconfig" / "workflows"
     root.mkdir(parents=True)
     write_architecture(root, "Codec", WORKFLOW)
-    (tmp_path / "odatix.yml").write_text("workflow_path: odatix_userconfig/workflows\n")
+    (tmp_path / "odatix.yml").write_text("workflow_path: odatix_userconfig/workflows\n", encoding="utf-8")
     return Workspace(str(tmp_path)).workflows["Codec"]
 
 

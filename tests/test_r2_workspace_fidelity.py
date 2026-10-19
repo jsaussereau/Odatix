@@ -65,9 +65,9 @@ def ws(tmp_path):
 
 
 def _roundtrip(path, action):
-    before = open(path).read()
+    before = open(path, encoding="utf-8").read()
     action()
-    return changed_lines(before, open(path).read())
+    return changed_lines(before, open(path, encoding="utf-8").read())
 
 
 def test_shipped_files_save_identically(ws):

@@ -29,8 +29,9 @@ def monitor():
     return monitor
 
 
-HERE = "/work/here"
-ELSEWHERE = "/work/elsewhere"
+# Native paths, as a session records the realpath of its workspace
+HERE = os.path.realpath(os.path.join(os.sep, "work", "here"))
+ELSEWHERE = os.path.realpath(os.path.join(os.sep, "work", "elsewhere"))
 ASSETS = os.path.join(os.path.dirname(__file__), "..", "sources", "odatix", "gui", "assets")
 
 
@@ -147,7 +148,7 @@ class TestAnalysisDialog:
 
 class TestClientSide:
     def read(self, name):
-        with open(os.path.join(ASSETS, name)) as f:
+        with open(os.path.join(ASSETS, name), encoding="utf-8") as f:
             return f.read()
 
     def test_no_made_up_job_name(self):

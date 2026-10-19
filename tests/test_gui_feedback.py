@@ -105,15 +105,15 @@ def config_editor():
 @pytest.fixture
 def architecture(tmp_path, monkeypatch):
     """An architecture whose "width" domain holds a.txt and b.txt."""
-    (tmp_path / "odatix.yml").write_text("arch_path: architectures\n")
+    (tmp_path / "odatix.yml").write_text("arch_path: architectures\n", encoding="utf-8")
     domain = tmp_path / "architectures" / "Arch" / DOMAIN
     domain.mkdir(parents=True)
     (tmp_path / "architectures" / "Arch" / hard_settings.param_settings_filename).write_text(
         "use_parameters: false\n"
     )
-    (domain / hard_settings.param_settings_filename).write_text("use_parameters: false\n")
-    (domain / "a.txt").write_text("A\n")
-    (domain / "b.txt").write_text("B\n")
+    (domain / hard_settings.param_settings_filename).write_text("use_parameters: false\n", encoding="utf-8")
+    (domain / "a.txt").write_text("A\n", encoding="utf-8")
+    (domain / "b.txt").write_text("B\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return domain
 
@@ -145,8 +145,8 @@ class TestSaveOneConfiguration:
     ):
         rows, feedback = save_config(config_editor, monkeypatch, "b")
         assert sorted(os.listdir(str(architecture))) == ["_settings.yml", "a.txt", "b.txt"]
-        assert (architecture / "a.txt").read_text() == "A\n"
-        assert (architecture / "b.txt").read_text() == "B\n"
+        assert (architecture / "a.txt").read_text(encoding="utf-8") == "A\n"
+        assert (architecture / "b.txt").read_text(encoding="utf-8") == "B\n"
         assert feedback.className == "odx-message error"
         assert "already exists" in feedback.children
         assert rows == [dash.no_update]
@@ -155,7 +155,7 @@ class TestSaveOneConfiguration:
         self, config_editor, architecture, monkeypatch
     ):
         _, feedback = save_config(config_editor, monkeypatch, "b.txt")
-        assert (architecture / "b.txt").read_text() == "B\n"
+        assert (architecture / "b.txt").read_text(encoding="utf-8") == "B\n"
         assert "already exists" in feedback.children
 
     def test_a_name_with_a_slash_is_refused_before_anything_moves(
@@ -163,13 +163,13 @@ class TestSaveOneConfiguration:
     ):
         _, feedback = save_config(config_editor, monkeypatch, "../escaped")
         assert not (architecture.parent / "escaped.txt").exists()
-        assert (architecture / "a.txt").read_text() == "A\n"
+        assert (architecture / "a.txt").read_text(encoding="utf-8") == "A\n"
         assert "Unauthorized character" in feedback.children
 
     def test_a_valid_rename_moves_the_file_and_says_so(self, config_editor, architecture, monkeypatch):
         _, feedback = save_config(config_editor, monkeypatch, "c")
         assert not (architecture / "a.txt").exists()
-        assert (architecture / "c.txt").read_text() == "A edited\n"
+        assert (architecture / "c.txt").read_text(encoding="utf-8") == "A edited\n"
         assert feedback.className == "odx-message success"
 
 
@@ -220,7 +220,7 @@ def _callbacks():
             if not name.endswith(".py"):
                 continue
             path = os.path.join(directory, name)
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 tree = ast.parse(f.read(), path)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.FunctionDef):

@@ -214,7 +214,7 @@ class Archive(object):
         if not os.path.isfile(self.path):
             return []
         try:
-            with open(self.path, "r") as f:
+            with open(self.path, "r", encoding="utf-8") as f:
                 content = yaml_loader.safe_load(f) or {}
         except Exception:
             return []
@@ -292,7 +292,7 @@ class Archive(object):
         if not os.path.isfile(self.path):
             return 0
         try:
-            with open(self.path, "r") as f:
+            with open(self.path, "r", encoding="utf-8") as f:
                 content = yaml_loader.safe_load(f) or {}
         except Exception:
             return 0
@@ -371,7 +371,7 @@ class Archive(object):
         directory = os.path.dirname(self.path)
         if directory:
             os.makedirs(directory, exist_ok=True)
-        with open(self.path, "w") as f:
+        with open(self.path, "w", encoding="utf-8") as f:
             f.write(file_header(TITLE) + NOTICE)
             yaml.dump(self.to_dict(), f, Dumper=yaml_loader.SafeDumper, default_flow_style=False, sort_keys=False)
 

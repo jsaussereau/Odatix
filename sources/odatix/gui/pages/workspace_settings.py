@@ -186,6 +186,27 @@ FIELDS = {
         "kind": "number",
         "tooltip": "Memory usage of the machine above which a running job is paused.",
     },
+    "wsl": {
+        "label": "Run in WSL",
+        "kind": "wsl",
+        "tooltip": "On Windows, whether Odatix may run tools and simulators in WSL (the Windows Subsystem for "
+                   "Linux). By default, it runs there the tools that only have Linux commands and the "
+                   "simulators installed in WSL only. Odatix itself always runs on Windows. Has no effect on Linux.",
+    },
+    "wsl_distribution": {
+        "label": "WSL distribution",
+        "tooltip": "The WSL distribution tools and simulators run in, as \"wsl -l\" names it. The default one when empty.",
+    },
+    "wsl_tools": {
+        "label": "Always in WSL",
+        "kind": "tools",
+        "tooltip": "Tools and simulations always run in WSL, whatever is installed on Windows.",
+    },
+    "windows_tools": {
+        "label": "Always on Windows",
+        "kind": "tools",
+        "tooltip": "Tools and simulations always run on Windows, never in WSL.",
+    },
     "session_access": {
         "label": "Shared with",
         "kind": "access",
@@ -195,6 +216,12 @@ FIELDS = {
     },
 }
 
+#: The choices of "wsl", as the page names them.
+WSL_OPTIONS = [
+    {"label": "When needed (auto)", "value": "auto"},
+    {"label": "Never", "value": "never"},
+]
+
 #: The choices of "session_access", as the page names them.
 ACCESS_OPTIONS = [
     {"label": "Nobody (user)", "value": "user"},
@@ -203,7 +230,7 @@ ACCESS_OPTIONS = [
 ]
 
 #: Kinds of field whose empty value is None (a dropdown) rather than "".
-DROPDOWN_KINDS = ("tool", "yes_no", "access")
+DROPDOWN_KINDS = ("tool", "yes_no", "access", "wsl", "tools")
 
 
 def field_id(key):
@@ -249,6 +276,10 @@ def field_placeholder(key):
         return "{0:g}".format(OdatixSettings.DEFAULT_MEM_LIMIT)
     if key == "session_access":
         return ACCESS_OPTIONS[0]["label"]
+    if key == "wsl":
+        return WSL_OPTIONS[0]["label"]
+    if key == "wsl_distribution":
+        return "The default one"
     return ""
 
 
@@ -258,6 +289,8 @@ def comparable(value):
         return ""
     if isinstance(value, str):
         return value.strip()
+    if isinstance(value, (list, tuple)) and not value:
+        return ""
     return value
 
 
@@ -289,6 +322,22 @@ def tool_options():
         return []
 
 
+def tool_and_simulation_options(value=None):
+    """
+    Every tool and every simulation that can run in WSL: the tools, the
+    simulation templates Odatix provides and the simulations of the workspace,
+    and what the setting already names.
+    """
+    names = [option["value"] for option in tool_options()]
+    try:
+        simulations = get_workspace().simulations
+        names += list(simulations.templates()) + list(simulations.names())
+    except Exception:
+        pass
+    names += [name for name in (value or []) if isinstance(name, str)]
+    return [{"label": name, "value": name} for name in dict.fromkeys(names)]
+
+
 def setting_field(key, value):
     kind = field_kind(key)
     common = dict(
@@ -307,6 +356,10 @@ def setting_field(key, value):
         )
     if kind == "access":
         return ui.form_dropdown(options=ACCESS_OPTIONS, value=value or None, **common)
+    if kind == "wsl":
+        return ui.form_dropdown(options=WSL_OPTIONS, value=value or None, **common)
+    if kind == "tools":
+        return ui.form_dropdown(options=tool_and_simulation_options(value), value=list(value or []), multi=True, **common)
     if kind == "number":
         return ui.form_field(type="number", value=value, **common)
     return ui.form_field(value=value, **common)

@@ -287,7 +287,7 @@ def _read_json_file(path):
     if not os.path.isfile(path):
         return None
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return None
@@ -462,12 +462,19 @@ def _selector_tokens(daemon):
     return dedup
 
 
+def same_workspace(a, b):
+    """
+    Whether two workspace roots are the same directory: Windows ignores the
+    case of a path ("c:\\work" and "C:\\Work" are one directory).
+    """
+    return os.path.normcase(os.path.realpath(str(a))) == os.path.normcase(os.path.realpath(str(b)))
+
+
 def _filter_by_workspace(daemons, workspace_root=None):
     root = os.path.realpath(detect_workspace_root(workspace_root))
     filtered = []
     for daemon in daemons:
-        daemon_root = os.path.realpath(str(daemon.get("workspace_root", root)))
-        if daemon_root == root:
+        if same_workspace(daemon.get("workspace_root", root), root):
             filtered.append(daemon)
     return filtered, root
 
@@ -658,6 +665,35 @@ def _daemon_is_alive_for_listing(state):
     return _daemon_is_alive_with_retries(state, attempts=4, timeout=1.5, backoff=0.4)
 
 
+def _windows_pid_is_running(pid):
+    """
+    Whether a process exists under Windows, which has no signal 0: a handle on
+    it can be opened and it has not exited yet.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    process_query_limited_information = 0x1000
+    still_active = 259
+    error_access_denied = 5
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+    if not handle:
+        # Exists, just not ours to query
+        return ctypes.get_last_error() == error_access_denied
+    try:
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return False
+        return code.value == still_active
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def _pid_is_running(pid):
     try:
         pid = int(pid)
@@ -666,9 +702,7 @@ def _pid_is_running(pid):
     if pid <= 0:
         return False
     if sys.platform == "win32":
-        # No cheap liveness check without extra dependencies here; callers on
-        # Windows fall back to trusting the HTTP alive-check alone.
-        return False
+        return _windows_pid_is_running(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

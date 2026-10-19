@@ -24,15 +24,23 @@ import os
 import re
 
 import odatix.lib.constraint_files as constraint_files
+import odatix.lib.wsl as wsl
 
 # The constraint file of a job when its target file names none.
 DEFAULT_CONSTRAINT_FILE = "constraints.sdc"
 
 
-def _normalize_path(path):
-  """Normalise a path for Windows/Unix compatibility inside a tcl script."""
-  path = os.path.realpath(path)
+def _normalize_path(path, tool=None, resolve=True):
+  """
+  Normalise a path for Windows/Unix compatibility inside a tcl script: "/"
+  separators (tcl reads a backslash as an escape), and the path as WSL sees it
+  for a tool that runs in WSL (see odatix.lib.wsl).
+  """
+  if resolve:
+    path = os.path.realpath(path)
   if sys.platform == "win32":
+    if tool is not None and wsl.runs_in_wsl(tool):
+      return wsl.linux_path(path)
     path = path.replace("\\", "/")
   return path
 
@@ -45,7 +53,8 @@ def _apply_replacements(config_file, replacements):
   for pattern, replacement in replacements.items():
     cf_content = re.sub(pattern, replacement, cf_content, flags=re.MULTILINE)
 
-  with open(config_file, 'w', encoding='utf-8') as f:
+  # "\n" line endings on every system: a tool run in WSL reads them as written
+  with open(config_file, 'w', encoding='utf-8', newline='\n') as f:
     f.write(cf_content)
 
 
@@ -81,15 +90,16 @@ def tcl_flow_parameters(parameters):
   ) + "]"
 
 
-def edit_config_file(arch, config_file, flow_parameters=None):
+def edit_config_file(arch, config_file, flow_parameters=None, tool=None):
   """
   Replace settings in tcl config file.
 
   `flow_parameters` are the parameters of the flow the job runs with (see
   "parameters" in tool.yml), written as the dict odatix_flow_param reads.
+  `tool` is the tool the job runs with, whose paths may be those of WSL.
   """
 
-  tmp_path = _normalize_path(arch.tmp_dir)
+  tmp_path = _normalize_path(arch.tmp_dir, tool)
   constraints_file = "$tmp_path" + "/" + arch.constraint_filename
 
   def safe_replace(value):
@@ -120,7 +130,7 @@ def edit_config_file(arch, config_file, flow_parameters=None):
     r"(set local_rtl_path\s+).*":     lambda m: f"{m.group(1)}{safe_replace(arch.local_rtl_path)}",
     r"(set tmp_path\s+).*":           lambda m: f"{m.group(1)}{safe_replace(tmp_path)}",
     r"(set source_rtl_path\s+).*":    lambda m: f"{m.group(1)}{safe_replace(arch.rtl_path)}",
-    r"(set source_arch_path\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.arch_path)}",
+    r"(set source_arch_path\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.arch_path and _normalize_path(arch.arch_path, tool, resolve=False))}",
     r"(set constraints_file\s+).*":   lambda m: f"{m.group(1)}{safe_replace(constraints_file)}",
     r"(set user_constraints_synthesis\s+).*": lambda m: f"{m.group(1)}{tcl_constraint_list('synthesis')}",
     r"(set user_constraints_pnr\s+).*":       lambda m: f"{m.group(1)}{tcl_constraint_list('pnr')}",
@@ -136,7 +146,7 @@ def edit_config_file(arch, config_file, flow_parameters=None):
   _apply_replacements(config_file, replacements)
 
 
-def edit_pnr_config_file(arch, source, config_file):
+def edit_pnr_config_file(arch, source, config_file, tool=None):
   """
   Add to a tcl config file what a place & route job needs on top of what
   edit_config_file already wrote: where the synthesis it continues ran, and the
@@ -154,15 +164,18 @@ def edit_pnr_config_file(arch, source, config_file):
       value = ""
     return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"') + '"'
 
+  def path(value):
+    return _normalize_path(value, tool)
+
   replacements = {
-    r"(set source_work_path\s+).*":  lambda m: f"{m.group(1)}{quoted(_normalize_path(source.job_dir))}",
+    r"(set source_work_path\s+).*":  lambda m: f"{m.group(1)}{quoted(path(source.job_dir))}",
     r"(set source_tool\s+).*":       lambda m: f"{m.group(1)}{quoted(source.tool)}",
     r"(set source_flow\s+).*":       lambda m: f"{m.group(1)}{quoted(source.flow)}",
     r"(set source_type\s+).*":       lambda m: f"{m.group(1)}{quoted(source.job_type)}",
-    r"(set source_netlist\s+).*":    lambda m: f"{m.group(1)}{quoted(_normalize_path(source.netlist))}",
-    r"(set source_sdc\s+).*":        lambda m: f"{m.group(1)}{quoted(_normalize_path(source.sdc))}",
-    r"(set source_sdf\s+).*":        lambda m: f"{m.group(1)}{quoted(_normalize_path(source.sdf))}",
-    r"(set constraints_file\s+).*":  lambda m: f"{m.group(1)}{quoted(_normalize_path(source.sdc))}",
+    r"(set source_netlist\s+).*":    lambda m: f"{m.group(1)}{quoted(path(source.netlist))}",
+    r"(set source_sdc\s+).*":        lambda m: f"{m.group(1)}{quoted(path(source.sdc))}",
+    r"(set source_sdf\s+).*":        lambda m: f"{m.group(1)}{quoted(path(source.sdf))}",
+    r"(set constraints_file\s+).*":  lambda m: f"{m.group(1)}{quoted(path(source.sdc))}",
   }
 
   _apply_replacements(config_file, replacements)
@@ -203,7 +216,7 @@ def write_frequency_files(arch):
   # keeps the files its first run wrote, in its tool's own format.
   frequency_file = os.path.join(arch.tmp_dir, "frequency.txt")
   if not os.path.exists(frequency_file):
-    with open(frequency_file, "w") as f:
+    with open(frequency_file, "w", encoding="utf-8", newline="\n") as f:
       f.write(str(shown) + " MHz\n")
   constraint_filename = getattr(arch, "constraint_filename", "") or ""
   if constraint_filename:
@@ -213,5 +226,5 @@ def write_frequency_files(arch):
     directory = os.path.dirname(path)
     if directory and not os.path.isdir(directory):
       os.makedirs(directory)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
       f.write(clock_constraint(frequency, getattr(arch, "clock_signal", None)))

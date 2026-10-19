@@ -9,7 +9,7 @@ from odatix.explorer.core.store import ResultStore
 
 
 def _write_results(path, records):
-    path.write_text(yaml.safe_dump({"schema": 2, "units": {"area": "um2"}, "results": records}))
+    path.write_text(yaml.safe_dump({"schema": 2, "units": {"area": "um2"}, "results": records}), encoding="utf-8")
 
 
 def test_store_loads_results_and_query_filters_missing_values(tmp_path):

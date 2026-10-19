@@ -91,8 +91,8 @@ def test_a_selection_loaded_from_another_file_says_it_is_unsaved():
 def test_load_from_offers_the_other_architecture_job_types(tmp_path, monkeypatch):
     from odatix.gui.jobs_config.callbacks_config import load_from_options
     monkeypatch.chdir(str(tmp_path))
-    (tmp_path / "synth.yml").write_text("architectures:\n  - A/8bits\n")
-    (tmp_path / "analysis.yml").write_text("architectures: []\n")
+    (tmp_path / "synth.yml").write_text("architectures:\n  - A/8bits\n", encoding="utf-8")
+    (tmp_path / "analysis.yml").write_text("architectures: []\n", encoding="utf-8")
     settings = {"synth_settings_file": "synth.yml", "analyze_settings_file": "analysis.yml", "fmax_settings_file": "fmax.yml"}
     # Its own file first, then the others that select something.
     assert [o["value"] for o in load_from_options("?type=fmax_synthesis", settings)] == ["fmax.yml", "synth.yml"]
