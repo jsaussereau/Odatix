@@ -311,35 +311,25 @@ def tool_settings_values(search, odatix_settings):
 #: Said under the install path field when the tool.yml of the tool does not
 #: say what to put there.
 GENERIC_INSTALL_PATH_HINT = (
-    "Given to the commands of the tool as $tool_install_path. "
-    "Leave it empty when the tool is on your PATH."
+    "Put first on the PATH of the tool (with its bin directory), and given to its "
+    "commands as $tool_install_path. Leave it empty when the tool is on your PATH."
 )
 
 
 def install_path_field(tool, value):
     """
     How the install path field shows for a tool: (style of the field, hint
-    under it, placeholder). It is hidden for a tool that never reads the path
-    (Vivado, Design Compiler... are found on the PATH only), unless the file
-    already sets one, which can then still be cleared.
+    under it, placeholder). Every tool reads it: its directories come first on
+    the PATH of the tool (see odatix.lib.variables.with_install_path).
     """
     if not tool or not eda_tools.is_supported(tool):
         return Style.hidden, "", ""
-    if not eda_tools.reads_install_path(tool) and not str(value or "").strip():
-        return Style.hidden, "", ""
     hint = eda_tools.install_path_hint(tool)
     if hint:
-        text = (
-            f"{hint}. Used only when the tool is not on your PATH: "
-            "a tool found on the PATH is always used first."
-        )
-        placeholder = "Empty: the tool is on your PATH"
+        text = f"{hint}. It wins over a {get_tool_display_name(tool)} found on your PATH."
     else:
         text = GENERIC_INSTALL_PATH_HINT
-        placeholder = "Empty: the tool is on your PATH"
-    if not eda_tools.reads_install_path(tool):
-        text = f"{get_tool_display_name(tool)} does not read this path: it is found on your PATH. Clear it."
-    return {"display": "block"}, text, placeholder
+    return {"display": "block"}, text, "Empty: the tool is on your PATH"
 
 
 # Load the page content from the url (?tool=<tool>)
@@ -827,8 +817,7 @@ layout = html.Div(
                                 id="target-install-path",
                                 placeholder="Empty: the tool is on your PATH",
                                 tooltip="Where the tool is installed, for a tool that is not on your PATH. "
-                                        "Only the tools whose commands use $tool_install_path read it; "
-                                        "a tool found on the PATH is used first.",
+                                        "It wins over a tool of the same name found on your PATH.",
                             ),
                             html.Div(id="target-install-path-hint", className="target-field-hint"),
                         ],

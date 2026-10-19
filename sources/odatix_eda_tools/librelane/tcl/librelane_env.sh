@@ -25,10 +25,11 @@
 #   librelane_env.sh <install_path> <command> [args...]
 #
 # LibreLane ships its tools (Yosys, OpenROAD, Magic, KLayout, ...) through Nix.
-# When "librelane" is already on the PATH (Odatix started from a nix-shell, or a
-# pip install with the tools installed by hand), the command runs as is.
-# Otherwise <install_path> must be a LibreLane checkout: the command then runs
-# in its nix-shell. That is "tool_install_path" in the target file.
+# When <install_path> ("tool_install_path" in the target file) is set, it must
+# be a LibreLane checkout: the command runs in its nix-shell, even when another
+# "librelane" is on the PATH. Without it, a "librelane" on the PATH (Odatix
+# started from a nix-shell, or a pip install with the tools installed by hand)
+# runs the command as is.
 
 install_path="$1"
 shift
@@ -43,11 +44,12 @@ fi
 # per line.
 export COLUMNS="${ODATIX_LIBRELANE_COLUMNS:-200}"
 
-if command -v librelane > /dev/null 2>&1; then
+install_path="${install_path/#\~/$HOME}"
+[ "$install_path" = "/" ] && install_path=""
+
+if [ -z "$install_path" ] && command -v librelane > /dev/null 2>&1; then
   exec "$@"
 fi
-
-install_path="${install_path/#\~/$HOME}"
 
 if [ -z "$install_path" ]; then
   echo "error: librelane is not on the PATH and no tool_install_path is set in the target file (target_librelane.yml)" >&2

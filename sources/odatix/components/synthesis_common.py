@@ -20,7 +20,7 @@ from odatix.lib.prepare_work import edit_config_file, write_frequency_files
 from odatix.lib.check_tool import start_tool_check
 from odatix.workspace.space import selected_config_file
 from odatix.lib.run_settings import get_synth_settings
-from odatix.lib.variables import replace_variables, Variables
+from odatix.lib.variables import replace_variables, Variables, with_install_path
 import odatix.lib.wsl as wsl
 import odatix.lib.job_steps as job_steps
 import odatix.lib.constraint_files as constraint_files
@@ -238,6 +238,7 @@ def load_synthesis_context(
         wsl=in_wsl,
     )
     tool_test_command = replace_variables(tool_test_command, variables)
+    tool_test_command = with_install_path(tool_test_command, variables.tool_install_path, in_wsl=in_wsl)
     if in_wsl:
         tool_test_command = wsl.command(tool_test_command)
 
@@ -514,8 +515,11 @@ def build_job_command(command, steps, variables, start_index=0):
         return text
 
     def _for_system(text):
-        # A tool of WSL is run through wsl.exe (see odatix.lib.wsl)
-        return wsl.command(text) if getattr(variables, "wsl", False) else text
+        # The installation named in the target file comes first on the PATH;
+        # a tool of WSL is run through wsl.exe (see odatix.lib.wsl)
+        in_wsl = getattr(variables, "wsl", False)
+        text = with_install_path(text, getattr(variables, "tool_install_path", ""), in_wsl=in_wsl)
+        return wsl.command(text) if in_wsl else text
 
     if steps:
         remaining = steps[max(0, int(start_index or 0)):]

@@ -1170,10 +1170,6 @@ def resolve_target_file(tool, target_path, fallback_dir=None):
 # Installation
 ######################################
 
-#: How the commands of a tool name the directory it is installed in.
-INSTALL_PATH_VARIABLE = "$tool_install_path"
-
-
 def install_path_hint(tool):
   """
   What "tool_install_path" must point to for a tool, in a few words: the
@@ -1184,33 +1180,6 @@ def install_path_hint(tool):
   return hint.strip() if isinstance(hint, str) else ""
 
 
-def _mentions(value, text):
-  """Whether a string somewhere in a tool.yml value contains the text."""
-  if isinstance(value, str):
-    return text in value
-  if isinstance(value, dict):
-    return any(_mentions(item, text) for item in value.values())
-  if isinstance(value, (list, tuple)):
-    return any(_mentions(item, text) for item in value)
-  return False
-
-
-def reads_install_path(tool):
-  """
-  Whether "tool_install_path" means anything to a tool.
-
-  A built-in tool reads it when one of its commands passes it on
-  ("$tool_install_path", as Quartus and LibreLane do); the others (Vivado,
-  Design Compiler, Genus...) are found on the PATH only, so a path given to
-  them would be silently ignored. A tool of the workspace always may read it:
-  its own scripts find it in the settings.yml of their job.
-  """
-  if get_builtin_tool_dir(tool) is None:
-    return True
-  settings = load_tool_settings(tool)
-  return bool(install_path_hint(tool)) or _mentions(settings, INSTALL_PATH_VARIABLE)
-
-
 def tool_test_command(tool, tool_install_path="", flow=None):
   """
   The command checking that a tool can be launched ("tool_test_command" of its
@@ -1218,7 +1187,7 @@ def tool_test_command(tool, tool_install_path="", flow=None):
   tool declares none.
   """
   from odatix.lib.settings import OdatixSettings
-  from odatix.lib.variables import Variables, replace_variables
+  from odatix.lib.variables import Variables, replace_variables, with_install_path
 
   resolved = get_flow(tool, flow=flow)
   command = resolved.get("tool_test_command") if resolved is not None else None
@@ -1240,5 +1209,5 @@ def tool_test_command(tool, tool_install_path="", flow=None):
     tool_path=get_tool_dir(tool),
     wsl=in_wsl,
   )
-  command = replace_variables(str(command), variables)
+  command = with_install_path(replace_variables(str(command), variables), install_path, in_wsl=in_wsl)
   return wsl.command(command) if in_wsl else command

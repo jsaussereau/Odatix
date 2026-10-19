@@ -196,7 +196,7 @@ def create_parallel_job_app(
         nonlocal broadcast_task
         if start_headless_on_startup:
             handler.start_headless(tick_interval=tick_interval)
-        broadcast_task = asyncio.create_task(broadcaster())
+        broadcast_task = asyncio.ensure_future(broadcaster())  # create_task is 3.7+
 
     @app.on_event("shutdown")
     async def on_shutdown():

@@ -202,7 +202,7 @@ def _print_check_failure(tool, supported_tools, error_message, debug, script_nam
     printc.note("Did you add the directory of the tool's executables to your PATH environment variable?", script_name)
     printc.note("Example -> export PATH=$PATH:<installation directory of " + tool + ">/bin", script_name)
     printc.note(
-      'or set tool_install_path in odatix_userconfig/targets/target_' + tool + '.yml (tools that read it only)',
+      'or set tool_install_path in odatix_userconfig/targets/target_' + tool + '.yml',
       script_name,
     )
   if tool not in supported_tools:

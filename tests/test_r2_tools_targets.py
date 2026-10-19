@@ -1,4 +1,6 @@
 """Regression tests of the 2nd new-user pass, tools/targets domain."""
+import os
+import subprocess
 import sys
 
 import dash
@@ -44,10 +46,25 @@ def test_replayed_clicks_are_ignored(select_targets):
     assert not select_targets.is_new_click(None, 0)
 
 
-def test_install_path_only_for_tools_reading_it():
-    assert eda_tools.reads_install_path("quartus")
-    assert not eda_tools.reads_install_path("vivado")
+def test_install_path_hint():
     assert "qinit.sh" in eda_tools.install_path_hint("quartus")
+
+
+def test_install_path_comes_first_on_the_path(tmp_path):
+    from odatix.lib.variables import install_path_dirs, with_install_path
+
+    (tmp_path / "bin").mkdir()
+    assert install_path_dirs(str(tmp_path)) == [str(tmp_path / "bin"), str(tmp_path)]
+    # Empty or "/": the tool is on the PATH, the command is left as is
+    assert with_install_path("tool -v", "") == "tool -v"
+    assert with_install_path("tool -v", "/") == "tool -v"
+    if os.name == "nt":
+        return
+    # The installation wins over a tool of the same name on the PATH ("env")
+    fake = tmp_path / "bin" / "env"
+    fake.write_text("#!/bin/sh\nexit 7\n")
+    fake.chmod(0o755)
+    assert subprocess.call(with_install_path("env", str(tmp_path)), shell=True) == 7
 
 
 def test_passed_check_is_cached():

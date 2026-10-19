@@ -24,10 +24,10 @@
 #
 #   quartus_env.sh <install path> [--log <file>] <command> [args...]
 #
-# The executables are taken from the PATH when quartus_sh is on it. Otherwise,
-# from the installation given as tool_install_path in target_quartus.yml: the
-# directory holding qinit.sh ("/opt/altera/altera_pro/26.1.1") or its quartus
-# directory. qinit.sh itself is not sourced: it finds the installation from its
+# The executables are taken from the installation given as tool_install_path
+# in target_quartus.yml when it is set: the directory holding qinit.sh
+# ("/opt/altera/altera_pro/26.1.1") or its quartus directory. It wins over a
+# Quartus found on the PATH, which is used when no path is set. qinit.sh itself is not sourced: it finds the installation from its
 # own location, which only bash gives it, and prints the PATH it builds.
 #
 # With --log, the output also goes to that file, and the exit code is still the
@@ -42,9 +42,9 @@ if [ "$1" = "--log" ]; then
     shift 2
 fi
 
-if ! command -v quartus_sh > /dev/null 2>&1; then
+if [ -n "$install_path" ] && [ "$install_path" != "/" ]; then
     for root in "$install_path" "$install_path/quartus" "$install_path/.."; do
-        if [ -n "$root" ] && [ -x "$root/quartus/bin/quartus_sh" ]; then
+        if [ -x "$root/quartus/bin/quartus_sh" ]; then
             root="$(cd "$root" && pwd)"
             for dir in quartus/bin qsys/bin; do
                 [ -d "$root/$dir" ] && PATH="$root/$dir:$PATH"

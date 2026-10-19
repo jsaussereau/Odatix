@@ -124,3 +124,43 @@ def replace_variables(command, variables):
     return command
 
   return command_out
+
+######################################
+# Installation directory on the PATH
+######################################
+
+def install_path_dirs(install_path, in_wsl=False):
+  """
+  The directories of an installation put first on the PATH of a tool: its
+  "bin" and the installation directory itself, those that exist. None for an
+  empty path or "/" (the tool is on the PATH).
+  """
+  install_path = str(install_path or "").strip()
+  if not install_path or install_path in ("/", "\\"):
+    return []
+  candidates = [os.path.join(install_path, "bin"), install_path]
+  if in_wsl:
+    import odatix.lib.wsl as wsl
+
+    # Windows cannot look into the distribution: trust the path as given
+    return [wsl.linux_path(path) for path in candidates]
+  return [path for path in candidates if os.path.isdir(path)]
+
+
+def with_install_path(command, install_path, in_wsl=False):
+  """
+  A shell command run with the installation of its tool first on the PATH.
+
+  Every tool is either on the PATH or found through "tool_install_path", which
+  wins over the PATH: an installation named in the target file is the one used
+  even when another version is on the PATH. Tools whose commands set up their
+  own environment from $tool_install_path (Quartus, LibreLane) still do.
+  """
+  dirs = install_path_dirs(install_path, in_wsl=in_wsl)
+  if not command or not dirs:
+    return command
+  if os.name == "nt" and not in_wsl:
+    return 'set "PATH=' + ";".join(dirs) + ';%PATH%" && ' + command
+  import shlex
+
+  return "PATH=" + shlex.quote(":".join(dirs)) + '":$PATH"; export PATH; ' + command

@@ -38,7 +38,7 @@ from odatix.lib.utils import ask_to_continue, get_timestamp_string, resolve_nb_j
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.check_tool import start_tool_check, ToolCheck
 from odatix.lib.run_settings import get_synth_settings
-from odatix.lib.variables import replace_variables, Variables
+from odatix.lib.variables import replace_variables, Variables, with_install_path
 import odatix.lib.wsl as wsl
 
 import odatix.run.cli as run_cli
@@ -260,6 +260,7 @@ def load_tool_context(tool, target_path, flow=None):
 
   # Replace variables in command
   tool_test_command = replace_variables(tool_test_command, variables)
+  tool_test_command = with_install_path(tool_test_command, variables.tool_install_path, in_wsl=in_wsl)
   if in_wsl:
     tool_test_command = wsl.command(tool_test_command)
 
