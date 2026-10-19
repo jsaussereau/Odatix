@@ -347,7 +347,7 @@ def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, scri
                 reason = "every selected job is already done (-o/--overwrite runs them again)"
             printc.note("Nothing to run: " + reason, script_name or "")
             if in_session:
-                printc.note('"odatix ls" lists the sessions, "odatix monitor -S <session>" follows one', script_name or "")
+                printc.note('"odatix ps" lists the sessions, "odatix monitor -S <session>" follows one', script_name or "")
             raise SystemExit(NOTHING_TO_RUN)
     raise SystemExit(-1)
 
@@ -538,9 +538,9 @@ def start_parallel_jobs(
         if configure:
             name = str(_state.get("session_name") or session or "")
             printc.note(
-                "{} job(s) handed to session {}: follow them with \"odatix monitor -S {}\", "
+                "{} job{} handed to session {}: follow them with \"odatix monitor -S {}\", "
                 "stop it with \"odatix stop -S {}\"".format(
-                    len(getattr(parallel_jobs, "job_list", []) or []), _state.get("session_id") or name, name, name
+                    len(getattr(parallel_jobs, "job_list", []) or []), "s" if len(getattr(parallel_jobs, "job_list", []) or []) != 1 else "", _state.get("session_id") or name, name, name
                 ),
                 "run",
             )
@@ -704,9 +704,9 @@ def wait_for_session(state, script_name="run", poll_interval=5.0, job_ids=None):
             counts = _run_counts(session, job_ids)
             if not guard_said:
                 guard_said = _say_auto_paused(session, script_name)
-            line = "{}/{} job(s) over: {} succeeded, {} failed, {} running, {} queued".format(
+            line = "{}/{} job{} over: {} succeeded, {} failed, {} running, {} queued".format(
                 counts["done"] + counts["failed"], counts["total"],
-                counts["done"], counts["failed"], counts["running"], counts["queued"],
+                "s" if counts["total"] != 1 else "", counts["done"], counts["failed"], counts["running"], counts["queued"],
             )
             if line != said:
                 printc.say(line, script_name)
@@ -743,9 +743,9 @@ def _say_auto_paused(session, script_name):
     if paused <= 0:
         return False
     printc.note(
-        "{} job(s) paused by auto-pause: the machine is overloaded. They resume once the load goes down; "
+        "{} job{} paused by auto-pause: the machine is overloaded. They resume once the load goes down; "
         "\"odatix monitor -S {}\" then \"a\" turns auto-pause off (or \"resource_guard: No\" in odatix.yml)".format(
-            paused, session.name,
+            paused, "s" if paused != 1 else "", session.name,
         ),
         script_name,
     )
@@ -798,11 +798,11 @@ def close_finished_session(state, script_name="run", job_ids=None, settle_timeou
         return None
 
     total = counts["total"]
-    summary = "{}/{} job(s) succeeded".format(counts["done"], total)
+    summary = "{}/{} job{} succeeded".format(counts["done"], total, "s" if total != 1 else "")
     if counts["failed"]:
         summary += ", {} failed".format(counts["failed"])
     if analyses:
-        summary = "{}/{} analysis job(s) over".format(counts["done"] + counts["failed"], total)
+        summary = "{}/{} analysis job{} over".format(counts["done"] + counts["failed"], total, "s" if total != 1 else "")
     if counts["running"] or counts["queued"]:
         printc.note(
             summary + "; {} still running or queued in session {}: follow them with "
@@ -820,8 +820,8 @@ def close_finished_session(state, script_name="run", job_ids=None, settle_timeou
     if others:
         # Other runs share the session: it stays for them.
         printc.note(
-            "Session {} kept open: {} job(s) of other runs are still running or queued in it; "
-            "follow them with \"odatix monitor -S {}\"".format(session.id, others, session.name),
+            "Session {} kept open: {} job{} of other runs are still running or queued in it; "
+            "follow them with \"odatix monitor -S {}\"".format(session.id, others, "s" if others != 1 else "", session.name),
             script_name,
         )
         return counts

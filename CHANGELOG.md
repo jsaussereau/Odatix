@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ## [4.0.0] - Unreleased
 
-Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command names, settings file names and keys are still accepted for one version, with a warning saying what to write instead, and `odatix migrate` rewrites a workspace to the new format. Read **Breaking changes** before upgrading.
+Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command names, settings file names and keys are still accepted for a few versions, with a warning saying what to write instead, and `odatix migrate` rewrites a workspace to the new format. Read **Breaking changes** before upgrading.
 
 ### Breaking changes
 
@@ -45,7 +45,8 @@ Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command 
 
 #### Running jobs
 
-- Runs are **sessions** that keep going in the background: `odatix ls`, `odatix monitor` and `odatix stop` list, reattach and stop them, also on another machine through SSH (`-R user@server`)
+- Runs are **sessions** that keep going in the background: `odatix ps`, `odatix monitor` and `odatix stop` list, reattach and stop them, also on another machine through SSH (`-R user@server`)
+- `odatix ls` lists the architectures, simulations and workflows of the workspace (`--arch`, `-s`, `-W` and name patterns to filter, `-a` for their configurations too, `-l` for one name per line)
 - `-a/--architecture`, `--target`, `-s/--sim` and `-W/--workflow` choose what to run from the command line; glob patterns (`*/08bits`) are accepted at every level. `default_tool` in `odatix.yml`
 - `nb_jobs: auto` (`-j auto`): number of CPUs minus one
 - Automatic pause when the machine runs out of CPU or memory, configurable in `odatix.yml`

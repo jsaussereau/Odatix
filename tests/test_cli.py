@@ -307,13 +307,13 @@ class TestDaemonCommands:
             parse("stop", "-a", "-S", "sess")
 
     def test_ls(self):
-        args = parse("ls", "-S", "prefix")
-        assert args.command == "ls"
+        args = parse("ps", "-S", "prefix")
+        assert args.command == "ps"
         assert args.session == "prefix"
 
     def test_port_must_be_integer(self):
         with pytest.raises(SystemExit):
-            parse("ls", "--port", "not_a_port")
+            parse("ps", "--port", "not_a_port")
 
 
 class TestResultsCommands:
@@ -635,7 +635,7 @@ class TestExitCodes:
         assert result.returncode != 0
 
     def test_ls_without_any_matching_session_succeeds(self, example_workspace):
-        assert run_cli("ls", "-S", "odatix-test-no-such-session", cwd=str(example_workspace)).returncode == 0
+        assert run_cli("ps", "-S", "odatix-test-no-such-session", cwd=str(example_workspace)).returncode == 0
 
     @pytest.mark.parametrize("command", ["stop", "monitor"])
     def test_reaching_a_session_that_does_not_exist_fails(self, example_workspace, command):
@@ -700,15 +700,15 @@ class TestDaemonCommandStatus:
         monkeypatch.setattr(odatix_main.daemon_control, "format_daemons_table", lambda *args, **kwargs: "")
         assert run_main("stop", "-z") != 0
 
-    def test_ls(self, monkeypatch):
+    def test_ps(self, monkeypatch):
         monkeypatch.setattr(odatix_main.daemon_control, "list_daemons", lambda **kwargs: [])
-        assert run_main("ls") == 0
+        assert run_main("ps") == 0
 
         def fail(**kwargs):
             raise RuntimeError("unreachable")
 
         monkeypatch.setattr(odatix_main.daemon_control, "list_daemons", fail)
-        assert run_main("ls") != 0
+        assert run_main("ps") != 0
 
 
 class TestResultsStatus:
@@ -879,7 +879,8 @@ def _readers(command):
         "dse": [run_dse.main, run_dse.apply_arguments, run_dse.apply_campaign_arguments],
         "monitor": [odatix_main.monitor_daemon],
         "stop": [odatix_main.stop_daemon, odatix_main.kill_zombie_sessions],
-        "ls": [odatix_main.list_daemons],
+        "ps": [odatix_main.list_daemons],
+        "ls": [odatix_main.ls_command.main],
         "results all": [odatix_main.export_all_results, odatix_main.export_results_command],
         "results synth": [exp_res.main],
         "results workflow": [exp_workflow_res.main],

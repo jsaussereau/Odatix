@@ -23,7 +23,7 @@
 The sessions that run the jobs, seen from a script.
 
 A started run hands its jobs over to a session: a background process of its own,
-which keeps running them once the script is gone. This is what ``odatix ls``,
+which keeps running them once the script is gone. This is what ``odatix ps``,
 ``odatix monitor`` and ``odatix stop`` do from a terminal, as objects.
 """
 
@@ -153,7 +153,7 @@ class Session(object):
 
     @property
     def id(self):
-        """The session id, its pid and its name (``"12345.nightly"``), as ``odatix ls`` shows it."""
+        """The session id, its pid and its name (``"12345.nightly"``), as ``odatix ps`` shows it."""
         return str(self._state.get("session_id") or daemon_control._session_id_from_state(self._state))
 
     @property
@@ -337,7 +337,7 @@ class Session(object):
 
 def sessions(workspace=None, any_workspace=False):
     """
-    The sessions running jobs, as ``odatix ls`` lists them.
+    The sessions running jobs, as ``odatix ps`` lists them.
 
     Args:
         workspace (Workspace or str): the workspace whose sessions to list. The

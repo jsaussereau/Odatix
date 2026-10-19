@@ -1074,7 +1074,7 @@ def follow_hint(session_label=None):
     """How else to follow the jobs of a session than with the terminal monitor."""
     selector = " -S {}".format(session_label) if session_label else ""
     return (
-        "follow the jobs with \"odatix monitor{0}\" from a full terminal, \"odatix ls\", "
+        "follow the jobs with \"odatix monitor{0}\" from a full terminal, \"odatix ps\", "
         "or the Monitor page of odatix-gui".format(selector)
     )
 
@@ -1283,7 +1283,7 @@ def daemons_to_json(daemons, include_secrets=False, indent=2):
     """Serialize a session list.
 
     ``include_secrets`` keeps the tokens in, which only makes sense for a
-    consumer reached through a private channel (``odatix ls --json`` read over
+    consumer reached through a private channel (``odatix ps --json`` read over
     SSH by a remote client).
     """
     sessions = [d if include_secrets else public_state(d) for d in (daemons or [])]
@@ -1644,7 +1644,7 @@ def daemon_jobs_report(workspace_root=None, session=None, timeout=JOBS_QUERY_TIM
 def daemon_jobs_summary(state, timeout=1.5):
     """
     Where the jobs of a session stand, in a few words ("3/19 done, 2 running"),
-    for "odatix ls". "?" when the session does not answer in time.
+    for "odatix ps". "?" when the session does not answer in time.
     """
     from odatix.lib.parallel_job_handler.job_status import (
         DONE_STATUSES, FAILED_STATUSES, PAUSED_STATUSES, RUNNING_STATUSES,
@@ -1682,9 +1682,9 @@ def format_daemons_table(daemons, zombies=False, workspace=True, address=False, 
 
     Args:
         workspace (bool): show the workspace of each session, last since it is
-            the longest. "odatix ls" leaves it out when it lists the sessions
+            the longest. "odatix ps" leaves it out when it lists the sessions
             of the current workspace only.
-        address (bool): show where each session listens ("odatix ls -V").
+        address (bool): show where each session listens ("odatix ps -V").
         jobs (bool): ask each session where its jobs stand (see
             daemon_jobs_summary).
     """

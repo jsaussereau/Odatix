@@ -305,7 +305,7 @@ class TestExitWhenDone:
         counts, stopped = self._close(fake_session, monkeypatch)
         out = capsys.readouterr().out
         assert stopped == [1]
-        assert "3/4 job(s) succeeded, 1 failed" in out
+        assert "3/4 jobs succeeded, 1 failed" in out
         assert "Session 7.s closed" in out
 
     def test_a_session_with_jobs_left_stays(self, fake_session, monkeypatch, capsys):

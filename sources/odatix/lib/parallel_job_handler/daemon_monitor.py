@@ -841,18 +841,18 @@ def exit_messages(monitor_exit):
     retired = int(counts.get("retired", 0))
     left = total - retired
     reason = monitor_exit.reason
-    reattach = 're-attach with "odatix monitor -S {0}"'.format(session)
+    reattach = 're-attach with "odatix monitor -S {0}" or simply "odatix monitor" if it is the only one running in this workspace'.format(session)
 
     if reason == "detach":
         if left > 0:
-            return [("note", "Detached: {0} job(s) keep running in session {1}; {2}".format(left, session, reattach))]
-        return [("note", 'Detached: session {0} stays open with its {1} finished job(s); {2}, '
+            return [("note", "Detached: {0} job(s) keep running in session {1}\n{2}".format(left, session, reattach))]
+        return [("note", 'Detached: session {0} stays open with its {1} finished job(s)\n{2}\n '
                          'close it with "odatix stop -S {0}"'.format(session, total, reattach))]
     if reason == "kill":
         return [("warning", "{0} job(s) killed, session {1} closed".format(left, session))]
     if reason == "close":
         if not monitor_exit.session_closed:
-            return [("note", "Session {0} still has jobs running; {1}".format(session, reattach))]
+            return [("note", "Session {0} still has jobs running\n{1}".format(session, reattach))]
         failed = int(counts.get("failed", 0))
         summary = "{0}/{1} job(s) succeeded".format(retired - failed, total)
         if failed:

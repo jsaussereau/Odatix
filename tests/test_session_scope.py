@@ -1,5 +1,5 @@
 """
-Which sessions "odatix monitor", "stop" and "ls" act on.
+Which sessions "odatix monitor", "stop" and "ps" act on.
 
 Every session of the user runs on the same machine, whatever project it belongs
 to. A name like "nightly" means a different session in each of them, so a
@@ -124,16 +124,16 @@ class TestCommands:
         defaults.update(values)
         return argparse.Namespace(**defaults)
 
-    def test_ls_lists_this_workspace_and_counts_the_others(self, machine, capsys):
+    def test_ps_lists_this_workspace_and_counts_the_others(self, machine, capsys):
         from odatix import odatix_main
 
         assert odatix_main.list_daemons(self._args()) is True
         out = capsys.readouterr().out
         assert "11.nightly" in out and "12.build" in out
         assert "21.nightly" not in out
-        assert "2 more session(s) in other workspaces" in out
+        assert "2 more sessions in other workspaces" in out
 
-    def test_ls_any_workspace_lists_them_all(self, machine, capsys):
+    def test_ps_any_workspace_lists_them_all(self, machine, capsys):
         from odatix import odatix_main
 
         odatix_main.list_daemons(self._args(any_workspace=True))
@@ -143,6 +143,6 @@ class TestCommands:
     def test_the_session_commands_accept_the_banner_option(self):
         from odatix import odatix_main
 
-        for command in ("ls", "monitor", "stop"):
+        for command in ("ps", "monitor", "stop"):
             args = odatix_main.ArgParser.parse_arguments([command, "-Q", "--any-workspace"])
             assert args.nobanner is True and args.any_workspace is True

@@ -42,7 +42,7 @@ a normal thing to do::
         print(job["name"], job["status"])
 
 The jobs run in a session, a background process that outlives the script:
-:func:`sessions` lists those of the workspace, as ``odatix ls`` does, and a
+:func:`sessions` lists those of the workspace, as ``odatix ps`` does, and a
 :class:`Session` is followed or stopped the way ``odatix monitor`` and
 ``odatix stop`` do it.
 

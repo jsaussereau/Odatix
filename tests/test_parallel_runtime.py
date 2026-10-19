@@ -325,7 +325,7 @@ def test_exit_when_done_without_monitor_waits_then_closes(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Waiting for the jobs of this run in session 7.s" in out
     # Said when it changes, not at every poll.
-    assert out.count("0/2 job(s) over") == 1 and "2/2 job(s) over" in out
+    assert out.count("0/2 jobs over") == 1 and "2/2 jobs over" in out
     assert closed == [{"session_id": "7.s"}]
     # Its jobs are over: what comes after the run can read their results.
     assert jobs.followed_in_monitor

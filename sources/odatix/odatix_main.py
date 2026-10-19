@@ -47,6 +47,7 @@ import odatix.components.clean as cln
 import odatix.components.migrate as migrate_cmd
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
+import odatix.components.ls_command as ls_command
 from odatix.components.cli_options import add_options, deprecated_option
 
 import odatix.lib.parallel_job_handler.daemon_control as daemon_control
@@ -77,7 +78,8 @@ script_name = os.path.basename(__file__)
 COMMAND_GROUPS = (
   ("Run", ("fmax", "synth", "pnr", "analyze", "sim", "workflow", "dse")),
   ("Results", ("results",)),
-  ("Daemon", ("monitor", "ls", "stop")),
+  ("Workspace", ("ls",)),
+  ("Daemon", ("ps", "monitor", "stop")),
   ("Utilities", ("init", "generate", "replace", "clean", "migrate")),
 )
 
@@ -253,17 +255,17 @@ class ArgParser:
     )
     ArgParser.add_nobanner(ArgParser.monitor_parser)
 
-    ArgParser.ls_parser = add("ls", "list the active sessions of the workspace")
+    ArgParser.ps_parser = add("ps", "list the active sessions of the workspace")
     add_options(
-      ArgParser.ls_parser, "session_selector", "zombies", "any_workspace", "endpoint_options",
+      ArgParser.ps_parser, "session_selector", "zombies", "any_workspace", "endpoint_options",
       session_selector={"help": "only the sessions this selects: a name, an ID (12345.nightly), a PID, or the start of one of them"},
       zombies={"help": "also list zombie sessions (unresponsive daemons and leftover state files)"},
       any_workspace={"help": "list the sessions of every workspace (default: those of the current workspace only)"},
       remote={"help": "list the sessions of another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
-    ArgParser.ls_parser.add_argument('-V', '--verbose', action='store_true', help='also show where each session listens')
-    ArgParser.ls_parser.add_argument('--json', action='store_true', help='print the session list as JSON, session tokens included (this is what a remote odatix reads over ssh: do not pipe it anywhere public)')
-    ArgParser.add_nobanner(ArgParser.ls_parser)
+    ArgParser.ps_parser.add_argument('-V', '--verbose', action='store_true', help='also show where each session listens')
+    ArgParser.ps_parser.add_argument('--json', action='store_true', help='print the session list as JSON, session tokens included (this is what a remote odatix reads over ssh: do not pipe it anywhere public)')
+    ArgParser.add_nobanner(ArgParser.ps_parser)
 
     ArgParser.stop_parser = add("stop", "stop a session of the workspace")
     stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
@@ -275,6 +277,11 @@ class ArgParser:
       remote={"help": "stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
     ArgParser.add_nobanner(ArgParser.stop_parser)
+
+    # Workspace
+    ArgParser.ls_parser = add("ls", "list the architectures, simulations and workflows of the workspace")
+    ls_command.add_arguments(ArgParser.ls_parser)
+    ArgParser.add_nobanner(ArgParser.ls_parser)
 
     # Utilities
     ArgParser.init_parser = add("init", "create the configuration files of a workspace in the current directory")
@@ -544,7 +551,7 @@ def list_daemons(args):
       ))
     if elsewhere:
       printc.note(
-        "{} more session(s) in other workspaces: '{} ls --any-workspace' lists them".format(elsewhere, prog),
+        "{} more session{} in other workspaces: '{} ps --any-workspace' lists them".format(elsewhere, "s" if elsewhere != 1 else "", prog),
         script_name,
       )
 
@@ -613,7 +620,8 @@ COMMANDS = {
   "dse": lambda args: run_main(run_dse.main, args),
   "monitor": monitor_daemon,
   "stop": stop_daemon,
-  "ls": list_daemons,
+  "ps": list_daemons,
+  "ls": ls_command.main,
   "results": export_results_command,
   "clean": lambda args: run_main(cln.main, args),
   "migrate": lambda args: run_main(migrate_cmd.main, args),
@@ -654,7 +662,7 @@ def main(args=None):
   except AttributeError:
     args.nobanner = False
 
-  if args.command in ("monitor", "stop", "ls"):
+  if args.command in ("monitor", "stop", "ps", "ls"):
     args.nobanner = True
 
   # What is said from here on is said by the command, not by the module

@@ -152,15 +152,21 @@ class RemoteHost:
     def list_sessions(self, session=None, timeout=30.0):
         """The sessions running on the remote host.
 
-        Uses ``odatix ls --json`` on the other side, which reports each
+        Uses ``odatix ps --json`` on the other side, which reports each
         session's endpoint and token -- the token never leaves the SSH
-        connection.
+        connection. An odatix older than "ps" is asked ``odatix ls --json``,
+        which was its name.
         """
-        argv = list(self.odatix_command) + ["ls", "--json"]
+        options = ["--json"]
         if session:
-            argv += ["-S", str(session)]
+            options += ["-S", str(session)]
 
-        output = self.run(argv, timeout=timeout)
+        try:
+            output = self.run(list(self.odatix_command) + ["ps"] + options, timeout=timeout)
+        except RemoteError as e:
+            if "invalid choice" not in str(e):
+                raise
+            output = self.run(list(self.odatix_command) + ["ls"] + options, timeout=timeout)
         try:
             data = json.loads(output)
         except ValueError:
