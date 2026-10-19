@@ -8,7 +8,7 @@ weight: 8
 
 > [!IMPORTANT] Requires Odatix 4.0+
 
-Odatix runs `fmax`, `synth`, `pnr`, `sim` and `workflow` jobs in the background. Jobs are enqueued into a **session**, then monitored either immediately (default) or later (detached mode). A [**Job Monitor**](/docs/sessions/#two-equivalent-monitors) shows every job's progress and logs live, and lets you start, pause, resume or kill jobs at any time.
+Odatix runs `fmax`, `synth`, `pnr`, `sim` and `workflow` jobs in the background. Jobs are enqueued into a **session**, then monitored either immediately (default) or later (detached mode). A [**Job Monitor**](/docs/sessions/#two-equivalent-monitors) shows every job's progress and logs live, and lets you start, pause, resume or kill jobs at any time, and run a failed one again.
 
 {{< toc >}}
 
@@ -139,6 +139,10 @@ $ odatix monitor --any-user -S regress             # attach to it, as another me
 $ odatix synth -S regress                          # add jobs to it, from the same workspace
 {{< /code >}}
 
+The users a session is shared with must be able to enter its workspace: a
+workspace under a home directory closed to them (`chmod 700 ~`) cannot be
+reached, whatever its access. Odatix warns when it starts such a session.
+
 `no` in the `access` column is a session not shared with you: commands on it
 fail with `Session ... belongs to bob and is not shared with you`. Root can act
 on every session, which is what an administrator does to clean up a machine:
@@ -174,7 +178,7 @@ Each session generates two random tokens when it starts, and every API call must
 
 | Token | What it allows |
 |---|---|
-| **control** | everything: enqueue, start, pause, kill, change the job count, shut the session down |
+| **control** | everything: enqueue, start, pause, kill, run a job again, change the job count, shut the session down |
 | **read** | snapshots and logs only — watching a session, never acting on it |
 
 The tokens are stored in the session's state file (`<workspace>/.odatix_sessions/state.<name>.json`), created readable **by its owner only**. Odatix commands read them from there, so nothing has to be passed by hand on the same machine.
@@ -209,7 +213,7 @@ The token can also come from the `ODATIX_DAEMON_TOKEN` environment variable. Not
 
 ## Two equivalent monitors
 
-Odatix ships **two Job Monitors**, and they are interchangeable: both talk to the same daemon through the same API, show the same jobs with the same progress and the same logs, and offer the same controls (start, pause, resume, kill, and the number of jobs running in parallel).
+Odatix ships **two Job Monitors**, and they are interchangeable: both talk to the same daemon through the same API, show the same jobs with the same progress and the same logs, and offer the same controls (start, pause, resume, kill, run a failed job again, and the number of jobs running in parallel).
 
 | | [Terminal monitor](/docs/sessions/terminal_monitor/) | [GUI monitor](/docs/sessions/gui_monitor/) |
 |---|---|---|
@@ -218,6 +222,7 @@ Odatix ships **two Job Monitors**, and they are interchangeable: both talk to th
 | Works over SSH | ✅ directly | ✅ [via port forwarding](/docs/gui/host_server/) |
 | Job list, live logs, progress | ✅ | ✅ |
 | Start / pause / kill jobs | ✅ | ✅ |
+| Run a failed job again | ✅ | ✅ |
 | Change parallel job count | ✅ | ✅ |
 | Filter and sort the job list | ❌ | ✅ |
 | Mouse and keyboard driven | ✅ | mouse driven |

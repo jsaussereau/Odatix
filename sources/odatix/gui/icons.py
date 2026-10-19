@@ -230,6 +230,12 @@ _icons = {
         id=id,
         style={"width": width, "height": height, "minWidth": width, "minHeight": height, "transform": "scale(0.7)"},
     ),
+    # The refresh arrow of "reset", drawn with the weight and the size of the
+    # solid row controls it sits next to in the monitor.
+    "reset_solid": lambda color, width, height, className, offset, id: _line_icon([
+        Polyline(points="23 4 23 10 17 10"),
+        Path(d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"),
+    ], width, height, className, id, style_extra={"strokeWidth": "2.5", "transform": "scale(0.7)"}),
 }
 
 ######################################

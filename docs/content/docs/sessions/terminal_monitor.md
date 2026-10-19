@@ -50,9 +50,12 @@ Scrolling up disables autoscroll so the view stops jumping while you read; `End`
 | `Space` | Pause the selected job |
 | `s` | Start or resume the selected job |
 | `k` | Kill (or cancel, if still queued) the selected job |
+| `r` | Run the selected job again, when it failed, was killed or canceled |
 | `>` , `.` | Allow one more job in parallel |
 | `<` , `,` | Allow one fewer job in parallel |
 | `a` | Turn auto-pause on or off |
+
+Running a job again (`r`) re-runs it **in the job directory it already has** — it is not a run from scratch. See [the GUI monitor](/docs/sessions/gui_monitor/#running-a-job-again) for what that means exactly.
 
 Changing the number of parallel jobs takes effect immediately: raising it starts queued jobs right away, lowering it lets running jobs finish before the limit applies.
 

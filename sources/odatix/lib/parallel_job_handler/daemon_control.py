@@ -831,6 +831,30 @@ def workspace_session_access(workspace_root):
         raise DaemonControlError("{} in {}".format(error, path))
 
 
+def unreachable_parent(path, access):
+    """
+    The first directory above `path` (included) that those a session is shared
+    with (`access`) cannot traverse, or None. Sharing a session whose state
+    file sits under a home directory closed to them shares nothing.
+    """
+    access = normalize_access(access)
+    if access == ACCESS_USER or sys.platform == "win32":
+        return None
+    bit = 0o010 if access == "group" else 0o001
+    current = os.path.realpath(str(path))
+    while True:
+        try:
+            mode = os.stat(current).st_mode
+        except OSError:
+            mode = None
+        if mode is not None and not (mode & bit) and not (access == "group" and mode & 0o001):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
 def ensure_daemon_running(
     workspace_root=None,
     host=DEFAULT_HOST,
@@ -962,6 +986,15 @@ def ensure_daemon_running(
             "no_access": True, "session_id": session_name,
             "uid": _file_owner(paths["state_file"]), "user": owner_name(_file_owner(paths["state_file"])),
         })
+    blocked = unreachable_parent(workspace_root, access)
+    if blocked is not None:
+        printc.warning(
+            "Session '{}' is shared with {}, but they cannot enter {}: they will not reach it "
+            "(chmod {}+x {})".format(
+                session_name, "the group" if access == "group" else "every user", blocked,
+                "g" if access == "group" else "o", blocked,
+            )
+        )
     _delete_state_file(paths["state_file"])
     _spawn_daemon(
         paths,
@@ -1649,6 +1682,7 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
         if not any_user and owner is not None and me is not None and owner != me:
             continue
         state = {}
+        loaded_state = None
         state_file = candidate.get("state_file")
         if state_file:
             loaded_state = _read_json_file(state_file)
@@ -1692,9 +1726,13 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
             state["user"] = owner_name(owner)
         state["uptime_s"] = _daemon_uptime_str(state)
         _decorate_session_fields(state)
-        if _state_file_is_unreadable(state_file):
+        if _state_file_is_unreadable(state_file) or (
+            owner is not None and me is not None and owner != me and not isinstance(loaded_state, dict)
+        ):
             # Not shared with this user: no token, nothing to probe with. Its
-            # process runs, which is all there is to know.
+            # process runs, which is all there is to know. The state file of
+            # another user may not even be seen: in a home directory others
+            # cannot enter, it looks missing rather than unreadable.
             state["no_access"] = True
             unreachable.append(state)
             continue
@@ -2010,6 +2048,11 @@ def list_zombie_daemons(workspace_root=None, session=None, any_user=False):
         if not any_user and owner is not None and me is not None and owner != me:
             continue
         if _state_file_is_unreadable(candidate.get("state_file")):
+            continue
+        if owner is not None and me is not None and owner != me and not isinstance(
+            _read_json_file(candidate.get("state_file")) if candidate.get("state_file") else None, dict
+        ):
+            # Another user's, out of sight: nothing to judge it by.
             continue
         state = {}
         state_file = candidate.get("state_file")

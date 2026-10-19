@@ -69,7 +69,20 @@ Every row carries its own controls, shown according to the task's state:
 
 - **Start / resume** the task,
 - **Pause** the task,
-- **Kill** the task (or cancel it, if still queued).
+- **Kill** the task (or cancel it, if still queued),
+- **Run** the task **again** (↻), on a task that failed, was killed or was canceled (see [below](#running-a-job-again)).
+
+### Running a job again
+
+The ↻ button on a failed, killed or canceled task puts it back in the running order. This is what to reach for when the **tool** is what went wrong rather than the design: a crash, a license lost halfway, a job you killed by hand. The inputs were fine; the attempt was not.
+
+It is a **re-run, not a run from scratch**, and the difference is worth knowing:
+
+- the job directory is kept exactly as the failed attempt left it — its checkpoints, reports, netlists and logs are all still there, and the tool overwrites what it writes again,
+- on a [flow split into steps](/docs/reference/tools/#steps), only the steps *this* run covers are done again. Steps an earlier run completed, and that this one resumed after, stay done: the job picks up where that earlier run left it, not at the first step,
+- nothing is re-prepared: the sources are not copied again and the parameters are not substituted again. If what needs re-doing is the preparation itself — you fixed the RTL, or changed a configuration — run the command again from the CLI with `--overwrite`, which wipes the job directory and starts it over for real.
+
+The log of the job says all of this when it restarts, with the list of the steps it is about to run again.
 
 ### Filtering and sorting
 

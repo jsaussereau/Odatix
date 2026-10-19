@@ -948,6 +948,98 @@ class ParallelJobHandler:
                 except ValueError:
                     pass
 
+    def restart_job(self, job_id: int):
+        """
+        Run a job that is over again, in the directory it already has.
+
+        This is a re-run, not a fresh start, and the difference matters: the job
+        directory is kept exactly as the failed attempt left it -- its
+        checkpoints, reports and netlists are all still there -- and only the
+        bookkeeping of the steps *this* run covers is dropped, so those steps are
+        done again. What an earlier run did, and this one resumed after, stays
+        done. Starting truly from scratch means preparing the job again, which
+        only the run that prepared it can do (`--overwrite` on the command line).
+
+        What this is for is the tool dying on a job: a crash, a lost license, a
+        job killed by hand. The inputs are fine, the attempt was not.
+
+        Returns:
+            bool: whether the job was put back in the running order. False when
+            it is not over, or not done being killed yet.
+        """
+        with self._lock:
+            job = self.job_list[int(job_id)]
+            if job.status not in FAILED_STATUSES:
+                return False
+            if job in self._stopping_jobs:
+                # Its process is on its way out and _reap_stopping_jobs would
+                # kill whatever process the job holds next -- including the one
+                # a restart just started.
+                job.log_history.append(
+                    printc.colors.YELLOW
+                    + "Cannot restart yet: the job is still being killed, try again in a moment"
+                    + printc.colors.ENDC
+                )
+                job.log_changed = True
+                return False
+
+            self._forget_restarted_steps(job)
+
+            try:
+                self.retired_job_list.remove(job)
+            except ValueError:
+                pass
+            self._retired_jobs.discard(job)
+            self._clear_task_pipeline(job)
+            if hasattr(job, "_failed_before_export"):
+                del job._failed_before_export
+            self._close_process_pipes(job.process)
+            job.process = None
+            job.start_time = None
+            job.stop_time = None
+            job.progress = 0
+            job.log_history.append("")
+            job.log_history.append(printc.colors.CYAN + "Job restarted by user" + printc.colors.ENDC)
+            job.log_history.append(
+                printc.colors.CYAN
+                + "note: the job directory is kept as it was, this is not a run from scratch "
+                + "(use --overwrite to prepare the job again)"
+                + printc.colors.ENDC
+            )
+            job.log_changed = True
+            # A job to run again means a batch to close again: whatever runs
+            # once the session drains (deriving metrics) has to run after it.
+            self._post_batch_done = False
+            self._schedule_new_job_unlocked(job)
+            return True
+
+    def _forget_restarted_steps(self, job):
+        """
+        Make the steps a restarted job is about to run again look undone.
+
+        Called with the lock held. Jobs that are not split into steps have
+        nothing recorded and nothing to forget.
+        """
+        tracking = getattr(job, "step_tracking", None)
+        if not isinstance(tracking, dict):
+            return
+        tmp_dir = tracking.get("tmp_dir")
+        if not tmp_dir:
+            return
+        try:
+            import odatix.lib.job_steps as job_steps
+
+            dropped = job_steps.forget_steps_from(tmp_dir, getattr(job, "resume_step_index", 0))
+        except Exception as e:
+            job.log_history.append(
+                printc.colors.YELLOW + "warning: could not reset the step state: " + str(e) + printc.colors.ENDC
+            )
+            return
+        if dropped:
+            job.log_history.append(
+                printc.colors.CYAN + "Steps to run again -> " + ", ".join(dropped) + printc.colors.ENDC
+            )
+
     def open_job_path(self, job_id: int):
         with self._lock:
             job = self.job_list[int(job_id)]
@@ -991,6 +1083,8 @@ class ParallelJobHandler:
             self.start_or_resume_job(kwargs["job_id"])
         elif name == "kill":
             self.kill_or_cancel_job(kwargs["job_id"])
+        elif name == "restart":
+            self.restart_job(kwargs["job_id"])
         elif name == "open":
             self.open_job_path(kwargs["job_id"])
         elif name == "theme_next":

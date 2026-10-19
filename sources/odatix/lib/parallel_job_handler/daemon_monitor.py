@@ -703,6 +703,15 @@ class DaemonMonitorHandler(ParallelJobHandler):
         except Exception as e:
             self._append_error(e)
 
+    def restart_job(self, job_id: int):
+        remote_id = self._remote_id_from_index(job_id)
+        if remote_id is None:
+            return
+        try:
+            self._post_job_action("restart", remote_id)
+        except Exception as e:
+            self._append_error(e)
+
     def open_job_path(self, job_id: int):
         idx = int(job_id)
         if idx < 0 or idx >= len(self.job_list):

@@ -74,6 +74,32 @@ class TestState:
         assert job_steps.completed_step_names(job_dir) == []
 
 
+class TestForget:
+    def test_forgetting_from_an_index_keeps_the_steps_before_it(self, job_dir):
+        for name in ("synthesis", "pnr", "bitstream"):
+            job_steps.record_completed_step(job_dir, name, flow="standard")
+        # A re-run of a job that had resumed after synthesis: synthesis was not
+        # run again by it, so it must keep its record.
+        assert job_steps.forget_steps_from(job_dir, 1) == ["pnr", "bitstream"]
+        assert job_steps.completed_step_names(job_dir) == ["synthesis"]
+        assert job_steps.read_state(job_dir)["flow"] == "standard"
+        assert job_steps.resume_index(job_dir, ["synthesis", "pnr", "bitstream"]) == 1
+
+    def test_forgetting_everything_leaves_no_state_at_all(self, job_dir):
+        import os
+
+        job_steps.record_completed_step(job_dir, "synthesis")
+        assert job_steps.forget_steps_from(job_dir, 0) == ["synthesis"]
+        assert not os.path.isfile(job_steps.state_file(job_dir))
+        assert job_steps.completed_step_names(job_dir) == []
+
+    def test_forgetting_past_the_end_changes_nothing(self, job_dir):
+        job_steps.record_completed_step(job_dir, "synthesis")
+        assert job_steps.forget_steps_from(job_dir, 4) == []
+        assert job_steps.forget_steps_from(job_dir + "_missing", 0) == []
+        assert job_steps.completed_step_names(job_dir) == ["synthesis"]
+
+
 class TestResume:
     def test_only_a_leading_run_of_steps_counts(self, job_dir):
         job_steps.record_completed_step(job_dir, "synthesis")

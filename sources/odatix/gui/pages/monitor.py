@@ -805,6 +805,11 @@ def monitor_task_template():
                             _task_action_button("start", "play_solid", "success", "Start task"),
                             _task_action_button("pause", "pause_solid", "primary", "Pause task"),
                             _task_action_button("stop", "cross_solid", "caution", "Kill task"),
+                            _task_action_button(
+                                "restart", "reset_solid", "primary",
+                                "Run this job again, in the job directory it already has "
+                                "(not a run from scratch)",
+                            ),
                         ],
                     ),
                 ],
@@ -1566,6 +1571,9 @@ _ROW_ACTION_ENDPOINTS = {
     "start": "start",
     "pause": "pause",
     "stop": "kill",
+    # A re-run in the directory the job already has, not a job prepared again
+    # (see JobHandler.restart_job).
+    "restart": "restart",
 }
 
 

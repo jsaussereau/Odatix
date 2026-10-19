@@ -105,6 +105,16 @@
   // not started yet", which a job the resource guard paused mid-run is not.
   var PAUSED_STATUSES = ["paused"];
 
+  // Statuses of a job that ended badly, and can therefore be run again. The
+  // daemon's "failed" bucket when it has already said it, the same list as a
+  // fallback: unlike a filter, a button cannot default to "show it anyway".
+  var FAILED_STATUSES = ["failed", "killed", "canceled"];
+
+  function canRestart(status) {
+    var bucket = (state.buckets && state.buckets.failed) || FAILED_STATUSES;
+    return bucket.indexOf(status) !== -1;
+  }
+
   function matchesFilter(status, filterValue) {
     if (!filterValue || filterValue === "all") return true;
     if (filterValue === "paused") return PAUSED_STATUSES.indexOf(status) !== -1;
@@ -328,6 +338,7 @@
       start: el.querySelector('[data-wrap="start"]'),
       pause: el.querySelector('[data-wrap="pause"]'),
       stop: el.querySelector('[data-wrap="stop"]'),
+      restart: el.querySelector('[data-wrap="restart"]'),
     };
 
     state.container.appendChild(el);
@@ -364,6 +375,11 @@
         refs.stop.style.display =
           (status === "queued" || status === "paused" || status === "running" || status === "starting")
             ? "block" : "none";
+      }
+      // Only a job that ended badly is worth running again, and the daemon
+      // decides which statuses those are (the "failed" bucket).
+      if (refs.restart) {
+        refs.restart.style.display = canRestart(status) ? "block" : "none";
       }
       last.status = status;
     }

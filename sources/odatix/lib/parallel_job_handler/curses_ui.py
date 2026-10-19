@@ -40,7 +40,7 @@ CURSOR_MODES = ("mouse+", "mouse", "raw")
 
 # Height of the help popup: title, column headers, one row per key of
 # update_help_popup and the closing hint. Smaller terminals cut the list.
-HELP_POPUP_HEIGHT = 25
+HELP_POPUP_HEIGHT = 26
 
 # How long the status message replacing the help bar stays up after a copy.
 STATUS_MESSAGE_DELAY = 2.0
@@ -881,6 +881,7 @@ def help_popup_keys():
         ("Space"      , "Pause selected job"),
         ("k"          , "Kill selected job"),
         ("s"          , "Start/resume selected job"),
+        ("r"          , "Re-run selected job (same job directory)"),
         ("t"          , "Switch theme"),
         ("c"          , "Change cursor mode"),
         ("y  R-click", "Copy log selection"),
@@ -1851,6 +1852,9 @@ def curses_main(handler, stdscr):
 
             elif key == ord('s') or key == ord('S'):
                 handler.start_or_resume_job(handler.selected_job_index)
+
+            elif key == ord('r') or key == ord('R'):
+                handler.restart_job(handler.selected_job_index)
 
             elif key == ord('o') or key == ord('O'):
                 if can_open_path_in_explorer():

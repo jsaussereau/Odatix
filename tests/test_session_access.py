@@ -151,3 +151,38 @@ class TestRealSession:
         _workspace, state = session
         listed = [d for d in daemon_control.list_daemons() if d.get("session_id") == state["session_id"]]
         assert listed and listed[0]["uid"] == os.geteuid() and listed[0]["access"] == "group"
+
+
+class TestOtherUsersHomes:
+    def test_a_session_in_a_home_you_cannot_enter_is_listed_without_access(self, monkeypatch):
+        # Its state file looks missing, not unreadable: it is still another
+        # user's session, listed as one you cannot use, never dropped.
+        monkeypatch.setattr(daemon_control, "current_uid", lambda: 1000)
+        monkeypatch.setattr(daemon_control, "_iter_system_daemon_candidates", lambda: iter([{
+            "pid": 4242, "uid": 1001, "state_file": "/closed/home/ws/.odatix_sessions/gui.json",
+            "session_name": "gui", "workspace_root": "/closed/home/ws",
+        }]))
+        monkeypatch.setattr(daemon_control, "_daemon_is_alive_for_listing", lambda state: False)
+        listed = daemon_control.list_daemons(any_user=True)
+        assert [d["pid"] for d in listed] == [4242] and listed[0]["no_access"] is True
+        assert daemon_control.list_daemons() == []
+        assert daemon_control.list_zombie_daemons(any_user=True) == []
+
+
+@posix_only
+class TestReachableWorkspace:
+    def test_a_closed_parent_is_found(self, tmp_path):
+        home = tmp_path / "home"
+        workspace = home / "ws"
+        workspace.mkdir(parents=True)
+        os.chmod(str(tmp_path), 0o755)
+        os.chmod(str(home), 0o700)
+        os.chmod(str(workspace), 0o755)
+        assert daemon_control.unreachable_parent(str(workspace), "group") == str(home.resolve())
+        assert daemon_control.unreachable_parent(str(workspace), "user") is None
+
+    def test_an_open_path_is_fine(self, tmp_path):
+        os.chmod(str(tmp_path), 0o755)
+        if daemon_control.unreachable_parent(os.path.dirname(str(tmp_path)), "other") is not None:
+            pytest.skip("the temporary directory itself is closed")
+        assert daemon_control.unreachable_parent(str(tmp_path), "other") is None

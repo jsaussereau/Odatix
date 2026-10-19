@@ -210,3 +210,43 @@ def start_index(tmp_dir, steps, rerun_index=None):
   if rerun_index is not None:
     index = min(index, rerun_index)
   return index
+
+
+def forget_steps_from(tmp_dir, index=0):
+  """
+  Drop the steps a job directory recorded from `index` on, so that a re-run does
+  them again instead of skipping them.
+
+  Only the bookkeeping is dropped: what the steps left in the directory
+  (checkpoints, reports, netlists) stays, so this is not the same as a job
+  prepared from scratch. The leading `index` steps keep their record on
+  purpose -- a job that resumed after them did not run them, and a re-run of
+  that job should not claim it did.
+
+  Returns:
+    list: names of the steps whose record was dropped, in order.
+  """
+  index = max(0, int(index or 0))
+  state = read_state(tmp_dir)
+  completed = state["completed"]
+  if index >= len(completed):
+    return []
+
+  dropped = [entry["name"] for entry in completed[index:]]
+  kept = completed[:index]
+  path = state_file(tmp_dir)
+  if not kept:
+    try:
+      os.remove(path)
+    except OSError:
+      pass
+    return dropped
+
+  with open(path, "w") as f:
+    yaml.dump(
+      {"flow": state["flow"], "completed": kept},
+      f,
+      default_flow_style=False,
+      sort_keys=False,
+    )
+  return dropped

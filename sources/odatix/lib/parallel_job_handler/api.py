@@ -262,6 +262,13 @@ def create_parallel_job_app(
         handler.enqueue_command("kill", job_id=job_id)
         return _ok("kill/cancel requested", job_id=job_id)
 
+    @app.post("/jobs/{job_id}/restart")
+    def restart_job(job_id: int):
+        # A re-run in the directory the job already has, not a job prepared
+        # again from scratch (see JobHandler.restart_job).
+        handler.enqueue_command("restart", job_id=job_id)
+        return _ok("restart requested", job_id=job_id)
+
     @app.post("/jobs/{job_id}/open")
     def open_job(job_id: int):
         handler.enqueue_command("open", job_id=job_id)

@@ -180,6 +180,83 @@ def test_headless_handler_snapshot_log_controls_and_commands():
     with pytest.raises(IndexError):
         handler.select_job(9)
 
+def test_restarting_a_failed_job_re_runs_it_without_a_fresh_start(monkeypatch, tmp_path):
+    # What the restart is for: the tool died on the job (crash, lost license),
+    # the inputs are fine. It runs again in the directory it already has, and
+    # only the steps this run covered are done again -- the one an earlier run
+    # completed and this one resumed after stays done.
+    import odatix.lib.job_steps as job_steps
+
+    job_dir = str(tmp_path / "job")
+    for name in ("synthesis", "pnr"):
+        job_steps.record_completed_step(job_dir, name, flow="standard")
+
+    job = _job("failed_job")
+    job.step_tracking = {"tmp_dir": job_dir, "flow": "standard"}
+    job.step_names = ["synthesis", "pnr", "bitstream"]
+    job.resume_step_index = 1
+    job.status = "failed"
+    job.progress = 42
+    job._task_pipeline = []
+    job._failed_before_export = True
+
+    handler = handler_core.ParallelJobHandler([job], nb_jobs=2, format_yaml="")
+    handler._headless_initialized = True
+    handler.retire_job(job, progress=42)
+    handler._post_batch_done = True
+
+    started = []
+    monkeypatch.setattr(handler, "start_job", lambda started_job: started.append(started_job))
+    assert handler.restart_job(0) is True
+
+    assert started == [job]
+    assert job not in handler.retired_job_list and job not in handler._retired_jobs
+    assert (job.progress, job.start_time, job.stop_time) == (0, None, None)
+    assert not hasattr(job, "_task_pipeline") and not hasattr(job, "_failed_before_export")
+    # Only what this run was going to do is undone.
+    assert job_steps.completed_step_names(job_dir) == ["synthesis"]
+    # The batch is open again: what runs once the session drains has to run
+    # after this job, not before it.
+    assert handler._post_batch_done is False
+    assert any("restarted by user" in line.lower() for line in job.log_history)
+    assert any("not a run from scratch" in line for line in job.log_history)
+    assert any("pnr" in line for line in job.log_history)
+
+
+def test_a_job_that_is_not_over_is_not_restarted(monkeypatch):
+    handler = handler_core.ParallelJobHandler([_job("running"), _job("done")], nb_jobs=2, format_yaml="")
+    handler._headless_initialized = True
+    started = []
+    monkeypatch.setattr(handler, "start_job", lambda job: started.append(job))
+
+    handler.job_list[0].status = "running"
+    handler.job_list[1].status = "success"
+    assert handler.restart_job(0) is False
+    assert handler.restart_job(1) is False
+    assert started == []
+
+
+def test_a_job_still_being_killed_is_not_restarted_under_its_own_process(monkeypatch):
+    # _reap_stopping_jobs kills whatever process a stopping job holds: restarting
+    # it there would hand the reaper the process the restart just started.
+    job = _job("killed")
+    job.status = "killed"
+    handler = handler_core.ParallelJobHandler([job], nb_jobs=2, format_yaml="")
+    handler._headless_initialized = True
+    handler.retire_job(job, progress=10)
+    handler._stopping_jobs.append(job)
+    started = []
+    monkeypatch.setattr(handler, "start_job", lambda started_job: started.append(started_job))
+
+    assert handler.restart_job(0) is False
+    assert started == []
+    assert any("still being killed" in line for line in job.log_history)
+    # Once it is really gone, the same click works.
+    handler._stopping_jobs.remove(job)
+    assert handler.restart_job(0) is True
+    assert started == [job]
+
+
 def _driver(name="exploration"):
     from odatix.lib.parallel_job_handler.job import DRIVER_KIND
 
