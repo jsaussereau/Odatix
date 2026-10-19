@@ -63,7 +63,7 @@ Configuration Generator / Workflow Editor pages.
 """
 
 import dash
-from dash import html, dcc, Input, Output, State, ctx
+from dash import html, dcc, Input, Output, State, ctx, Patch
 
 import odatix.lib.metrics as metrics_lib
 import odatix.lib.eda_tools as eda_tools
@@ -472,43 +472,50 @@ def metric_title(name, is_tool=False, mode="workflow"):
         style={"marginTop": "0px", "marginBottom": "10px"},
     )
 
+# How long a text field waits for typing to stop before telling the server.
+# Every update the page gets costs the browser a pass over every component of
+# every card, so a word typed is one update, not one per letter.
+TYPING_DEBOUNCE = 0.3
+
+
+def tip(text):
+    """
+    An info icon carrying its tooltip: ui.tooltip_icon in one component instead
+    of two. A card holds a dozen of them and Dash's work on each update grows
+    with the number of components on the page.
+    """
+    return html.Span(
+        className="odx-icon icon tooltip secondary odx-metric-tip",
+        **{"data-icon": "tooltip", "data-tooltip": text},
+    )
+
+
 def metric_field(prefix, var, name, label, value="", placeholder="", type="text", options=None, default_style=Style.hidden, tooltip="", disabled=False):
+    # One div, wrapping: the label and its icon on a line, the input under them
+    # (see .odx-metric-field). Its display is what the type dropdown toggles.
     return html.Div(
         children=[
-            html.Div(
-                children=[
-                    html.Label(label, style={"fontWeight": "bold", "fontSize": "1em"}),
-                    ui.tooltip_icon(tooltip) if tooltip else None,
-                    dcc.Input(
-                        value=value,
-                        type=type,
-                        placeholder=placeholder,
-                        disabled=disabled,
-                        id={"type": f"{prefix}-field-{name}", "name": var},
-                        className="value-input",
-                        style={
-                            "width": "calc(100% - 10px)",
-                            "marginLeft": "5px",
-                            "marginRight": "5px",
-                            "marginBottom": "5px",
-                            "fontSize": "0.9em",
-                            "height": "10px",
-                            "zIndex": "900",
-                            "padding": "15px 10px",
-                        },
-                    ) if options is None else dcc.Dropdown(
-                        id={"type": f"{prefix}-field-{name}", "name": var},
-                        options=options,
-                        value=value,
-                        clearable=False,
-                        disabled=disabled,
-                        style={"fontSize": "0.95em", "zIndex": "900", "width": "100%"},
-                    ),
-                ],
-                style={"marginTop": "5px", "width": "100%"},
+            html.Label(label, style={"fontWeight": "bold", "fontSize": "1em"}),
+            tip(tooltip) if tooltip else None,
+            dcc.Input(
+                value=value,
+                type=type,
+                placeholder=placeholder,
+                disabled=disabled,
+                debounce=TYPING_DEBOUNCE,
+                id={"type": f"{prefix}-field-{name}", "name": var},
+                className="value-input odx-metric-input",
+            ) if options is None else dcc.Dropdown(
+                id={"type": f"{prefix}-field-{name}", "name": var},
+                options=options,
+                value=value,
+                clearable=False,
+                disabled=disabled,
+                style={"fontSize": "0.95em", "zIndex": "900", "width": "100%"},
             ),
         ],
         id={"type": f"{prefix}-field-{name}-div", "name": var},
+        className="odx-metric-field",
         style=default_style,
     )
 
@@ -517,7 +524,7 @@ def origin_note_children(origin, has_builtin):
     note = ORIGIN_NOTES.get(origin) if has_builtin else None
     if note is None:
         return []
-    return [html.Span(note[0]), ui.tooltip_icon(note[1])]
+    return [html.Span(note[0]), tip(note[1])]
 
 def origin_note_style(origin, has_builtin):
     """The badge style: hidden for a metric there is nothing to say about."""
@@ -585,6 +592,7 @@ def metric_card(
                 value=name,
                 type="text",
                 disabled=read_only,
+                debounce=TYPING_DEBOUNCE,
                 id={"type": f"{prefix}-title", "name": name},
                 className="title-input",
                 style={
@@ -636,7 +644,7 @@ def metric_card(
                                         className="checklist-switch",
                                         style={"marginTop": "8px", "marginBottom": "4px", "display": "inline-block"},
                                     ),
-                                    ui.tooltip_icon("If checked, an error is raised when the value cannot be extracted. If unchecked, the run is simply skipped for this field."),
+                                    tip("If checked, an error is raised when the value cannot be extracted. If unchecked, the run is simply skipped for this field."),
                                     html.Span([
                                         dcc.Checklist(
                                             options=[{"label": "Multiple values", "value": True, "disabled": read_only}],
@@ -645,7 +653,7 @@ def metric_card(
                                             className="checklist-switch",
                                             style={"marginBottom": "4px", "display": "inline-block"},
                                         ),
-                                        ui.tooltip_icon("Extract every match as a list. The run then expands into one result entry per value, indexed by the metadata dimensions."),
+                                        tip("Extract every match as a list. The run then expands into one result entry per value, indexed by the metadata dimensions."),
                                     ], style=multiple_style),
                                 ],
                             ),
@@ -842,7 +850,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
         Input({"type": f"{prefix}-duplicate", "name": dash.ALL}, "n_clicks"),
         Input({"type": f"{prefix}-delete", "name": dash.ALL}, "n_clicks"),
         Input({"type": f"{prefix}-reset", "name": dash.ALL}, "n_clicks"),
-        State(f"{prefix}-cards-row", "children"),
+        State({"type": f"{prefix}-card", "name": dash.ALL}, "id"),
         State({"type": f"{prefix}-type", "name": dash.ALL}, "value"),
         State({"type": f"{prefix}-field-file", "name": dash.ALL}, "value"),
         State({"type": f"{prefix}-field-pattern", "name": dash.ALL}, "value"),
@@ -859,7 +867,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
         prevent_initial_call=True,
     )
     def update_cards(
-        new_click, duplicate_clicks, delete_clicks, reset_clicks, cards,
+        new_click, duplicate_clicks, delete_clicks, reset_clicks, card_ids,
         types, file_vals, pattern_vals, group_id_vals, key_vals, op_vals,
         unit_vals, format_vals, error_vals, multiple_vals, origins, builtin_data, initial,
     ):
@@ -869,8 +877,13 @@ def register_section_callbacks(prefix, name_stem, add_text):
         # A tool has no metadata dimensions: what its sections hold are metrics.
         stem = "metric" if mode == "tool" else name_stem
 
-        if cards is None:
-            cards = []
+        # The row is patched, never rewritten: a card is a large component, and
+        # sending every card both ways (then re-rendering them all) on each
+        # click is what made this page slow. The card ids say where each card
+        # sits in the row (the Add card comes last).
+        existing_names = [
+            card_id.get("name", "") for card_id in (card_ids or []) if isinstance(card_id, dict)
+        ]
 
         # The built-in definitions of this section, to rebuild a card as Odatix
         # defines it when its override is reset or dropped.
@@ -895,77 +908,61 @@ def register_section_callbacks(prefix, name_stem, add_text):
                 multiple_value=_checked(multiple_vals[idx]) if idx < len(multiple_vals) else False,
             )
 
-        # Remove the Add card if present
-        if cards and isinstance(cards[-1], dict) and cards[-1].get("props", {}).get("id") == f"{prefix}-add-card":
-            cards = cards[:-1]
+        patch = Patch()
 
         if trigger_id == f"{prefix}-new" and new_click:
-            existing_names = [
-                card.get("props", {}).get("id", {}).get("name", "")
-                for card in cards if isinstance(card.get("props", {}).get("id", {}), dict)
-            ]
             idx = 1
             while f"{stem}{idx}" in existing_names:
                 idx += 1
-            cards.append(metric_card(prefix, name=f"{stem}{idx}", with_multiple=with_multiple))
+            patch.insert(len(existing_names), metric_card(prefix, name=f"{stem}{idx}", with_multiple=with_multiple))
+            return patch
 
-        if isinstance(trigger_id, dict):
-            trig_type = trigger_id.get("type")
-            trig_name = trigger_id.get("name")
+        # Buttons appearing (the cards rendered on load, a card added) trigger
+        # this too, without anyone clicking: nothing to do then.
+        if not isinstance(trigger_id, dict):
+            return dash.no_update
+        trig_type = trigger_id.get("type")
+        trig_name = trigger_id.get("name")
+        idx = existing_names.index(trig_name) if trig_name in existing_names else None
+        if idx is None:
+            return dash.no_update
 
-            idx = None
-            for i, card in enumerate(cards):
-                card_id = card.get("props", {}).get("id", {})
-                if isinstance(card_id, dict) and card_id.get("type") == f"{prefix}-card" and card_id.get("name") == trig_name:
-                    idx = i
-                    break
-
-            if trig_type == f"{prefix}-delete" and idx is not None and idx < len(delete_clicks) and delete_clicks[idx]:
-                if trig_name in builtin_defs:
-                    # Deleting a metric that also exists built-in does not make it
-                    # disappear: it excludes the built-in one from the export, and
-                    # the card stays, greyed out, for the reset button to bring
-                    # back.
-                    cards[idx] = metric_card_from_def(
-                        prefix, trig_name, builtin_defs[trig_name], origin=ORIGIN_REMOVED, with_multiple=with_multiple
-                    )
-                else:
-                    cards = [
-                        card for card in cards
-                        if not (
-                            isinstance(card.get("props", {}).get("id", {}), dict)
-                            and card.get("props", {}).get("id", {}).get("type") == f"{prefix}-card"
-                            and card.get("props", {}).get("id", {}).get("name") == trig_name
-                        )
-                    ]
-            elif trig_type == f"{prefix}-reset" and idx is not None and idx < len(reset_clicks) and reset_clicks[idx]:
-                # Back to what Odatix defines: whatever the workspace said about
-                # this metric (an override or its removal) is dropped.
-                cards[idx] = metric_card_from_def(
-                    prefix, trig_name, builtin_defs.get(trig_name, {}), origin=ORIGIN_BUILTIN, with_multiple=with_multiple
+        if trig_type == f"{prefix}-delete" and idx < len(delete_clicks) and delete_clicks[idx]:
+            if trig_name in builtin_defs:
+                # Deleting a metric that also exists built-in does not make it
+                # disappear: it excludes the built-in one from the export, and
+                # the card stays, greyed out, for the reset button to bring
+                # back.
+                patch[idx] = metric_card_from_def(
+                    prefix, trig_name, builtin_defs[trig_name], origin=ORIGIN_REMOVED, with_multiple=with_multiple
                 )
-            elif trig_type == f"{prefix}-duplicate" and idx is not None and idx < len(duplicate_clicks) and duplicate_clicks[idx]:
-                existing_names = [
-                    card.get("props", {}).get("id", {}).get("name", "")
-                    for card in cards if isinstance(card.get("props", {}).get("id", {}), dict)
-                ]
-                copy_idx = 1
-                while f"{trig_name}_copy{copy_idx}" in existing_names:
-                    copy_idx += 1
-                new_name = f"{trig_name}_copy{copy_idx}"
-                # A copy is a metric of your own, even when made from a built-in
-                # card: no built-in metric goes by that new name.
-                cards.append(metric_card(
-                    prefix,
-                    name=new_name,
-                    origin=ORIGIN_WORKSPACE,
-                    has_builtin=False,
-                    with_multiple=with_multiple,
-                    **card_values(idx),
-                ))
-
-        cards.append(add_card(prefix, add_text_for(prefix, mode) if mode else add_text))
-        return cards
+            else:
+                del patch[idx]
+            return patch
+        if trig_type == f"{prefix}-reset" and idx < len(reset_clicks) and reset_clicks[idx]:
+            # Back to what Odatix defines: whatever the workspace said about
+            # this metric (an override or its removal) is dropped.
+            patch[idx] = metric_card_from_def(
+                prefix, trig_name, builtin_defs.get(trig_name, {}), origin=ORIGIN_BUILTIN, with_multiple=with_multiple
+            )
+            return patch
+        if trig_type == f"{prefix}-duplicate" and idx < len(duplicate_clicks) and duplicate_clicks[idx]:
+            copy_idx = 1
+            while f"{trig_name}_copy{copy_idx}" in existing_names:
+                copy_idx += 1
+            new_name = f"{trig_name}_copy{copy_idx}"
+            # A copy is a metric of your own, even when made from a built-in
+            # card: no built-in metric goes by that new name.
+            patch.insert(len(existing_names), metric_card(
+                prefix,
+                name=new_name,
+                origin=ORIGIN_WORKSPACE,
+                has_builtin=False,
+                with_multiple=with_multiple,
+                **card_values(idx),
+            ))
+            return patch
+        return dash.no_update
 
     @dash.callback(
         Output({"type": f"{prefix}-name-error", "name": dash.ALL}, "children"),
@@ -1016,8 +1013,25 @@ def register_section_callbacks(prefix, name_stem, add_text):
         )
         card_states = card_origins(names, definitions, origins, builtin_defs)
 
+        # A keystroke in a field can only change the badge of its own card:
+        # every other card is left alone (no_update), so typing does not make
+        # Dash re-render the footer of every card on the page.
+        only = None
+        triggered = ctx.triggered_id
+        if (
+            isinstance(triggered, dict)
+            and len(ctx.triggered) == 1
+        ):
+            only = triggered.get("name")
+        card_ids = [output.get("id", {}) for output in (ctx.outputs_list[0] if ctx.outputs_list else [])]
+
         children, styles, reset_styles = [], [], []
         for idx, origin in enumerate(card_states):
+            if only is not None and idx < len(card_ids) and card_ids[idx].get("name") != only:
+                children.append(dash.no_update)
+                styles.append(dash.no_update)
+                reset_styles.append(dash.no_update)
+                continue
             name = str(names[idx]).strip() if names[idx] is not None else ""
             has_builtin = name in builtin_defs
             children.append(origin_note_children(origin, has_builtin))
@@ -1256,9 +1270,28 @@ def init_page(search, page, odatix_settings):
     State("metric-saved", "data"),
     State("metric-builtin", "data"),
     State("odatix-settings", "data"),
+    State({"page": page_path, "action": "save-all"}, "className"),
+    State({"page": page_path, "action": "save-all"}, "data-tooltip"),
     prevent_initial_call=True,
 )
-def save_and_status(
+def save_and_status(*args):
+    """
+    Save on a click, otherwise keep the save button's status in step with the
+    fields. A status that does not change is not sent back: this answers every
+    keystroke, and each output it updates costs the browser a pass over every
+    component of the page.
+    """
+    shown_class, shown_tooltip = args[-2], args[-1]
+    result = _save_and_status(*args[:-2])
+    if (
+        result[2] is dash.no_update
+        and result[0] == shown_class and result[1] == shown_tooltip
+    ):
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    return result
+
+
+def _save_and_status(
     n_clicks,
     m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple, m_origin,
     d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple, d_origin,

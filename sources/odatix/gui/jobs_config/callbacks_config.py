@@ -119,7 +119,7 @@ def _refresh_sessions():
 def _workspace_sessions():
     """
     The sessions jobs can be added to: those of the workspace the page runs in,
-    as "odatix ls" lists them. A session of another workspace runs its jobs
+    as "odatix ps" lists them. A session of another workspace runs its jobs
     with that workspace's files: adding these jobs to it is never what is meant.
     """
     with _sessions_lock:

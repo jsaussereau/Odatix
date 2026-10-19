@@ -67,7 +67,7 @@ window.dash_clientside.odatix_workflow_editor = window.dash_clientside.odatix_wo
             }
             values[key] = normalize(entry.value);
         }
-        (context.inputs_list || []).forEach(function(entry) {
+        (context.inputs_list || []).concat(context.states_list || []).forEach(function(entry) {
             if (Array.isArray(entry)) {
                 entry.forEach(add);
             } else {
@@ -96,7 +96,7 @@ window.dash_clientside.odatix_workflow_editor = window.dash_clientside.odatix_wo
      * token: what differs from it is unsaved. The arguments are read from the
      * callback context rather than by position, there are as many as fields.
      */
-    ns.save_status = function(_scope, token, _request, result, title) {
+    ns.save_status = function(_scope, token, _request, result) {
         const dc = window.dash_clientside;
         const args = Array.prototype.slice.call(arguments);
         const invalidChars = args[args.length - 1] || [];
@@ -105,7 +105,15 @@ window.dash_clientside.odatix_workflow_editor = window.dash_clientside.odatix_wo
         const context = dc.callback_context;
         const values = formValues(context, [
             "page-anchor-workflow_editor", "workflow-form-token", "workflow-save-request", "workflow-save-result",
+            "workflow-form-edit", "wf-task-slots", "wf-variable-slots",
+            "workflow-snapshot", "workflow-loaded-name", "workflow-invalid-chars",
         ]);
+        let title = null;
+        (context.states_list || []).forEach(function(entry) {
+            if (entry && entry.id === "workflow-title") {
+                title = entry.value;
+            }
+        });
         const triggers = (context.triggered || []).map(function(t) { return t.prop_id || ""; });
         function triggeredBy(id) {
             return triggers.indexOf(id + ".data") >= 0;
@@ -147,6 +155,30 @@ window.dash_clientside.odatix_workflow_editor = window.dash_clientside.odatix_wo
         }
         return [CLEAN[0], CLEAN[1], dc.no_update];
     };
+
+    /*
+     * Typing in the form, handed to save_status once the keys have rested
+     * (EDIT_DELAY ms). The fields typed into are States of save_status: were
+     * they Inputs, each key would dispatch a callback over every field.
+     */
+    const EDIT_DELAY = 200;
+    let editTimer = null;
+    document.addEventListener("input", function(event) {
+        const target = event.target;
+        if (!target || !target.id || !document.getElementById("workflow-title")) {
+            return;
+        }
+        if (target.id.indexOf("wf-") < 0 && target.id !== "workflow-title") {
+            return;
+        }
+        clearTimeout(editTimer);
+        editTimer = setTimeout(function() {
+            editTimer = null;
+            if (document.getElementById("workflow-title")) {
+                window.dash_clientside.set_props("workflow-form-edit", {data: Date.now()});
+            }
+        }, EDIT_DELAY);
+    }, true);
 
     // A click on the save button, handed to save_status.
     ns.save_request = function(_scope, nClicks) {

@@ -3393,3 +3393,33 @@ label {
     position: relative;
     z-index: 4000;
 }
+
+/* Metric editor (pages/metric_editor.py): a field is one wrapping div (label
+   and info icon on a line, the input under them) and an info icon is one span
+   carrying its tooltip, to keep the component count of a card low. */
+.odx-metric-field {
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 5px;
+    width: 100%;
+}
+
+.odx-metric-input {
+    width: calc(100% - 10px);
+    margin: 0 5px 5px 5px;
+    font-size: 0.9em;
+    height: 10px;
+    z-index: 900;
+    padding: 15px 10px;
+}
+
+.odx-icon.tooltip.odx-metric-tip {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    transform: translate(5px, 1px);
+    vertical-align: middle;
+    cursor: help;
+    color: var(--tooltip-icon-color);
+    filter: var(--tooltip-icon-filter);
+}

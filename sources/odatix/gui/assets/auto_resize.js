@@ -20,34 +20,63 @@
 *
 */
 
+function resizeTextarea(textarea) {
+    textarea.style.height = "auto";
+    textarea.style.height = (textarea.scrollHeight-20) + "px";
+}
+
 document.addEventListener("input", function(e) {
-    if (e.target.classList.contains("auto-resize-textarea")) {
-        e.target.style.height = "auto";
-        e.target.style.height = (e.target.scrollHeight-20) + "px";
+    if (e.target.classList && e.target.classList.contains("auto-resize-textarea")) {
+        resizeTextarea(e.target);
     }
 });
 
 window.addEventListener("DOMContentLoaded", function() {
-    document.querySelectorAll(".auto-resize-textarea").forEach(function(textarea) {
-        textarea.style.height = "auto";
-        textarea.style.height = (textarea.scrollHeight-20) + "px";
-    });
+    document.querySelectorAll(".auto-resize-textarea").forEach(resizeTextarea);
 });
 
-const textarea_observer = new MutationObserver(() => {
-    document.querySelectorAll(".auto-resize-textarea").forEach(function(textarea) {
-        textarea.style.height = "auto";
-        textarea.style.height = (textarea.scrollHeight-20) + "px";
-    });
-});
-textarea_observer.observe(document.body, { childList: true, subtree: true });
+/*
+ * Textareas added to the page are sized once they are laid out. Only the
+ * added ones: resizing every textarea of the page at each mutation forced a
+ * layout per textarea, at each keystroke, on a big form.
+ */
+let pendingTextareas = new Set();
+let resizeTimer = null;
 
-const dropdown_observer = new MutationObserver(() => {
-    setTimeout(function() {
-        document.querySelectorAll(".auto-resize-textarea").forEach(function(textarea) {
-            textarea.style.height = "auto";
-            textarea.style.height = (textarea.scrollHeight-20) + "px";
+function resizePending() {
+    resizeTimer = null;
+    const textareas = pendingTextareas;
+    pendingTextareas = new Set();
+    textareas.forEach(function(textarea) {
+        if (textarea.isConnected) {
+            resizeTextarea(textarea);
+        }
+    });
+}
+
+const textarea_observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        mutation.addedNodes.forEach(function(node) {
+            if (node.nodeType !== 1) {
+                return;
+            }
+            if (node.classList.contains("auto-resize-textarea")) {
+                pendingTextareas.add(node);
+            }
+            node.querySelectorAll(".auto-resize-textarea").forEach(function(textarea) {
+                pendingTextareas.add(textarea);
+            });
         });
-    }, 100); // small delay to ensure layout has updated
+        // A textarea shown again (its fold opened) has to be measured anew.
+        if (mutation.type === "attributes" && mutation.target.nodeType === 1 && mutation.target.querySelectorAll) {
+            mutation.target.querySelectorAll(".auto-resize-textarea").forEach(function(textarea) {
+                pendingTextareas.add(textarea);
+            });
+        }
+    });
+    if (pendingTextareas.size && resizeTimer === null) {
+        // small delay to ensure layout has updated
+        resizeTimer = setTimeout(resizePending, 100);
+    }
 });
-dropdown_observer.observe(document.body, { childList: true, subtree: true });
+textarea_observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "open"] });

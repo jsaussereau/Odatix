@@ -728,6 +728,20 @@ _FORM_FIELDS = [
 def _as_states(dependencies):
     return [State(dependency.component_id, dependency.component_property) for dependency in dependencies]
 
+#: The fields not typed into (dropdowns, switches): a change to them is one
+#: event, it may trigger save_status at once.
+_CLICKED_FIELDS = ("wf-use-parameters", "wf-task-field-phony", "wf-variable-type",
+                   "wf-variable-field-from_type", "wf-variable-field-to_type")
+
+def _save_status_dependencies(dependencies):
+    """The form fields as save_status reads them: clicked ones first, as Input, then the typed ones, as State."""
+    def type_of(dependency):
+        component_id = dependency.component_id
+        return component_id["type"] if isinstance(component_id, dict) else component_id
+    clicked = [dependency for dependency in dependencies if type_of(dependency) in _CLICKED_FIELDS]
+    typed = [dependency for dependency in dependencies if type_of(dependency) not in _CLICKED_FIELDS]
+    return clicked + _as_states(typed)
+
 
 # Whether there is anything to save is answered on the client, at each
 # keystroke: it compares what the form holds with what it held when it was
@@ -743,7 +757,15 @@ page_clientside_callback(
     Input("workflow-form-token", "data"),
     Input("workflow-save-request", "data"),
     Input("workflow-save-result", "data"),
-    *_FORM_FIELDS,
+    # Typing reaches it through this store only, which assets/workflow_editor.js
+    # stamps once the keys have rested: a keystroke must not dispatch a
+    # callback reading a few thousand fields (each dispatch re-renders the
+    # store of every component of the page in Dash).
+    Input("workflow-form-edit", "data"),
+    # A card added, duplicated or deleted.
+    Input("wf-task-slots", "data"),
+    Input("wf-variable-slots", "data"),
+    *_save_status_dependencies(_FORM_FIELDS),
     State("workflow-snapshot", "data"),
     State("workflow-loaded-name", "data"),
     State("workflow-invalid-chars", "data"),
@@ -1090,6 +1112,7 @@ layout = html.Div(
         # the fields with; renewed each time the token changes.
         dcc.Store(id="workflow-form-token", data=None),
         dcc.Store(id="workflow-snapshot", data=None),
+        dcc.Store(id="workflow-form-edit", data=None),
         # Where each card of the two rows is (see _slotted).
         dcc.Store(id="wf-task-slots", data=None),
         dcc.Store(id="wf-variable-slots", data=None),
