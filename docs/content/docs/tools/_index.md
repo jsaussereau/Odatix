@@ -41,6 +41,7 @@ that command.
 | **DC NXT** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | Those of Design Compiler, run by `dcnxt_shell` | Validated | Commercial |
 | **Genus** | Cadence | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `medium_effort`, `extreme`, `timing`, `area`, `power` | Validated | Commercial |
 | **IC Compiler II** | Synopsys | ASIC | Place & route | `implementation` | WIP | Commercial |
+| **Icarus Verilog** | Icarus | Any | RTL analysis | `lint` | Validated | Open source |
 | **Innovus** | Cadence | ASIC | Place & route | `standard`, `express`, `extreme`, `timing`, `area`, `power` | WIP | Commercial |
 | **LibreLane** | LibreLane | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `area`, `timing`, `timing_extreme` | WIP | Open source |
 | **OpenLane** | OpenROAD | ASIC | Fmax search | `synthesis` | Legacy | Open source |

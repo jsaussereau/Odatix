@@ -10,7 +10,7 @@ features:
   - title: "Seconds, not hours"
     description: "Elaboration only — no placement, no routing, no licence-hungry synthesis run."
   - title: "Several tools at once"
-    description: "Vivado, Quartus, Genus, Design Compiler and Verilator on the same RTL: each catches what the others accept."
+    description: "Vivado, Quartus, Genus, Design Compiler, Verilator and Icarus Verilog on the same RTL: each catches what the others accept."
   - title: "Every configuration"
     description: "The whole design space is checked, not just the variant you happened to develop on."
   - title: "What deserves attention"
@@ -151,8 +151,8 @@ few lines of YAML. See [Analysis definitions](/docs/reference/analysis/).
 
 Whether a tool supports analysis is a property of the tool: a
 [`tool.yml`](/docs/reference/tools/) supports it when it declares an
-`analysis_command`. Vivado, Quartus, Genus, Design Compiler, Verilator and
-LibreLane all do.
+`analysis_command`. Vivado, Quartus, Genus, Design Compiler, Verilator, Icarus
+Verilog and LibreLane all do.
 
 An analysis targets no device and no technology: Design Compiler and Genus
 elaborate the design into generic cells, so no PDK and no

@@ -1,0 +1,176 @@
+##################################################
+# RTL analysis: how Icarus Verilog reports
+##################################################
+
+# Icarus Verilog reads Verilog, and the part of SystemVerilog "-g2012" covers:
+# a VHDL design is reported as not supported, instead of failing with syntax
+# errors.
+languages: [verilog, systemverilog]
+
+# Where its messages are, relative to the job directory.
+logs:
+  - log/analysis.log
+
+# Lines that are no finding of their own.
+ignore:
+  # The count it prints once the errors themselves are out.
+  - "^\\d+ error\\(s\\) during elaboration\\.?$"
+  - "^\\d+ errors? elaborating design\\.?$"
+  # What it says after a syntax error, which is already a finding.
+  - "^I give up\\.?$"
+  # The list of the missing modules, printed again below the errors naming
+  # them one by one ("Unknown module type: sub").
+  - "^\\*\\*\\* These modules were missing:"
+  - "^\\s+\\S+ referenced \\d+ times\\.?$"
+  - "^\\*\\*\\*$"
+
+# The word each message is introduced with.
+severities:
+  error: error
+  warning: warning
+  sorry: error
+
+# Icarus prints the context of a message on the lines below it, either indented
+# ("       : time precision. ...") or repeating where it is before the colon
+# ("rtl/top.v:6:        : Pruning 4 high bits of the expression.").
+continuation: "^(?:\\s|\\S+:\\d+:\\s+:)"
+
+# Icarus Verilog has no message codes: there is no "codes" table.
+
+# What Icarus says with "-Wall" that is normal: reported apart, it does not
+# make a design worth looking at. Add your own in the "expected" section of
+# analyze_settings.yml rather than here.
+expected:
+  style:
+    category: style
+    reason: "Coding style remark of the Icarus Verilog analysis, without effect on the hardware"
+
+# The messages of Icarus Verilog, tried in order on every line.
+messages:
+
+  missing_module:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<message>Unknown module type: (?P<subject>\\S+))"
+    severity: error
+    category: missing_module
+
+  missing_include:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): (?P<message>Include file (?P<subject>\\S+) not found)"
+    severity: error
+    category: missing_file
+
+  # What the preprocessor says of a source file given on the command line.
+  missing_source:
+    pattern: "^(?P<file>[^:\\s]+): No such file or directory"
+    message: "Cannot find source file '{file}'"
+    severity: error
+    category: missing_file
+
+  missing_top:
+    pattern: "^error: (?P<message>Unable to find the root module \"(?P<subject>[^\"]+)\" in the Verilog source\\.?)"
+    severity: error
+    category: missing_top
+
+  syntax:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): (?P<message>syntax error.*)"
+    severity: error
+    category: syntax
+
+  # What it says of the construct the syntax error is in, once it has reported
+  # the error itself.
+  syntax_detail:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): (?:error: )?(?P<message>Syntax (?:error in|in) .*)"
+    severity: error
+    category: syntax
+    secondary: true
+
+  undeclared:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<message>Unable to bind (?:wire/reg/memory|parameter|task|function) [`'](?P<subject>[^']+)'.*)"
+    severity: error
+    category: undeclared
+
+  # What it says of the expression the error above is in.
+  elaboration_detail:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<message>(?:Unable to elaborate|Failed to elaborate|Cannot evaluate) .*)"
+    severity: error
+    category: elaboration
+    secondary: true
+
+  unknown_system_task:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<message>System (?:function|task) (?P<subject>\\$\\w+) not defined.*)"
+    severity: error
+    category: undeclared
+
+  not_a_port:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<message>port ``(?P<subject>[^']+)'' is not a port of \\S+)"
+    severity: error
+    category: port_mismatch
+
+  dangling_port:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<message>Instantiating module \\S+ with dangling input port \\d+ \\((?P<subject>[^)]+)\\) floating\\.?)"
+    severity: warning
+    category: port_mismatch
+
+  port_width:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<message>Port \\d+ \\((?P<subject>[^)]+)\\) of \\S+ expects \\d+ bits, got \\d+\\.?)"
+    severity: warning
+    category: width_mismatch
+
+  select_out_of_range:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<message>(?:Part|Bit) select .* is selecting (?:before|after) the vector (?P<subject>[A-Za-z_$][\\w$]*).*)"
+    severity: warning
+    category: width_mismatch
+
+  implicit:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<message>implicit definition of wire '(?P<subject>[^']+)'\\.?)"
+    severity: warning
+    category: undeclared
+
+  macro_redefinition:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<message>redefinition of macro (?P<subject>\\S+) .*)"
+    severity: warning
+    category: style
+
+  # "-Wtimescale": a design mixing modules with and without `timescale.
+  timescale:
+    pattern: "^(?:(?P<file>[^:\\s]+):(?P<line>\\d+): )?warning: (?P<message>(?:Some design elements have no explicit time unit|.*\\btimescale\\b).*)"
+    severity: warning
+    category: style
+
+  # "-Wsensitivity-entire-vector" and "-Wsensitivity-entire-array".
+  sensitivity:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<message>@\\* .*)"
+    severity: warning
+    category: style
+
+  # A construct Icarus parses but cannot elaborate: the design is not at fault
+  # by itself, the simulator is just not able to handle it.
+  unsupported:
+    pattern: "^(?:(?P<file>[^:\\s]+):(?P<line>\\d+): )?sorry: (?P<message>.*)"
+    severity: error
+    category: other
+
+  # Icarus failing on itself, usually after the errors that led it there.
+  internal_error:
+    pattern: "^(?:(?P<file>[^:\\s]+):(?P<line>\\d+): )?internal error: (?P<message>.*)"
+    severity: error
+    category: tool_setup
+    secondary: true
+
+  any_warning:
+    pattern: "^(?:(?P<file>[^:\\s]+):(?P<line>\\d+): )?warning: (?P<message>.*)"
+    severity: warning
+    fallback: true
+
+  any_error:
+    pattern: "^(?:(?P<file>[^:\\s]+):(?P<line>\\d+): )?error: (?P<message>.*)"
+    severity: error
+    fallback: true
+
+  # What it says without introducing it at all ("rtl/top.v:14: Syntax in
+  # assignment statement l-value."): kept, so that no error of the design goes
+  # unreported, but only when nothing else explains it.
+  any_message:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+): (?P<message>[A-Z].*)"
+    severity: error
+    fallback: true
+    secondary: true

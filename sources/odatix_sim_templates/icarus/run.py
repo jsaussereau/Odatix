@@ -15,9 +15,10 @@ import sys
 if len(sys.argv) > 1:
     sys.path.insert(0, os.path.dirname(os.path.realpath(sys.argv[1])))
 
-from odatix.sim.runner import SimRunner
+from odatix.sim.runner import DEFAULT_ERRORS, SimRunner
 
-sim = SimRunner("icarus", languages=["verilog", "sv"])
+# "sorry:" is how iverilog refuses a construct it does not support.
+sim = SimRunner("icarus", languages=["verilog", "sv"], errors=tuple(DEFAULT_ERRORS) + (r":\s*sorry\s*:",))
 top = sim.tb_top
 
 command = ["iverilog", "-g2012", "-o", "odatix_sim.vvp", "-s", top]

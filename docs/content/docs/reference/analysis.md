@@ -44,8 +44,8 @@ A later file adds to an earlier one. In `messages`, `categories`, `codes`,
 and an entry mapped to nothing (`missing_module:`, YAML null) removes it; the
 `ignore` patterns add up.
 
-Odatix ships definitions for Vivado, Quartus, Design Compiler, Genus, Verilator
-and LibreLane.
+Odatix ships definitions for Vivado, Quartus, Design Compiler, Genus, Verilator,
+Icarus Verilog and LibreLane.
 
 ## Keys of `analysis.yml`
 

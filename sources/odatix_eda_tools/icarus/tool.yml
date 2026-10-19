@@ -1,0 +1,74 @@
+##################################################
+# Settings for Icarus Verilog (RTL Analysis)
+##################################################
+
+# Display metadata (used by the GUI tool selection page)
+label: "Icarus Verilog"
+description: "Open Source Icarus Verilog RTL analysis"
+
+process_group: True
+
+# No metrics file: an RTL analysis reports a status, errors and warnings, not
+# metrics read from reports.
+
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: lint
+
+unix:
+
+  constants:
+    - &iverilog_unix iverilog
+
+  # Check if Icarus Verilog is installed
+  tool_test_command:
+    - *iverilog_unix
+    - -V
+
+  # RTL Analysis
+  analysis_command:
+    - cd $work_path;
+    - make -f $eda_tools_path/icarus/makefile.mk analyze
+
+##############################################
+# Flows
+##############################################
+# Different ways of running the same job type with this tool. The commands
+# declared in the platform sections above are those of the default flow.
+
+flows:
+  lint:
+    label: "Lint"
+    description: "Icarus Verilog elaboration check"
+
+# Log formatting
+format:
+
+  logs:
+    error:         ['<error>', 'error:']
+    warning:       ['<warning>', 'warning:']
+    info:          ['<note>', 'Information:']
+    trace:         ['<trace>', 'Command:']
+
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    black:         ['<black>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    blue:          ['<blue>']
+    magenta:       ['<magenta>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+    white:         ['<lgrey>']
+    light_red:     ['<lred>']
+    light_green:   ['<lgreen>']
+    light_yellow:  ['<lyellow>']
+    light_blue:    ['<lblue>']
+    light_magenta: ['<lmagenta>']
+    light_cyan:    ['<lcyan>']
+    light_white:   ['<white>']
+
+  replace:
+    - "(.* completed successfully)": "<green>$1<end>"

@@ -112,6 +112,62 @@ class TestVerilator:
         assert "VHDL" in result.summary
 
 
+ICARUS_LOG = """\
+rtl/top.v:7: error: port ``b'' is not a port of u_sub.
+rtl/top.v:8: error: Unable to bind wire/reg/memory `undeclared_thing' in `top'
+rtl/top.v:8: error: Unable to elaborate r-value: undeclared_thing
+rtl/top.v:16: error: Unknown module type: sub_missing
+rtl/top.v:6: warning: Port 1 (a) of sub expects 4 bits, got 8.
+rtl/top.v:6:        : Pruning 4 high bits of the expression.
+warning: Some design elements have no explicit time unit and/or
+       : time precision. This may cause confusing timing results.
+4 error(s) during elaboration.
+*** These modules were missing:
+        sub_missing referenced 1 times.
+***
+"""
+
+
+class TestIcarus:
+    def test_findings(self, tmp_path):
+        result = result_of("icarus", make_job(tmp_path, "D", ICARUS_LOG))
+        assert result.status == analysis.STATUS_FAILED
+        main = result.main_finding
+        assert (main.severity, main.category, main.subject, main.location) == (
+            "error", "missing_module", "sub_missing", "rtl/top.v:16",
+        )
+        categories = {finding.category: finding for finding in result.findings}
+        assert categories["undeclared"].subject == "undeclared_thing"
+        assert categories["port_mismatch"].subject == "b"
+        # A line repeating where it is before the colon continues the message.
+        assert categories["width_mismatch"].detail[0].endswith("Pruning 4 high bits of the expression.")
+        assert categories["style"].expected
+        # Neither the error count, the list of missing modules, nor what only
+        # follows from the unbound name is a finding.
+        assert "elaborat" not in " ".join(finding.message for finding in result.findings)
+        assert sum(finding.category == "missing_module" for finding in result.findings) == 1
+
+    def test_syntax_errors(self, tmp_path):
+        log = "rtl/top.v:8: syntax error\nrtl/top.v:1: error: Syntax error in variable list.\nI give up.\n"
+        result = result_of("icarus", make_job(tmp_path, "D", log))
+        assert [(finding.category, finding.location) for finding in result.findings] == [("syntax", "rtl/top.v:8")]
+
+    def test_a_missing_top_level_and_source_file(self, tmp_path):
+        log = (
+            "rtl/top.v: No such file or directory\n"
+            'error: Unable to find the root module "top" in the Verilog source.\n'
+            "     : Perhaps ``-s top'' is incorrect?\n"
+            "1 error(s) during elaboration.\n"
+        )
+        result = result_of("icarus", make_job(tmp_path, "D", log))
+        assert sorted(finding.category for finding in result.findings) == ["missing_file", "missing_top"]
+
+    def test_a_vhdl_design_is_not_supported(self, tmp_path):
+        log = "rtl/top.vhd:1: error: No architectures to choose from for entity e.\n"
+        result = result_of("icarus", make_job(tmp_path, "D", log, sources=("top.vhd",)))
+        assert result.status == analysis.STATUS_UNSUPPORTED
+
+
 class TestVivado:
     def test_findings(self, tmp_path):
         job = str(tmp_path / "D")
@@ -399,7 +455,7 @@ class TestExpectations:
 ######################################
 
 class TestDefinitions:
-    @pytest.mark.parametrize("tool", ["verilator", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "librelane"])
+    @pytest.mark.parametrize("tool", ["verilator", "icarus", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "librelane"])
     def test_every_category_a_definition_names_exists(self, tool):
         definition = analysis.load_definition(tool)
         assert definition.rules

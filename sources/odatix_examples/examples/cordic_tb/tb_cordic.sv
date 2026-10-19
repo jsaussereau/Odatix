@@ -110,42 +110,42 @@ module tb_cordic #(
   // Stimulus
   // ------------------------------------------------------------------
   initial begin : stimulus
-    real gain       = cordic_gain(ITERATIONS);
-    real full_scale = $pow(2.0, real'(WIDTH - 1)) - 1.0;
+    static real gain       = cordic_gain(ITERATIONS);
+    static real full_scale = $pow(2.0, real'(WIDTH - 1)) - 1.0;
     // Input magnitude, chosen so that the gain does not saturate the output
     real magnitude;
     real tolerance;
 
-    int sent     = 0;
-    int received = 0;
-    int cycle    = 0;
-    int first_input_cycle  = 0;
-    int first_output_cycle = 0;
-    bit got_output = 1'b0;
+    static int sent     = 0;
+    static int received = 0;
+    static int cycle    = 0;
+    static int first_input_cycle  = 0;
+    static int first_output_cycle = 0;
+    static bit got_output = 1'b0;
 
-    bit reset_ok      = 1'b1;
-    bit continuity_ok = 1'b1;
+    static bit reset_ok      = 1'b1;
+    static bit continuity_ok = 1'b1;
 
     // Accuracy analysis
     real error_x, error_y, err;
-    real max_error     = 0.0;
-    real sum_error     = 0.0;
-    real sum_sq_error  = 0.0;
-    real sum_sq_signal = 0.0;
+    static real max_error     = 0.0;
+    static real sum_error     = 0.0;
+    static real sum_sq_error  = 0.0;
+    static real sum_sq_signal = 0.0;
     real ref_angle, out_angle, angle_error, angle_error_deg;
-    real max_angle_error_deg = 0.0;
-    real sum_sq_angle_error  = 0.0;
-    real worst_angle_deg = 0.0;
-    int  checks_passed = 0;
+    static real max_angle_error_deg = 0.0;
+    static real sum_sq_angle_error  = 0.0;
+    static real worst_angle_deg = 0.0;
+    static int  checks_passed = 0;
 
     real mean_error, rms_error, rms_angle_error_deg, rms_signal;
     real snr_db, enob, throughput;
     real pass_rate;
-    int  latency = 0;
+    static int  latency = 0;
 
     bit completeness_ok, latency_ok, accuracy_ok, all_ok;
 
-    int last_percent = 0;
+    static int last_percent = 0;
     int percent;
 
     int fd;
@@ -185,7 +185,7 @@ module tb_cordic #(
     i_y   = '0;
 
     // Feed the design and collect its outputs, one vector per cycle
-    for (int c = 0; c < MAX_CYCLES; c++) begin
+    for (int c = 0; c < MAX_CYCLES && received < NB_VECTORS; c++) begin
       @(posedge clock);
       // Let the outputs of the design settle before sampling them
       #(PERIOD / 4.0);
@@ -223,9 +223,6 @@ module tb_cordic #(
         i_valid = 1'b0;
       end
 
-      if (received >= NB_VECTORS) begin
-        break;
-      end
     end
 
     // ------------------------------------------------------------------
