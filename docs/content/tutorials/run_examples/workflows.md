@@ -153,7 +153,7 @@ To free your terminal instead, run detached and re-attach later:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix workflow -d -S experiments
-$ odatix ls                       # list sessions
+$ odatix ps                       # list sessions
 $ odatix monitor -S experiments   # re-attach
 {{< /code >}}
 

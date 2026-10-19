@@ -120,7 +120,7 @@ class Session(object):
     ######################################
 
     @classmethod
-    def find(cls, selector=None, workspace=None, any_workspace=False):
+    def find(cls, selector=None, workspace=None, any_workspace=False, any_user=False):
         """
         The session `selector` names, as ``odatix monitor -S`` finds it.
 
@@ -131,6 +131,9 @@ class Session(object):
             workspace (Workspace or str): the workspace to look in. The one of
                 the current directory when not given.
             any_workspace (bool): look in every workspace, not only this one.
+            any_user (bool): look among the sessions of every user, not only
+                yours. One of another user is only found if it is shared with
+                you (or if you are root).
 
         Raises:
             SessionError: no session, or several, match.
@@ -138,13 +141,17 @@ class Session(object):
         try:
             state = daemon_control._resolve_state_for_attach_or_stop(
                 workspace_root=_workspace_root(workspace), session=selector, any_workspace=any_workspace,
+                any_user=any_user,
             )
         except daemon_control.MultipleDaemonsError as error:
             raise SessionError(
                 "Several sessions match: " + ", ".join(str(d.get("session_id", "?")) for d in error.daemons)
             )
         except daemon_control.DaemonControlError as error:
-            raise SessionError(str(error))
+            # One message for a script: the note and the tip the command line
+            # prints apart, if any, go along.
+            parts = [str(error)] + [part for part in (getattr(error, "note", None), getattr(error, "tip", None)) if part]
+            raise SessionError(". ".join(parts))
         return cls(state)
 
     ######################################
@@ -335,7 +342,7 @@ class Session(object):
         return "<Session {0!r} of {1!r}>".format(self.id, self.workspace_root)
 
 
-def sessions(workspace=None, any_workspace=False):
+def sessions(workspace=None, any_workspace=False, any_user=False):
     """
     The sessions running jobs, as ``odatix ps`` lists them.
 
@@ -343,11 +350,15 @@ def sessions(workspace=None, any_workspace=False):
         workspace (Workspace or str): the workspace whose sessions to list. The
             one of the current directory when not given.
         any_workspace (bool): list the sessions of every workspace.
+        any_user (bool): list the sessions of every user, not only yours,
+            including those not shared with you (which cannot be used).
 
     Returns:
         list: :class:`Session` objects.
     """
     root = _workspace_root(workspace)
-    daemons = daemon_control.list_daemons(workspace_root=root)
-    in_scope, _root, _scoped = daemon_control.scope_daemons(daemons, root, any_workspace=any_workspace)
+    daemons = daemon_control.list_daemons(workspace_root=root, any_user=any_user)
+    in_scope, _root, _scoped = daemon_control.scope_daemons(
+        daemons, root, any_workspace=any_workspace, any_user=any_user,
+    )
     return [Session(state) for state in in_scope]

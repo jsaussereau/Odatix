@@ -42,12 +42,18 @@ import http.client
 import json
 import os
 import socket
+import stat
 import sys
 import tempfile
 
 from odatix.lib.parallel_job_handler.auth import (
+    ACCESS_GROUP,
+    ACCESS_USER,
     AUTH_SCHEME,
     SCOPE_CONTROL,
+    access_socket_mode,
+    chown_group,
+    normalize_access,
     secure_makedirs,
 )
 import odatix.lib.hard_settings as hard_settings
@@ -86,12 +92,36 @@ def unix_sockets_supported():
     return hasattr(socket, "AF_UNIX")
 
 
-def socket_dir():
+def shared_socket_dir():
+    """
+    Directory holding the sockets of the sessions shared with other users.
+
+    $XDG_RUNTIME_DIR is out of their reach, so these live in the temporary
+    directory, in a directory others may traverse but not list: reaching a
+    socket takes its name, which only the (shared) state file gives.
+    """
+    uid = getattr(os, "geteuid", lambda: 0)()
+    path = os.path.join(tempfile.gettempdir(), "odatix-{}-shared".format(uid))
+    if not os.path.isdir(path):
+        os.makedirs(path, exist_ok=True)
+    # In a world-writable directory, anybody could have made it first.
+    info = os.lstat(path)
+    if stat.S_ISLNK(info.st_mode) or info.st_uid != uid:
+        raise OSError("{} is not a directory of this user: not putting a session socket in it".format(path))
+    os.chmod(path, 0o711)
+    return path
+
+
+def socket_dir(access=None):
     """Directory holding session sockets, created private to its owner.
 
     Deliberately *not* the workspace: socket paths are limited to ~100 bytes,
     and a workspace living a few directories deep already blows that budget.
+    A session shared with other users has its socket where they can reach it
+    (see shared_socket_dir).
     """
+    if normalize_access(access) != ACCESS_USER:
+        return shared_socket_dir()
     base = os.environ.get("XDG_RUNTIME_DIR", "")
     if base and os.path.isdir(base):
         path = os.path.join(base, "odatix")
@@ -102,7 +132,7 @@ def socket_dir():
     return path
 
 
-def socket_path_for_session(workspace_root, session_name):
+def socket_path_for_session(workspace_root, session_name, access=None):
     """The socket path for a session, or None when it would not fit.
 
     Callers must treat None as "use TCP instead": a truncated socket path is
@@ -113,19 +143,22 @@ def socket_path_for_session(workspace_root, session_name):
 
     raw = "{}\x00{}".format(str(workspace_root or ""), str(session_name or ""))
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
-    path = os.path.join(socket_dir(), "{}.sock".format(digest))
+    directory = socket_dir() if normalize_access(access) == ACCESS_USER else shared_socket_dir()
+    path = os.path.join(directory, "{}.sock".format(digest))
 
     if len(path.encode("utf-8")) >= MAX_UNIX_SOCKET_PATH:
         return None
     return path
 
 
-def harden_socket(path, timeout=10.0):
-    """Make a listening socket readable only by its owner.
+def harden_socket(path, timeout=10.0, access=None, gid=None):
+    """Make a listening socket reachable only by its owner.
 
     uvicorn chmods the socket it creates to 0666. The socket lives in a 0700
     directory, so that alone keeps other users out, but a socket nobody else
     can open is one less thing depending on the directory staying private.
+    A session shared with others (``access``) gets the socket they may open,
+    of the group ``gid`` when shared with a group.
     """
     import time
 
@@ -133,7 +166,9 @@ def harden_socket(path, timeout=10.0):
     while time.time() < deadline:
         if os.path.exists(path):
             try:
-                os.chmod(path, 0o600)
+                if normalize_access(access) == ACCESS_GROUP:
+                    chown_group(path, gid)
+                os.chmod(path, access_socket_mode(access))
                 return True
             except OSError:
                 return False

@@ -35,7 +35,7 @@ workspace root.
 | The EDA tool check fails | The executable, module, licence or target setup is unavailable. | Run the tool's native version command in the same terminal; then check `PATH`, environment modules and `tool_install_path`. |
 | No jobs are planned | The selected names do not match existing configurations, or the run settings list is empty. | Check `architectures`, `simulations` or `workflows` in the corresponding `*_settings.yml`. |
 | A parameter block cannot be found | `start_delimiter` or `stop_delimiter` does not exactly match the copied source. | Use `odatix replace` to test the delimiters against one source/configuration pair. |
-| A job is skipped unexpectedly | A matching work directory is already managed by an active daemon, contains a completed step, or holds a workflow that ran to its end. | Use `odatix ls`; use `--rerun-from` for a stepped flow or `-o` only when overwriting is intended. |
+| A job is skipped unexpectedly | A matching work directory is already managed by an active daemon, contains a completed step, or holds a workflow that ran to its end. | Use `odatix ps`; use `--rerun-from` for a stepped flow or `-o` only when overwriting is intended. |
 | A workflow warns that a placeholder matches nothing | A `${name}` of a task names no variable, selected parameter domain, configuration or environment variable: the shell would expand it, usually to nothing. | Check the spelling in `variables`, add the domain to the selection (`+ domain/*`), or select a configuration (`workflow/config`). |
 | Explorer has no new data | The relevant result file was not exported, or Explorer points to a different directory. | Re-export the job type and start Explorer with `--input <results-directory>`. |
 | A derived metric is missing | Its source result is absent or no result matches its join criteria. | Export source job types first, inspect `derived_metrics.yml`, then run `odatix results derived`. |
@@ -81,8 +81,8 @@ List sessions first; do not start a duplicate campaign to discover whether the
 first one is still running.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls
-$ odatix ls -S nightly
+$ odatix ps
+$ odatix ps -S nightly
 $ odatix monitor -S nightly
 $ odatix stop -S nightly
 {{< /code >}}
@@ -93,9 +93,11 @@ scheduling policy.
 
 | Symptom | Cause | Action |
 |---|---|---|
-| `No session of this workspace matches 'nightly'` | The session belongs to another workspace: `ls`, `monitor` and `stop` keep to the current one. | Run the command from that workspace, or add `--any-workspace`. |
-| `odatix ls` says nothing runs, but jobs are running | They run in a session of another workspace. | `odatix ls --any-workspace`. |
-| Sessions pile up in `odatix ls` | A session stays alive once its jobs are done, so that their logs can still be read. | Close it from the end-of-run dialog, with `odatix stop -S <session>` or `odatix stop --all` (this workspace only), or run with `-E` to close it with the monitor. |
+| `No session of this workspace matches 'nightly'` | The session belongs to another workspace: `ps`, `monitor` and `stop` keep to the current one. | Run the command from that workspace, or add `--any-workspace`. |
+| `No session of yours matches 'nightly'` | The session belongs to another user: the session commands keep to your own. | Add `--any-user`. |
+| `Session ... belongs to bob and is not shared with you` | Its owner started it private (the default). | Ask them to start it with `--session-access group` (or `session_access: group` in `odatix.yml`), or act on it as root (`sudo`). |
+| `odatix ps` says nothing runs, but jobs are running | They run in a session of another workspace. | `odatix ps --any-workspace`. |
+| Sessions pile up in `odatix ps` | A session stays alive once its jobs are done, so that their logs can still be read. | Close it from the end-of-run dialog, with `odatix stop -S <session>` or `odatix stop --all` (this workspace only), or run with `-E` to close it with the monitor. |
 | Jobs keep pausing and resuming, logs say `paused by resource guard` | The machine is loaded beyond `cpu_limit`/`mem_limit` of `odatix.yml`. | Raise the limits, or turn auto-pause off (`a` in the monitor, `resource_guard: No` in `odatix.yml`). |
 | The monitor says `Session ... was stopped while the monitor was attached to it` | The session was stopped from elsewhere (`odatix stop`, the GUI). | Nothing to do: its jobs were stopped with it. |
 

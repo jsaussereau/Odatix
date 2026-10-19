@@ -28,7 +28,18 @@ import time
 
 from odatix.lib.parallel_job_handler import diagnostics
 from odatix.lib.parallel_job_handler.api import create_uvicorn_server
-from odatix.lib.parallel_job_handler.auth import ApiAuth, secure_makedirs, write_secret_json
+from odatix.lib.parallel_job_handler.auth import (
+    ApiAuth,
+    ACCESS_GROUP,
+    DEFAULT_ACCESS,
+    access_file_mode,
+    access_gid,
+    current_uid,
+    normalize_access,
+    owner_name,
+    prepare_state_dir,
+    write_secret_json,
+)
 from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
 from odatix.lib.parallel_job_handler.transport import (
     TRANSPORT_TCP,
@@ -65,11 +76,13 @@ def _raise_file_descriptor_limit():
         diagnostics.log("could not raise file descriptor limit", error=str(error))
 
 
-def _write_state_file(state_file, endpoint_fields, auth, session_name, host):
+def _write_state_file(state_file, endpoint_fields, auth, session_name, host, access=DEFAULT_ACCESS, gid=None):
     """Record where this session listens and how to authenticate to it.
 
     The file holds the session tokens, so it is written with owner-only
-    permissions -- anyone who can read it can run commands as this user.
+    permissions -- anyone who can read it can run commands as this user --
+    unless the session is shared (``access``): then those it is shared with
+    may read it, which is exactly what sharing it means.
     """
     session_name = str(session_name or host).strip() or str(host)
     state = {
@@ -77,10 +90,12 @@ def _write_state_file(state_file, endpoint_fields, auth, session_name, host):
         "session_name": session_name,
         "session_id": "{}.{}".format(os.getpid(), session_name),
         "started_at": int(time.time()),
+        "access": access,
+        "user": owner_name(current_uid()),
     }
     state.update(endpoint_fields)
     state.update(auth.tokens_dict())
-    write_secret_json(state_file, state)
+    write_secret_json(state_file, state, mode=access_file_mode(access), gid=gid if access == ACCESS_GROUP else None)
 
 
 def _delete_state_file(state_file):
@@ -119,6 +134,12 @@ def add_arguments(parser):
     parser.add_argument("--host", default=hard_settings.daemon_default_host, help="Daemon API host")
     parser.add_argument("--port", type=int, default=hard_settings.daemon_default_port, help="Preferred daemon API port")
     parser.add_argument("--session-name", default=None, help="Optional daemon session name")
+    parser.add_argument(
+        "--access",
+        choices=["user", "group", "other"],
+        default=DEFAULT_ACCESS,
+        help="Who may use the session besides its owner: nobody, the group of the workspace, or everybody",
+    )
     parser.add_argument("--jobs", type=int, default=4, help="Default maximum number of parallel jobs")
     parser.add_argument("--logsize", type=int, default=200, help="Default log history limit per job")
 
@@ -129,7 +150,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def resolve_transport(transport, socket_path, workspace_root, session_name, host):
+def resolve_transport(transport, socket_path, workspace_root, session_name, host, access=None):
     """Pick the transport actually used, and where it listens.
 
     "auto" means a unix socket whenever the platform can serve one and the
@@ -142,13 +163,13 @@ def resolve_transport(transport, socket_path, workspace_root, session_name, host
     if transport == TRANSPORT_UNIX:
         if not unix_sockets_supported():
             raise RuntimeError("Unix sockets are not supported on this platform")
-        socket_path = socket_path or socket_path_for_session(workspace_root, session_name)
+        socket_path = socket_path or socket_path_for_session(workspace_root, session_name, access=access)
         if not socket_path:
             raise RuntimeError("No usable unix socket path for this session")
         return TRANSPORT_UNIX, str(socket_path)
 
     if transport == "auto" and unix_sockets_supported():
-        socket_path = socket_path or socket_path_for_session(workspace_root, session_name)
+        socket_path = socket_path or socket_path_for_session(workspace_root, session_name, access=access)
         if socket_path:
             return TRANSPORT_UNIX, str(socket_path)
 
@@ -165,11 +186,13 @@ def run_daemon(
     transport="auto",
     socket_path=None,
     expose=False,
+    access=DEFAULT_ACCESS,
 ):
+    access = normalize_access(access)
     state_file = os.path.realpath(os.path.expanduser(str(state_file)))
     state_dir = os.path.dirname(state_file)
     if state_dir:
-        secure_makedirs(state_dir, 0o700)
+        prepare_state_dir(state_dir, access)
 
     # Opened before anything else can fail: the whole point of the file is to
     # hold what a session that dies would otherwise take with it, and its
@@ -184,8 +207,9 @@ def run_daemon(
 
     workspace_root = os.path.dirname(state_dir) if state_dir else os.getcwd()
     transport, socket_path = resolve_transport(
-        transport, socket_path, workspace_root, session_name, host
+        transport, socket_path, workspace_root, session_name, host, access=access
     )
+    gid = access_gid(workspace_root)
 
     if transport == TRANSPORT_UNIX:
         # A leftover socket from a crashed daemon would make the bind fail.
@@ -231,7 +255,9 @@ def run_daemon(
         endpoint_fields["socket_path"] = socket_path
         # The socket only exists once uvicorn has bound it, and uvicorn leaves
         # it world-writable. Tighten it as soon as it appears.
-        threading.Thread(target=harden_socket, args=(socket_path,), daemon=True).start()
+        threading.Thread(
+            target=harden_socket, args=(socket_path,), kwargs={"access": access, "gid": gid}, daemon=True,
+        ).start()
     else:
         endpoint_fields["host"] = host
         endpoint_fields["port"] = int(port)
@@ -242,6 +268,8 @@ def run_daemon(
         auth=auth,
         session_name=session_name,
         host=host,
+        access=access,
+        gid=gid,
     )
 
     try:
@@ -280,6 +308,7 @@ def main(args=None):
         logsize=args.logsize,
         transport=args.transport,
         socket_path=args.socket,
+        access=args.access,
         expose=args.expose,
     )
 

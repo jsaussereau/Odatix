@@ -177,6 +177,7 @@ def run_context_tags(search, analysis_tools=None, odatix_settings=None):
     State("lower_bound", "value"),
     State("upper_bound", "value"),
     State({"page": page_path, "action": "session-dropdown"}, "value"),
+    State({"page": page_path, "action": "session-access"}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
@@ -209,6 +210,7 @@ def run_jobs(
     lower_bound,
     upper_bound,
     selected_session,
+    session_access,
     search,
     page,
     odatix_settings,
@@ -269,6 +271,7 @@ def run_jobs(
     prepare_state._prepare_synth_type = run_mode
     prepare_state._prepare_runtime_settings = {
         "session": _normalize_session_selector(selected_session),
+        "session_access": session_access or None,
     }
 
     # Run with the current (possibly unsaved) page state: collect it and write it

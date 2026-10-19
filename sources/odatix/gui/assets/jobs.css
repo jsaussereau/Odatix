@@ -34,6 +34,30 @@
     align-items: center;
     gap: var(--space-2);
 }
+/* The menus of the bottom line of the header, compact: they are secondary to
+   the actions of the first line. */
+.odx-header-footer .Select-control {
+    height: 30px;
+    font-size: 13px;
+}
+.odx-header-footer .Select-placeholder,
+.odx-header-footer .Select--single > .Select-control .Select-value {
+    line-height: 28px;
+}
+.odx-header-footer .Select-input {
+    height: 28px;
+}
+.odx-load-from .Select-menu-outer {
+    min-width: 100%;
+    width: max-content;
+}
+.odx-load-from .VirtualizedSelectOption {
+    white-space: nowrap;
+}
+.odx-load-from .Select-placeholder {
+    color: var(--theme-link-color, #3b6fd8);
+    font-weight: 600;
+}
 .odx-session-label {
     font-size: 12px;
     font-weight: 700;

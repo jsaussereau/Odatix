@@ -215,6 +215,128 @@ def _restrict_windows_acl(path):
         pass
 
 
+#: Who may use a session besides its owner: nobody ("user", the default), the
+#: members of the group of its workspace ("group"), or every user of the
+#: machine ("other"). Using a session is running commands as its owner, so a
+#: wider access is a decision its owner makes, never a default.
+ACCESS_USER = "user"
+ACCESS_GROUP = "group"
+ACCESS_OTHER = "other"
+ACCESS_LEVELS = (ACCESS_USER, ACCESS_GROUP, ACCESS_OTHER)
+DEFAULT_ACCESS = ACCESS_USER
+
+
+def normalize_access(access):
+    """An access level out of ``access`` (None is the default one)."""
+    if access in (None, ""):
+        return DEFAULT_ACCESS
+    value = str(access).strip().lower()
+    if value not in ACCESS_LEVELS:
+        raise ValueError(
+            "Unknown session access '{}' (expected one of: {})".format(access, ", ".join(ACCESS_LEVELS))
+        )
+    return value
+
+
+def access_file_mode(access):
+    """The mode of a file only those ``access`` names may read (and write)."""
+    access = normalize_access(access)
+    if access == ACCESS_OTHER:
+        return 0o644
+    if access == ACCESS_GROUP:
+        return 0o640
+    return 0o600
+
+
+def access_socket_mode(access):
+    """The mode of a socket only those ``access`` names may connect to."""
+    access = normalize_access(access)
+    if access == ACCESS_OTHER:
+        return 0o666
+    if access == ACCESS_GROUP:
+        return 0o660
+    return 0o600
+
+
+def access_traverse_bits(access):
+    """The bits that let those ``access`` names reach a known file of a directory, not list it."""
+    access = normalize_access(access)
+    if access == ACCESS_OTHER:
+        return 0o011
+    if access == ACCESS_GROUP:
+        return 0o010
+    return 0
+
+
+def access_gid(path):
+    """
+    The group a session shared with a group belongs to: that of its workspace
+    (``path``), which is how a team shares a project. None when it cannot be
+    told.
+    """
+    try:
+        return os.stat(str(path)).st_gid
+    except (OSError, AttributeError):
+        return None
+
+
+def chown_group(path_or_fd, gid):
+    """Give a file to ``gid``, if its owner may (the owner must be a member of it)."""
+    if gid is None or not hasattr(os, "chown"):
+        return False
+    try:
+        if isinstance(path_or_fd, int):
+            os.fchown(path_or_fd, -1, int(gid))
+        else:
+            os.chown(str(path_or_fd), -1, int(gid))
+        return True
+    except OSError:
+        return False
+
+
+def owner_name(uid):
+    """The login of ``uid``, or the uid itself when it has none."""
+    if uid is None:
+        return ""
+    try:
+        import pwd
+
+        return pwd.getpwuid(int(uid)).pw_name
+    except Exception:
+        return str(uid)
+
+
+def current_uid():
+    """The user this process acts as (root under sudo)."""
+    return getattr(os, "geteuid", lambda: None)()
+
+
+def prepare_state_dir(path, access=DEFAULT_ACCESS):
+    """
+    Create the directory holding the state files of a workspace's sessions.
+
+    It is private to its owner, except that a shared session lets those it is
+    shared with *reach* its state file: they may traverse the directory, never
+    list it. A private session started later does not take that back, since a
+    shared one may still be running there; its own state file stays private.
+    """
+    path = str(path)
+    if not path:
+        return
+    created = not os.path.isdir(path)
+    if created:
+        os.makedirs(path, exist_ok=True)
+    try:
+        current = 0o700 if created else (os.stat(path).st_mode & 0o777)
+        # Never readable nor writable by anyone else, whatever it was.
+        mode = 0o700 | (current & 0o011) | access_traverse_bits(access)
+        os.chmod(path, mode)
+    except OSError:
+        pass
+    if sys.platform == "win32":
+        _restrict_windows_acl(path)
+
+
 def secure_makedirs(path, mode=0o700):
     """Create a directory only its owner may enter."""
     path = str(path)
@@ -230,12 +352,17 @@ def secure_makedirs(path, mode=0o700):
         _restrict_windows_acl(path)
 
 
-def write_secret_json(path, payload):
+def write_secret_json(path, payload, mode=0o600, gid=None):
     """Write JSON to ``path`` so that only its owner can read it.
 
     The file is created with its restricted mode from the start: creating it
     world-readable and calling chmod afterwards leaves a window in which the
     token can be read.
+
+    Args:
+        mode (int): a wider mode for a session shared with others (see
+            access_file_mode), set before anything is written.
+        gid (int): the group of the file, for a session shared with a group.
     """
     path = str(path)
     tmp_path = path + ".tmp"
@@ -249,6 +376,15 @@ def write_secret_json(path, payload):
         pass
 
     fd = os.open(tmp_path, flags, stat.S_IRUSR | stat.S_IWUSR)
+    if mode != 0o600 and hasattr(os, "fchmod"):
+        # Group first, then mode: a group-readable file of the wrong group
+        # would be shared with the wrong people, if only for a moment. The
+        # umask does not apply to fchmod, which is what makes the mode exact.
+        chown_group(fd, gid)
+        try:
+            os.fchmod(fd, mode)
+        except OSError:
+            pass
     try:
         with os.fdopen(fd, "w") as f:
             json.dump(payload, f, indent=2)

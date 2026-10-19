@@ -150,6 +150,13 @@ def _enqueue_prepared_jobs():
         prepare_state._prepare_enqueued = True
     settings = prepare_state._prepare_runtime_settings
     session = _normalize_session_selector(settings.get("session")) if isinstance(settings, dict) else None
+    # Who may use the session, if a new one is started (see enqueue_parallel_jobs).
+    try:
+        prepare_state._prepare_parallel_jobs.session_access = (
+            settings.get("session_access") if isinstance(settings, dict) else None
+        )
+    except AttributeError:
+        pass
     try:
         state, _response = daemon_control.enqueue_parallel_jobs(
             prepare_state._prepare_parallel_jobs,

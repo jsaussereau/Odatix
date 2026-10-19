@@ -399,7 +399,7 @@ print(run.check().counts())     # what would run, having touched nothing
 run.start()
 for job in run.wait():
     print(job["name"], job["status"])
-run.session.stop()  # the session stays open otherwise ("odatix ls" lists it)
+run.session.stop()  # the session stays open otherwise ("odatix ps" lists it)
 {{< /code >}}
 
 Run it from the workspace directory.

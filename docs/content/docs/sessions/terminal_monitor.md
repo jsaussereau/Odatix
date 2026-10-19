@@ -74,7 +74,7 @@ Auto-pause is the [resource guard](/docs/reference/workspace/#resource-guard): w
 
 ## Terminals without colors
 
-With `NO_COLOR` set, the monitor shows no colors (bold and reverse video stay). A terminal that cannot hide its cursor (`TERM=vt100`) still shows it. One that cannot show it at all (`TERM=dumb`, no terminal) says so, and how to follow the jobs instead (`odatix ls`, the GUI Monitor page).
+With `NO_COLOR` set, the monitor shows no colors (bold and reverse video stay). A terminal that cannot hide its cursor (`TERM=vt100`) still shows it. One that cannot show it at all (`TERM=dumb`, no terminal) says so, and how to follow the jobs instead (`odatix ps`, the GUI Monitor page).
 
 ## Mouse support
 

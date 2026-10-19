@@ -61,6 +61,15 @@ def diagnostics_path(state_file):
     return os.path.join(directory, "{0}.diag.log".format(name or "daemon"))
 
 
+def _open_private(path):
+    """``path`` opened for appending, created readable by its owner only.
+
+    The directory of a shared session can be traversed by other users: what a
+    session logs about its jobs is not part of what sharing it hands over.
+    """
+    return os.fdopen(os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600), "a")
+
+
 def configure(path):
     """Start writing diagnostics to ``path``. Called once, by the daemon."""
     with _lock:
@@ -93,7 +102,7 @@ def log(message, **fields):
         )
         with _lock:
             _rotate_if_needed(path)
-            with open(path, "a") as handle:
+            with _open_private(path) as handle:
                 handle.write(line)
     except Exception:
         pass
@@ -127,7 +136,7 @@ def log_exception(message, error=None, **fields):
         if not text or text.startswith("NoneType"):
             return
         with _lock:
-            with open(path, "a") as handle:
+            with _open_private(path) as handle:
                 handle.write(text if text.endswith("\n") else text + "\n")
     except Exception:
         pass

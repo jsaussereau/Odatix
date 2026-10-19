@@ -18,7 +18,7 @@ A session is a background process, a **daemon**, that runs the jobs handed over 
 
 Each session has an ID of the form `<pid>.<name>` (e.g. `12345.nightly`), where `<pid>` is the process of its daemon, and can be attached, detached and re-attached freely, from the terminal or from the browser.
 
-A session belongs to the workspace it was started in. The session commands (`odatix ls`, `odatix monitor`, `odatix stop`) work on the sessions of the current workspace: see [sessions of other workspaces](#sessions-of-other-workspaces).
+A session belongs to the workspace it was started in. The session commands (`odatix ps`, `odatix monitor`, `odatix stop`) work on the sessions of the current workspace: see [sessions of other workspaces](#sessions-of-other-workspaces).
 
 ### Default behavior
 
@@ -72,9 +72,9 @@ Running a command with `-S` naming a session that is already running **adds its 
 ### Inspect and attach
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls                 # list the active sessions of this workspace, and where their jobs stand
-$ odatix ls -V              # also show where each session listens
-$ odatix ls -S nightly      # filter with a selector
+$ odatix ps                 # list the active sessions of this workspace, and where their jobs stand
+$ odatix ps -V              # also show where each session listens
+$ odatix ps -S nightly      # filter with a selector
 $ odatix monitor -S nightly # re-attach the monitor to a session
 {{< /code >}}
 
@@ -93,17 +93,60 @@ $ odatix stop --all         # stop every session of this workspace
 
 ### Sessions of other workspaces
 
-Every session of a user runs on the same machine, whatever project it belongs to, and a name like `nightly` can name a session in several of them. The session commands therefore keep to the **current workspace**: `odatix ls` lists its sessions (and says how many others there are), and `-S` only finds a session of this workspace. `odatix stop --all` stops the sessions of this workspace only.
+Every session of a user runs on the same machine, whatever project it belongs to, and a name like `nightly` can name a session in several of them. The session commands therefore keep to the **current workspace**: `odatix ps` lists its sessions (and says how many others there are), and `-S` only finds a session of this workspace. `odatix stop --all` stops the sessions of this workspace only.
 
 Add `--any-workspace` to reach the sessions of every workspace:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls --any-workspace                   # every session of the machine
+$ odatix ps --any-workspace                   # every session of the machine
 $ odatix monitor --any-workspace -S nightly   # a session of another workspace
 $ odatix stop --any-workspace --all           # every session of every workspace
 {{< /code >}}
 
 Outside of any workspace (a directory with no `odatix.yml` above it), every session is in reach, as with `--any-workspace`.
+
+### Sessions of other users
+
+The session commands also keep to **your own** sessions: `odatix ps` lists them
+(and says how many sessions other users run here), and `-S` only finds one of
+yours. Add `--any-user` to reach the sessions of every user; `ps --any-user`
+says whose each session is and who may use it:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix ps --any-user
+session          user   access  jobs           pid    uptime
+12345.nightly    me     user    3/19 done      12345  01:12:40
+23456.regress    alice  group   0/40 done      23456  00:05:10
+34567.debug      bob    no      -              34567  02:30:00
+{{< /code >}}
+
+Reaching a session of another user is not the right to use it. A session is
+private to its owner unless it was started shared:
+
+| Access | Who may use the session besides its owner |
+|---|---|
+| `user` (default) | Nobody. |
+| `group` | The members of the group of the workspace directory. |
+| `other` | Every user of the machine. |
+
+Using it means everything its owner can do: monitor it, add, pause or kill its
+jobs, stop it. Choose the access in `odatix.yml` (`session_access`, for every
+session of the workspace) or for one run (`--session-access`):
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix synth -S regress --session-access group   # a session the team may use
+$ odatix monitor --any-user -S regress             # attach to it, as another member of the group
+$ odatix synth -S regress                          # add jobs to it, from the same workspace
+{{< /code >}}
+
+`no` in the `access` column is a session not shared with you: commands on it
+fail with `Session ... belongs to bob and is not shared with you`. Root can act
+on every session, which is what an administrator does to clean up a machine:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ sudo odatix ps --any-workspace --any-user     # every session of the machine
+$ sudo odatix stop --any-workspace --any-user --all
+{{< /code >}}
 
 ## Security
 
@@ -113,12 +156,14 @@ Adding a job to a session means running a command line on the machine that hosts
 
 By default a session listens on a **Unix domain socket** — not on a network port. The socket lives in a directory only its owner may enter (`$XDG_RUNTIME_DIR/odatix`, or `/tmp/odatix-<uid>`), so no other user on the machine can reach it, and nothing on the network can.
 
+A session shared with a group or with every user (see [sessions of other users](#sessions-of-other-users)) is reached the same way, with permissions that let exactly those users in: its state file, which holds its tokens, is readable by the group of the workspace (`group`) or by everybody (`other`); its socket is in `/tmp/odatix-<uid>-shared`, a directory they may traverse but not list. The directory holding the state files of a workspace (`.odatix_sessions`) is never listable by other users, and the logs of a session stay private to its owner.
+
 On Windows, where the API server cannot use a Unix socket, a session falls back to a **loopback TCP port** (`127.0.0.1`). It is not reachable from another machine, and the token below is still required.
 
-Whichever transport is used, `odatix ls` shows the address of each session:
+Whichever transport is used, `odatix ps` shows the address of each session:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls
+$ odatix ps
 workspace          session         address                                     pid     uptime
 /home/me/project   12345.nightly   unix:/run/user/1000/odatix/a2a661b8.sock    12345   01:12:40
 {{< /code >}}
@@ -144,8 +189,8 @@ The `Host` header of every request is checked as well. A web page you visit can 
 `-R`/`--remote` works on a remote session over SSH, with **no port opened anywhere**: the remote session keeps listening on its private socket, and SSH forwards the API to it.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls -R user@server                        # list the sessions of another machine
-$ odatix ls -R user@server:/path/to/workspace     # ... in a given workspace
+$ odatix ps -R user@server                        # list the sessions of another machine
+$ odatix ps -R user@server:/path/to/workspace     # ... in a given workspace
 $ odatix monitor -R user@server -S nightly        # attach the monitor to a remote session
 $ odatix stop -R user@server -S nightly           # stop a remote session
 {{< /code >}}
@@ -196,7 +241,7 @@ This prevents two sessions from running the same job directory at the same time,
 
 ## From a Python script
 
-The [Python API](/docs/python_api/#following-and-stopping-a-run) lists the sessions of a workspace, follows the jobs of a run it started, and stops a session, as `odatix ls`, `odatix monitor` and `odatix stop` do.
+The [Python API](/docs/python_api/#following-and-stopping-a-run) lists the sessions of a workspace, follows the jobs of a run it started, and stops a session, as `odatix ps`, `odatix monitor` and `odatix stop` do.
 
 ## See also
 

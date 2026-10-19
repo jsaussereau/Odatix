@@ -264,7 +264,7 @@ of its own, which goes on once the script is over. The run keeps track of it:
 
 {{< code lang=python filename="follow.py" >}}
 run.start()
-run.session.id                # "438856.no_tty.myhost", as "odatix ls" shows it
+run.session.id                # "438856.no_tty.myhost", as "odatix ps" shows it
 run.status()                  # [{"name": ..., "status": "running", "progress": 40, ...}, ...]
 
 jobs = run.wait(timeout=3600) # back once every job of the run is over
@@ -276,7 +276,7 @@ run.session.stop()            # close the session, as "odatix stop" does
 `run.status()` and `run.wait()` only look at the jobs of this run, even when
 the session holds others (several runs can share one with `session=`).
 
-The sessions of a workspace are listed and controlled the way `odatix ls`,
+The sessions of a workspace are listed and controlled the way `odatix ps`,
 `odatix monitor` and `odatix stop` do it:
 
 {{< code lang=python filename="sessions.py" >}}

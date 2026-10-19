@@ -186,10 +186,24 @@ FIELDS = {
         "kind": "number",
         "tooltip": "Memory usage of the machine above which a running job is paused.",
     },
+    "session_access": {
+        "label": "Shared with",
+        "kind": "access",
+        "tooltip": "Who may use the sessions started in this workspace besides you: monitor them, add, pause or "
+                   "kill their jobs, stop them. Using a session is running commands as you, so share it only "
+                   "with people you trust. Applies to the sessions started afterwards.",
+    },
 }
 
+#: The choices of "session_access", as the page names them.
+ACCESS_OPTIONS = [
+    {"label": "Nobody (user)", "value": "user"},
+    {"label": "The group of the workspace (group)", "value": "group"},
+    {"label": "Every user of the machine (other)", "value": "other"},
+]
+
 #: Kinds of field whose empty value is None (a dropdown) rather than "".
-DROPDOWN_KINDS = ("tool", "yes_no")
+DROPDOWN_KINDS = ("tool", "yes_no", "access")
 
 
 def field_id(key):
@@ -233,6 +247,8 @@ def field_placeholder(key):
         return "{0:g}".format(OdatixSettings.DEFAULT_CPU_LIMIT)
     if key == "mem_limit":
         return "{0:g}".format(OdatixSettings.DEFAULT_MEM_LIMIT)
+    if key == "session_access":
+        return ACCESS_OPTIONS[0]["label"]
     return ""
 
 
@@ -289,6 +305,8 @@ def setting_field(key, value):
             value=None if value == "" else value,
             **common
         )
+    if kind == "access":
+        return ui.form_dropdown(options=ACCESS_OPTIONS, value=value or None, **common)
     if kind == "number":
         return ui.form_field(type="number", value=value, **common)
     return ui.form_field(value=value, **common)

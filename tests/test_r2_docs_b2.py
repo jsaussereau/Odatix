@@ -63,11 +63,40 @@ def test_theme_selector_is_labelled():
     assert '"aria-label": "Theme"' in _read("sources", "odatix", "gui", "navigation.py")
 
 
+def _text(component):
+    """The text a Dash component tree shows."""
+    if component is None:
+        return ""
+    if isinstance(component, str):
+        return component
+    if isinstance(component, (list, tuple)):
+        return "".join(_text(child) for child in component)
+    return _text(getattr(component, "children", None))
+
+
 def test_selection_source_names_the_settings_file_of_the_job_type():
     from odatix.gui.jobs_config.callbacks_config import selection_source_text
-    assert selection_source_text("?type=custom_freq_synthesis&tool=vivado", {}) == "Selection loaded from synth_settings.yml"
-    assert selection_source_text("?type=fmax_synthesis&tool=vivado", {}) == "Selection loaded from fmax_settings.yml"
-    assert selection_source_text("?type=fmax_synthesis", {"fmax_settings_file": "cfg/my.yml"}) == "Selection loaded from my.yml"
+    assert _text(selection_source_text("?type=custom_freq_synthesis&tool=vivado", {})) == "Selection loaded from synth_settings.yml"
+    assert _text(selection_source_text("?type=fmax_synthesis&tool=vivado", {})) == "Selection loaded from fmax_settings.yml"
+    assert _text(selection_source_text("?type=fmax_synthesis", {"fmax_settings_file": "cfg/my.yml"})) == "Selection loaded from my.yml"
+
+
+def test_a_selection_loaded_from_another_file_says_it_is_unsaved():
+    from odatix.gui.jobs_config.callbacks_config import selection_source_text
+    text = selection_source_text("?type=fmax_synthesis", {}, loaded_from="cfg/analysis_settings.yml")
+    assert _text(text) == "Selection loaded from analysis_settings.yml (unsaved)"
+    assert text.title.endswith("fmax_settings.yml")
+
+
+def test_load_from_offers_the_other_architecture_job_types(tmp_path, monkeypatch):
+    from odatix.gui.jobs_config.callbacks_config import load_from_options
+    monkeypatch.chdir(str(tmp_path))
+    (tmp_path / "synth.yml").write_text("architectures:\n  - A/8bits\n")
+    (tmp_path / "analysis.yml").write_text("architectures: []\n")
+    settings = {"synth_settings_file": "synth.yml", "analyze_settings_file": "analysis.yml", "fmax_settings_file": "fmax.yml"}
+    # Its own file first, then the others that select something.
+    assert [o["value"] for o in load_from_options("?type=fmax_synthesis", settings)] == ["fmax.yml", "synth.yml"]
+    assert load_from_options("?type=simulation", settings) == []
 
 
 def test_own_flows_tutorials_follow_the_run_page():

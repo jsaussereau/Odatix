@@ -49,7 +49,7 @@ for job in run.wait():      # back once every job of the run is over
 ```
 
 The jobs run in a session, a background process that outlives the script:
-`sessions()` lists those of the workspace, as `odatix ls` does, and a
+`sessions()` lists those of the workspace, as `odatix ps` does, and a
 `Session` is followed or stopped the way `odatix monitor` and
 `odatix stop` do it.
 
@@ -189,6 +189,7 @@ Declared settings:
 | `exit_when_done` | `bool` | `False` | Close the monitor once every job is done. |
 | `detach` | `bool` | `True` | Hand the jobs over to the daemon without attaching a monitor. |
 | `session` | `any` |  | Daemon session to enqueue into. |
+| `session_access` | `any` |  | Who may use a session this run starts besides its owner: "user" (nobody), "group" (the group of the workspace) or "other" (every user). None is what the workspace says ("session_access" in odatix.yml). |
 | `configure_session` | `bool` | `True` | Apply how this run wants the daemon to behave, on top of enqueueing its jobs. A run that is itself a job of the session it enqueues into (see odatix.dse) leaves it as it found it. |
 | `debug` | `bool` | `False` | Report what reading the settings files finds. |
 | `check_eda_tool` | `bool` | `True` | Check the eda tool actually runs before using it. |
@@ -285,7 +286,7 @@ for session in sessions():
 
 | Attribute | What it is |
 |---|---|
-| `id` *(property)* | The session id, its pid and its name (`"12345.nightly"`), as `odatix ls` shows it. |
+| `id` *(property)* | The session id, its pid and its name (`"12345.nightly"`), as `odatix ps` shows it. |
 | `name` *(property)* | The session name, what `-S` is given. |
 | `pid` *(property)* | The process id of the session. |
 | `workspace_root` *(property)* | The workspace the session belongs to. |
@@ -293,7 +294,7 @@ for session in sessions():
 
 | Method | What it does |
 |---|---|
-| `find(selector=None, workspace=None, any_workspace=False)` *(classmethod)* | The session `selector` names, as `odatix monitor -S` finds it. *Args:* `selector` *(str)* — its name, its id (`"12345.nightly"`), its pid, or the start of one of them. Without one, the only session of the workspace.; `workspace` *(Workspace or str)* — the workspace to look in. The one of the current directory when not given.; `any_workspace` *(bool)* — look in every workspace, not only this one. *Raises:* `SessionError` — no session, or several, match. |
+| `find(selector=None, workspace=None, any_workspace=False, any_user=False)` *(classmethod)* | The session `selector` names, as `odatix monitor -S` finds it. *Args:* `selector` *(str)* — its name, its id (`"12345.nightly"`), its pid, or the start of one of them. Without one, the only session of the workspace.; `workspace` *(Workspace or str)* — the workspace to look in. The one of the current directory when not given.; `any_workspace` *(bool)* — look in every workspace, not only this one.; `any_user` *(bool)* — look among the sessions of every user, not only yours. One of another user is only found if it is shared with you (or if you are root). *Raises:* `SessionError` — no session, or several, match. |
 | `is_alive()` | Whether the session answers. |
 | `status(timeout=10.0)` | What the session says of itself: how many jobs it runs at once, its resource guard, and its jobs. *Returns:* `dict` — `nb_jobs`, `resource_guard` (`enabled`, `cpu_limit`, `mem_limit`...), `counts` (see `counts()`) and `jobs` (see `jobs()`). *Raises:* `SessionError` — the session did not answer. |
 | `jobs(timeout=10.0)` | The jobs of the session, in the order it received them. *Returns:* `list` — one dict per job: `id` (what `pause()`, `resume()` and `kill()` take), `name`, `status` ("queued", "running", "paused", "success", "failed", "killed", "canceled"...), `progress` (percent), `elapsed` ("HH:MM:SS") and `tmp_dir` (the job's work directory, absolute). |
@@ -307,14 +308,15 @@ for session in sessions():
 | `set_resource_guard(enabled)` | Turn the resource guard (auto-pause on overload) on or off. |
 | `stop()` | Stop the session, and the jobs still running in it, as `odatix stop` does. *Returns:* `bool` — whether the session is confirmed gone. |
 
-## `sessions(workspace=None, any_workspace=False)`
+## `sessions(workspace=None, any_workspace=False, any_user=False)`
 
-The sessions running jobs, as `odatix ls` lists them.
+The sessions running jobs, as `odatix ps` lists them.
 
 **Args:**
 
 - `workspace` *(Workspace or str)* — the workspace whose sessions to list. The one of the current directory when not given.
 - `any_workspace` *(bool)* — list the sessions of every workspace.
+- `any_user` *(bool)* — list the sessions of every user, not only yours, including those not shared with you (which cannot be used).
 
 **Returns:**
 

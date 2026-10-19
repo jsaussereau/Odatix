@@ -107,6 +107,14 @@ class RunOptions(Settings):
     exit_when_done = Setting(False, type="bool", doc="Close the monitor once every job is done.")
     detach = Setting(True, type="bool", doc="Hand the jobs over to the daemon without attaching a monitor.")
     session = Setting(None, type="any", doc="Daemon session to enqueue into.")
+    session_access = Setting(
+        None, type="any",
+        doc=(
+            "Who may use a session this run starts besides its owner: \"user\" (nobody), \"group\" "
+            "(the group of the workspace) or \"other\" (every user). None is what the workspace says "
+            "(\"session_access\" in odatix.yml)."
+        ),
+    )
     configure_session = Setting(
         True, type="bool",
         doc=(

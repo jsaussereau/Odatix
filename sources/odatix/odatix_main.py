@@ -249,7 +249,7 @@ class ArgParser:
     # Daemon
     ArgParser.monitor_parser = add("monitor", "attach the monitor to a session of the workspace")
     add_options(
-      ArgParser.monitor_parser, "session_selector", "any_workspace", "endpoint_options",
+      ArgParser.monitor_parser, "session_selector", "any_workspace", "any_user", "endpoint_options",
       session_selector={"help": "session to attach to: its name, its ID (12345.nightly), its PID, or the start of one of them (default: the only session of the workspace)"},
       remote={"help": "attach to a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
@@ -257,10 +257,11 @@ class ArgParser:
 
     ArgParser.ps_parser = add("ps", "list the active sessions of the workspace")
     add_options(
-      ArgParser.ps_parser, "session_selector", "zombies", "any_workspace", "endpoint_options",
+      ArgParser.ps_parser, "session_selector", "zombies", "any_workspace", "any_user", "endpoint_options",
       session_selector={"help": "only the sessions this selects: a name, an ID (12345.nightly), a PID, or the start of one of them"},
       zombies={"help": "also list zombie sessions (unresponsive daemons and leftover state files)"},
       any_workspace={"help": "list the sessions of every workspace (default: those of the current workspace only)"},
+      any_user={"help": "list the sessions of every user, with whose they are and who may use them (default: yours only)"},
       remote={"help": "list the sessions of another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
     ArgParser.ps_parser.add_argument('-V', '--verbose', action='store_true', help='also show where each session listens')
@@ -270,9 +271,9 @@ class ArgParser:
     ArgParser.stop_parser = add("stop", "stop a session of the workspace")
     stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
     add_options(stop_selector_group, "session_selector")
-    stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all the sessions of the workspace (of every workspace with --any-workspace)')
+    stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all your sessions of the workspace (of every workspace with --any-workspace, of every user with --any-user)')
     add_options(
-      ArgParser.stop_parser, "zombies", "any_workspace", "endpoint_options",
+      ArgParser.stop_parser, "zombies", "any_workspace", "any_user", "endpoint_options",
       zombies={"help": "also kill zombie sessions (unresponsive daemons and leftover state files)"},
       remote={"help": "stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace"},
     )
@@ -388,7 +389,7 @@ def say_several_sessions(error, args, also=""):
   else:
     printc.warning("Several sessions run in this workspace:", script_name)
   if isinstance(error.daemons, list) and len(error.daemons) > 0:
-    print(daemon_control.format_daemons_table(error.daemons, workspace=bool(args.any_workspace)))
+    print(daemon_control.format_daemons_table(error.daemons, workspace=bool(args.any_workspace), user=bool(args.any_user)))
   else:
     printc.cyan(str(error), script_name)
   if selector is not None:
@@ -396,6 +397,14 @@ def say_several_sessions(error, args, also=""):
       error.daemons[0].get("session_id", "12345.name") if error.daemons else "12345.name", also), script_name)
   else:
     printc.note("Choose one with -S/--session{}".format(also), script_name)
+
+def report_error(e):
+  """An error of a session command, with the note and the tip it carries, if any."""
+  printc.error(str(e), script_name)
+  if getattr(e, "note", None):
+    printc.note(e.note, script_name)
+  if getattr(e, "tip", None):
+    printc.tip(e.tip, script_name)
 
 def monitor_daemon(args):
   success = True
@@ -407,6 +416,7 @@ def monitor_daemon(args):
       token=getattr(args, "token", None),
       remote=getattr(args, "remote", None),
       any_workspace=args.any_workspace,
+      any_user=args.any_user,
     )
     # The screen goes back to what it was before the monitor: say which
     # session goes on, or what became of it.
@@ -416,12 +426,12 @@ def monitor_daemon(args):
     say_several_sessions(e, args)
     success = False
   except Exception as e:
-    printc.error(str(e), script_name)
+    report_error(e)
     success = False
   return success
 
 def kill_zombie_sessions(args):
-  result = daemon_control.kill_zombie_daemons(session=args.session, any_workspace=args.any_workspace)
+  result = daemon_control.kill_zombie_daemons(session=args.session, any_workspace=args.any_workspace, any_user=args.any_user)
   total = int(result.get("total", 0))
   killed = int(result.get("killed", 0))
   failed = result.get("failed", [])
@@ -451,6 +461,7 @@ def stop_daemon(args):
     if args.all:
       result = daemon_control.stop_all_daemons(
         host=args.host, port=args.port, token=getattr(args, "token", None), any_workspace=args.any_workspace,
+        any_user=args.any_user,
       )
       total = int(result.get("total", 0))
       stopped = int(result.get("stopped", 0))
@@ -467,7 +478,10 @@ def stop_daemon(args):
       printc.warning(f"Stopped {stopped}/{total} session(s)", script_name)
       if isinstance(failed, list) and len(failed) > 0:
         printc.cyan("Sessions that could not be stopped:", script_name)
-        print(daemon_control.format_daemons_table(failed))
+        print(daemon_control.format_daemons_table(failed, user=args.any_user))
+        if any(daemon.get("no_access") for daemon in failed):
+          printc.note("Sessions of other users can only be stopped when they share them with you", script_name)
+          printc.tip("run the command as root (sudo) to stop them anyway", script_name)
       success = False
       return success
 
@@ -478,6 +492,7 @@ def stop_daemon(args):
       token=getattr(args, "token", None),
       remote=getattr(args, "remote", None),
       any_workspace=args.any_workspace,
+      any_user=args.any_user,
     )
     session_label = "session " + args.session if args.session not in (None, "") else "the session of the workspace"
     if stopped:
@@ -489,7 +504,7 @@ def stop_daemon(args):
     say_several_sessions(e, args, also=", or stop them all with -a/--all")
     success = False
   except Exception as e:
-    printc.error(str(e), script_name)
+    report_error(e)
     success = False
   return success
 
@@ -505,16 +520,23 @@ def list_daemons(args):
       session=args.session,
       token=getattr(args, "token", None),
       remote=remote,
+      any_user=True,
     )
 
-    # The sessions of this workspace, unless asked for every one. An explicit
+    # Your sessions of this workspace, unless asked for every one. An explicit
     # endpoint or another machine is a scope of its own.
     scanning = args.host is None and args.port is None and remote is None
-    elsewhere = 0
+    elsewhere = of_others = 0
     _root, scoped = None, False
     if scanning:
-      in_scope, _root, scoped = daemon_control.scope_daemons(daemons, any_workspace=args.any_workspace)
-      elsewhere = len(daemons) - len(in_scope)
+      in_scope, _root, scoped = daemon_control.scope_daemons(
+        daemons, any_workspace=args.any_workspace, any_user=args.any_user,
+      )
+      # What each option would add: --any-user here, --any-workspace for you.
+      with_others, _r, _s = daemon_control.scope_daemons(daemons, any_workspace=args.any_workspace, any_user=True)
+      everywhere, _r, _s = daemon_control.scope_daemons(daemons, any_workspace=True, any_user=args.any_user)
+      of_others = len(with_others) - len(in_scope)
+      elsewhere = len(everywhere) - len(in_scope)
       daemons = in_scope
 
     if getattr(args, "json", False):
@@ -528,8 +550,8 @@ def list_daemons(args):
     # explicit endpoint is given.
     zombies = []
     if show_zombies and scanning:
-      zombies = daemon_control.list_zombie_daemons(session=args.session)
-      zombies, _root, _scoped = daemon_control.scope_daemons(zombies, any_workspace=args.any_workspace)
+      zombies = daemon_control.list_zombie_daemons(session=args.session, any_user=args.any_user)
+      zombies, _root, _scoped = daemon_control.scope_daemons(zombies, any_workspace=args.any_workspace, any_user=args.any_user)
       # A daemon answering intermittently can show up in both scans: keep it
       # in the zombie section only, never advertise it as an active session.
       daemons = daemon_control.exclude_zombies(daemons, zombies)
@@ -548,10 +570,16 @@ def list_daemons(args):
         printc.say("Sessions of " + daemon_control._home_relative(_root) + ":", script_name)
       print(daemon_control.format_daemons_table(
         daemons, workspace=not one_workspace, address=getattr(args, "verbose", False), jobs=True,
+        user=args.any_user,
       ))
     if elsewhere:
       printc.note(
         "{} more session{} in other workspaces: '{} ps --any-workspace' lists them".format(elsewhere, "s" if elsewhere != 1 else "", prog),
+        script_name,
+      )
+    if of_others:
+      printc.note(
+        "{} session{} of other users: '{} ps --any-user' lists them".format(of_others, "s" if of_others != 1 else "", prog),
         script_name,
       )
 
@@ -564,7 +592,7 @@ def list_daemons(args):
         print(daemon_control.format_daemons_table(zombies, zombies=True))
         printc.note("Use '" + prog + " stop -z' to kill them", script_name)
   except Exception as e:
-    printc.error(str(e), script_name)
+    report_error(e)
     success = False
   return success
 

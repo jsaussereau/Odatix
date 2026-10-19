@@ -48,7 +48,7 @@ closes:
 
 {{< code lang=bash filename="Terminal (server)" prompt="true" >}}
 $ odatix fmax --tool vivado -d -S nightly
-$ odatix ls -S nightly
+$ odatix ps -S nightly
 $ exit
 {{< /code >}}
 
@@ -68,7 +68,7 @@ $ cd ~/projects/my-odatix-workspace
 $ odatix monitor -S nightly
 {{< /code >}}
 
-Use `odatix ls` to list sessions, or `odatix stop -S nightly` to stop the one
+Use `odatix ps` to list sessions, or `odatix stop -S nightly` to stop the one
 named `nightly`. See [Job Monitor & sessions](/docs/sessions/) for the full
 session model.
 

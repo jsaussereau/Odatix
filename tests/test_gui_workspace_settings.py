@@ -84,7 +84,7 @@ def save(page, monkeypatch, values, initial, saving=False):
 
 class TestEveryKeyHasAField:
     def test_every_setting_of_odatix_yml_is_listed(self, page):
-        expected = set(name for name, _default in PATH_SETTINGS) | {"default_tool", "resource_guard", "cpu_limit", "mem_limit"}
+        expected = set(name for name, _default in PATH_SETTINGS) | {"default_tool", "resource_guard", "cpu_limit", "mem_limit", "session_access"}
         assert set(page.setting_keys()) == expected
         declared = [spec.key or spec.name for spec in WorkspaceSettings.specs()]
         assert set(declared) - set(page.setting_keys()) == {"workspace"}

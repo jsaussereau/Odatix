@@ -161,9 +161,28 @@
     display: none;
 }
 .odx-selection-source {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
     font-size: 12px;
     color: var(--theme-secondary-text-color);
-    padding-top: var(--space-1);
+}
+.odx-selection-source b {
+    font-weight: 600;
+    color: var(--theme-text-color, inherit);
+}
+.odx-muted {
+    opacity: 0.7;
+}
+/* Below the summary: where the selection comes from (left), where the jobs
+   go (right). */
+.odx-header-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
 }
 .odx-selection-source:empty {
     display: none;

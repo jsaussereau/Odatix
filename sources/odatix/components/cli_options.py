@@ -91,6 +91,11 @@ OPTIONS = {
   ######################################
   "detach": (("-d", "--detach"), dict(action="store_true", help="hand the jobs to a session and return at once, without the monitor")),
   "session": (("-S", "--session"), dict(default=None, help="session to hand the jobs to: added to it if it runs, else a new session of that name (default: a new session)")),
+  "session_access": (("--session-access",), dict(
+    choices=("user", "group", "other"), default=None,
+    help='who may use a session this starts besides you: nobody ("user"), the group of the workspace ("group") or every user ("other"); '
+         'they can then run commands as you (default: "session_access" ' + FROM_WORKSPACE + ', or "user")',
+  )),
   "host": (("--host",), dict(default=None, help="host of a session reached by hand rather than by its name, with --port (sessions listen on a unix socket otherwise)")),
   "port": (("--port",), dict(type=int, default=None, help="port of a session reached by hand rather than by its name, with --host")),
   "token": (("--token",), dict(default=None, help="session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)")),
@@ -99,6 +104,7 @@ OPTIONS = {
   # "-S" of the commands that act on a session rather than hand it jobs.
   "session_selector": (("-S", "--session"), dict(dest="session", default=None, help="session to act on: its name, its ID (12345.nightly), its PID, or the start of one of them")),
   "any_workspace": (("--any-workspace",), dict(action="store_true", help="also reach the sessions of other workspaces (default: those of the current workspace only)")),
+  "any_user": (("--any-user",), dict(action="store_true", help="also reach the sessions of other users: those they share with you, or all of them as root (default: yours only)")),
 
   ######################################
   # What a run does
@@ -158,7 +164,7 @@ OPTIONS = {
 #: The options that always go together.
 GROUPS = {
   # How a run hands its jobs over to the daemon.
-  "daemon_options": ("detach", "session"),
+  "daemon_options": ("detach", "session", "session_access"),
   # Which daemon a session command talks to.
   "endpoint_options": ("host", "port", "token", "remote"),
   # What every run command accepts about how it runs.

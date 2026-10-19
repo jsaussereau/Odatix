@@ -163,24 +163,129 @@ def update_session_dropdown(_search, _n, current_value):
 
     return options, selected
 
-def selection_source_text(search, odatix_settings):
-    """The line under the header: the settings file the selection is loaded from."""
+@dash.callback(
+    Output({"page": page_path, "action": "session-access"}, "value"),
+    Input(f"url_{page_path}", "search"),
+)
+def default_session_access(_search):
+    """What the workspace says ("session_access" in odatix.yml), each time the page opens."""
+    try:
+        return daemon_control.workspace_session_access(os.getcwd())
+    except daemon_control.DaemonControlError:
+        return "user"
+
+
+@dash.callback(
+    Output({"page": page_path, "action": "session-access"}, "disabled"),
+    Input({"page": page_path, "action": "session-dropdown"}, "value"),
+)
+def session_access_applies(selected_session):
+    """Only a new session is given an access: one that runs already keeps its own."""
+    return selected_session not in (None, "", "__new_session__")
+
+
+#: The job types whose selection is a list of architecture configurations
+#: ("architectures" of their run settings file): one can be loaded from another.
+ARCH_SELECTION_MODES = (
+    ("fmax_synthesis", "Fmax synthesis"),
+    ("custom_freq_synthesis", "Fixed-frequency synthesis"),
+    ("analyze", "RTL analysis"),
+)
+
+
+def selection_source_text(search, odatix_settings, loaded_from=None):
+    """
+    The line under the header: the settings file the selection is loaded from,
+    or the one "Load from" took it from, which Save does not write to.
+    """
     path = _get_synth_settings_path(search, odatix_settings or {})
     if not path:
         return ""
-    return "Selection loaded from " + os.path.basename(path)
+    if loaded_from:
+        return html.Span(
+            ["Selection loaded from ", html.B(os.path.basename(loaded_from)), html.Span(" (unsaved)", className="odx-muted")],
+            title="Save all writes it to " + path,
+        )
+    return ["Selection loaded from ", html.B(os.path.basename(path))]
+
+
+def load_from_options(search, odatix_settings):
+    """
+    The run settings files a selection of this page can be loaded from: its
+    own first (back to what it holds), then those of the other job types.
+    """
+    run_mode = get_key_from_url(search, "type") or "fmax_synthesis"
+    modes = dict(ARCH_SELECTION_MODES)
+    if run_mode not in modes:
+        return []
+    own = _get_synth_settings_path(search, odatix_settings or {})
+    options = [{
+        "label": "{} ({})".format(modes[run_mode], os.path.basename(own)),
+        "value": own,
+        "title": "The selection this page's file holds ({}), what the page opened with.".format(own),
+    }]
+    for mode, label in ARCH_SELECTION_MODES:
+        if mode == run_mode:
+            continue
+        path = _get_synth_settings_path("?type=" + mode, odatix_settings or {})
+        if not path or not os.path.isfile(path):
+            continue
+        selection = read_yaml(path, default={}).get("architectures") if path else None
+        if not selection:
+            continue
+        options.append({
+            "label": "{} ({})".format(label, os.path.basename(path)),
+            "value": path,
+            "title": "Select the configurations {} runs ({}). Save all writes them to this page's file.".format(
+                label.lower(), path),
+        })
+    return options
 
 
 @dash.callback(
     Output("jobs-selection-source", "children"),
     Input(f"url_{page_path}", "search"),
+    Input("jobs-selection-from", "data"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
-def update_selection_source(search, page, odatix_settings):
+def update_selection_source(search, loaded, page, odatix_settings):
     if page != page_path:
         return dash.no_update
-    return selection_source_text(search, odatix_settings)
+    loaded_from = (loaded or {}).get("path") if ctx.triggered_id == "jobs-selection-from" else None
+    if loaded_from == _get_synth_settings_path(search, odatix_settings or {}):
+        loaded_from = None
+    return selection_source_text(search, odatix_settings, loaded_from)
+
+
+@dash.callback(
+    Output("jobs-load-selection-from", "options"),
+    Output("jobs-load-selection-from", "style"),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
+)
+def update_load_from(search, page, odatix_settings):
+    """Only offered where there is another selection to load."""
+    if page != page_path:
+        return dash.no_update, dash.no_update
+    options = load_from_options(search, odatix_settings)
+    return options, {"width": "140px"} if options else {"display": "none"}
+
+
+@dash.callback(
+    Output("jobs-selection-from", "data"),
+    Output("jobs-load-selection-from", "value"),
+    Input("jobs-load-selection-from", "value"),
+    prevent_initial_call=True,
+)
+def load_selection_from(path):
+    """Load the picked file, and leave the menu ready to pick again."""
+    if not path:
+        raise dash.exceptions.PreventUpdate
+    import time
+
+    return {"path": path, "at": time.time()}, None
 
 @dash.callback(
     Output("job-settings-form-container", "children"),
@@ -244,13 +349,17 @@ def update_frequency_note(override, search):
     Output("jobs-config-main-title", "children"),
     Output("jobs-config-saved-selection", "data", allow_duplicate=True),
     Input(f"url_{page_path}", "search"),
+    Input("jobs-selection-from", "data"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def update_param_domains(
-    search, page, odatix_settings
-):
+def update_param_domains_callback(search, loaded, page, odatix_settings):
+    return update_param_domains(search, page, odatix_settings, loaded=loaded)
+
+
+def update_param_domains(search, page, odatix_settings, loaded=None):
+    """The cards of the page, from its run settings file, or `loaded` ("Load from")."""
     triggered_id = ctx.triggered_id
 
     if triggered_id == "url":
@@ -318,7 +427,16 @@ def update_param_domains(
         }
         return job_sections, context["title"], "Select the synthesized designs to place & route", saved_baseline
 
-    selection_map = _group_arch_selections(selection_settings.get(context["selection_key"], []))
+    # "Load from": the selection of another job type, the rest (job settings,
+    # where Save writes) staying this page's.
+    loaded_from = None
+    if triggered_id == "jobs-selection-from" and context["mode"] == "arch":
+        loaded_from = (loaded or {}).get("path")
+        if loaded_from == settings_path:
+            # Its own file: back to the selection it opened with.
+            loaded_from = None
+    selection_source = read_yaml(loaded_from, default={}) if loaded_from else selection_settings
+    selection_map = _group_arch_selections(selection_source.get(context["selection_key"], []))
     # Baseline of the "saved" selection, computed exactly like the widgets are
     # initialized below, so a fresh page load does not falsely report "unsaved
     # changes" (the store starts empty and is only written on Save otherwise).
@@ -438,7 +556,9 @@ def update_param_domains(
     # selection computed by save_architecture_selections(), so a fresh load
     # compares equal (no false "unsaved changes").
     saved_baseline = {
-        context["selection_key"]: list(dict.fromkeys(baseline_selection)),
+        # A selection loaded from another file is not what this page's file
+        # holds: it shows as unsaved until Save all writes it.
+        context["selection_key"]: None if loaded_from else list(dict.fromkeys(baseline_selection)),
         **_job_settings_baseline(selection_settings),
     }
     if run_mode == "analyze":

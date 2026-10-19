@@ -16,7 +16,7 @@ Because runs are daemon-driven, you can start a **detached** session over SSH an
 
 {{< code lang=bash filename="Terminal (on the server)" prompt="true" >}}
 $ odatix fmax --tool vivado -d -S nightly
-$ odatix ls                 # confirm the session is running
+$ odatix ps                 # confirm the session is running
 $ exit                      # jobs continue in the daemon
 {{< /code >}}
 

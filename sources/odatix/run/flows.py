@@ -100,6 +100,11 @@ class Flow(object):
         Through the flow's own entry point when it has one: a flow is allowed to
         do something of its own once its jobs are enqueued.
         """
+        # Read where the session is started (see enqueue_parallel_jobs).
+        try:
+            parallel_jobs.session_access = run.options.session_access
+        except AttributeError:
+            pass
         start = getattr(self.module(), "start_parallel_jobs", None)
         if start is None:
             from odatix.components.run_common import start_parallel_jobs as start

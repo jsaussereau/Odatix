@@ -142,6 +142,15 @@ class WorkspaceSettings(Settings):
     cpu_limit = Setting("", type="any", skip_if_empty=True, doc="CPU usage (%) above which jobs are paused.")
     mem_limit = Setting("", type="any", skip_if_empty=True, doc="Memory usage (%) above which jobs are paused.")
 
+    session_access = Setting(
+        "", type="str", skip_if_empty=True, section="Sessions",
+        doc=(
+            "Who may use the sessions started in this workspace besides their owner: \"user\" (nobody, "
+            "the default), \"group\" (the group of the workspace directory) or \"other\" (every user). "
+            "Using a session is running commands as its owner."
+        ),
+    )
+
     def normalize(self):
         """Read a former settings file key as the current one (see :attr:`moved_keys`)."""
         for former, key in self.moved_keys:

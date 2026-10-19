@@ -37,10 +37,11 @@ unexpected error prints a one-line message and writes the full trace to
 | Category | Commands | Purpose |
 |----------|----------|---------|
 | Initialization | `odatix init` | Initialize workspace files. |
+| Workspace | `odatix ls` | List the architectures, simulations and workflows of the workspace. |
 | Generation | `odatix generate`, `odatix replace` | Generate parameter files and replace delimited sections. |
 | Execution | `odatix fmax`, `odatix synth`, `odatix pnr`, `odatix analyze`, `odatix sim`, `odatix workflow` | Enqueue and run synthesis, place & route, RTL analysis, simulation and workflow jobs. |
 | Exploration | `odatix dse` | Search a design space instead of sweeping it. |
-| Daemon sessions | `odatix ls`, `odatix monitor`, `odatix stop` | Inspect, attach and stop daemon sessions. |
+| Daemon sessions | `odatix ps`, `odatix monitor`, `odatix stop` | Inspect, attach and stop daemon sessions. |
 | Export | `odatix results [all\|synth\|sim\|workflow\|analysis\|derived]` | Export synthesis, simulation, workflow and analysis results, and apply derived metrics. |
 | Maintenance | `odatix clean`, `odatix migrate` | Remove generated files from a clean profile, and rewrite settings files written in a former format. |
 | Graphical tools | `odatix-explorer`, `odatix-gui` | Interactive visualization of results, and the full graphical interface. |
@@ -61,6 +62,7 @@ unexpected error prints a one-line message and writes the full trace to
 | `-w`, `--work` | Work directory, instead of `work_path` of `odatix.yml` (not `dse`). |
 | `-d`, `--detach` | Enqueue jobs and return immediately (no monitor). The command says which session took them. |
 | `-S`, `--session` | Session to enqueue into: an existing session of the workspace gets the jobs added, otherwise a new session of that name is started. |
+| `--session-access` | Who may use a session this starts besides you: `user` (nobody), `group` (the group of the workspace) or `other` (every user). Default: `session_access` of `odatix.yml`, or `user`. |
 | `-j`, `--jobs` | Maximum parallel jobs (`auto` = available CPUs − 1). |
 | `-E`, `--exit` | Exit the monitor when all jobs complete, close the session and print how many jobs succeeded and failed. |
 | `--logsize` | Per-job log history size in the monitor. |
@@ -315,13 +317,28 @@ $ odatix workflow -r   # resume existing workflow directories
 `workflow_settings.yml` (`"basic/*"`, `"tensorflow + epochs/*"`) and
 replaces that list for one run, the file staying as it is. `-w` is `--work`.
 
+### Workspace contents
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix ls                             # architectures, simulations and workflows
+$ odatix ls --arch "Example_*"           # only the architectures matching a pattern
+$ odatix ls -s -W                       # simulations and workflows only
+$ odatix ls -a                          # also the configurations, domain by domain
+$ odatix ls -l                          # one name per line
+$ odatix ls --json
+{{< /code >}}
+
+`--arch`, `-s/--sim` and `-W/--workflow` choose what is listed (all three by
+default); the patterns are shell-style wildcards on the names. Names are
+shown in columns, as unix `ls` does; `-l` puts one per line.
+
 ### Daemon commands
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix ls                             # the sessions of this workspace
-$ odatix ls -S night
-$ odatix ls --json                      # as JSON, session tokens included
-$ odatix ls -z                          # also the zombie sessions
+$ odatix ps                             # the sessions of this workspace
+$ odatix ps -S night
+$ odatix ps --json                      # as JSON, session tokens included
+$ odatix ps -z                          # also the zombie sessions
 
 $ odatix monitor                        # the only session of this workspace
 $ odatix monitor -S nightly
@@ -331,10 +348,14 @@ $ odatix stop -S nightly
 $ odatix stop -a                        # --all: every session of this workspace
 $ odatix stop -z                        # kill the zombie sessions of this workspace
 
-$ odatix ls --any-workspace             # every session of the machine
+$ odatix ps --any-workspace             # your sessions of every workspace
 $ odatix stop --any-workspace -S nightly
 
-$ odatix ls -R user@server              # sessions of another machine, over ssh
+$ odatix ps --any-user                  # also the sessions of other users here
+$ odatix monitor --any-user -S regress  # a session another user shares with you
+$ sudo odatix stop --any-workspace --any-user --all   # every session of the machine
+
+$ odatix ps -R user@server              # sessions of another machine, over ssh
 $ odatix monitor -R user@server -S nightly
 $ odatix stop -R user@server -S nightly
 {{< /code >}}
@@ -344,10 +365,13 @@ finds a session of this workspace only, and `--all` stops those only. Add
 `--any-workspace` to reach the sessions of every workspace; outside of any
 workspace, every session is in reach. See
 [sessions of other workspaces](/docs/sessions/#sessions-of-other-workspaces).
+They also keep to **your** sessions: `--any-user` reaches those of other
+users, which can only be used when they are shared with you (or as root). See
+[sessions of other users](/docs/sessions/#sessions-of-other-users).
 
 A **zombie** session is a daemon that no longer answers, or a state file left
 behind by one that is gone: `-z/--zombies` lists them (`ls`) or kills them and
-removes their files (`stop`). `ls --json` is what a remote `odatix` reads over
+removes their files (`stop`). `ps --json` is what a remote `odatix` reads over
 SSH: it holds the session tokens, so do not pipe it anywhere public. All three
 commands accept `-Q/--nobanner` like the others (they print no banner anyway).
 

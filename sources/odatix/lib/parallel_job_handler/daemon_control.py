@@ -31,6 +31,12 @@ import sys
 import time
 
 from odatix.lib.parallel_job_handler.auth import (
+    ACCESS_USER,
+    DEFAULT_ACCESS,
+    current_uid,
+    normalize_access,
+    owner_name,
+    prepare_state_dir,
     SCOPE_CONTROL,
     SCOPE_READ,
     TOKEN_ENV_VAR,
@@ -81,6 +87,30 @@ class MonitorUnavailableError(DaemonControlError):
         super(MonitorUnavailableError, self).__init__(message)
         #: Why, alone, without how else to follow the jobs.
         self.reason = reason or message
+
+class OutOfScopeError(DaemonControlError):
+    """
+    No session in reach would do, but some of other workspaces or of other
+    users would.
+    """
+
+    def __init__(self, message, note, tip):
+        super(OutOfScopeError, self).__init__(message)
+        #: The sessions out of reach that would match.
+        self.note = note
+        #: How to reach them.
+        self.tip = tip
+
+#: Its former name, from when only workspaces scoped the sessions.
+OtherWorkspacesError = OutOfScopeError
+
+class SessionAccessError(DaemonControlError):
+    """The session belongs to another user, who has not shared it with this one."""
+
+    def __init__(self, message, note=None, tip=None):
+        super(SessionAccessError, self).__init__(message)
+        self.note = note
+        self.tip = tip
 
 class SessionGoneError(DaemonControlError):
     """The session a monitor was attached to stopped (from elsewhere) while it watched."""
@@ -236,6 +266,21 @@ def get_daemon_paths(workspace_root=None, session_name=None):
         "state_file": os.path.join(state_dir, _state_filename_for_session(session_name)),
         "log_file": os.path.join(state_dir, _log_filename_for_session(session_name)),
     }
+
+
+def _file_owner(path):
+    """The uid owning `path`, or None."""
+    try:
+        return os.stat(str(path)).st_uid
+    except (OSError, TypeError):
+        return None
+
+
+def _state_file_is_unreadable(path):
+    """Whether `path` exists but is not ours to read: a session not shared with this user."""
+    if not path or not os.path.isfile(str(path)):
+        return False
+    return not os.access(str(path), os.R_OK)
 
 
 def _read_json_file(path):
@@ -432,23 +477,51 @@ def is_workspace(root):
     return os.path.isfile(os.path.join(str(root), "odatix.yml"))
 
 
-def scope_daemons(daemons, workspace_root=None, any_workspace=False):
+def is_own_session(daemon, uid=None):
+    """Whether `daemon` runs as this user (a session whose owner is unknown is taken as one)."""
+    uid = current_uid() if uid is None else uid
+    owner = daemon.get("uid") if isinstance(daemon, dict) else None
+    return owner is None or uid is None or int(owner) == int(uid)
+
+
+def scope_daemons(daemons, workspace_root=None, any_workspace=False, any_user=False):
     """
     The sessions a session command acts on, out of `daemons`.
 
     Those of the current workspace, unless `any_workspace` asks for every one.
     Outside of any workspace there is no "current" one to keep to: every session
-    is in reach, as it has always been.
+    is in reach, as it has always been. And those of this user, unless
+    `any_user` asks for those of every user too (see check_session_access for
+    what may then be done with them).
 
     Returns:
         tuple: (sessions in scope, workspace root, whether the scope is the
         workspace).
     """
     root = os.path.realpath(detect_workspace_root(workspace_root))
+    if not any_user:
+        daemons = [d for d in daemons if is_own_session(d)]
     if any_workspace or not is_workspace(root):
         return list(daemons), root, False
     scoped, _root = _filter_by_workspace(daemons, workspace_root=root)
     return scoped, root, True
+
+
+def check_session_access(state):
+    """
+    Raise SessionAccessError when `state` is a session of another user that is
+    not shared with this one: its state file, which holds its token, could not
+    be read. Root reads it anyway, which is what lets an administrator act on
+    every session of the machine.
+    """
+    if not isinstance(state, dict) or not state.get("no_access"):
+        return state
+    owner = state.get("user") or owner_name(state.get("uid")) or "another user"
+    raise SessionAccessError(
+        "Session {} belongs to {} and is not shared with you".format(state.get("session_id", "?"), owner),
+        note="its owner can share it with the group of the workspace or every user ('session_access' in odatix.yml, or --session-access)",
+        tip="run the command as root (sudo) to act on it anyway",
+    )
 
 
 def _home_relative(path):
@@ -459,23 +532,47 @@ def _home_relative(path):
     return path
 
 
-def _other_workspaces_hint(others, selector=None):
-    """What to tell when only sessions of other workspaces would match."""
-    shown = ", ".join(
-        "{} ({})".format(d.get("session_id", "?"), _home_relative(d.get("workspace_root", "")))
-        for d in others[:5]
+def _other_workspaces_hint(others, selector=None, workspace_root=None, scoped=True):
+    """
+    The error to raise when only sessions out of reach would match: of other
+    workspaces (when the scope is the workspace, `scoped`), of other users, or
+    both.
+    """
+    root = os.path.realpath(str(workspace_root)) if workspace_root else None
+    other_user = any(not is_own_session(d) for d in others)
+    other_workspace = scoped and any(
+        root is None or os.path.realpath(str(d.get("workspace_root", ""))) != root for d in others
     )
+
+    def where(daemon):
+        details = []
+        if other_workspace:
+            details.append(_home_relative(daemon.get("workspace_root", "")))
+        if not is_own_session(daemon):
+            details.append("user " + str(daemon.get("user") or owner_name(daemon.get("uid"))))
+        return "{} ({})".format(daemon.get("session_id", "?"), ", ".join(details))
+
+    shown = ", ".join(where(d) for d in others[:5])
     if len(others) > 5:
         shown += ", ..."
+
+    whose = " of yours" if other_user else ""
     if selector:
-        return (
-            "No session of this workspace matches '{}'. In other workspaces: {}. "
-            "Add --any-workspace to reach them".format(selector, shown)
-        )
-    return (
-        "No session in this workspace. In other workspaces: {}. "
-        "Add --any-workspace to reach them".format(shown)
-    )
+        place = " in this workspace" if scoped and other_user else (" of this workspace" if scoped else "")
+        message = "No session{}{} matches '{}'".format(whose, place, selector)
+    elif other_user:
+        message = "You have no session" + (" in this workspace" if scoped else "")
+    else:
+        message = "No session in this workspace"
+
+    if other_user and other_workspace:
+        kind, options = "of other users or workspaces", "--any-workspace --any-user"
+    elif other_user:
+        kind, options = "of other users", "--any-user"
+    else:
+        kind, options = "in other workspaces", "--any-workspace"
+    note = "{} session{} {}: {}".format(len(others), "s" if len(others) != 1 else "", kind, shown)
+    return OutOfScopeError(message, note, "add {} to reach them".format(options))
 
 
 def _resolve_session_selector(daemons, selector, allow_missing=False):
@@ -631,10 +728,12 @@ def _spawn_daemon(
     daemon_log_enabled=None,
     transport=None,
     expose=False,
+    access=DEFAULT_ACCESS,
 ):
-    # 0700: the state file inside holds the session token, which is the right
-    # to run commands as this user.
-    secure_makedirs(paths["state_dir"], 0o700)
+    # Private: the state file inside holds the session token, which is the
+    # right to run commands as this user. A shared session lets the users it
+    # is shared with reach its own state file, nothing else.
+    prepare_state_dir(paths["state_dir"], access)
     session_name = _normalize_session_name(session_name, default_name=host)
     daemon_log_enabled = (
         hard_settings.daemon_log_enabled_default
@@ -666,6 +765,8 @@ def _spawn_daemon(
 
     if expose:
         command.append("--expose")
+    if normalize_access(access) != ACCESS_USER:
+        command.extend(["--access", normalize_access(access)])
 
     env = os.environ.copy()
     sources_dir = os.path.join(paths["workspace_root"], "sources")
@@ -691,7 +792,10 @@ def _spawn_daemon(
         popen_kwargs["start_new_session"] = True
 
     if daemon_log_enabled:
-        with open(paths["log_file"], "ab") as log_file:
+        # Owner-only, whatever the umask: the state directory of a shared
+        # session can be traversed by other users.
+        log_fd = os.open(paths["log_file"], os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        with os.fdopen(log_fd, "ab") as log_file:
             popen_kwargs["stdout"] = log_file
             popen_kwargs["stderr"] = log_file
             subprocess.Popen(command, **popen_kwargs)
@@ -701,6 +805,30 @@ def _spawn_daemon(
     popen_kwargs["stdout"] = subprocess.DEVNULL
     popen_kwargs["stderr"] = subprocess.DEVNULL
     subprocess.Popen(command, **popen_kwargs)
+
+
+def workspace_session_access(workspace_root):
+    """
+    Who the sessions of a workspace are shared with ("session_access" in its
+    odatix.yml), "user" when it does not say. A value that is not a level
+    is an error: falling back on a narrower access would silently lock out
+    the people the session was meant for, and on a wider one would share it
+    with people it was not.
+    """
+    path = os.path.join(str(workspace_root), "odatix.yml")
+    if not os.path.isfile(path):
+        return DEFAULT_ACCESS
+    try:
+        from odatix.workspace.yaml_io import read_yaml
+
+        data = read_yaml(path, default={}) or {}
+    except Exception:
+        return DEFAULT_ACCESS
+    value = data.get("session_access") if isinstance(data, dict) else None
+    try:
+        return normalize_access(value)
+    except ValueError as error:
+        raise DaemonControlError("{} in {}".format(error, path))
 
 
 def ensure_daemon_running(
@@ -716,6 +844,7 @@ def ensure_daemon_running(
     stuck_timeout=60.0,
     transport=None,
     expose=False,
+    access=None,
 ):
     """
     The daemon for `session`, started if there is none.
@@ -733,16 +862,27 @@ def ensure_daemon_running(
         expose (bool): let the session bind a non-loopback TCP address. Off by
             default: a session in reach of the network is a decision, not a
             side effect.
+        access (str): who may use a session started here besides its owner,
+            "user" (nobody), "group" or "other" (see auth.ACCESS_LEVELS). None
+            is what the workspace says ("session_access" in odatix.yml). A
+            session that runs already keeps its own.
+
+    A session of the workspace named by `session` may belong to another user:
+    it is used when it is shared with this one, else SessionAccessError.
     """
     workspace_root = detect_workspace_root(workspace_root)
     session_selector = str(session).strip() if session is not None else None
+    access = normalize_access(access if access is not None else workspace_session_access(workspace_root))
 
-    active_daemons = list_daemons(workspace_root=workspace_root)
+    # Every user's: a session of the workspace is one name, whoever started it
+    # (its state file is the same file).
+    active_daemons = list_daemons(workspace_root=workspace_root, any_user=True)
     active_daemons, _workspace_root = _filter_by_workspace(active_daemons, workspace_root=workspace_root)
 
     if session_selector:
         matched = _resolve_session_selector(active_daemons, session_selector, allow_missing=True)
         if matched is not None:
+            check_session_access(matched)
             if _daemon_is_alive_with_retries(matched):
                 return matched
 
@@ -816,6 +956,12 @@ def ensure_daemon_running(
         session_name = _unique_default_session_name(host=host, active_daemons=active_daemons)
         paths = get_daemon_paths(workspace_root, session_name=session_name)
 
+    if _state_file_is_unreadable(paths["state_file"]):
+        # Another user's session of that name, which the listing missed.
+        check_session_access({
+            "no_access": True, "session_id": session_name,
+            "uid": _file_owner(paths["state_file"]), "user": owner_name(_file_owner(paths["state_file"])),
+        })
     _delete_state_file(paths["state_file"])
     _spawn_daemon(
         paths,
@@ -827,6 +973,7 @@ def ensure_daemon_running(
         daemon_log_enabled=daemon_log_enabled,
         transport=transport,
         expose=expose,
+        access=access,
     )
 
     deadline = time.time() + float(startup_timeout)
@@ -889,6 +1036,7 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
         session=session,
         daemon_log_enabled=getattr(parallel_jobs, "daemon_log_enabled", None),
         create=create,
+        access=getattr(parallel_jobs, "session_access", None),
     )
 
     payload = {"jobs": [job_to_payload(job) for job in job_list]}
@@ -972,7 +1120,7 @@ def explicit_endpoint_state(host=None, port=None, token=None):
 
 
 def _resolve_state_for_attach_or_stop(
-    workspace_root=None, host=None, port=None, session=None, token=None, any_workspace=False
+    workspace_root=None, host=None, port=None, session=None, token=None, any_workspace=False, any_user=False
 ):
     """
     The session a "monitor" or a "stop" acts on.
@@ -982,29 +1130,39 @@ def _resolve_state_for_attach_or_stop(
     a name like "nightly" means a different session in every project. Without
     a selector, the only session of the workspace is the one; several are an
     ambiguity listing those, not every session of the machine.
+
+    Only the sessions of this user are in reach, unless `any_user`; even then,
+    one of another user is only reached if it is shared with this one (see
+    check_session_access).
     """
     if host is not None or port is not None:
         state = explicit_endpoint_state(host=host, port=port, token=token)
         _decorate_session_fields(state)
         return state
 
-    all_daemons = list_daemons(workspace_root=workspace_root)
-    in_scope, workspace_root, scoped = scope_daemons(all_daemons, workspace_root, any_workspace=any_workspace)
-    others = [d for d in all_daemons if d not in in_scope] if scoped else []
+    all_daemons = list_daemons(workspace_root=workspace_root, any_user=True)
+    in_scope, workspace_root, scoped = scope_daemons(
+        all_daemons, workspace_root, any_workspace=any_workspace, any_user=any_user,
+    )
+    others = [d for d in all_daemons if d not in in_scope]
 
     selector = str(session).strip() if session is not None else ""
     if selector != "":
         matched = _resolve_session_selector(in_scope, selector, allow_missing=True)
         if matched is not None:
-            return matched
+            return check_session_access(matched)
         elsewhere = _filter_daemons_by_session_selector(others, selector)
         if elsewhere:
-            raise DaemonControlError(_other_workspaces_hint(elsewhere, selector))
+            raise _other_workspaces_hint(elsewhere, selector, workspace_root, scoped)
         raise DaemonControlError("No session matches '{}'".format(selector))
 
     paths = get_daemon_paths(workspace_root)
     state = _read_json_file(paths["state_file"])
-    if state is not None and daemon_is_alive(state):
+    if (
+        state is not None
+        and (any_user or _file_owner(paths["state_file"]) in (None, current_uid()))
+        and daemon_is_alive(state)
+    ):
         state = dict(state)
         state["workspace_root"] = workspace_root
         state["state_file"] = paths["state_file"]
@@ -1012,20 +1170,20 @@ def _resolve_state_for_attach_or_stop(
         return state
 
     if len(in_scope) == 1:
-        return in_scope[0]
+        return check_session_access(in_scope[0])
 
     if len(in_scope) > 1:
         raise MultipleDaemonsError(in_scope)
 
     if others:
-        raise DaemonControlError(_other_workspaces_hint(others))
+        raise _other_workspaces_hint(others, None, workspace_root, scoped)
 
     raise DaemonControlError("No session found")
 
 
 def attach_monitor(
     workspace_root=None, host=None, port=None, session=None, auto_exit=False, token=None, remote=None,
-    any_workspace=False, job_ids=None,
+    any_workspace=False, job_ids=None, any_user=False,
 ):
     """
     Show the terminal monitor of a session.
@@ -1055,6 +1213,7 @@ def attach_monitor(
     state = _resolve_state_for_attach_or_stop(
         workspace_root=workspace_root, host=host, port=port, session=session, token=token,
         any_workspace=any_workspace,
+        any_user=any_user,
     )
     if not daemon_is_alive(state):
         raise DaemonControlError("Daemon is not running")
@@ -1136,8 +1295,10 @@ def _delete_state_files_for_daemon(paths, target_state):
 
 def _cleanup_workspace_daemon_dir_if_empty(workspace_root):
     workspace_root = detect_workspace_root(workspace_root)
+    # Every user's: a workspace shared by a team has the sessions of others in
+    # the same directory, and root stopping one session must not wipe them.
     workspace_daemons, _ = _filter_by_workspace(
-        list_daemons(workspace_root=workspace_root),
+        list_daemons(workspace_root=workspace_root, any_user=True),
         workspace_root=workspace_root,
     )
     if len(workspace_daemons) > 0:
@@ -1191,7 +1352,7 @@ def _stop_daemon_from_state(state, workspace_root):
 
 
 def stop_daemon(workspace_root=None, host=None, port=None, session=None, token=None, remote=None,
-                any_workspace=False):
+                any_workspace=False, any_user=False):
     if remote is not None:
         return stop_remote_daemon(remote, session=session)
 
@@ -1203,6 +1364,7 @@ def stop_daemon(workspace_root=None, host=None, port=None, session=None, token=N
         session=session,
         token=token,
         any_workspace=any_workspace,
+        any_user=any_user,
     )
     return _stop_daemon_from_state(state, workspace_root)
 
@@ -1224,15 +1386,19 @@ def stop_remote_daemon(remote, session=None):
         tunnel.close()
 
 
-def stop_all_daemons(workspace_root=None, host=None, port=None, token=None, any_workspace=False):
+def stop_all_daemons(workspace_root=None, host=None, port=None, token=None, any_workspace=False, any_user=False):
     """
     Stop every session of the current workspace, or of every workspace with
-    `any_workspace` (see :func:`scope_daemons`).
+    `any_workspace`, of this user, or of every user with `any_user` (see
+    :func:`scope_daemons`). The sessions of other users that are not shared
+    with this one are left running, among the failed ones.
     """
     workspace_root = detect_workspace_root(workspace_root)
-    daemons = list_daemons(workspace_root=workspace_root, host=host, port=port, token=token)
+    daemons = list_daemons(workspace_root=workspace_root, host=host, port=port, token=token, any_user=any_user)
     if host is None and port is None:
-        daemons, _root, _scoped = scope_daemons(daemons, workspace_root, any_workspace=any_workspace)
+        daemons, _root, _scoped = scope_daemons(
+            daemons, workspace_root, any_workspace=any_workspace, any_user=any_user,
+        )
 
     if len(daemons) == 0:
         _cleanup_workspace_daemon_dir_if_empty(workspace_root)
@@ -1241,6 +1407,9 @@ def stop_all_daemons(workspace_root=None, host=None, port=None, token=None, any_
     stopped = 0
     failed = []
     for daemon in daemons:
+        if daemon.get("no_access"):
+            failed.append(daemon)
+            continue
         try:
             if _stop_daemon_from_state(daemon, workspace_root):
                 stopped += 1
@@ -1372,8 +1541,14 @@ def _iter_system_daemon_candidates():
             except Exception:
                 workspace_root = None
 
+        try:
+            uid = os.stat(os.path.join(proc_dir, entry)).st_uid
+        except OSError:
+            uid = None
+
         yield {
             "pid": pid,
+            "uid": uid,
             "host": host,
             "port": port,
             "session_name": session_name,
@@ -1431,7 +1606,7 @@ def _probe_alive_in_parallel(states):
 
 
 def list_daemons(workspace_root=None, host=None, port=None, session=None, token=None, remote=None,
-                 only_workspace=None):
+                 only_workspace=None, any_user=False):
     """Return a list of active daemon descriptors.
 
     By default, this inspects running daemon processes on the system.
@@ -1440,8 +1615,14 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
     With ``only_workspace`` (a workspace root), only the sessions of that
     workspace are listed: the others are left out before being probed, which
     is what costs time.
+
+    Only the sessions of this user are listed, unless ``any_user``. Each one
+    says whose it is (``uid``, ``user``); one of another user that is not
+    shared with this one cannot be probed, and is listed with ``no_access``
+    as long as its process runs.
     """
     only_root = os.path.realpath(only_workspace) if only_workspace else None
+    me = current_uid()
     daemons = []
 
     if remote is not None:
@@ -1461,8 +1642,12 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
 
     seen = set()
     candidates = []
+    unreachable = []
 
     for candidate in _iter_system_daemon_candidates() or []:
+        owner = candidate.get("uid")
+        if not any_user and owner is not None and me is not None and owner != me:
+            continue
         state = {}
         state_file = candidate.get("state_file")
         if state_file:
@@ -1502,15 +1687,24 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
         if only_root is not None and state["workspace_root"] != only_root:
             continue
 
+        if owner is not None:
+            state["uid"] = owner
+            state["user"] = owner_name(owner)
         state["uptime_s"] = _daemon_uptime_str(state)
         _decorate_session_fields(state)
+        if _state_file_is_unreadable(state_file):
+            # Not shared with this user: no token, nothing to probe with. Its
+            # process runs, which is all there is to know.
+            state["no_access"] = True
+            unreachable.append(state)
+            continue
         candidates.append(state)
 
     # Retries, not a single 0.6s probe: a session under load holds its
     # handler lock for seconds at a time, and dropping it from the listing
     # there makes callers -- the DSE driver above all -- conclude that no
     # session exists at all.
-    for state in _probe_alive_in_parallel(candidates):
+    for state in _probe_alive_in_parallel(candidates) + unreachable:
         # Deduplicate by logical daemon identity rather than candidate pid.
         # Prefer state_file/session_id when available, then endpoint fallback.
         state_file_key = str(state.get("state_file") or "")
@@ -1556,8 +1750,14 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
         # The process is there, so the state file stays whatever the probe says.
         # Deleting it under a busy daemon is unrecoverable: the session keeps
         # running its jobs with nothing able to find it again.
+        owner = _file_owner(state_file)
+        if not any_user and owner is not None and me is not None and owner != me:
+            continue
         if _daemon_is_alive_for_listing(state):
             state = dict(state)
+            if owner is not None:
+                state["uid"] = owner
+                state["user"] = owner_name(owner)
             state["workspace_root"] = paths["workspace_root"]
             state["state_file"] = state_file
             state["uptime_s"] = _daemon_uptime_str(state)
@@ -1674,7 +1874,7 @@ def daemon_jobs_summary(state, timeout=1.5):
     return text + (", " + ", ".join(details) if details else "")
 
 
-def format_daemons_table(daemons, zombies=False, workspace=True, address=False, jobs=False):
+def format_daemons_table(daemons, zombies=False, workspace=True, address=False, jobs=False, user=False):
     """Format the daemon list into a table with aligned columns.
 
     With ``zombies=True``, a ``status`` column is added to tell unresponsive
@@ -1687,8 +1887,13 @@ def format_daemons_table(daemons, zombies=False, workspace=True, address=False, 
         address (bool): show where each session listens ("odatix ps -V").
         jobs (bool): ask each session where its jobs stand (see
             daemon_jobs_summary).
+        user (bool): show whose each session is, and who else may use it
+            ("odatix ps --any-user"). A session of another user that is not
+            shared with this one reads "no" there.
     """
     columns = [("session", "session_id")]
+    if user:
+        columns.extend([("user", "user"), ("access", "access")])
     if jobs and not zombies:
         columns.append(("jobs", "jobs"))
     columns.extend([("pid", "pid"), ("uptime", "uptime_s")])
@@ -1705,7 +1910,9 @@ def format_daemons_table(daemons, zombies=False, workspace=True, address=False, 
         row = []
         for _, key in columns:
             if key == "jobs":
-                value = daemon_jobs_summary(daemon)
+                value = "-" if daemon.get("no_access") else daemon_jobs_summary(daemon)
+            elif key == "access":
+                value = "no" if daemon.get("no_access") else daemon.get("access") or DEFAULT_ACCESS
             elif key == "workspace_root":
                 value = _home_relative(daemon.get(key, ""))
             else:
@@ -1770,7 +1977,7 @@ def exclude_zombies(daemons, zombies):
     return [daemon for daemon in daemons if _zombie_key(daemon) not in zombie_keys]
 
 
-def list_zombie_daemons(workspace_root=None, session=None):
+def list_zombie_daemons(workspace_root=None, session=None, any_user=False):
     """Return daemon sessions that are neither usable nor properly cleaned up.
 
     Two kinds of leftovers are reported:
@@ -1782,6 +1989,10 @@ def list_zombie_daemons(workspace_root=None, session=None):
 
     These are deliberately excluded from :func:`list_daemons`, which only
     reports sessions that actually answer.
+
+    Only those of this user, unless ``any_user``; a session of another user
+    that is not shared with this one is never taken for a zombie, since it
+    cannot be asked whether it answers.
     """
     zombies = []
     seen = set()
@@ -1793,8 +2004,13 @@ def list_zombie_daemons(workspace_root=None, session=None):
         seen.add(key)
         zombies.append(zombie)
 
-    # Running daemon processes that stopped answering.
+    me = current_uid()
     for candidate in _iter_system_daemon_candidates() or []:
+        owner = candidate.get("uid")
+        if not any_user and owner is not None and me is not None and owner != me:
+            continue
+        if _state_file_is_unreadable(candidate.get("state_file")):
+            continue
         state = {}
         state_file = candidate.get("state_file")
         if state_file:
@@ -1827,12 +2043,19 @@ def list_zombie_daemons(workspace_root=None, session=None):
         state["uptime_s"] = _daemon_uptime_str(state)
         state["status"] = "unresponsive"
         state["process_pid"] = int(candidate["pid"])
+        if owner is not None:
+            state["uid"] = owner
+            state["user"] = owner_name(owner)
         _decorate_session_fields(state)
         _add(state)
 
     # State files left behind by daemons that are gone.
     paths = get_daemon_paths(workspace_root)
     for state_file in _iter_state_files(paths):
+        if not any_user and _file_owner(state_file) not in (None, me):
+            continue
+        if _state_file_is_unreadable(state_file):
+            continue
         state = _read_json_file(state_file)
         if not isinstance(state, dict):
             state = {}
@@ -1854,7 +2077,7 @@ def list_zombie_daemons(workspace_root=None, session=None):
     return _filter_daemons_by_session_selector(zombies, session)
 
 
-def kill_zombie_daemons(workspace_root=None, session=None, any_workspace=False):
+def kill_zombie_daemons(workspace_root=None, session=None, any_workspace=False, any_user=False):
     """Kill unresponsive daemon processes and remove leftover state files.
 
     Only those of the current workspace, unless `any_workspace` (see
@@ -1865,8 +2088,8 @@ def kill_zombie_daemons(workspace_root=None, session=None, any_workspace=False):
     descriptors that survived).
     """
     workspace_root = detect_workspace_root(workspace_root)
-    zombies = list_zombie_daemons(workspace_root=workspace_root, session=session)
-    zombies, _root, _scoped = scope_daemons(zombies, workspace_root, any_workspace=any_workspace)
+    zombies = list_zombie_daemons(workspace_root=workspace_root, session=session, any_user=any_user)
+    zombies, _root, _scoped = scope_daemons(zombies, workspace_root, any_workspace=any_workspace, any_user=any_user)
 
     killed = 0
     failed = []

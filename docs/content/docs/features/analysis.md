@@ -65,7 +65,7 @@ Each analyzed configuration ends up in one of six states:
 | **Not supported** | The design is written in a language the tool does not read (Verilator and VHDL): reported as such, not as a pile of syntax errors. |
 | **Passed** | The tool reported nothing, or nothing but expected findings. |
 
-The status of a **job** (in the job monitor, `odatix ls`, the API) says whether
+The status of a **job** (in the job monitor, `odatix ps`, the API) says whether
 the tool ran, the same way for every tool, and not what it found: the job of a
 *Failed* design succeeded, since the tool did its work and the RTL is at fault.
 Only *Tool failure* and *Incomplete* make the job fail. The verdict is in the

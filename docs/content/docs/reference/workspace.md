@@ -137,6 +137,20 @@ the jobs it had paused right away.
 > The guard relies on `psutil`, installed with Odatix, and does nothing on
 > Windows. Both monitors say so when it cannot run.
 
+## Sessions
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `session_access` | `user`, `group` or `other` | `user` | Who may use the sessions started in this workspace besides their owner. |
+
+A session is private to the user who starts it. With `group`, the members of
+the group of the workspace directory may use it too, and with `other`, every
+user of the machine: they monitor it, add, pause or kill its jobs, and stop it.
+Using a session is running commands as its owner, so share it only with people
+you trust. `--session-access` on a run command overrides this key for the
+session that run starts. See
+[sessions of other users](/docs/sessions/#sessions-of-other-users).
+
 ## Example
 
 {{< code lang=yaml filename="odatix.yml" >}}

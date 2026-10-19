@@ -30,28 +30,74 @@ from odatix.gui.icons import icon
 from odatix.gui.jobs_config.common import page_path
 from odatix.gui.jobs_config.settings_form import job_settings_form
 
+#: Who may use a new session besides you ("session_access"), as the page bar names it.
+SESSION_ACCESS_OPTIONS = [
+    {"label": "Only me", "value": "user"},
+    {"label": "My group", "value": "group"},
+    {"label": "Everyone", "value": "other"},
+]
+SESSION_ACCESS_TOOLTIP = (
+    "Who may use the new session besides you: monitor it, add, pause or kill its jobs, stop it. "
+    "\"My group\" is the group of the workspace directory. Using a session is running commands as you. "
+    "A session that runs already keeps its own."
+)
+
+#: Where the jobs go: the session, and who may use it if it is a new one.
+session_controls = html.Div(
+    children=[
+        html.Span("Session", className="odx-session-label"),
+        dcc.Dropdown(
+            id={"page": page_path, "action": "session-dropdown"},
+            options=[
+                {"label": "New session...", "value": "__new_session__"},
+            ],
+            placeholder="Select a session",
+            value="__new_session__",
+            clearable=False,
+            # Long session names are not cut in the middle: the menu
+            # grows to fit them (see jobs.css).
+            className="odx-session-dropdown",
+            style={"width": "170px"},
+        ),
+        html.Div(
+            dcc.Dropdown(
+                id={"page": page_path, "action": "session-access"},
+                options=SESSION_ACCESS_OPTIONS,
+                value="user",
+                clearable=False,
+                searchable=False,
+                className="odx-session-dropdown",
+                style={"width": "115px"},
+            ),
+            title=SESSION_ACCESS_TOOLTIP,
+        ),
+    ],
+    className="odx-session",
+)
+
+#: Where the selection comes from, and another run settings file to take it from.
+selection_controls = html.Div(
+    children=[
+        html.Span(id="jobs-selection-source"),
+        dcc.Dropdown(
+            id="jobs-load-selection-from",
+            options=[],
+            value=None,
+            placeholder="Load from...",
+            clearable=False,
+            searchable=False,
+            className="odx-load-from",
+            style={"width": "140px"},
+        ),
+        # What "Load from" picked, with when: picking the same file again
+        # loads it again.
+        dcc.Store(id="jobs-selection-from", data=None),
+    ],
+    className="odx-selection-source",
+)
+
 title_buttons = html.Div(
     children=[
-        html.Div(
-            children=[
-                html.Span("Session", className="odx-session-label"),
-                dcc.Dropdown(
-                    id={"page": page_path, "action": "session-dropdown"},
-                    options=[
-                        {"label": "New session...", "value": "__new_session__"},
-                    ],
-                    placeholder="Select a session",
-                    value="__new_session__",
-                    clearable=False,
-                    # Long session names are not cut in the middle: the menu
-                    # grows to fit them (see jobs.css).
-                    className="odx-session-dropdown",
-                    style={"width": "190px"},
-                ),
-            ],
-            className="odx-session",
-            style={"margin-bottom": "-5px"}
-        ),
         ui.icon_button(
             id={"page": page_path, "action": "choose-targets"},
             icon=icon("gear", className="icon"),
@@ -105,8 +151,9 @@ page_header = html.Div(
         ),
         html.Div(id="jobs-summary", className="odx-summary"),
         # Where the preselection comes from, so that the page does not read
-        # as a blank slate: the run settings file of this job type.
-        html.Div(id="jobs-selection-source", className="odx-selection-source"),
+        # as a blank slate (the run settings file of this job type), and where
+        # the jobs go.
+        html.Div([selection_controls, session_controls], className="odx-header-footer"),
     ],
     className="odx-header",
 )

@@ -112,3 +112,11 @@ default_tool: vivado  # overridden by -t / --tool
 
 # memory usage (%) above which jobs are paused
 # mem_limit: 98
+
+#--------------------------------------------#
+# Sessions
+#--------------------------------------------#
+
+# who may use the sessions started here besides their owner:
+# user (nobody), group (the group of the workspace) or other (every user)
+# session_access: user

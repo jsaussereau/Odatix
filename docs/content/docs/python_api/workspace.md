@@ -194,6 +194,8 @@ Declared settings:
 | `resource_guard` | `any` |  | Whether running jobs are paused while the machine is overloaded. |
 | `cpu_limit` | `any` |  | CPU usage (%) above which jobs are paused. |
 | `mem_limit` | `any` |  | Memory usage (%) above which jobs are paused. |
+| **Sessions** | | | |
+| `session_access` | `str` |  | Who may use the sessions started in this workspace besides their owner: "user" (nobody, the default), "group" (the group of the workspace directory) or "other" (every user). Using a session is running commands as its owner. |
 
 ### `open_workspace(root='.', required=False)`
 

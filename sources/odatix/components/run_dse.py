@@ -267,5 +267,6 @@ def main(args, settings=None):
         architectures=list(dict.fromkeys(campaign.name for campaign in campaigns)),
         campaigns=selected,
         checked=campaigns,
+        session_access=args.session_access,
     )
     return EXIT_SUCCESS

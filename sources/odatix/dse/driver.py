@@ -196,7 +196,7 @@ def build_driver(workspace, settings, session, paths=None, architectures=None, c
 
 
 def start_exploration(workspace, settings, session=None, detach=False, architectures=None,
-                      campaigns=None, checked=None):
+                      campaigns=None, checked=None, session_access=None):
     """
     Hand the exploration to the daemon, and show it the way a run shows its jobs.
 
@@ -205,6 +205,8 @@ def start_exploration(workspace, settings, session=None, detach=False, architect
             command checked. Once the monitor closes on an exploration that is
             over, what each of them found is printed again (see
             :func:`report_outcome`): the monitor took its log with it.
+        session_access (str): who may use the session it starts besides its
+            owner (see daemon_control.ensure_daemon_running).
 
     Returns:
         str: the session it runs in.
@@ -216,6 +218,7 @@ def start_exploration(workspace, settings, session=None, detach=False, architect
     handler = build_driver(
         workspace, settings, session, paths=paths, architectures=architectures, campaigns=campaigns
     )
+    handler.session_access = session_access
     start_parallel_jobs(handler, detach=detach, session=session)
     if not detach and checked:
         report_outcome(checked, paths["progress_file"])
