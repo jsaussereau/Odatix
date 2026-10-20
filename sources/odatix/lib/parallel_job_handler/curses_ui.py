@@ -26,11 +26,11 @@ import signal
 import sys
 import time
 
-from odatix.lib.parallel_job_handler.ansi_to_curses import AnsiToCursesConverter
-from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
-from odatix.lib.clipboard import copy_to_clipboard
-from odatix.lib.utils import can_open_path_in_explorer, open_path_in_explorer
-import odatix.lib.printc as printc
+from .ansi_to_curses import AnsiToCursesConverter
+from .utils import get_elapsed_time_str
+from ._vendor.clipboard import copy_to_clipboard
+from ._vendor.system import can_open_path_in_explorer, open_path_in_explorer
+from ._vendor import printc
 
 
 DOUBLE_CLICK_DELAY = 0.4
@@ -1060,7 +1060,7 @@ def curses_main(handler, stdscr):
         pass
 
     # Enable mouse actions (disable selection)
-    from odatix.lib.curses_helper import (
+    from ._vendor.curses_helper import (
         disable_selection,
         enable_selection,
     )
@@ -1985,7 +1985,7 @@ def curses_main(handler, stdscr):
 
 
 def run(handler):
-    from odatix.lib.curses_helper import enable_selection
+    from ._vendor.curses_helper import enable_selection
 
     try:
         curses.wrapper(lambda stdscr: curses_main(handler, stdscr))

@@ -19,38 +19,15 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+
 """
-The YAML loader and emitter Odatix reads and writes its files with.
-
-PyYAML ships two implementations of the same parser: a pure-Python one, and
-bindings to libyaml. The second is several times faster *and* releases the GIL
-for the parse, which matters twice over here: a results file or an exploration
-archive of a few megabytes costs seconds with the pure-Python parser, and the
-pages that read them do so from a request thread while jobs are running.
-
-libyaml is not always built into the installed PyYAML, hence the fallback --
-same behaviour, just slower.
-
-Use :data:`SafeLoader` wherever a file is read (``yaml.load(f, Loader=...)``)
-and :data:`SafeDumper` wherever one is written, rather than ``yaml.safe_load``
-and ``yaml.safe_dump``, which always take the Python path.
+Kept here for the code that imports it from Odatix: the module itself now lives
+in the job handler (odatix.lib.parallel_job_handler._vendor.yaml_loader), which carries
+its own copy so as to depend on nothing of Odatix. Both names are one module.
 """
 
-import yaml
+import sys
 
-try:
-  SafeLoader = yaml.CSafeLoader
-  SafeDumper = yaml.CSafeDumper
-except AttributeError:  # pragma: no cover - depends on the PyYAML build
-  SafeLoader = yaml.SafeLoader
-  SafeDumper = yaml.SafeDumper
+from odatix.lib.parallel_job_handler._vendor import yaml_loader as _module
 
-#: True when the libyaml bindings are in use.
-FAST = SafeLoader is not yaml.SafeLoader
-
-__all__ = ["SafeLoader", "SafeDumper", "FAST", "safe_load"]
-
-
-def safe_load(stream):
-  """``yaml.safe_load``, with the fast parser when there is one."""
-  return yaml.load(stream, Loader=SafeLoader)
+sys.modules[__name__] = _module

@@ -11,6 +11,7 @@ import odatix.lib.parallel_job_handler.daemon_control as daemon_control
 import odatix.lib.parallel_job_handler.transport as transport
 import odatix.lib.parallel_job_handler.handler_core as handler_core
 from odatix.lib.parallel_job_handler.job import ParallelJob
+import odatix.jobs_plugin as jobs_plugin
 
 
 def _job(name="job", progress_file="", status_file=""):
@@ -130,8 +131,8 @@ def test_parallel_job_reads_fmax_and_ignores_stale_status_files(tmp_path):
     job.progress_mode = "fmax"
     ParallelJob.set_patterns(re.compile(r"progress=(\d+)"), re.compile(r"fmax (state) (\d+) (\d+) (\d+)"))
 
-    assert ParallelJob._extract_fmax_status(status_file.read_text(encoding="utf-8"), ParallelJob.status_file_pattern) == (40, 2, 4)
-    assert job.get_progress_fmax() == 60
+    assert jobs_plugin._extract_fmax_status(status_file.read_text(encoding="utf-8"), ParallelJob.status_file_pattern) == (40, 2, 4)
+    assert job.get_progress() == 60
     job.current_step_started_at = os.path.getmtime(status_file) + 1
     assert job._read_status_file(str(status_file)) is None
 

@@ -24,10 +24,9 @@ import os
 import yaml
 from enum import Enum
 
-from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
-from odatix.lib.settings import OdatixSettings
-import odatix.lib.printc as printc
-import odatix.lib.yaml_loader as yaml_loader
+from ._vendor.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
+from ._vendor import printc
+from ._vendor import yaml_loader
 
 class JobOutputFormatter:
     """
@@ -208,29 +207,3 @@ class JobOutputFormatter:
                     line = line.replace(entry, escape_code)
 
         return line
-
-# Example usage
-if __name__ == "__main__":
-    yaml_file = os.path.join(OdatixSettings.odatix_eda_tools_path, "vivado", "tool.yml")
-    formatter = JobOutputFormatter(yaml_file)
-
-    # Example input lines to format
-    text = [
-        " default_text",
-        " <bold><red>bold_red_text<end>",
-        " <blue>blue_and_<green>green_text",
-        " <red>red_text",
-        " <end>default_text",
-        " ERROR: error_text",
-        " just a default formatted phrase passing by",
-        " CRITICAL WARNING: critical_warning_text",
-        " WARNING: warning_text",
-        " INFO: info_text",
-        " Slack (VIOLATED)",
-        " Slack (MET)",
-    ]
-
-    # Apply formatting and print results
-    for line in text:
-        formatted_line = formatter.replace_in_line(line)
-        print(formatted_line)

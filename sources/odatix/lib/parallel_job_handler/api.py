@@ -53,7 +53,7 @@ import importlib
 import time
 from typing import Any, Dict, Optional, Set
 
-from odatix.lib.parallel_job_handler.auth import (
+from .auth import (
     AUTH_HEADER,
     SCOPE_CONTROL,
     SCOPE_READ,
@@ -61,10 +61,10 @@ from odatix.lib.parallel_job_handler.auth import (
     is_loopback_host,
     scope_satisfies,
 )
-from odatix.lib.parallel_job_handler.serialization import payload_to_job
-from odatix.lib.parallel_job_handler.transport import TRANSPORT_UNIX
-from odatix.lib.parallel_job_handler import diagnostics
-import odatix.lib.hard_settings as hard_settings
+from .serialization import payload_to_job
+from .transport import TRANSPORT_UNIX
+from . import diagnostics
+from .config import CONFIG
 
 #: A request slower than this made every other client of the session wait for
 #: it, and is written to the session diagnostics (see the ``measure``
@@ -437,8 +437,8 @@ def create_uvicorn_server(
     *,
     auth=None,
     transport: str = "tcp",
-    host: str = hard_settings.daemon_default_host,
-    port: int = hard_settings.daemon_default_port,
+    host: str = CONFIG.default_host,
+    port: int = CONFIG.default_port,
     socket_path: Optional[str] = None,
     allow_remote_bind: bool = False,
     log_level: str = "info",
@@ -513,8 +513,8 @@ def run_parallel_job_api(
     *,
     auth=None,
     transport: str = "tcp",
-    host: str = hard_settings.daemon_default_host,
-    port: int = hard_settings.daemon_default_port,
+    host: str = CONFIG.default_host,
+    port: int = CONFIG.default_port,
     socket_path: Optional[str] = None,
     allow_remote_bind: bool = False,
     log_level: str = "info",

@@ -44,8 +44,8 @@ import socket
 import subprocess
 import time
 
-from odatix.lib.parallel_job_handler.auth import SCOPE_CONTROL
-from odatix.lib.parallel_job_handler.transport import TRANSPORT_UNIX, Endpoint
+from .auth import SCOPE_CONTROL
+from .transport import TRANSPORT_UNIX, Endpoint
 
 DEFAULT_SSH_COMMAND = "ssh"
 DEFAULT_ODATIX_COMMAND = "odatix"

@@ -26,9 +26,9 @@ import os
 import threading
 import time
 
-from odatix.lib.parallel_job_handler import diagnostics
-from odatix.lib.parallel_job_handler.api import create_uvicorn_server
-from odatix.lib.parallel_job_handler.auth import (
+from . import diagnostics
+from .api import create_uvicorn_server
+from .auth import (
     ApiAuth,
     ACCESS_GROUP,
     DEFAULT_ACCESS,
@@ -40,8 +40,8 @@ from odatix.lib.parallel_job_handler.auth import (
     prepare_state_dir,
     write_secret_json,
 )
-from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
-from odatix.lib.parallel_job_handler.transport import (
+from .handler_core import ParallelJobHandler
+from .transport import (
     TRANSPORT_TCP,
     TRANSPORT_UNIX,
     harden_socket,
@@ -49,8 +49,9 @@ from odatix.lib.parallel_job_handler.transport import (
     socket_path_for_session,
     unix_sockets_supported,
 )
-from odatix.lib.utils import find_free_port
-import odatix.lib.hard_settings as hard_settings
+from ._vendor.system import find_free_port
+from .config import CONFIG
+from . import plugins
 
 
 def _raise_file_descriptor_limit():
@@ -131,8 +132,8 @@ def add_arguments(parser):
         action="store_true",
         help="Allow binding a non-loopback TCP address (exposes the session to the network)",
     )
-    parser.add_argument("--host", default=hard_settings.daemon_default_host, help="Daemon API host")
-    parser.add_argument("--port", type=int, default=hard_settings.daemon_default_port, help="Preferred daemon API port")
+    parser.add_argument("--host", default=CONFIG.default_host, help="Daemon API host")
+    parser.add_argument("--port", type=int, default=CONFIG.default_port, help="Preferred daemon API port")
     parser.add_argument("--session-name", default=None, help="Optional daemon session name")
     parser.add_argument(
         "--access",
@@ -142,10 +143,16 @@ def add_arguments(parser):
     )
     parser.add_argument("--jobs", type=int, default=4, help="Default maximum number of parallel jobs")
     parser.add_argument("--logsize", type=int, default=200, help="Default log history limit per job")
+    parser.add_argument(
+        "--plugin",
+        action="append",
+        default=[],
+        help="Module to import before starting, registering the handlers the jobs name (repeatable)",
+    )
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Run Odatix parallel-job daemon")
+    parser = argparse.ArgumentParser(description="Run the " + CONFIG.app_name + " daemon")
     add_arguments(parser)
     return parser.parse_args()
 
@@ -178,8 +185,8 @@ def resolve_transport(transport, socket_path, workspace_root, session_name, host
 
 def run_daemon(
     state_file,
-    host=hard_settings.daemon_default_host,
-    port=hard_settings.daemon_default_port,
+    host=CONFIG.default_host,
+    port=CONFIG.default_port,
     jobs=4,
     logsize=200,
     session_name=None,
@@ -301,6 +308,8 @@ def run_daemon(
 def main(args=None):
     if args is None:
         args = parse_arguments()
+    # Before anything else: a plugin may change the settings the session uses.
+    plugins.load(getattr(args, "plugin", None) or [])
     run_daemon(
         state_file=args.state_file,
         host=args.host,

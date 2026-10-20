@@ -54,6 +54,13 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 import odatix.lib.printc as printc
+# Shared with the job handler, which carries them so as to depend on nothing of Odatix.
+from odatix.lib.parallel_job_handler._vendor.system import (  # noqa: F401
+    port_is_free,
+    find_free_port,
+    can_open_path_in_explorer,
+    open_path_in_explorer,
+)
 import odatix.components.motd
 
 YAML_BOOL = ('true', 'false', 'yes', 'no', 'on', 'off')
@@ -410,31 +417,6 @@ def safe_df_append(df, row, ignore_index=True):
             return row_df.reset_index(drop=True) if ignore_index else row_df
         return pd.concat([df, row_df], ignore_index=ignore_index)
 
-def can_open_path_in_explorer():
-    """Returns True if a file explorer can actually be opened on this system.
-
-    On Linux, xdg-open needs a graphical session: without DISPLAY nor
-    WAYLAND_DISPLAY (headless servers), opening a path would just fail.
-    """
-    if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
-        return True
-    if sys.platform.startswith("linux"):
-        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-    return False
-
-def open_path_in_explorer(path):
-    """Opens the given path in the system file explorer."""
-    if not can_open_path_in_explorer():
-        raise NotImplementedError("No file explorer available on this system")
-
-    if sys.platform.startswith("win"): # Windows
-        os.startfile(path)
-    elif sys.platform.startswith("linux"): # Linux
-        subprocess.run(["xdg-open", path])
-    elif sys.platform.startswith("darwin"): # macOS
-        subprocess.run(["open", path])
-    else:
-        raise NotImplementedError(f"Unsupported platform: {platform}")
 
 def merge_dicts_of_lists(base_dict, merging_dict):
     for key, new_list in merging_dict.items():
@@ -459,46 +441,7 @@ def get_local_ip():
         s.close()
     return ip
 
-def port_is_free(host, port):
-    """
-    Whether a server can listen on `host`:`port` right now.
 
-    The probe sets SO_REUSEADDR, as the servers Odatix starts do (waitress,
-    uvicorn): a port only held by connections in TIME_WAIT, which a server
-    stopped a few seconds ago leaves behind, counts as free. Without it a
-    restarted GUI would move to the next port for a minute or so.
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        if os.name != "nt":
-            # On Windows SO_REUSEADDR lets two sockets share a port: never set it there
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((host, port))
-        return True
-    except OSError:
-        return False
-    finally:
-        sock.close()
-
-def find_free_port(host, start_port, max_find_port_attempts=100, strict=False, script_name=""):
-    """
-    Find a free port by incrementing from the start_port.
-
-    With `strict`, `start_port` was asked for explicitly: if it is taken, say so
-    and exit instead of moving to another port (a tunnel or a bookmark to that
-    port would otherwise reach whatever listens there, or nothing).
-    """
-    if strict:
-        if port_is_free(host, start_port):
-            return start_port
-        printc.error("port " + str(start_port) + " is already in use on " + str(host)
-                     + ": choose another port with -p, or leave -p out to take the next free one", script_name)
-        sys.exit(1)
-    for port in range(start_port, start_port + max_find_port_attempts):
-        if port_is_free(host, port):
-            return port
-    printc.error("Could not find any available port in range [" + str(start_port) + ":" + str(start_port + max_find_port_attempts - 1) + "]", script_name)
-    sys.exit(-1)
 
 
 def open_browser_when_ready(url, host, port, timeout=30.0, poll_interval=0.05, script_name=""):

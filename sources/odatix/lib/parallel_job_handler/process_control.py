@@ -48,7 +48,7 @@ import sys
 import threading
 import time
 
-from odatix.lib.parallel_job_handler.utils import read_pipe_windows
+from .utils import read_pipe_windows
 
 if sys.platform != "win32":
     import fcntl

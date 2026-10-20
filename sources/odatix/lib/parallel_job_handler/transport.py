@@ -46,7 +46,7 @@ import stat
 import sys
 import tempfile
 
-from odatix.lib.parallel_job_handler.auth import (
+from .auth import (
     ACCESS_GROUP,
     ACCESS_USER,
     AUTH_SCHEME,
@@ -56,7 +56,7 @@ from odatix.lib.parallel_job_handler.auth import (
     normalize_access,
     secure_makedirs,
 )
-import odatix.lib.hard_settings as hard_settings
+from .config import CONFIG
 
 TRANSPORT_UNIX = "unix"
 TRANSPORT_TCP = "tcp"
@@ -220,8 +220,8 @@ class Endpoint:
         label=None,
     ):
         self.transport = str(transport or TRANSPORT_TCP)
-        self.host = str(host or hard_settings.daemon_default_host)
-        self.port = int(port or hard_settings.daemon_default_port)
+        self.host = str(host or CONFIG.default_host)
+        self.port = int(port or CONFIG.default_port)
         self.socket_path = str(socket_path) if socket_path else None
         self.token = str(token) if token else ""
         self.scope = str(scope or SCOPE_CONTROL)

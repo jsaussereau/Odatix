@@ -24,8 +24,8 @@ import sys
 import re
 import time
 
-import odatix.lib.printc as printc
-from odatix.lib.parallel_job_handler import process_control
+from ._vendor import printc
+from . import plugins, process_control
 
 #: What a job is, for the daemon.
 #:
@@ -243,32 +243,6 @@ class ParallelJob:
                 return None
         return None
 
-    @staticmethod
-    def _extract_fmax_status(content, pattern):
-        if pattern is None:
-            return None
-
-        for line in reversed(content.splitlines()):
-            line_tail = line[-4096:]
-            parts = pattern.search(line_tail)
-            if parts is None:
-                continue
-            if len(parts.groups()) < 4:
-                continue
-            try:
-                return int(parts.group(2)), int(parts.group(3)), int(parts.group(4))
-            except (TypeError, ValueError):
-                continue
-
-        content_tail = content[-65536:]
-        parts = pattern.search(content_tail)
-        if parts is None or len(parts.groups()) < 4:
-            return None
-        try:
-            return int(parts.group(2)), int(parts.group(3)), int(parts.group(4))
-        except (TypeError, ValueError):
-            return None
-
     def _read_status_file(self, path):
         """
         Content of a status file the running step has written, or None.
@@ -333,10 +307,11 @@ class ParallelJob:
         tmp_dir = tracking.get("tmp_dir") if isinstance(tracking, dict) else None
         if recorded_before is None or not tmp_dir:
             return 0
+        step_store = plugins.service("step_store")
+        if step_store is None:
+            return 0
         try:
-            import odatix.lib.job_steps as job_steps
-
-            recorded_now = len(job_steps.completed_step_names(tmp_dir))
+            recorded_now = step_store.count(tmp_dir)
         except Exception:
             return 0
         return max(0, min(recorded_now - int(recorded_before), len(task_steps) - 1))
@@ -350,8 +325,14 @@ class ParallelJob:
         return (done * 100 + progress) / span
 
     def get_progress(self):
-        if self.progress_mode == "fmax":
-            return self.get_progress_fmax()
+        mode = str(self.progress_mode or "default").strip().lower()
+        if mode != "default":
+            handler = plugins.progress_handler(mode)
+            if handler is not None:
+                progress = handler(self)
+                if progress > 100:
+                    progress = 100
+                return self._scale_to_run(progress)
 
         progress_pattern, _status_pattern = self.patterns()
         progress = 0
@@ -364,41 +345,6 @@ class ParallelJob:
             )
             if parsed_progress is not None:
                 progress = parsed_progress
-        if progress > 100:
-            progress = 100
-        return self._scale_to_run(progress)
-
-    def get_progress_fmax(self):
-        progress_pattern, status_pattern = self.patterns()
-
-        # Get progress from status file
-        fmax_progress = 0
-        fmax_step = 1
-        fmax_totalstep = 1
-        content = self._read_status_file(self.status_file)
-        if content is not None:
-            parsed_fmax_status = ParallelJob._extract_fmax_status(content, status_pattern)
-            if parsed_fmax_status is not None:
-                fmax_progress, fmax_step, fmax_totalstep = parsed_fmax_status
-
-        # Get progress from synth status file
-        synth_progress = 0
-        content = self._read_status_file(self.progress_file)
-        if content is not None:
-            parsed_synth_progress = ParallelJob._extract_int_from_pattern(
-                content,
-                progress_pattern,
-                default_group_index=1,
-            )
-            if parsed_synth_progress is not None:
-                synth_progress = parsed_synth_progress
-
-        # Compute total progress
-        if fmax_totalstep != 0:
-            progress = fmax_progress + synth_progress / fmax_totalstep
-        else:
-            progress = synth_progress
-
         if progress > 100:
             progress = 100
         return self._scale_to_run(progress)

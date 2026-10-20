@@ -42,20 +42,18 @@ if sys.platform == "win32":
 else:
     STD_BUF = ""
 
-from odatix.components.motd import read_version
 
-import odatix.lib.results_cache as results_cache
 
-from odatix.lib.parallel_job_handler.ansi_to_curses import AnsiToCursesConverter
-from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
-from odatix.lib.utils import open_path_in_explorer, find_free_port
-from odatix.lib.parallel_job_handler.theme import Theme
-from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
-from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
-from odatix.lib.parallel_job_handler import curses_ui
-from odatix.lib.parallel_job_handler import diagnostics
-from odatix.lib.parallel_job_handler import process_control
-from odatix.lib.parallel_job_handler.job_status import (
+from .ansi_to_curses import AnsiToCursesConverter
+from .job_output_formatter import JobOutputFormatter
+from ._vendor.system import open_path_in_explorer, find_free_port
+from .theme import Theme
+from .job import JOB_KIND, ParallelJob
+from .utils import get_elapsed_time_str
+from . import curses_ui
+from . import diagnostics
+from . import process_control
+from .job_status import (
     DONE_STATUSES,
     FAILED_STATUSES,
     PAUSED_STATUSES,
@@ -65,9 +63,9 @@ from odatix.lib.parallel_job_handler.job_status import (
     STATUS_SORT_PRIORITY,
     elapsed_to_seconds,
 )
-import odatix.lib.hard_settings as hard_settings
-import odatix.lib.printc as printc
-from odatix.lib.settings import OdatixSettings
+from .config import CONFIG
+from . import plugins
+from ._vendor import printc
 
 ENCODING = locale.getpreferredencoding()
 
@@ -113,6 +111,9 @@ RESOURCE_GUARD_MIN_PAUSE = 30.0
 
 #: Who the job log says paused or resumed a job the guard acted on.
 RESOURCE_GUARD_ACTOR = "resource guard"
+
+#: (enabled, cpu_limit, mem_limit) when neither the handler nor a plugin says.
+DEFAULT_RESOURCE_GUARD = (True, 98.0, 98.0)
 
 #: The format tags of the tool settings ("format: tags:" of tool.yml), left
 #: out of the console logs. Those a tool declares in its own settings too.
@@ -192,13 +193,9 @@ class ParallelJobHandler:
         # Resource guard: pause running jobs when the system is too loaded
         # (CPU or memory), resume them once it settles back down. Off where it
         # cannot work (see resource_guard_unavailable_reason). A value left to None comes
-        # from the workspace settings ("resource_guard", "cpu_limit" and
-        # "mem_limit" in odatix.yml), read by the run that builds this handler.
-        workspace_guard = OdatixSettings.resource_guard_settings or (
-            OdatixSettings.DEFAULT_RESOURCE_GUARD,
-            OdatixSettings.DEFAULT_CPU_LIMIT,
-            OdatixSettings.DEFAULT_MEM_LIMIT,
-        )
+        # from the plugins (Odatix reads "resource_guard", "cpu_limit" and
+        # "mem_limit" in odatix.yml), else from DEFAULT_RESOURCE_GUARD.
+        workspace_guard = plugins.service("resource_guard_defaults", lambda: None)() or DEFAULT_RESOURCE_GUARD
         self.resource_guard_enabled = False
         self._set_resource_guard_unlocked(
             workspace_guard[0] if resource_guard is None else resource_guard,
@@ -213,7 +210,7 @@ class ParallelJobHandler:
         self._resource_guard_over_samples = 0
         self._resource_guard_under_samples = 0
 
-        self.version = read_version()
+        self.version = plugins.service("version", lambda: "unknown")()
 
         self.running_job_list = []
         self.retired_job_list = []
@@ -686,7 +683,7 @@ class ParallelJobHandler:
 
         Not every running job takes one: a driver runs the run itself and spends
         its time waiting for the jobs it enqueues (see
-        odatix.lib.parallel_job_handler.job), so counting it would mean running
+        job.py), so counting it would mean running
         one job less than the user asked for, forever.
         """
         return sum(1 for job in self.running_job_list if job.takes_a_slot)
@@ -1032,10 +1029,11 @@ class ParallelJobHandler:
         tmp_dir = tracking.get("tmp_dir")
         if not tmp_dir:
             return
+        step_store = plugins.service("step_store")
+        if step_store is None:
+            return
         try:
-            import odatix.lib.job_steps as job_steps
-
-            dropped = job_steps.forget_steps_from(tmp_dir, getattr(job, "resume_step_index", 0))
+            dropped = step_store.forget_from(tmp_dir, getattr(job, "resume_step_index", 0))
         except Exception as e:
             job.log_history.append(
                 printc.colors.YELLOW + "warning: could not reset the step state: " + str(e) + printc.colors.ENDC
@@ -1403,7 +1401,7 @@ class ParallelJobHandler:
         the explorer polling the file, a search reading its own results back --
         ever sees it lag behind.
         """
-        with results_cache.deferred_writes(self.EXPORT_FLUSH_INTERVAL_S):
+        with plugins.export_buffer().deferred(self.EXPORT_FLUSH_INTERVAL_S):
             self._drain_export_queue()
 
     def _drain_export_queue(self):
@@ -1441,9 +1439,9 @@ class ParallelJobHandler:
         """Write the results files the exports have only updated in memory so far."""
         try:
             if due_only:
-                results_cache.flush_due()
+                plugins.export_buffer().flush_due()
             else:
-                results_cache.flush()
+                plugins.export_buffer().flush()
         except Exception as e:
             # Never take the export thread down: the content is still in the
             # cache and the next flush writes it.
@@ -1461,19 +1459,8 @@ class ParallelJobHandler:
         )
 
         try:
-            if export_kind == "synthesis":
-                from odatix.components.export_results import export_single_job_result
-                export_fn = export_single_job_result
-            elif export_kind == "workflow":
-                from odatix.components.export_workflow_results import export_single_workflow_job
-                export_fn = export_single_workflow_job
-            elif export_kind == "simulation":
-                from odatix.components.export_simulation_results import export_single_simulation_job
-                export_fn = export_single_simulation_job
-            elif export_kind == "analysis":
-                from odatix.components.export_analysis import export_single_analysis_job
-                export_fn = export_single_analysis_job
-            else:
+            export_fn = plugins.post_run_handler(export_kind)
+            if export_fn is None:
                 self._append_job_log(
                     job,
                     printc.colors.YELLOW
@@ -1564,12 +1551,9 @@ class ParallelJobHandler:
             return
 
         try:
-            if kind == "derived_metrics":
-                from odatix.components.export_derived_metrics import apply_derived_metrics
-
-                derived_metrics_file = action.get("derived_metrics_file")
-                if derived_metrics_file and os.path.isfile(derived_metrics_file):
-                    apply_derived_metrics(action.get("result_path"), derived_metrics_file)
+            handler = plugins.post_batch_handler(kind)
+            if handler is not None:
+                handler(action)
             else:
                 printc.warning("Unsupported post-batch action '" + kind + "'", script_name)
         except Exception as e:
@@ -1802,8 +1786,8 @@ class ParallelJobHandler:
 
     def run_api(
         self,
-        host: str = hard_settings.daemon_default_host,
-        port: int = hard_settings.daemon_default_port,
+        host: str = CONFIG.default_host,
+        port: int = CONFIG.default_port,
         log_level: str = "info",
         auth=None,
         allow_remote_bind: bool = False,
@@ -1817,8 +1801,8 @@ class ParallelJobHandler:
         learn them could not use the server it just started. It binds loopback
         only unless ``allow_remote_bind`` says otherwise.
         """
-        from odatix.lib.parallel_job_handler.api import run_parallel_job_api
-        from odatix.lib.parallel_job_handler.auth import ApiAuth
+        from .api import run_parallel_job_api
+        from .auth import ApiAuth
 
         if auth is None:
             auth = ApiAuth.generate(bound_host=host)
@@ -1836,8 +1820,8 @@ class ParallelJobHandler:
 
     def start_api_background(
         self,
-        host: str = hard_settings.daemon_default_host,
-        port: int = hard_settings.daemon_default_port,
+        host: str = CONFIG.default_host,
+        port: int = CONFIG.default_port,
         log_level: str = "info",
         start_headless_on_startup: bool = False,
         quiet: bool = True,
@@ -1849,7 +1833,7 @@ class ParallelJobHandler:
             so you don't run two schedulers at once.
         - If you want the API to run standalone (no curses), set start_headless_on_startup=True.
         """
-        from odatix.lib.parallel_job_handler.api import create_uvicorn_server
+        from .api import create_uvicorn_server
 
         with self._lock:
             if self._api_thread is not None and self._api_thread.is_alive():
@@ -2003,11 +1987,12 @@ class ParallelJobHandler:
         tmp_dir = tracking.get("tmp_dir")
         if not tmp_dir:
             return
+        step_store = plugins.service("step_store")
+        if step_store is None:
+            return
         for step_name in step_names:
             try:
-                import odatix.lib.job_steps as job_steps
-
-                job_steps.record_completed_step(tmp_dir, step_name, flow=tracking.get("flow"))
+                step_store.record(tmp_dir, step_name, flow=tracking.get("flow"))
             except Exception as e:
                 job.log_history.append(
                     printc.colors.YELLOW + "warning: could not record step '" + str(step_name) + "': " + str(e) + printc.colors.ENDC
@@ -2027,10 +2012,11 @@ class ParallelJobHandler:
         tmp_dir = tracking.get("tmp_dir") if isinstance(tracking, dict) else None
         if not tmp_dir:
             return None
+        step_store = plugins.service("step_store")
+        if step_store is None:
+            return None
         try:
-            import odatix.lib.job_steps as job_steps
-
-            return len(job_steps.completed_step_names(tmp_dir))
+            return step_store.count(tmp_dir)
         except Exception:
             return None
 

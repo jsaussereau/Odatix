@@ -27,14 +27,14 @@ import os
 import shutil
 import time
 
-import odatix.lib.printc as printc
-import odatix.lib.hard_settings as hard_settings
-from odatix.lib.parallel_job_handler import curses_ui
-from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
-from odatix.lib.parallel_job_handler.auth import TOKEN_ENV_VAR
-from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
-from odatix.lib.parallel_job_handler.transport import Endpoint
-from odatix.lib.utils import open_path_in_explorer
+from ._vendor import printc
+from .config import CONFIG
+from . import curses_ui
+from .handler_core import ParallelJobHandler
+from .auth import TOKEN_ENV_VAR
+from .job import JOB_KIND, ParallelJob
+from .transport import Endpoint
+from ._vendor.system import open_path_in_explorer
 
 
 def _api_get(endpoint, path, timeout=1.0):
@@ -116,8 +116,8 @@ class DaemonMonitorHandler(ParallelJobHandler):
     def __init__(
         self,
         endpoint=None,
-        host=hard_settings.daemon_default_host,
-        port=hard_settings.daemon_default_port,
+        host=CONFIG.default_host,
+        port=CONFIG.default_port,
         poll_interval=0.25,
         auto_exit=False,
         token=None,
@@ -872,8 +872,8 @@ def exit_messages(monitor_exit):
 
 def run_monitor(
     endpoint=None,
-    host=hard_settings.daemon_default_host,
-    port=hard_settings.daemon_default_port,
+    host=CONFIG.default_host,
+    port=CONFIG.default_port,
     poll_interval=0.25,
     auto_exit=False,
     token=None,
@@ -906,7 +906,7 @@ def run_monitor(
     handler.monitor_exit = None
     curses_ui.run(handler)
     if handler.session_gone:
-        from odatix.lib.parallel_job_handler.daemon_control import SessionGoneError
+        from .daemon_control import SessionGoneError
 
         name = "Session {}".format(session_label) if session_label else "The session"
         raise SessionGoneError(name + " was stopped while the monitor was attached to it")
@@ -919,8 +919,8 @@ def run_monitor(
 
 
 def add_arguments(parser):
-    parser.add_argument("--host", default=hard_settings.daemon_default_host, help="Daemon API host")
-    parser.add_argument("--port", type=int, default=hard_settings.daemon_default_port, help="Daemon API port")
+    parser.add_argument("--host", default=CONFIG.default_host, help="Daemon API host")
+    parser.add_argument("--port", type=int, default=CONFIG.default_port, help="Daemon API port")
     parser.add_argument(
         "--token",
         default=None,

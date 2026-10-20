@@ -30,7 +30,7 @@ import subprocess
 import sys
 import time
 
-from odatix.lib.parallel_job_handler.auth import (
+from .auth import (
     ACCESS_USER,
     DEFAULT_ACCESS,
     current_uid,
@@ -42,28 +42,32 @@ from odatix.lib.parallel_job_handler.auth import (
     TOKEN_ENV_VAR,
     secure_makedirs,
 )
-from odatix.lib.parallel_job_handler import diagnostics
-from odatix.lib.parallel_job_handler.serialization import job_to_payload
-from odatix.lib.parallel_job_handler.transport import (
+from . import diagnostics
+from .serialization import job_to_payload
+from .transport import (
     TRANSPORT_TCP,
     TRANSPORT_UNIX,
     AuthError,
     Endpoint,
 )
-from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
-import odatix.lib.hard_settings as hard_settings
-import odatix.lib.printc as printc
+from .utils import get_elapsed_time_str
+from .config import CONFIG
+from . import plugins
 
-DEFAULT_HOST = hard_settings.daemon_default_host
-DEFAULT_PORT = hard_settings.daemon_default_port
+#: The module a daemon runs ("python -m <it>"), wherever the package lives.
+DAEMON_SERVER_MODULE = __name__.rpartition(".")[0] + ".daemon_server"
+from ._vendor import printc
 
-DAEMON_STATE_DIR = hard_settings.daemon_state_dirname
-DAEMON_STATE_FILE = hard_settings.daemon_state_file
-DAEMON_LOG_FILE = hard_settings.daemon_log_file
-DAEMON_STATE_PREFIX = hard_settings.daemon_state_prefix
-DAEMON_STATE_SUFFIX = hard_settings.daemon_state_suffix
-DAEMON_LOG_PREFIX = hard_settings.daemon_log_prefix
-DAEMON_LOG_SUFFIX = hard_settings.daemon_log_suffix
+DEFAULT_HOST = CONFIG.default_host
+DEFAULT_PORT = CONFIG.default_port
+
+DAEMON_STATE_DIR = CONFIG.state_dirname
+DAEMON_STATE_FILE = CONFIG.state_file
+DAEMON_LOG_FILE = CONFIG.log_file
+DAEMON_STATE_PREFIX = CONFIG.state_prefix
+DAEMON_STATE_SUFFIX = CONFIG.state_suffix
+DAEMON_LOG_PREFIX = CONFIG.log_prefix
+DAEMON_LOG_SUFFIX = CONFIG.log_suffix
 
 #: How long a session is given to answer a job listing. Short by default: the
 #: monitor and the GUI ask often and would rather show a session as busy than
@@ -770,7 +774,7 @@ def _spawn_daemon(
     prepare_state_dir(paths["state_dir"], access)
     session_name = _normalize_session_name(session_name, default_name=host)
     daemon_log_enabled = (
-        hard_settings.daemon_log_enabled_default
+        CONFIG.log_enabled_default
         if daemon_log_enabled is None
         else bool(daemon_log_enabled)
     )
@@ -780,7 +784,7 @@ def _spawn_daemon(
     command = [
         sys.executable,
         "-m",
-        "odatix.lib.parallel_job_handler.daemon_server",
+        DAEMON_SERVER_MODULE,
         "--state-file",
         paths["state_file"],
         "--transport",
@@ -797,19 +801,20 @@ def _spawn_daemon(
         str(int(logsize)),
     ]
 
+    for plugin in CONFIG.plugins:
+        command.extend(["--plugin", str(plugin)])
     if expose:
         command.append("--expose")
     if normalize_access(access) != ACCESS_USER:
         command.extend(["--access", normalize_access(access)])
 
     env = os.environ.copy()
-    sources_dir = os.path.join(paths["workspace_root"], "sources")
-    if os.path.isdir(os.path.join(sources_dir, "odatix")):
+    pythonpath = list(plugins.service("daemon_pythonpath", lambda root: [])(paths["workspace_root"]) or [])
+    if pythonpath:
         previous = env.get("PYTHONPATH", "")
         if previous:
-            env["PYTHONPATH"] = sources_dir + os.pathsep + previous
-        else:
-            env["PYTHONPATH"] = sources_dir
+            pythonpath.append(previous)
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath)
 
     popen_kwargs = {
         "stdin": subprocess.DEVNULL,
@@ -843,22 +848,21 @@ def _spawn_daemon(
 
 def workspace_session_access(workspace_root):
     """
-    Who the sessions of a workspace are shared with ("session_access" in its
-    odatix.yml), "user" when it does not say. A value that is not a level
+    Who the sessions of a workspace are shared with, as the plugins read it
+    ("session_access" in odatix.yml for Odatix), "user" when it does not say. A value that is not a level
     is an error: falling back on a narrower access would silently lock out
     the people the session was meant for, and on a wider one would share it
     with people it was not.
     """
-    path = os.path.join(str(workspace_root), "odatix.yml")
-    if not os.path.isfile(path):
+    reader = plugins.service("session_access")
+    if reader is None:
         return DEFAULT_ACCESS
     try:
-        from odatix.workspace.yaml_io import read_yaml
-
-        data = read_yaml(path, default={}) or {}
+        value, path = reader(workspace_root)
     except Exception:
         return DEFAULT_ACCESS
-    value = data.get("session_access") if isinstance(data, dict) else None
+    if value is None:
+        return DEFAULT_ACCESS
     try:
         return normalize_access(value)
     except ValueError as error:
@@ -1055,7 +1059,7 @@ def ensure_daemon_running(
         time.sleep(0.15)
 
     daemon_log_enabled = (
-        hard_settings.daemon_log_enabled_default
+        CONFIG.log_enabled_default
         if daemon_log_enabled is None
         else bool(daemon_log_enabled)
     )
@@ -1262,10 +1266,10 @@ def attach_monitor(
     Returns:
         daemon_monitor.MonitorExit: how the monitor was left.
     """
-    from odatix.lib.parallel_job_handler.daemon_monitor import run_monitor
+    from .daemon_monitor import run_monitor
 
     if remote is not None:
-        from odatix.lib.parallel_job_handler.remote import open_remote_endpoint
+        from .remote import open_remote_endpoint
 
         tunnel, endpoint, _state = open_remote_endpoint(remote, session=session)
         try:
@@ -1443,7 +1447,7 @@ def stop_remote_daemon(remote, session=None):
     tunnel only decides how the request travels, never what it is allowed to
     do.
     """
-    from odatix.lib.parallel_job_handler.remote import open_remote_endpoint
+    from .remote import open_remote_endpoint
 
     tunnel, endpoint, _state = open_remote_endpoint(remote, session=session)
     try:
@@ -1539,7 +1543,7 @@ def _extract_cli_option(tokens, option):
 def _is_daemon_server_process(tokens):
     for index, token in enumerate(tokens):
         if token == "-m" and index + 1 < len(tokens):
-            if tokens[index + 1] == "odatix.lib.parallel_job_handler.daemon_server":
+            if tokens[index + 1] == DAEMON_SERVER_MODULE:
                 return True
         if token.endswith("/daemon_server.py") or token.endswith("\\daemon_server.py"):
             return True
@@ -1693,7 +1697,7 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
     daemons = []
 
     if remote is not None:
-        from odatix.lib.parallel_job_handler.remote import RemoteHost
+        from .remote import RemoteHost
 
         host_obj = remote if hasattr(remote, "list_sessions") else RemoteHost(remote)
         return host_obj.list_sessions(session=session)
@@ -1918,7 +1922,7 @@ def daemon_jobs_summary(state, timeout=1.5):
     Where the jobs of a session stand, in a few words ("3/19 done, 2 running"),
     for "odatix ps". "?" when the session does not answer in time.
     """
-    from odatix.lib.parallel_job_handler.job_status import (
+    from .job_status import (
         DONE_STATUSES, FAILED_STATUSES, PAUSED_STATUSES, RUNNING_STATUSES,
     )
 

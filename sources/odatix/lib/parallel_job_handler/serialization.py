@@ -21,7 +21,7 @@
 
 """Serialization helpers for transporting ParallelJob objects over JSON."""
 
-from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
+from .job import JOB_KIND, ParallelJob
 
 
 def _task_name(task):
