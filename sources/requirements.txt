@@ -11,7 +11,8 @@ waitress
 dash_svg
 websockets
 fastapi
-uvicorn
+uvicorn; python_version >= "3.7"
+uvicorn<0.17; python_version < "3.7"
 natsort
 wosit
 psutil
