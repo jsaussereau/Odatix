@@ -70,7 +70,9 @@ if {[catch {
         odatix_write_ddc "${basename}.ddc" $signature
         set ::odatix_dc_elaborated 1
     } else {
-        remove_design -all
+        # "-all" would also unload the technology libraries, and the link
+        # below would load them again at every iteration.
+        remove_design -designs
         odatix_read_ddc "${basename}.ddc" $signature "search"
     }
 
