@@ -254,9 +254,11 @@ def run_daemon(
     if transport == TRANSPORT_UNIX:
         endpoint_fields["socket_path"] = socket_path
         # The socket only exists once uvicorn has bound it, and uvicorn leaves
-        # it world-writable. Tighten it as soon as it appears.
+        # it world-writable. Tighten it once uvicorn is done with it.
         threading.Thread(
-            target=harden_socket, args=(socket_path,), kwargs={"access": access, "gid": gid}, daemon=True,
+            target=harden_socket, args=(socket_path,),
+            kwargs={"access": access, "gid": gid, "ready": lambda: getattr(server, "started", True)},
+            daemon=True,
         ).start()
     else:
         endpoint_fields["host"] = host

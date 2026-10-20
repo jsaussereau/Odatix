@@ -151,7 +151,7 @@ def socket_path_for_session(workspace_root, session_name, access=None):
     return path
 
 
-def harden_socket(path, timeout=10.0, access=None, gid=None):
+def harden_socket(path, timeout=10.0, access=None, gid=None, ready=None):
     """Make a listening socket reachable only by its owner.
 
     uvicorn chmods the socket it creates to 0666. The socket lives in a 0700
@@ -159,12 +159,15 @@ def harden_socket(path, timeout=10.0, access=None, gid=None):
     can open is one less thing depending on the directory staying private.
     A session shared with others (``access``) gets the socket they may open,
     of the group ``gid`` when shared with a group.
+
+    uvicorn chmods the socket only after creating it, so ``ready`` (when
+    given) tells when it is done: tightening it earlier gets undone.
     """
     import time
 
     deadline = time.time() + float(timeout)
     while time.time() < deadline:
-        if os.path.exists(path):
+        if os.path.exists(path) and (ready is None or ready()):
             try:
                 if normalize_access(access) == ACCESS_GROUP:
                     chown_group(path, gid)
