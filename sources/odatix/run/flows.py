@@ -105,6 +105,11 @@ class Flow(object):
             parallel_jobs.session_access = run.options.session_access
         except AttributeError:
             pass
+        # A run that is itself a job of the session it enqueues into (an
+        # exploration) puts its jobs below itself: the monitors show them as
+        # its children, and pausing or killing it reaches them.
+        if not run.options.configure_session:
+            parallel_jobs.below_current_job = True
         start = getattr(self.module(), "start_parallel_jobs", None)
         if start is None:
             from odatix.components.run_common import start_parallel_jobs as start
