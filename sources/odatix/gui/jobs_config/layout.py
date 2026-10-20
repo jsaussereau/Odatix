@@ -59,6 +59,16 @@ session_controls = html.Div(
             className="odx-session-dropdown",
             style={"width": "170px"},
         ),
+        # The name of the new session (what "-S" takes): shown only when a
+        # new session is picked. Left empty, the session gets a generated name.
+        dcc.Input(
+            id={"page": page_path, "action": "session-name"},
+            type="text",
+            placeholder="Name (optional)",
+            debounce=False,
+            className="odx-session-name",
+            style={"width": "140px"},
+        ),
         html.Div(
             dcc.Dropdown(
                 id={"page": page_path, "action": "session-access"},

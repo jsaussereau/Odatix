@@ -178,6 +178,7 @@ def run_context_tags(search, analysis_tools=None, odatix_settings=None):
     State("upper_bound", "value"),
     State({"page": page_path, "action": "session-dropdown"}, "value"),
     State({"page": page_path, "action": "session-access"}, "value"),
+    State({"page": page_path, "action": "session-name"}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
@@ -211,6 +212,7 @@ def run_jobs(
     upper_bound,
     selected_session,
     session_access,
+    session_name,
     search,
     page,
     odatix_settings,
@@ -270,7 +272,9 @@ def run_jobs(
     _reset_prepare_state()
     prepare_state._prepare_synth_type = run_mode
     prepare_state._prepare_runtime_settings = {
-        "session": _normalize_session_selector(selected_session),
+        # A new session takes the name typed for it, if any: enqueueing into
+        # a session that does not exist starts it under that name (as -S does).
+        "session": _normalize_session_selector(selected_session) or _normalize_session_selector(session_name),
         "session_access": session_access or None,
     }
 

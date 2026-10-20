@@ -804,3 +804,16 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* The name of a new session, as compact as the menus next to it. */
+.odx-header-footer .odx-session-name {
+    box-sizing: border-box;
+    height: 30px;
+    margin: 0;
+    font-size: 13px;
+    padding: 0 var(--space-2);
+}
+/* The menus carry a bottom margin (style.css) that lifts them above the name
+   field once the line is centered. */
+.odx-session .dash-dropdown {
+    margin-bottom: 0;
+}

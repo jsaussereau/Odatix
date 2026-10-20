@@ -50,6 +50,7 @@ from odatix.gui.jobs_config.common import (
     _checklist_enabled,
     _get_synth_settings_path,
     _preview_title,
+    _normalize_session_selector,
     _session_option,
     _simulation_badge_text,
     _to_int,
@@ -802,6 +803,18 @@ dash.clientside_callback(
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     prevent_initial_call=True,
 )
+
+
+@dash.callback(
+    Output({"page": page_path, "action": "session-name"}, "style"),
+    Input({"page": page_path, "action": "session-dropdown"}, "value"),
+)
+def toggle_session_name(selected_session):
+    """The name field is for a new session only."""
+    style = {"width": "140px"}
+    if _normalize_session_selector(selected_session) is not None:
+        style["display"] = "none"
+    return style
 
 
 # Folding the Job Settings section away is done on the client, on the document,
