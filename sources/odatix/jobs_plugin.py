@@ -21,7 +21,7 @@
 
 
 """
-What Odatix plugs into its job handler (odatix.lib.parallel_job_handler).
+What Odatix plugs into its job handler, jobtender.
 
 The handler knows nothing of Odatix: it runs commands, shows their logs and
 their progress, and calls back what a job names when it is over. This module
@@ -36,14 +36,28 @@ by every odatix command, and most of them never export anything.
 
 import os
 
-from odatix.lib.parallel_job_handler import config, plugins
+from jobtender import config, plugins
 
 PLUGIN = __name__
 
 config.configure(
+    # What the messages call the program and its commands: "odatix ps", the
+    # Monitor page of the GUI...
+    app_name="Odatix",
+    cli_name="odatix",
+    commands={"start": "daemon", "list": "ps"},
+    other_monitors=["the Monitor page of odatix-gui"],
+    access_setting_hint="'session_access' in odatix.yml, or --session-access",
+    # Where its sessions live, as they always have.
+    workspace_marker="odatix.yml",
     state_dirname=".odatix_sessions",
+    env_prefix="ODATIX",
+    runtime_dirname="odatix",
+    # "ps" before it had that name was "ls".
+    remote_list_commands=(("ps",), ("ls",)),
+    # Sessions started before the job handler became jobtender.
+    legacy_server_modules=("odatix.lib.parallel_job_handler.daemon_server",),
     plugins=[PLUGIN],
-    app_name="Odatix parallel-job",
 )
 
 
@@ -212,16 +226,6 @@ def _resource_guard_defaults():
     )
 
 
-def _session_access(workspace_root):
-    """Who the sessions of a workspace are shared with: "session_access" in its odatix.yml."""
-    path = os.path.join(str(workspace_root), "odatix.yml")
-    if not os.path.isfile(path):
-        return None, path
-    from odatix.workspace.yaml_io import read_yaml
-    data = read_yaml(path, default={}) or {}
-    return (data.get("session_access") if isinstance(data, dict) else None), path
-
-
 def _daemon_pythonpath(workspace_root):
     """A workspace holding the sources of Odatix runs its daemons on them."""
     sources_dir = os.path.join(str(workspace_root), "sources")
@@ -232,7 +236,6 @@ def _daemon_pythonpath(workspace_root):
 
 plugins.register_service("version", _version)
 plugins.register_service("resource_guard_defaults", _resource_guard_defaults)
-plugins.register_service("session_access", _session_access)
 plugins.register_service("daemon_pythonpath", _daemon_pythonpath)
 
 

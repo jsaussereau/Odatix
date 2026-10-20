@@ -50,7 +50,8 @@ import odatix.components.replace_params as replace_params
 import odatix.components.ls_command as ls_command
 from odatix.components.cli_options import add_options, deprecated_option
 
-import odatix.lib.parallel_job_handler.daemon_control as daemon_control
+import odatix.lib.parallel_job_handler.daemon_control as daemon_control  # noqa: F401  (jobtender's)
+import jobtender.commands as session_commands
 from odatix.lib.settings import OdatixSettings
 import odatix.lib.printc as printc
 from odatix.lib.utils import *
@@ -381,220 +382,18 @@ def run_main(main_function, args):
     internal_error(e, error_logfile, script_name)
     return False
 
-def say_several_sessions(error, args, also=""):
-  """Several sessions match what a session command was given: list them, and say how to pick one."""
-  selector = args.session if args.session not in (None, "") else None
-  if selector is not None:
-    printc.warning(f"Several sessions match '{selector}':", script_name)
-  else:
-    printc.warning("Several sessions run in this workspace:", script_name)
-  if isinstance(error.daemons, list) and len(error.daemons) > 0:
-    print(daemon_control.format_daemons_table(error.daemons, workspace=bool(args.any_workspace), user=bool(args.any_user)))
-  else:
-    printc.cyan(str(error), script_name)
-  if selector is not None:
-    printc.note("Refine the selector: give the session ID (e.g. -S {}) or its PID{}".format(
-      error.daemons[0].get("session_id", "12345.name") if error.daemons else "12345.name", also), script_name)
-  else:
-    printc.note("Choose one with -S/--session{}".format(also), script_name)
-
-def report_error(e):
-  """An error of a session command, with the note and the tip it carries, if any."""
-  printc.error(str(e), script_name)
-  if getattr(e, "note", None):
-    printc.note(e.note, script_name)
-  if getattr(e, "tip", None):
-    printc.tip(e.tip, script_name)
+# The session commands are jobtender's (see jobtender.commands), with the
+# options table of Odatix (cli_options) and its command names in their hints
+# (see odatix.jobs_plugin).
 
 def monitor_daemon(args):
-  success = True
-  try:
-    monitor_exit = daemon_control.attach_monitor(
-      host=args.host,
-      port=args.port,
-      session=args.session,
-      token=getattr(args, "token", None),
-      remote=getattr(args, "remote", None),
-      any_workspace=args.any_workspace,
-      any_user=args.any_user,
-    )
-    # The screen goes back to what it was before the monitor: say which
-    # session goes on, or what became of it.
-    from odatix.components.run_common import say_monitor_exit
-    say_monitor_exit(monitor_exit, script_name)
-  except daemon_control.MultipleDaemonsError as e:
-    say_several_sessions(e, args)
-    success = False
-  except Exception as e:
-    report_error(e)
-    success = False
-  return success
-
-def kill_zombie_sessions(args):
-  result = daemon_control.kill_zombie_daemons(session=args.session, any_workspace=args.any_workspace, any_user=args.any_user)
-  total = int(result.get("total", 0))
-  killed = int(result.get("killed", 0))
-  failed = result.get("failed", [])
-
-  if total == 0:
-    printc.note("No zombie session found", script_name)
-    return True
-
-  if len(failed) == 0:
-    printc.cyan(f"Killed {killed} zombie session(s)", script_name)
-    return True
-
-  printc.warning(f"Killed {killed}/{total} zombie session(s)", script_name)
-  printc.cyan("Zombie sessions that could not be killed:", script_name)
-  print(daemon_control.format_daemons_table(failed, zombies=True))
-  return False
+  return session_commands.monitor_session(args, script_name)
 
 def stop_daemon(args):
-  success = True
-  try:
-    if getattr(args, "zombies", False):
-      success = kill_zombie_sessions(args)
-      # '-z' alone only targets zombies, without touching responsive sessions.
-      if not args.all and args.session in (None, ""):
-        return success
-
-    if args.all:
-      result = daemon_control.stop_all_daemons(
-        host=args.host, port=args.port, token=getattr(args, "token", None), any_workspace=args.any_workspace,
-        any_user=args.any_user,
-      )
-      total = int(result.get("total", 0))
-      stopped = int(result.get("stopped", 0))
-      failed = result.get("failed", [])
-
-      if total == 0:
-        printc.note("No session to stop" + ("" if args.any_workspace else " in this workspace"), script_name)
-        return success
-
-      if len(failed) == 0:
-        printc.cyan(f"Stopped {stopped} session(s)", script_name)
-        return success
-
-      printc.warning(f"Stopped {stopped}/{total} session(s)", script_name)
-      if isinstance(failed, list) and len(failed) > 0:
-        printc.cyan("Sessions that could not be stopped:", script_name)
-        print(daemon_control.format_daemons_table(failed, user=args.any_user))
-        if any(daemon.get("no_access") for daemon in failed):
-          printc.note("Sessions of other users can only be stopped when they share them with you", script_name)
-          printc.tip("run the command as root (sudo) to stop them anyway", script_name)
-      success = False
-      return success
-
-    stopped = daemon_control.stop_daemon(
-      host=args.host,
-      port=args.port,
-      session=args.session,
-      token=getattr(args, "token", None),
-      remote=getattr(args, "remote", None),
-      any_workspace=args.any_workspace,
-      any_user=args.any_user,
-    )
-    session_label = "session " + args.session if args.session not in (None, "") else "the session of the workspace"
-    if stopped:
-      printc.note(f"Stopped {session_label}", script_name)
-    else:
-      printc.warning(f"Could not confirm that {session_label} stopped", script_name)
-      success = False
-  except daemon_control.MultipleDaemonsError as e:
-    say_several_sessions(e, args, also=", or stop them all with -a/--all")
-    success = False
-  except Exception as e:
-    report_error(e)
-    success = False
-  return success
+  return session_commands.stop_sessions(args, script_name)
 
 def list_daemons(args):
-  success = True
-  try:
-    show_zombies = getattr(args, "zombies", False)
-    remote = getattr(args, "remote", None)
-
-    daemons = daemon_control.list_daemons(
-      host=args.host,
-      port=args.port,
-      session=args.session,
-      token=getattr(args, "token", None),
-      remote=remote,
-      any_user=True,
-    )
-
-    # Your sessions of this workspace, unless asked for every one. An explicit
-    # endpoint or another machine is a scope of its own.
-    scanning = args.host is None and args.port is None and remote is None
-    elsewhere = of_others = 0
-    _root, scoped = None, False
-    if scanning:
-      in_scope, _root, scoped = daemon_control.scope_daemons(
-        daemons, any_workspace=args.any_workspace, any_user=args.any_user,
-      )
-      # What each option would add: --any-user here, --any-workspace for you.
-      with_others, _r, _s = daemon_control.scope_daemons(daemons, any_workspace=args.any_workspace, any_user=True)
-      everywhere, _r, _s = daemon_control.scope_daemons(daemons, any_workspace=True, any_user=args.any_user)
-      of_others = len(with_others) - len(in_scope)
-      elsewhere = len(everywhere) - len(in_scope)
-      daemons = in_scope
-
-    if getattr(args, "json", False):
-      # The consumer of this is a remote odatix reading it through an ssh
-      # pipe, so the tokens are part of the payload. Anything printed for a
-      # human goes through format_daemons_table(), which never shows them.
-      print(daemon_control.daemons_to_json(daemons, include_secrets=True))
-      return success
-
-    # Zombies are only meaningful when scanning the system, not when an
-    # explicit endpoint is given.
-    zombies = []
-    if show_zombies and scanning:
-      zombies = daemon_control.list_zombie_daemons(session=args.session, any_user=args.any_user)
-      zombies, _root, _scoped = daemon_control.scope_daemons(zombies, any_workspace=args.any_workspace, any_user=args.any_user)
-      # A daemon answering intermittently can show up in both scans: keep it
-      # in the zombie section only, never advertise it as an active session.
-      daemons = daemon_control.exclude_zombies(daemons, zombies)
-
-    # The sessions of this workspace only: the workspace column would say the
-    # same thing on every line.
-    one_workspace = scanning and not args.any_workspace and scoped
-    if len(daemons) == 0:
-      where = " in this workspace" if one_workspace else ""
-      if args.session not in (None, ""):
-        printc.note("No active session matches '{}'{}".format(args.session, where), script_name)
-      else:
-        printc.note("No active session" + where, script_name)
-    else:
-      if one_workspace:
-        printc.say("Sessions of " + daemon_control._home_relative(_root) + ":", script_name)
-      print(daemon_control.format_daemons_table(
-        daemons, workspace=not one_workspace, address=getattr(args, "verbose", False), jobs=True,
-        user=args.any_user,
-      ))
-    if elsewhere:
-      printc.note(
-        "{} more session{} in other workspaces: '{} ps --any-workspace' lists them".format(elsewhere, "s" if elsewhere != 1 else "", prog),
-        script_name,
-      )
-    if of_others:
-      printc.note(
-        "{} session{} of other users: '{} ps --any-user' lists them".format(of_others, "s" if of_others != 1 else "", prog),
-        script_name,
-      )
-
-    if show_zombies:
-      print()
-      if len(zombies) == 0:
-        printc.note("No zombie session found", script_name)
-      else:
-        printc.warning("Zombie sessions:", script_name)
-        print(daemon_control.format_daemons_table(zombies, zombies=True))
-        printc.note("Use '" + prog + " stop -z' to kill them", script_name)
-  except Exception as e:
-    report_error(e)
-    success = False
-  return success
+  return session_commands.list_sessions(args, script_name)
 
 #: "odatix results" alone: every kind of result there is, then the derived
 #: metrics (see odatix.components.results_command, shared with the API).

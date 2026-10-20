@@ -1,111 +1,67 @@
 """
-The job handler (odatix.lib.parallel_job_handler) depends on nothing of Odatix.
-
-It is meant to leave this repository as a project of its own: everything it
-needs from Odatix comes through its plugins (see plugins.py and
-odatix/jobs_plugin.py), never through an import. These tests fail on the first
-import of Odatix that comes back.
+Odatix runs its jobs with jobtender, which knows nothing of Odatix: what
+Odatix plugs into it (odatix/jobs_plugin.py), and the former package name
+(odatix.lib.parallel_job_handler), which is jobtender under another name.
 """
-
-import ast
-import os
-import subprocess
-import sys
-import textwrap
 
 import pytest
 
-import odatix.lib.parallel_job_handler as package
-from odatix.lib.parallel_job_handler import config, plugins
-
-PACKAGE_DIR = os.path.dirname(os.path.abspath(package.__file__))
-
-#: Imports of Odatix still allowed, as (file relative to the package, module).
-#: Empty: keep it that way.
-ALLOWED = set()
+import jobtender
+from jobtender import config, plugins
 
 
-def _package_files():
-    for root, dirs, files in os.walk(PACKAGE_DIR):
-        dirs[:] = [d for d in dirs if d != "__pycache__"]
-        for name in sorted(files):
-            if name.endswith(".py"):
-                path = os.path.join(root, name)
-                yield os.path.relpath(path, PACKAGE_DIR).replace(os.sep, "/"), path
+class TestFormerName:
+    def test_each_module_is_the_jobtender_one(self):
+        import odatix.lib.parallel_job_handler.handler_core as former_core
+        from odatix.lib.parallel_job_handler import daemon_control as former_control
+        import jobtender.daemon_control
+        import jobtender.handler_core
 
+        assert former_core is jobtender.handler_core
+        assert former_control is jobtender.daemon_control
 
-def _absolute_imports(path):
-    with open(path, encoding="utf-8") as f:
-        tree = ast.parse(f.read(), path)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield node.lineno, alias.name
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            yield node.lineno, node.module
+    def test_the_package_exports_what_it_did(self):
+        from odatix.lib.parallel_job_handler import ParallelJob, ParallelJobHandler, Theme
 
+        assert ParallelJob is jobtender.ParallelJob
+        assert ParallelJobHandler is jobtender.ParallelJobHandler
+        assert Theme is jobtender.Theme
 
-class TestNoOdatixImport:
-    def test_the_package_imports_nothing_of_odatix(self):
-        found = []
-        for relpath, path in _package_files():
-            for lineno, module in _absolute_imports(path):
-                if (module == "odatix" or module.startswith("odatix.")) and (relpath, module) not in ALLOWED:
-                    found.append("{}:{}: {}".format(relpath, lineno, module))
-        assert found == [], "\n".join(found)
+    def test_the_utilities_are_shared(self):
+        import odatix.lib.printc as printc
+        import jobtender._vendor.printc
 
-    def test_it_does_not_name_its_own_location(self):
-        """It refers to itself relatively, so that it can move out of odatix.lib."""
-        found = []
-        for relpath, path in _package_files():
-            with open(path, encoding="utf-8") as f:
-                for lineno, line in enumerate(f, 1):
-                    if "odatix.lib.parallel_job_handler" in line:
-                        found.append("{}:{}".format(relpath, lineno))
-        assert found == [], "\n".join(found)
+        assert printc is jobtender._vendor.printc
 
-    def test_it_imports_without_odatix_configuring_it(self, tmp_path):
-        """
-        Imported alone -- the package copied out of Odatix, as it will be on its
-        own -- it starts with its own settings and no plugin.
-        """
-        target = tmp_path / "jobs"
-        _copy_tree(PACKAGE_DIR, str(target))
-        script = textwrap.dedent(
-            """
-            import sys
-            import jobs
-            from jobs import config, plugins, handler_core, daemon_control, daemon_server, daemon_monitor, api
-            assert not any(name == "odatix" or name.startswith("odatix.") for name in sys.modules), sorted(
-                name for name in sys.modules if name.startswith("odatix"))
-            assert config.CONFIG.state_dirname == ".job_sessions"
-            assert plugins.loaded() == []
-            print("ok")
-            """
-        )
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=str(tmp_path),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            env=dict(os.environ, PYTHONPATH=str(tmp_path)),
-        )
-        assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == "ok"
-
-
-def _copy_tree(source, destination):
-    import shutil
-
-    shutil.copytree(source, destination, ignore=shutil.ignore_patterns("__pycache__"))
+    def test_a_missing_module_is_still_an_import_error(self):
+        with pytest.raises(ImportError):
+            import odatix.lib.parallel_job_handler.no_such_module  # noqa: F401
 
 
 class TestOdatixPlugin:
     def test_odatix_configures_its_sessions(self):
         assert config.CONFIG.state_dirname == ".odatix_sessions"
+        assert config.CONFIG.workspace_marker == "odatix.yml"
+        assert config.CONFIG.env_var("DAEMON_TOKEN") == "ODATIX_DAEMON_TOKEN"
         assert "odatix.jobs_plugin" in config.CONFIG.plugins
         assert "odatix.jobs_plugin" in plugins.loaded()
+
+    def test_the_hints_name_the_odatix_commands(self):
+        from jobtender import daemon_control
+
+        assert config.command("list") == "odatix ps"
+        assert config.command("start", "--expose") == "odatix daemon --expose"
+        assert daemon_control.follow_hint("x") == (
+            'follow the jobs with "odatix monitor -S x" from a full terminal, "odatix ps", '
+            "or the Monitor page of odatix-gui"
+        )
+
+    def test_sessions_started_under_the_former_name_are_found(self):
+        from jobtender import daemon_control
+
+        assert daemon_control._is_daemon_server_process(
+            ["python", "-m", "odatix.lib.parallel_job_handler.daemon_server", "--state-file", "x"])
+        assert daemon_control._is_daemon_server_process(["python", "-m", "jobtender.daemon_server"])
 
     @pytest.mark.parametrize("kind", ["synthesis", "workflow", "simulation", "analysis"])
     def test_every_export_has_a_handler(self, kind):
@@ -117,28 +73,9 @@ class TestOdatixPlugin:
         assert plugins.progress_handler("fmax") is not None
 
     def test_the_services_odatix_provides(self):
-        for name in plugins.SERVICES:
+        for name in ("export_buffer", "step_store", "version", "resource_guard_defaults", "daemon_pythonpath"):
             assert plugins.service(name) is not None, name
 
     def test_an_unknown_name_has_no_handler(self):
         assert plugins.post_run_handler("nothing") is None
         assert plugins.post_batch_handler("") is None
-
-
-class TestRegistry:
-    def test_an_unknown_setting_is_an_error(self):
-        with pytest.raises(AttributeError):
-            config.configure(no_such_setting=1)
-
-    def test_an_unknown_service_is_an_error(self):
-        with pytest.raises(plugins.PluginError):
-            plugins.register_service("no_such_service", object())
-
-    def test_a_plugin_that_cannot_be_imported_says_which(self):
-        with pytest.raises(plugins.PluginError, match="no_such_plugin_module"):
-            plugins.load(["no_such_plugin_module"])
-        assert "no_such_plugin_module" not in plugins.loaded()
-
-    def test_a_handler_must_be_callable(self):
-        with pytest.raises(plugins.PluginError):
-            plugins.register_post_run("broken", "not a function")

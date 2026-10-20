@@ -18,6 +18,8 @@ A session is a background process, a **daemon**, that runs the jobs handed over 
 
 Each session has an ID of the form `<pid>.<name>` (e.g. `12345.nightly`), where `<pid>` is the process of its daemon, and can be attached, detached and re-attached freely, from the terminal or from the browser.
 
+Sessions, daemons and both monitors come from [jobtender](https://github.com/jsaussereau/jobtender), a job manager of its own that Odatix installs with it. jobtender runs any shell command the same way, without Odatix: `jobtender submit -- make all`, `jobtender monitor --web`.
+
 A session belongs to the workspace it was started in. The session commands (`odatix ps`, `odatix monitor`, `odatix stop`) work on the sessions of the current workspace: see [sessions of other workspaces](#sessions-of-other-workspaces).
 
 ### Default behavior

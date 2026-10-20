@@ -25,14 +25,17 @@ from dash.exceptions import PreventUpdate
 @pytest.fixture(scope="module")
 def monitor():
     dash.Dash(__name__, use_pages=True, pages_folder="")
-    import odatix.gui.pages.monitor as monitor
+    # The GUI's page configures the web monitor of jobtender, which holds the
+    # page itself: its callbacks and helpers are jobtender.web.page.
+    import odatix.gui.pages.monitor  # noqa: F401
+    from jobtender.web import page as monitor
     return monitor
 
 
 # Native paths, as a session records the realpath of its workspace
 HERE = os.path.realpath(os.path.join(os.sep, "work", "here"))
 ELSEWHERE = os.path.realpath(os.path.join(os.sep, "work", "elsewhere"))
-ASSETS = os.path.join(os.path.dirname(__file__), "..", "sources", "odatix", "gui", "assets")
+from jobtender.web import ASSETS_DIR as ASSETS
 
 
 def session(pid, name, root, started_at=0):
@@ -127,7 +130,8 @@ class TestLayout:
 
 class TestAnalysisDialog:
     def test_an_analysis_gives_its_verdicts_and_opens_the_dashboard(self, monitor, monkeypatch):
-        monkeypatch.setattr(monitor, "_analysis_verdicts", lambda designs: {"failed": 1, "passed": 2})
+        import odatix.gui.pages.monitor as odatix_monitor
+        monkeypatch.setattr(odatix_monitor, "_analysis_verdicts", lambda designs: {"failed": 1, "passed": 2})
         counts = {"total": 3, "done": 3, "failed": 0, "running": 0, "queued": 0, "analysis": True, "designs": ["A/x"]}
         out = monitor._announce_finished(counts, None, "1.a", None, "")
         assert out[1] == "Analysis finished"
@@ -137,7 +141,7 @@ class TestAnalysisDialog:
     def test_the_explorer_button_follows_the_dialog(self, monitor, monkeypatch):
         monkeypatch.setattr(monitor, "ctx", SimpleNamespace(
             triggered_id="monitor-finished-keep", triggered=[{"prop_id": "monitor-finished-keep.n_clicks", "value": 1}]))
-        url, _cls, _err = monitor._quit_to_explorer(1, 0, 0, None, "", "1.a", "/explorer/analysis")
+        url, _cls, _err = monitor._leave_finished_session(1, 0, 0, None, "", "1.a", "/explorer/analysis")
         assert url["href"] == "/explorer/analysis"
 
     def test_a_single_job_is_a_job(self, monitor):

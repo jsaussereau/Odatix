@@ -54,8 +54,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 import odatix.lib.printc as printc
-# Shared with the job handler, which carries them so as to depend on nothing of Odatix.
-from odatix.lib.parallel_job_handler._vendor.system import (  # noqa: F401
+# Shared with jobtender (the job handler), which carries them so as to depend on nothing of Odatix.
+from jobtender._vendor.system import (  # noqa: F401
     port_is_free,
     find_free_port,
     can_open_path_in_explorer,

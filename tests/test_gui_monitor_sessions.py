@@ -23,7 +23,10 @@ from dash.exceptions import PreventUpdate
 def monitor():
     # dash.register_page (called at page-module import) requires an app
     dash.Dash(__name__, use_pages=True, pages_folder="")
-    import odatix.gui.pages.monitor as monitor
+    # The GUI's page configures the web monitor of jobtender, which holds the
+    # page itself: its callbacks and helpers are jobtender.web.page.
+    import odatix.gui.pages.monitor  # noqa: F401
+    from jobtender.web import page as monitor
     return monitor
 
 

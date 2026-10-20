@@ -22,12 +22,12 @@
 
 """
 Kept here for the code that imports it from Odatix: the module itself now lives
-in the job handler (odatix.lib.parallel_job_handler._vendor.get_from_dict), which carries
+in the job handler (jobtender._vendor.get_from_dict), which carries
 its own copy so as to depend on nothing of Odatix. Both names are one module.
 """
 
 import sys
 
-from odatix.lib.parallel_job_handler._vendor import get_from_dict as _module
+from jobtender._vendor import get_from_dict as _module
 
 sys.modules[__name__] = _module

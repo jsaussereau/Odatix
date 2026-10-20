@@ -597,11 +597,9 @@ def say_monitor_exit(monitor_exit, script_name="run"):
     back to what it was before the monitor, and nothing would tell which
     session goes on, how to get back to it, or what became of the jobs.
     """
-    from odatix.lib import printc
-    from odatix.lib.parallel_job_handler.daemon_monitor import exit_messages
+    from jobtender.commands import say_monitor_exit as say
 
-    for level, text in exit_messages(monitor_exit):
-        (printc.warning if level == "warning" else printc.note)(text, script_name)
+    say(monitor_exit, script_name)
 
 
 def replay_summaries(parallel_jobs, state, job_ids, script_name="run"):

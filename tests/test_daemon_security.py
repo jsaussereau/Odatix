@@ -169,7 +169,7 @@ class TestBinding:
         server = create_uvicorn_server(
             self._handler(), host="0.0.0.0", port=8999, allow_remote_bind=True
         )
-        assert server.odatix_auth.control_token
+        assert server.session_auth.control_token
 
     def test_an_app_cannot_be_built_without_authentication(self):
         from odatix.lib.parallel_job_handler.api import create_parallel_job_app

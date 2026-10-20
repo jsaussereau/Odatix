@@ -61,7 +61,12 @@ class TestTokens:
     def test_no_white_on_primary_hardcoded(self):
         css = _read(ASSETS, "style.css")
         assert not re.search(r"background: var\(--theme-primary-color\);\s*color: #fff", css)
-        assert ".monitor-mode-button.active { background: var(--theme-primary-color); color: var(--theme-on-primary-color); }" in css
+        # The monitor's stylesheet is jobtender's, which the GUI serves.
+        from jobtender.web import ASSETS_DIR
+
+        monitor_css = _read(ASSETS_DIR, "monitor.css")
+        assert not re.search(r"background: var\(--theme-primary-color\);\s*color: #fff", monitor_css)
+        assert ".monitor-mode-button.active { background: var(--theme-primary-color); color: var(--theme-on-primary-color); }" in monitor_css
 
     def test_pre_is_monospaced(self):
         assert "var(--theme-mono-font-family)" in _rule(_read(ASSETS, "style.css"), "pre")
