@@ -1,0 +1,349 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* ====================================================================== */
+/*  Path fields and their file browser (ui.path_input, file_browser.js)   */
+/* ====================================================================== */
+
+/* --- Field + browse button --------------------------------------------- */
+.odx-path-input {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+}
+.odx-path-input > input,
+.odx-path-input > textarea {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    box-sizing: border-box;
+}
+.odx-path-browse {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    padding: 0;
+    margin: 0 0 0 -1px;
+    cursor: pointer;
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+    background: var(--input-background);
+    border: var(--input-border);
+    border-radius: 0 var(--input-border-radius) var(--input-border-radius) 0;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+.odx-path-input.multiline .odx-path-browse {
+    align-items: flex-start;
+    padding-top: 9px;
+}
+.odx-path-browse:hover:not([disabled]),
+.odx-path-browse:focus-visible {
+    color: var(--theme-primary-color);
+    background: var(--theme-dimmed-element-background-color, var(--input-background));
+    outline: none;
+}
+.odx-path-browse[disabled] {
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* --- Modal ------------------------------------------------------------- */
+.odx-fb-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: var(--overlay-background);
+    backdrop-filter: var(--overlay-backdrop-filter);
+    -webkit-backdrop-filter: var(--overlay-backdrop-filter);
+    visibility: hidden;
+    opacity: 0;
+    /* Hidden only once faded out, but visible at once: the filter takes the
+       focus as soon as the modal opens. */
+    transition: opacity 0.15s ease, visibility 0s linear 0.15s;
+}
+.odx-fb-overlay.visible {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.15s ease, visibility 0s;
+}
+.odx-fb-dialog {
+    display: flex;
+    flex-direction: column;
+    width: 760px;
+    max-width: 100%;
+    height: min(640px, 85vh);
+    box-sizing: border-box;
+    background: var(--popup-background);
+    border: var(--popup-border);
+    border-radius: var(--popup-border-radius);
+    box-shadow: var(--popup-box-shadow);
+    backdrop-filter: var(--popup-backdrop-filter);
+    -webkit-backdrop-filter: var(--popup-backdrop-filter);
+    color: var(--theme-text-color);
+    font-family: var(--theme-font-family), Arial, sans-serif;
+    text-align: left;
+    overflow: hidden;
+    transform: translateY(8px) scale(0.99);
+    transition: transform 0.15s ease;
+}
+.odx-fb-overlay.visible .odx-fb-dialog {
+    transform: none;
+}
+
+.odx-fb-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4, 16px) var(--space-4, 16px) var(--space-2, 8px);
+}
+.odx-fb-title {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--theme-text-color);
+}
+.odx-fb-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: var(--theme-small-border-radius, 6px);
+    background: transparent;
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+    cursor: pointer;
+}
+.odx-fb-close:hover {
+    background: var(--theme-dimmed-element-background-color);
+    color: var(--theme-text-color);
+}
+
+/* Breadcrumb + filter */
+.odx-fb-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    padding: var(--space-2, 8px) var(--space-4, 16px) var(--space-3, 12px);
+    border-bottom: 1px solid var(--theme-border-color);
+}
+.odx-fb-crumbs {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+}
+.odx-fb-crumbs::-webkit-scrollbar {
+    display: none;
+}
+.odx-fb-crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border: none;
+    border-radius: var(--theme-small-border-radius, 6px);
+    background: transparent;
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+    font: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.odx-fb-crumb:hover {
+    background: var(--theme-dimmed-element-background-color);
+    color: var(--theme-text-color);
+}
+.odx-fb-crumb.current {
+    color: var(--theme-text-color);
+    font-weight: 600;
+}
+.odx-fb-sep {
+    color: var(--theme-placeholder-color, var(--theme-subtle-text-color));
+    padding: 0 1px;
+}
+.odx-fb-filter {
+    flex: 0 0 180px;
+    padding: 6px 10px !important;
+    min-width: 0;
+}
+.odx-fb-hidden {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--theme-small-font-size, 0.85em);
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+/* Entries */
+.odx-fb-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: var(--space-2, 8px);
+    transition: opacity 0.1s ease;
+}
+.odx-fb-list.loading {
+    opacity: 0.55;
+}
+.odx-fb-row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) 72px 110px;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: var(--theme-small-border-radius, 6px);
+    cursor: pointer;
+    user-select: none;
+}
+.odx-fb-row:hover {
+    background: var(--theme-dimmed-element-background-color);
+}
+.odx-fb-row.active {
+    background: color-mix(in srgb, var(--theme-primary-color) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-primary-color) 55%, transparent);
+}
+.odx-fb-row .odx-icon {
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+}
+.odx-fb-row.dir:not(.parent) .odx-icon {
+    color: var(--theme-primary-color);
+}
+.odx-fb-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.odx-fb-row.parent .odx-fb-name {
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+}
+.odx-fb-row.muted {
+    opacity: 0.45;
+}
+.odx-fb-size,
+.odx-fb-date {
+    text-align: right;
+    font-size: var(--theme-small-font-size, 0.85em);
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.odx-fb-empty {
+    padding: 48px 16px;
+    text-align: center;
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+}
+.odx-fb-empty.error {
+    color: var(--theme-error-color);
+}
+.odx-fb-note {
+    padding: 6px var(--space-4, 16px);
+    font-size: var(--theme-small-font-size, 0.85em);
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+    border-top: 1px solid var(--theme-border-color);
+}
+
+/* Footer: what will be written + actions */
+.odx-fb-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 12px);
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    border-top: 1px solid var(--theme-border-color);
+}
+.odx-fb-result {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    font-family: var(--theme-mono-font-family);
+    font-size: 0.9em;
+}
+.odx-fb-result.empty {
+    direction: ltr;
+    font-family: inherit;
+    color: var(--theme-subtle-text-color, var(--theme-text-color));
+}
+.odx-fb-buttons {
+    display: flex;
+    gap: var(--space-2, 8px);
+    flex-shrink: 0;
+}
+.odx-fb-button {
+    padding: 7px 16px;
+    font: inherit;
+    font-weight: 600;
+    border-radius: var(--button-border-radius, 6px);
+    background: var(--default-button-background);
+    border: var(--default-button-border);
+    color: var(--default-button-text-color);
+    cursor: pointer;
+}
+.odx-fb-button:hover:not([disabled]) {
+    background: var(--default-button-background-hover);
+    border: var(--default-button-border-hover);
+    color: var(--default-button-text-color-hover);
+}
+.odx-fb-button.primary {
+    background: var(--primary-button-background);
+    border: var(--primary-button-border);
+    color: var(--primary-button-text-color);
+}
+.odx-fb-button.primary:hover:not([disabled]) {
+    background: var(--primary-button-background-hover);
+    border: var(--primary-button-border-hover);
+    color: var(--primary-button-text-color-hover);
+}
+.odx-fb-button[disabled] {
+    cursor: default;
+    opacity: 0.5;
+}
+
+@media (max-width: 560px) {
+    .odx-fb-row {
+        grid-template-columns: 20px minmax(0, 1fr) 64px;
+    }
+    .odx-fb-date {
+        display: none;
+    }
+    .odx-fb-bar {
+        flex-wrap: wrap;
+    }
+    .odx-fb-filter {
+        flex: 1 1 auto;
+    }
+}

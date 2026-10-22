@@ -536,6 +536,15 @@ def testbench_placeholders(inherited):
     )
 
 
+def simulation_workspace_dir(sim_name):
+    """The directory of a simulation relative to the workspace, the files of its testbench are relative to."""
+    try:
+        workspace = get_workspace()
+        return os.path.relpath(os.path.join(workspace.simulations.path, sim_name or ""), workspace.root)
+    except Exception:
+        return ""
+
+
 def template_tiles(settings, inherited, current_sim="", warning=""):
     """The "Template" and "Testbench" tiles of the form."""
     template = settings.get("template", "")
@@ -586,9 +595,11 @@ def template_tiles(settings, inherited, current_sim="", warning=""):
                             "Glob patterns are accepted. When empty, the testbench of the architecture "
                             "runs, else the files of tb/, else a minimal generated one."
                         ),
-                        dcc.Textarea(
+                        ui.path_input(
                             id="sim-testbench-files", value="\n".join(testbench.get("files", [])),
-                            placeholder=files_placeholder, style={"width": "100%", "height": "60px"},
+                            placeholder=files_placeholder, textarea=True,
+                            base=simulation_workspace_dir(current_sim),
+                            extensions=ui.HDL_EXTENSIONS + (".vh", ".svh"),
                         ),
                     ],
                     style={"marginBottom": "12px"},

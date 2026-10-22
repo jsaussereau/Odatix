@@ -442,6 +442,68 @@ def form_field(
     )
 
 
+#: The sources a top level or a testbench can be, for `path_input`.
+HDL_EXTENSIONS = (".v", ".sv", ".vhd", ".vhdl")
+
+
+def path_input(
+    id: Union[str, dict],
+    value: str="",
+    placeholder: str="",
+    mode: str="file",
+    extensions=None,
+    base: str="",
+    base_input: Optional[str]=None,
+    textarea: bool=False,
+    className: str="",
+    style: Optional[dict]=None,
+    disabled: bool=False,
+) -> Component:
+    """
+    A path field with a button opening the file browser of the workspace
+    (gui/file_browser.py, assets/file_browser.js).
+
+    Args:
+        mode: "file" or "dir", what can be selected.
+        extensions: the file extensions that can be selected (".v", ".sv"...),
+            the others are shown greyed out. Every file when empty.
+        base: the directory the field is relative to, itself relative to the
+            workspace ("" for the workspace root).
+        base_input: id of another field of the page holding that directory
+            (the RTL path a top level file is relative to...): its value at the
+            time the browser opens wins over `base`.
+        textarea: a multi-line field holding one path per line: a selection
+            is added as a new line instead of replacing the value.
+    """
+    if textarea:
+        control = dcc.Textarea(id=id, value=value, placeholder=placeholder, disabled=disabled)
+    else:
+        control = dcc.Input(id=id, value=value, type="text", placeholder=placeholder, disabled=disabled)
+    data = {
+        "data-mode": "dir" if mode == "dir" else "file",
+        "data-extensions": ",".join(extensions or []),
+        "data-base": base or "",
+        "data-append": "1" if textarea else "",
+    }
+    if base_input:
+        data["data-base-input"] = base_input
+    return html.Div(
+        [
+            control,
+            html.Button(
+                icon("folder_open", width="18px", height="18px"),
+                className="odx-path-browse",
+                title="Browse the workspace",
+                type="button",
+                disabled=disabled,
+                **data
+            ),
+        ],
+        className=f"odx-path-input{' multiline' if textarea else ''} {className}".strip(),
+        style=style or {},
+    )
+
+
 def form_area(
     label: str,
     id: Union[str, dict],

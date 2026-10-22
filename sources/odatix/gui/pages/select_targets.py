@@ -177,9 +177,8 @@ def target_card(target, key=None, metadata=None):
                 # A long path is cut by the field: hovering it shows it whole
                 # (dcc.Input takes no title of its own).
                 html.Div(
-                    dcc.Input(
+                    ui.path_input(
                         value=target.get("script_copy_source", ""),
-                        type="text",
                         placeholder="/path/to/script",
                         id={"type": "target-script-copy-source", "name": key},
                         className="value-input",

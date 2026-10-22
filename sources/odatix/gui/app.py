@@ -27,6 +27,7 @@ from dash import dcc, html
 import odatix.gui.icons as icons
 import odatix.gui.navigation as navigation
 import odatix.gui.themes as themes
+import odatix.gui.file_browser as file_browser
 
 import odatix.lib.printc as printc
 from odatix.lib.utils import internal_error
@@ -69,6 +70,7 @@ class OdatixApp:
         # Themes of the workspace: they live outside the asset folder, so they
         # are served from the settings-resolved directory (see odatix.gui.themes).
         themes.serve_user_themes(self.app)
+        file_browser.register(self.app)
 
         self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 

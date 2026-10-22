@@ -122,7 +122,20 @@ def architecture_form_field(
     # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
     type = None,
     className: str=None,
+    browse: Optional[dict]=None,
 ):
+    """`browse`: the options of ui.path_input, for a field holding a path."""
+    if browse is not None:
+        control = ui.path_input(id=id, value=value, placeholder=placeholder, className=className or "", **browse)
+    else:
+        control = dcc.Input(
+            id=id,
+            value=value,
+            type=type,
+            placeholder=placeholder,
+            className=className,
+            style={"width": "100%"},
+        )
     return html.Div(
         children=[
             html.Div(
@@ -132,14 +145,7 @@ def architecture_form_field(
                 ],
                 className="odx-field-label"
             ),
-            dcc.Input(
-                id=id,
-                value=value,
-                type=type,
-                placeholder=placeholder,
-                className=className,
-                style={"width": "100%"},
-            ),
+            control,
         ],
         className="odx-field",
         style={"marginBottom": "12px"},
@@ -483,6 +489,7 @@ def architecture_form(settings, names=None):
                         architecture_form_field(
                             label="Design path",
                             id="design_path",
+                            browse=dict(mode="dir"),
                             value=defval("design_path", ""),
                             tooltip="Path to the design files needed for RTL generation. The whole path will be copied for each configuration, so use white/blacklists below to filter files if needed.",
                         ),
@@ -517,6 +524,7 @@ def architecture_form(settings, names=None):
                         architecture_form_field(
                             label="Generation output",
                             id="generate_output",
+                            browse=dict(mode="dir", base_input="design_path"),
                             value=defval("generate_output", ""),
                             tooltip="Path to the generated RTL files relative to the design path.",
                         ),
@@ -548,6 +556,7 @@ def architecture_form(settings, names=None):
                         architecture_form_field(
                             label="RTL path",
                             id="rtl_path",
+                            browse=dict(mode="dir"),
                             value=defval("rtl_path", ""),
                             tooltip="The path to the directory containing the RTL source files.",
                         )
@@ -559,6 +568,7 @@ def architecture_form(settings, names=None):
                 architecture_form_field(
                     label="Top level file",
                     id="top_level_file",
+                    browse=dict(base_input="rtl_path", extensions=ui.HDL_EXTENSIONS),
                     value=defval("top_level_file", ""),
                     tooltip="The path of the file containing the top level (main) module/entity definition. This path is relative to the RTL path.",
                 ),

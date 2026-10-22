@@ -236,6 +236,37 @@ _icons = {
         Polyline(points="23 4 23 10 17 10"),
         Path(d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"),
     ], width, height, className, id, style_extra={"strokeWidth": "2.5", "transform": "scale(0.7)"}),
+
+    # Closed folder (file browser)
+    "folder": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M3 7 a2 2 0 0 1 2-2 h4 l2 2 h8 a2 2 0 0 1 2 2 v8 a2 2 0 0 1-2 2 H5 a2 2 0 0 1-2-2 Z"),
+    ], width, height, className, id),
+
+    # Document (file browser)
+    "file": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M14 3 H7 a2 2 0 0 0-2 2 v14 a2 2 0 0 0 2 2 h10 a2 2 0 0 0 2-2 V8 Z"),
+        Polyline(points="14 3 14 8 19 8"),
+    ], width, height, className, id),
+
+    # Source code file (file browser)
+    "file_code": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M14 3 H7 a2 2 0 0 0-2 2 v14 a2 2 0 0 0 2 2 h10 a2 2 0 0 0 2-2 V8 Z"),
+        Polyline(points="14 3 14 8 19 8"),
+        Polyline(points="10 12 8 14.5 10 17"),
+        Polyline(points="14 12 16 14.5 14 17"),
+    ], width, height, className, id),
+
+    # House: workspace root (file browser)
+    "home": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M3 10.5 L12 3 l9 7.5"),
+        Path(d="M5.5 9 V20 a1 1 0 0 0 1 1 H10 v-6 h4 v6 h3.5 a1 1 0 0 0 1-1 V9"),
+    ], width, height, className, id),
+
+    # Arrow up: parent directory (file browser)
+    "parent": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M12 20 V5"),
+        Polyline(points="6 11 12 5 18 11"),
+    ], width, height, className, id),
 }
 
 ######################################
