@@ -37,7 +37,7 @@ that command.
 |------|--------|--------|-----------|-------|----------|---------|
 | **Vivado** | AMD/Xilinx | FPGA | Fmax search, Synthesis, RTL analysis | `standard`, `runtime`, `performance`, `area`, `power_opt` | Validated | Commercial |
 | **Quartus** | Altera | FPGA | Fmax search, Synthesis, RTL analysis | `standard`, `balanced`, `runtime`, `performance`, `area`, `power_opt` | Validated | Commercial |
-| **Design Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `ultra`, `ultra_timing`, `ultra_area`, `ultra_power` | Validated | Commercial |
+| **Design Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `ultra`, `ultra_keep_hierarchy`, `ultra_timing`, `ultra_area`, `ultra_power` | Validated | Commercial |
 | **DC NXT** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | Those of Design Compiler, run by `dcnxt_shell` | Validated | Commercial |
 | **Genus** | Cadence | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `medium_effort`, `extreme`, `timing`, `area`, `power` | Validated | Commercial |
 | **IC Compiler II** | Synopsys | ASIC | Place & route | `implementation` | WIP | Commercial |

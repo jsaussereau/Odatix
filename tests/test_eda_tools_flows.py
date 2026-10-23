@@ -61,7 +61,7 @@ def write_tool(tools_dir, name, content):
 
 
 VIVADO_FLOWS = ["standard", "runtime", "performance", "area", "power_opt"]
-DC_FLOWS = ["standard", "high_effort", "ultra", "ultra_timing", "ultra_area", "ultra_power"]
+DC_FLOWS = ["standard", "high_effort", "ultra", "ultra_keep_hierarchy", "ultra_timing", "ultra_area", "ultra_power"]
 INNOVUS_FLOWS = ["standard", "express", "extreme", "timing", "area", "power"]
 LIBRELANE_FLOWS = ["standard", "area", "timing", "timing_extreme"]
 QUARTUS_FLOWS = ["standard", "balanced", "runtime", "performance", "area", "power_opt"]

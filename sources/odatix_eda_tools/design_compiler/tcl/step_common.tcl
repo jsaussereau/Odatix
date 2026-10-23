@@ -269,6 +269,46 @@ proc odatix_dc_compile {signature} {
     }
 }
 
+# The cell count of the design, then that of each hierarchical instance, laid
+# out like the hierarchical distribution of the area report. "Global" counts
+# every cell below an instance, "Local" those at its own level. Both count the
+# hierarchical instances themselves, as the total always did.
+proc odatix_dc_write_cell_counts {path} {
+    set top [current_design_name]
+    set total [sizeof_collection [get_cells -quiet -hierarchical *]]
+    set rows [list [list $top $total [sizeof_collection [get_cells -quiet *]] $top]]
+    set instances [get_cells -quiet -hierarchical * -filter "is_hierarchical == true"]
+    foreach_in_collection cell [sort_collection $instances full_name] {
+        set name [get_attribute $cell full_name]
+        redirect /dev/null {current_instance $name}
+        set global [sizeof_collection [get_cells -quiet -hierarchical *]]
+        set local [sizeof_collection [get_cells -quiet *]]
+        redirect /dev/null {current_instance}
+        lappend rows [list $name $global $local [get_attribute $cell ref_name]]
+    }
+
+    set width [string length "Hierarchical cell"]
+    foreach row $rows {
+        set width [expr {max($width, [string length [lindex $row 0]])}]
+    }
+    set line [format "%-${width}s  %10s  %7s  %10s  %s" [string repeat - $width] ---------- ------- ---------- ------]
+    set file [open $path w]
+    puts $file [format "Cell count:                     %d" $total]
+    puts $file ""
+    puts $file "Hierarchical cell count distribution"
+    puts $file "------------------------------------"
+    puts $file ""
+    puts $file [format "%-${width}s  %10s  %7s  %10s  %s" "Hierarchical cell" "Global" "Percent" "Local" "Design"]
+    puts $file $line
+    foreach row $rows {
+        lassign $row name global local design
+        set percent [expr {$total > 0 ? 100.0 * $global / $total : 0.0}]
+        puts $file [format "%-${width}s  %10d  %7.1f  %10d  %s" $name $global $percent $local $design]
+    }
+    puts $file $line
+    close $file
+}
+
 # Metrics are exported when the run ends, whichever step it ended on, so the
 # step that compiles the design writes the reports the metrics are read from.
 proc odatix_dc_reports {frequency signature} {
@@ -292,10 +332,7 @@ proc odatix_dc_reports {frequency signature} {
         # Report Area
         puts "Writing area report file '$area_rep'."
         report_area -nosplit -hierarchy > $area_rep
-        # create the utilization_rep file
-        close [open $utilization_rep w]
-        echo -n "Cell count:                     " > $utilization_rep
-        sizeof_collection [ get_cells  -hier  *] >> $utilization_rep
+        odatix_dc_write_cell_counts $utilization_rep
     } errmsg]} {
         puts "$signature <bold><red>error: could not write area report<end>"
         puts "$signature tool says -> $errmsg"

@@ -79,8 +79,11 @@ proc area_summary {area_rep utilization_rep} {
     }
     close $afile
 
-    puts -nonewline "  "
-    puts [read [open $utilization_rep r]]
+    # The first line, the per instance counts follow
+    set ufile [open $utilization_rep r]
+    gets $ufile data
+    close $ufile
+    puts "  $data"
 
     puts "Complete area report can be found in \"$area_rep\""
 }

@@ -140,6 +140,13 @@ flows:
     parameters:
       compile: compile_ultra
 
+  ultra_keep_hierarchy:
+    label: "Ultra - keep hierarchy"
+    description: "compile_ultra with auto-ungrouping disabled, every hierarchy is preserved"
+    parameters:
+      compile: compile_ultra
+      compile_options: [-no_autoungroup]
+
   ultra_timing:
     label: "Ultra - timing"
     description: "compile_ultra high timing effort with register retiming, then an incremental pass"

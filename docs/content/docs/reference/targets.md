@@ -32,7 +32,7 @@ odatix_userconfig/targets/
 |-----|------|----------|-------------|
 | `targets` | list of strings | Yes | The devices or technologies to implement for. Their names are the ones the tool's scripts expect. |
 | `constraint_file` | filename | No (default `constraints.sdc`) | File of the job directory holding the clock constraint at the target frequency (`constraints.xdc`, `constraints.sdc`…). Odatix writes it as SDC before a fixed-frequency synthesis runs; the scripts of the built-in tools rewrite it in their own format. |
-| `tool_install_path` | path | No | Where the tool is installed, for a tool that is not on your `PATH`, exposed to the commands as `$tool_install_path` (`~` is expanded). What it must point to depends on the tool: **Quartus**, the directory holding `qinit.sh` (`/opt/altera/altera_pro/26.1.1`); **LibreLane**, the LibreLane git checkout (holding `shell.nix`); **OpenLane**, its installation directory. **Vivado, Design Compiler, Genus, Innovus, Verilator** do not read it: put them on your `PATH`. A tool found on the `PATH` is always used first. A path that does not exist stops the run. Leave empty, or leave out, when the tool is on your `PATH`. |
+| `tool_install_path` | path | No | Where the tool is installed, for any tool (`~` is expanded). Its `bin` directory and the directory itself are put first on the `PATH` of the tool's commands, and the path is exposed to them as `$tool_install_path`. It wins over a tool of the same name found on your `PATH`. For most tools, point it to the installation directory holding `bin` (Vivado: `/opt/Xilinx/Vivado/2024.2`). Some tools expect a specific directory: **Quartus**, the directory holding `qinit.sh` (`/opt/altera/altera_pro/26.1.1`); **LibreLane**, the LibreLane git checkout (holding `shell.nix`); **OpenLane**, its installation directory. A path that does not exist stops the run. Leave empty, or leave out, when the tool is on your `PATH`. |
 | `force_single_thread` | bool | No (default `No`) | Make each job of this tool run on a single thread (Vivado: `maxThreads 1`, LibreLane: `-j 1`). Jobs still run in parallel (`-j`): this helps when many parallel jobs, each taking several threads, oversubscribe the processor. |
 | `script_copy_enable` | bool | No | Copy an extra script into each job's script directory. |
 | `script_copy_source` | path | If enabled | The script to copy. Ignored with a note if the file does not exist. |
@@ -154,7 +154,7 @@ On the run page of a synthesis or a place & route (**Run**, then a job type and
 a tool), **Choose targets** opens the targets of the selected tool: one card per
 target, with an **Enable** switch, and **Add new target** to add one. The
 **Tool settings** panel above them edits `constraint_file`, `tool_install_path`
-(shown only for the tools that read it, with what to put there)
+(with what to put there for the tools that expect a specific directory)
 and `force_single_thread`. **Add new target**, **Duplicate** and **Remove**
 only change the page: nothing is written before **Save all**, which writes the file. See
 [The Odatix GUI](/docs/gui/app/).

@@ -140,7 +140,7 @@ options, sometimes a different script. Vivado ships `standard`, `runtime`,
 `performance`, `area` and `power_opt`; Quartus ships `standard`, `balanced`,
 `runtime`, `performance`, `area` and `power_opt`; Design Compiler (and DC NXT, the same
 flows run by `dcnxt_shell`) ships `standard` (`compile`), `high_effort`,
-`ultra`, `ultra_timing`, `ultra_area` and `ultra_power`; Genus ships
+`ultra`, `ultra_keep_hierarchy`, `ultra_timing`, `ultra_area` and `ultra_power`; Genus ships
 `standard`, `medium_effort`, `extreme`, `timing`, `area` and `power`; Innovus ships
 `standard`, `express`, `extreme`, `timing`, `area` and `power`.
 
