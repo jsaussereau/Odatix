@@ -1,0 +1,161 @@
+##############################################
+# Metrics for this simulation
+##############################################
+# Extracted from "results.yml", written by the testbench of the architecture
+# (see examples/cordic_tb/tb_cordic.sv).
+# Added to the metrics of the "icarus" template: sim_status, errors,
+# warnings, compile and simulation times, simulated cycles, cycles per second.
+# The configuration (width, iterations) is not repeated here: it is already
+# what each result is for.
+
+metrics:
+  # ----- Accuracy -----------------------------------------------------
+  max_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: max_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  rms_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: rms_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  mean_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: mean_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  max_angle_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: max_angle_error_deg
+    unit: "deg"
+    format: "%.4f"
+
+  rms_angle_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: rms_angle_error_deg
+    unit: "deg"
+    format: "%.4f"
+
+  snr:
+    type: yaml
+    settings:
+      file: results.yml
+      key: snr_db
+    unit: "dB"
+    format: "%.2f"
+
+  enob:
+    type: yaml
+    settings:
+      file: results.yml
+      key: enob
+    unit: "bits"
+    format: "%.2f"
+
+  worst_case_angle:
+    type: yaml
+    settings:
+      file: results.yml
+      key: worst_case_angle_deg
+    unit: "deg"
+    format: "%.2f"
+
+  # ----- Timing -------------------------------------------------------
+  latency:
+    type: yaml
+    settings:
+      file: results.yml
+      key: latency_cycles
+    unit: "cycles"
+    format: "%.0f"
+
+  throughput:
+    type: yaml
+    settings:
+      file: results.yml
+      key: throughput
+    unit: "samples/cycle"
+    format: "%.3f"
+
+  # ----- Checks -------------------------------------------------------
+  vectors:
+    type: yaml
+    settings:
+      file: results.yml
+      key: vectors
+    format: "%.0f"
+
+  checks_total:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_total
+    format: "%.0f"
+
+  checks_passed:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_passed
+    format: "%.0f"
+
+  checks_failed:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_failed
+    format: "%.0f"
+
+  pass_rate:
+    type: yaml
+    settings:
+      file: results.yml
+      key: pass_rate
+    unit: "%"
+    format: "%.2f"
+
+  # The verdict of the testbench's own checks, apart from "sim_status" (how
+  # the simulation went, from the template).
+  check_status:
+    type: yaml
+    settings:
+      file: results.yml
+      key: status
+
+  reset:
+    type: yaml
+    settings:
+      file: results.yml
+      key: reset
+
+  latency_check:
+    type: yaml
+    settings:
+      file: results.yml
+      key: latency_check
+
+  completeness:
+    type: yaml
+    settings:
+      file: results.yml
+      key: completeness
+
+  accuracy:
+    type: yaml
+    settings:
+      file: results.yml
+      key: accuracy

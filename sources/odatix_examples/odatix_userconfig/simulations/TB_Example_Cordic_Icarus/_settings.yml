@@ -1,0 +1,14 @@
+##############################################
+# Settings for this simulation
+##############################################
+# The CORDIC testbench run with Icarus Verilog. Nothing to write here: the
+# "icarus" template compiles and runs the design, and the testbench comes
+# with each architecture ("testbench" in its _settings.yml), in its own
+# language. Only the metrics of the testbench are added, in _metrics.yml.
+
+template: icarus
+
+# Architectures this testbench runs on. Only an indication: running it on
+# another one works, and only prints a warning.
+architectures:
+- Example_Cordic_sv
