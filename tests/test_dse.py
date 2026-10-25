@@ -1853,6 +1853,62 @@ class TestSimulations:
         assert result.measured
         assert result.metrics["Cycles"] == 120
 
+    def test_the_exploration_never_writes_the_results_files(self, tmp_path, architecture):
+        # The daemon exporting the jobs is their one writer: a file rewritten
+        # from here lost the record it was about to publish. The derived metrics
+        # are applied to what the exploration reads, in memory.
+        self.test_a_simulated_metric_is_an_objective_like_any_other(tmp_path, architecture)
+        import odatix.lib.results_schema as results_schema
+        from odatix.workspace import Workspace
+
+        workspace = Workspace(str(tmp_path))
+        path = os.path.join(workspace.paths.result_path, "results_vivado.yml")
+        loaded = results_schema.load_results_file(path)
+        for record in loaded.records:
+            record["metrics"].pop("Cycles", None)
+            record["meta"].pop("_derived", None)
+        results_schema.dump_results_file(path, loaded.units or {}, loaded.records)
+        with open(path, "rb") as f:
+            on_disk = f.read()
+
+        settings = campaign_settings(
+            simulations=["TB_Design"],
+            objectives=[{"metric": "frequency", "goal": "max"}, "Cycles"],
+        )
+        evaluator = Evaluator(workspace, settings, settings.objective_list())
+        assert evaluator.derive() is True
+        records = [record for group in evaluator._records().values() for record in group]
+        assert [record["metrics"]["Cycles"] for record in records] == [120]
+        with open(path, "rb") as f:
+            assert f.read() == on_disk
+
+    def test_a_record_exported_after_the_derive_pass_is_still_measured(self, tmp_path, architecture):
+        # The daemon writes a finished job's records a moment after it says the
+        # job is over: the pass of derive() then ran without them. Collecting
+        # the design runs it again rather than measuring it without "Cycles".
+        self.test_a_simulated_metric_is_an_objective_like_any_other(tmp_path, architecture)
+        import odatix.lib.results_schema as results_schema
+        from odatix.dse.evaluation import Pending
+        from odatix.workspace import Workspace
+
+        workspace = Workspace(str(tmp_path))
+        path = os.path.join(workspace.paths.result_path, "results_vivado.yml")
+        loaded = results_schema.load_results_file(path)
+        for record in loaded.records:
+            record["metrics"].pop("Cycles", None)
+            record["meta"].pop("_derived", None)
+        results_schema.dump_results_file(path, loaded.units or {}, loaded.records)
+
+        design = ArchitectureSpace(architecture).design((0, 0))
+        settings = campaign_settings(
+            simulations=["TB_Design"],
+            objectives=[{"metric": "frequency", "goal": "max"}, "Cycles"],
+        )
+        evaluator = Evaluator(workspace, settings, settings.objective_list())
+        result = evaluator.collect(Pending(design, [], []))
+        assert result.measured
+        assert result.metrics["Cycles"] == 120
+
     def test_a_workspace_that_derives_nothing_does_not_pay_for_it(self, tmp_path, architecture):
         evaluator = self.evaluator(tmp_path)
         assert evaluator.derive() is False
@@ -2122,6 +2178,64 @@ class TestReuse:
         known = self.evaluator(workspace).known(ArchitectureSpace(architecture))
         assert len(known) == 1
         assert known[0].metrics["frequency"] == 320
+
+    def write_steps(self, tmp_path, steps):
+        # One job run as a flow of steps: one record per step, the last marked.
+        import odatix.lib.results_schema as results_schema
+        from odatix.workspace import Workspace
+
+        workspace = Workspace(str(tmp_path))
+        results = workspace.paths.result_path
+        os.makedirs(results, exist_ok=True)
+        records = []
+        for index, (step, luts) in enumerate(steps):
+            records.append(results_schema.make_record({
+                results_schema.META_TYPE: results_schema.TYPE_FMAX,
+                results_schema.META_TOOL: "vivado",
+                results_schema.META_ARCHITECTURE: "Design",
+                results_schema.META_CONFIGURATION: "8bits_2deep",
+                results_schema.MAIN_DOMAIN_META_KEY: "8bits_2deep",
+                "frequency": 250,
+                "_point.width": "8", "_point.depth": "2",
+                results_schema.META_STEP: step,
+                results_schema.META_STEP_INDEX: index,
+                results_schema.META_LAST_STEP: index == len(steps) - 1,
+            }, {"LUT_count": luts}))
+        results_schema.dump_results_file(os.path.join(results, "results_vivado.yml"), {}, records)
+        return workspace
+
+    def test_a_job_that_went_further_gives_the_step_the_campaign_stops_at(self, tmp_path, architecture):
+        # Routed later, the job still says what its synthesis measured: that is
+        # what a campaign stopping after synthesis compares, not the routed area.
+        workspace = self.write_steps(tmp_path, [("synthesis", 40), ("pnr", 55)])
+        known = self.evaluator(workspace, until="synthesis").known(ArchitectureSpace(architecture))
+        assert [evaluation.metrics["LUT_count"] for evaluation in known] == [40]
+
+    def test_a_job_stopped_earlier_is_not_reused_by_a_campaign_going_further(self, tmp_path, architecture):
+        # Synthesis is optimistic: a campaign going down to place and route
+        # (the default step of the flow) runs the design rather than trust it.
+        workspace = self.write_steps(tmp_path, [("synthesis", 40)])
+        assert self.evaluator(workspace).known(ArchitectureSpace(architecture)) == []
+        workspace = self.write_steps(tmp_path, [("synthesis", 40), ("pnr", 55)])
+        known = self.evaluator(workspace).known(ArchitectureSpace(architecture))
+        assert [evaluation.metrics["LUT_count"] for evaluation in known] == [55]
+
+    def test_a_design_is_found_when_only_the_flow_is_searched(self, tmp_path, architecture):
+        # One tool, several flows: the toolchains of the space still name the
+        # tool, and the record is found by the flow, the only part searched.
+        from odatix.dse.space import Toolchain
+
+        workspace = self.write_result(
+            tmp_path, {"_point.width": "8", "_point.depth": "2", "flow": "area"}
+        )
+        toolchains = [Toolchain("vivado", "standard", ""), Toolchain("vivado", "area", "")]
+        space = ArchitectureSpace(architecture, toolchains=toolchains)
+        settings = campaign_settings(objectives=self.objectives(), flow=["standard", "area"])
+        evaluator = Evaluator(workspace, settings, settings.objective_list(), toolchains=toolchains)
+
+        known = evaluator.known(space)
+        assert len(known) == 1
+        assert known[0].design.toolchain.label == "vivado@area"
 
 
 class _KnowingEvaluator(FakeEvaluator):

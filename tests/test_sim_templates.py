@@ -378,6 +378,7 @@ class TestExamples:
         ("TB_Example_Cordic_QuestaSim", "vhdl"),
         ("TB_Example_Cordic_QuestaSim", "sv"),
         ("TB_Example_Cordic_Vivado", "vhdl"),
+        ("TB_Example_Cordic_Icarus", "sv"),
         ("icarus", "sv"),
     ]
     TEMPLATES = {
@@ -385,6 +386,7 @@ class TestExamples:
         "TB_Example_Cordic_Verilator": "verilator",
         "TB_Example_Cordic_QuestaSim": "questa",
         "TB_Example_Cordic_Vivado": "xsim",
+        "TB_Example_Cordic_Icarus": "icarus",
         "icarus": "icarus",
     }
 

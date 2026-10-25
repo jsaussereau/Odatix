@@ -7,6 +7,7 @@ What a new user of "odatix dse" ran into, kept from happening again.
 - an unknown strategy is a settings file to fix, not an internal error (B3);
 - a campaign whose question changed reads its designs again (B4);
 - a metric nothing measures is said before anything runs (U2);
+- "until" stops every evaluation at a step its flows declare (W1);
 - "odatix dse" takes -E/--exit and --logsize (D4);
 - the archive says what was searched, and counts what was reused apart (D6, U6);
 - a resumed campaign says what is left, not what the budget was (U1).
@@ -204,6 +205,55 @@ class TestMetricNames:
         settings = campaign_settings()
         evaluator = FakeEvaluator(settings.objective_list(), lambda design: {"speed": 1, "area": 1})
         Campaign(Workspace(str(tmp_path)), architecture, settings, evaluator=evaluator).check()
+
+
+######################################
+# W1: until, the step every evaluation stops at
+######################################
+
+class TestUntil:
+    def campaign(self, architecture, **overrides):
+        from odatix.workspace import Workspace
+
+        settings = campaign_settings(
+            run="custom_freq_synthesis",
+            objectives=[{"metric": "frequency", "goal": "max"}, {"metric": "LUT_count", "goal": "min"}],
+            **overrides
+        )
+        workspace = Workspace(os.path.dirname(os.path.dirname(os.path.dirname(architecture.path))))
+        return Campaign(workspace, architecture, settings)
+
+    def test_a_step_of_the_flow_is_accepted(self, architecture):
+        campaign = self.campaign(architecture, until="synthesis")
+        campaign.check()
+        assert campaign.settings.until == "synthesis"
+
+    def test_a_step_the_flow_does_not_have_stops_the_check(self, architecture):
+        campaign = self.campaign(architecture, until="routing")
+        with pytest.raises(CampaignError) as error:
+            campaign.check()
+        message = str(error.value)
+        assert '"until: routing" is not a step of vivado' in message
+        assert "synthesis" in message
+
+    def test_every_batch_is_run_until_that_step(self, architecture, monkeypatch):
+        import odatix.run
+
+        seen = {}
+
+        class StopRun(Exception):
+            pass
+
+        def fake_run(*args, **kwargs):
+            seen.update(kwargs)
+            raise StopRun()
+
+        monkeypatch.setattr(odatix.run, "Run", fake_run)
+        campaign = self.campaign(architecture, until="synthesis")
+        design = campaign.space.design(next(iter(campaign.space.genomes())))
+        with pytest.raises(StopRun):
+            campaign.evaluator.start_batch([design], None, None)
+        assert seen["until"] == "synthesis"
 
 
 ######################################
