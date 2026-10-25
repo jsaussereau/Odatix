@@ -160,16 +160,15 @@ def layout(**kwargs):
       # a section when it changed, instead of every 3 seconds.
       dcc.Store(id="xp-home-signature", data={}),
       home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
-      # The data first (what was loaded, or why nothing was), then what to look
-      # at: the suggestions and the saved views, before the list of every chart
-      # kind, which the navigation bar repeats anyway.
-      html.Div(id="xp-home-sources", className="xp-home-section"),
-      insights_section(),
-      html.Div(id="xp-home-views", className="xp-home-section"),
+      # The chart and report kinds first, then the data (what was loaded, or
+      # why nothing was), the suggestions and the saved views.
       section_header("Charts"),
       home_shared.home_card_grid(_CHART_CARDS, _card_visual),
       section_header("Reports"),
       home_shared.home_card_grid(_REPORT_CARDS, _card_visual),
+      html.Div(id="xp-home-sources", className="xp-home-section"),
+      insights_section(),
+      html.Div(id="xp-home-views", className="xp-home-section"),
     ],
     className="xp-home",
   )
