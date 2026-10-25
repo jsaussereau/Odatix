@@ -499,8 +499,7 @@ class OdatixSettings:
     #: The first run "odatix init --examples" suggests: one configuration, up
     #: to synthesis, so that it ends in minutes (the same as the getting started
     #: page of the documentation).
-    FIRST_RUN_COMMAND = 'fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis'
-
+    FIRST_RUN_COMMAND = 'synth --tool vivado -a "Example_Counter_verilog/*" --at 50'
     @staticmethod
     def init_success(prog="", examples=False):
         """
