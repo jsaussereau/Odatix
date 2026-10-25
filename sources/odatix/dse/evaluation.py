@@ -601,6 +601,7 @@ class Evaluator(object):
             tool=(toolchain.tool if toolchain is not None else self.settings.tool),
             flow=(toolchain.flow if toolchain is not None else self.settings.flow) or None,
             targets=[toolchain.target] if toolchain is not None and toolchain.target else [],
+            until=str(getattr(self.settings, "until", "") or "").strip() or None,
             overwrite=self.settings.overwrite,
             nb_jobs=self.settings.nb_jobs,
             noask=True,
@@ -722,8 +723,7 @@ class Evaluator(object):
 
     def derive(self):
         """
-        Recompute the derived metrics of the workspace, now that the batch is
-        over and before it is measured.
+        Whether the records this exploration reads get derived metrics.
 
         This is what lets an objective be something the synthesis never
         measured. A derived metric copies a number from a record of another kind
@@ -733,33 +733,62 @@ class Evaluator(object):
         is why the search needs to know nothing about where it came from (see
         :mod:`odatix.lib.derived_metrics`).
 
-        It cannot be done when a job finishes, since the record it borrows from
-        may belong to a job still running, so it is a whole-workspace pass. It
-        is idempotent, which is what makes running it once per batch cheap
-        enough to be worth the certainty.
+        They are computed in memory, every time the records are read (see
+        :meth:`_records`), and never written from here: the results files have
+        one writer, the daemon exporting the jobs, which derives them on disk
+        itself once its jobs are over. Writing them from the exploration as well
+        raced with that export -- a record the daemon was about to publish was
+        lost to a file rewritten without it.
 
         Returns:
-            bool: whether anything was derived at all. A workspace that declares
-            no derived metric does not pay for the pass.
+            bool: whether the workspace declares derived metrics at all. One
+            that declares none does not pay for them.
         """
+        return self._derived_metrics_config() is not None
+
+    def _derived_metrics_config(self):
+        """The derived metrics of the workspace, or None when it has none."""
         path = getattr(self.workspace.paths, "derived_metrics_file", None)
         if not path or not os.path.isfile(path):
-            return False
+            return None
+        from odatix.lib import derived_metrics as derived_metrics_lib
 
-        from odatix.components.export_derived_metrics import apply_derived_metrics
+        try:
+            config = derived_metrics_lib.load_derived_metrics(path)
+        except Exception as error:
+            printc.warning("Could not read the derived metrics: {0}".format(error), script_name)
+            return None
+        return config if config.valid else None
+
+    def _derived_records(self):
+        """
+        Every results file of the workspace, by path, with the derived metrics
+        applied to its records -- in memory only. None when the workspace
+        declares no derived metric.
+
+        The whole result directory is read, simulations included: a derived
+        metric borrows from records of any kind.
+        """
+        config = self._derived_metrics_config()
+        if config is None:
+            return None
+        from odatix.components.export_derived_metrics import load_pool
+        from odatix.lib import derived_metrics as derived_metrics_lib
 
         try:
             with _quiet():
-                apply_derived_metrics(self.workspace.paths.result_path, path)
+                files, records, origins = load_pool(self.workspace.paths.result_path)
+                derived_metrics_lib.apply_derived_metrics(config, records, {})
         except Exception as error:
             # A design whose objective could not be derived comes back
             # unmeasured, which the campaign already reports design by design:
             # there is nothing here worth stopping an exploration for.
-            printc.warning(
-                "Could not derive the metrics of this batch: {0}".format(error), script_name
-            )
-            return False
-        return True
+            printc.warning("Could not derive the metrics of the results: {0}".format(error), script_name)
+            return None
+        by_path = {}
+        for record, origin in zip(records, origins):
+            by_path.setdefault(os.path.normpath(origin), []).append(record)
+        return by_path
 
     def write_batch_settings(self, designs, toolchain=None, frequency=None):
         """
@@ -1116,29 +1145,83 @@ class Evaluator(object):
         chooses the tool has its designs spread over one results file per tool.
 
         A job run as a flow of several steps (elaboration, synthesis, place and
-        route) writes one record per step, and only the last one says what the
-        design turned out to be: the others are the same job seen earlier on,
-        not other ways of running the design. They are left out (see
-        :func:`is_final_record`), so that a design is never worth what an
-        intermediate step measured.
+        route) writes one record per step. Only the one of the step this
+        campaign stops at is kept (see :meth:`is_measured_step`), so that a
+        design is never worth what another step measured -- earlier and more
+        optimistic, or later and not comparable.
+
+        The derived metrics are applied to them as they are read (see
+        :meth:`derive`), so a record measures the design with them the moment
+        it exists, whether or not the daemon has derived them on disk yet.
         """
         records = {}
+        derived = self._derived_records()
         for tool in self.tools:
             path = self.results_file(tool)
             if not os.path.isfile(path):
                 continue
-            try:
-                results = load_results_file(path)
-            except Exception as error:
-                printc.warning("Could not read \"{0}\": {1}".format(path, error), script_name)
-                continue
+            if derived is not None:
+                file_records = derived.get(os.path.normpath(path), [])
+            else:
+                try:
+                    file_records = load_results_file(path).records
+                except Exception as error:
+                    printc.warning("Could not read \"{0}\": {1}".format(path, error), script_name)
+                    continue
 
-            for record in results.records:
+            for record in file_records:
                 meta = record.get("meta", {}) if isinstance(record, dict) else {}
-                if not is_final_record(meta):
+                if not self.is_measured_step(meta):
                     continue
                 records.setdefault(self.identity(meta), []).append(record)
         return records
+
+    def end_step(self, tool, flow):
+        """
+        The step an evaluation with ``tool`` and ``flow`` stops at: "until"
+        when the campaign gives one, the default step of the flow otherwise,
+        its last step when it marks none -- or None for a flow with no steps.
+        """
+        cache = self.__dict__.setdefault("_end_steps", {})
+        key = (str(tool or ""), str(flow or ""))
+        if key not in cache:
+            from odatix.lib.eda_tools import get_default_step, get_flow_step_names
+
+            try:
+                names = get_flow_step_names(key[0], flow=key[1] or None, job_type=self.settings.run)
+            except Exception:
+                names = []
+            until = str(getattr(self.settings, "until", "") or "").strip()
+            if not names:
+                cache[key] = None
+            elif until in names:
+                cache[key] = until
+            else:
+                try:
+                    default = get_default_step(key[0], flow=key[1] or None, job_type=self.settings.run)
+                except Exception:
+                    default = None
+                cache[key] = default or names[-1]
+        return cache[key]
+
+    def is_measured_step(self, meta):
+        """
+        Whether a record measures a design the way this campaign does.
+
+        A job run as a flow of steps writes one record per step it completed.
+        The one worth reading is the one of the step the campaign's own
+        evaluations stop at (see :meth:`end_step`), whether or not the job went
+        further: a job routed later still has its synthesis record for a
+        campaign stopping after synthesis, and a job stopped at synthesis says
+        nothing of a campaign going down to the routed design. A record
+        without a step comes from a job without steps, and is final.
+        """
+        if not isinstance(meta, dict) or not meta.get("step"):
+            return is_final_record(meta)
+        wanted = self.end_step(meta.get("tool"), meta.get("flow"))
+        if wanted is None:
+            return is_final_record(meta)
+        return str(meta.get("step")) == wanted
 
     def known(self, space):
         """
@@ -1228,6 +1311,13 @@ class Evaluator(object):
 
         if not (self.explores_tool or self.explores_flow or self.explores_target):
             return None
+        # The toolchains of the space keep what the search did not choose (the
+        # one tool of a campaign searching its flows): the record is the one
+        # whose chosen parts are the same.
+        key = self.toolchain_key(meta)
+        for chain in self.toolchains:
+            if self.toolchain_key({"tool": chain.tool, "flow": chain.flow, "target": chain.target}) == key:
+                return chain
         return Toolchain(
             str(meta.get("tool", "") or "") if self.explores_tool else "",
             str(meta.get("flow", "") or "") if self.explores_flow else "",

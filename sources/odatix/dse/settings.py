@@ -254,6 +254,14 @@ class CampaignSettings(Settings):
         "", type="any", comment="a target, or a list of them - empty: every target the tool enables",
         doc="Synthesis target the evaluations run on, or the targets the search chooses between.",
     )
+    until = Setting(
+        "", type="str",
+        comment=(
+            "last step of the flow every evaluation runs, like --until - empty: the default step\n"
+            " (\"synthesis\" on an FPGA tool is several times faster than place and route, and more optimistic)"
+        ),
+        doc="Last step of the flow each evaluation runs, inclusive.",
+    )
     simulations = Setting(
         factory=list, type="str_list",
         section=" simulations every design is run through, before it is measured",

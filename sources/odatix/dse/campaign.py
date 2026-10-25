@@ -283,7 +283,37 @@ class Campaign(object):
         except EmptySpaceError as error:
             raise CampaignError(str(error))
         self.check_simulations()
+        self.check_until()
         self.check_metrics()
+        return self
+
+    def check_until(self):
+        """
+        Make sure the step every evaluation stops at ("until") is one that each
+        flow the search may run declares.
+
+        A step a flow does not have would fail every batch in the same way, so
+        it is said now, naming the steps there are.
+        """
+        until = str(getattr(self.settings, "until", "") or "").strip()
+        if not until or self.settings.runs_workflow() or not isinstance(self.evaluator, Evaluator):
+            return self
+        from odatix.lib.eda_tools import get_flow_step_names
+
+        for toolchain in self.toolchains or []:
+            try:
+                names = get_flow_step_names(toolchain.tool, flow=toolchain.flow or None, job_type=self.settings.run)
+            except Exception:
+                # Not knowing the steps is not a reason to refuse to run.
+                continue
+            if until not in names:
+                raise CampaignError(
+                    "\"until: {0}\" is not a step of {1} ({2}). Check \"until\" in \"{3}\".".format(
+                        until, toolchain.label,
+                        "steps are: " + ", ".join(names) if names else "its flow is not split into steps",
+                        self.source,
+                    )
+                )
         return self
 
     def check_metrics(self):
