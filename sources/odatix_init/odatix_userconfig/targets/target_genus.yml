@@ -6,7 +6,7 @@
 
 constraint_file: timing_constraints.txt
 
-tool_install_path: "" # Design Compiler should be in your $PATH
+tool_install_path: "" # Genus should be in your $PATH
 
 force_single_thread: No # Single thread is not supported yet with Design Compiler
 
@@ -18,11 +18,11 @@ script_copy_source: "/dev/null"
 # h18_3.3V and h18_5.0V: just the I/O lib is avaible
 
 targets:
-#  - AMS_c35_1V8
+  - AMS_c35_1V8
   # - AMS_c35_2V2
   # - AMS_c35_2V7
   # - AMS_c35_3V3
-   - AMS_h18_1V8
+  # - AMS_h18_1V8
   # - AMS_h18_2V2
   # - AMS_h18_3V3
   # - AMS_h18_5V0

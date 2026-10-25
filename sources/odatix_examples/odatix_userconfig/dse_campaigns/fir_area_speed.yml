@@ -20,10 +20,12 @@
 # Leaving "flow" empty runs the default flow of each tool, and leaving "target"
 # empty runs every target the tool's target file enables, the way "odatix
 # synth" does: a design is then worth what its best target is worth.
-run:              fmax_synthesis  # fmax_synthesis, custom_freq_synthesis or workflow
+run:              custom_freq_synthesis  # custom_freq_synthesis, fmax_synthesis or workflow
 tool:             vivado          # a tool, or a list of them - overridden by -t / --tool
 flow:             ""              # a flow, or a list of them - empty: the default flow of each tool
 target:           ""              # a target, or a list of them - empty: every target the tool enables
+until:            ""              # last step every design runs, like --until - empty: the default step
+                                  # ("synthesis" on an FPGA tool: much faster than place and route, more optimistic)
 
 # simulations every design is run through, before it is measured
 #
@@ -47,7 +49,7 @@ simulations:      []              # e.g. [TB_Example_Cordic_Verilator]
 # "synth_settings.yml" alone, like every other setting of the
 # command being run.
 frequencies:
-  explore:        No      # yes: each design gets a frequency of its own, chosen in the range below
+  explore:        Yes     # yes: each design gets a frequency of its own, chosen in the range below
   list:           []      # if 'explore' is no, every design is synthesized at each of those
   range:                  # if 'explore' is yes, the frequencies the search may choose from
     from:         50
@@ -61,12 +63,14 @@ frequencies:
 # a bigger one that runs faster, it is another trade-off -- so what comes back
 # is every design that nothing beats on all of them at once.
 #
-# "Fmax" is where an fmax synthesis puts its answer, and "frequency" what a
-# fixed-frequency synthesis ran at; everything else is a metric the tool's
+# "frequency" is what a fixed-frequency synthesis ran at, and "Fmax" where an
+# fmax synthesis puts its answer. Prefer the first: a design synthesized for the
+# frequency it is judged at is closer to the front than the fastest clock one
+# run of an fmax search happened to meet; everything else is a metric the tool's
 # "metrics.yml" declares (LUT_count, Total_Power, Worst_Slack, ...), derived
 # metrics included. "odatix dse -C" checks the names before anything runs.
 objectives:
-  - metric: Fmax
+  - metric: frequency
     goal: max
   - metric: LUT_count
     goal: min
@@ -84,9 +88,9 @@ objectives:
 # two that both break one, the closer to meeting it wins. Nothing is thrown
 # away: at the start of a search there are often only infeasible designs, and
 # they are what points it towards the part of the space that works.
-constraints: []
-  # - metric: Worst_Slack
-  #   min: 0
+constraints:
+  - metric: Worst_Slack
+    min: 0
   # - metric: LUT_count
   #   max: 20000
 
