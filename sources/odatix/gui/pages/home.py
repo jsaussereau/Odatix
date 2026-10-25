@@ -21,6 +21,7 @@
 
 import os
 import dash
+import flask
 from dash import dcc, html, Input, Output
 
 from odatix.components import home_shared
@@ -108,21 +109,14 @@ def _external_link(text, href):
     return html.A(text, href=href, target="_blank", rel="noopener")
 
 
-def home_layout():
-    """The home page of a workspace (built on each visit: it names the workspace)."""
+# Set by assets/home_start.js when "Don't show again" is clicked
+START_HIDDEN_COOKIE = "odatix_hide_home_start"
+
+
+def _start_banner():
+    if flask.has_request_context() and flask.request.cookies.get(START_HIDDEN_COOKIE) == "1":
+        return None
     return html.Div(
-        [
-            home_shared.home_header("Odatix", "Configure, run and explore your design space exploration."),
-            html.Div(
-                [
-                    html.Span("Workspace", className="odx-home-workspace-label"),
-                    # Left-to-right marks: the path is cut on its left (see the CSS), and
-                    # its slashes stay where they are.
-                    html.Span("\u200e" + os.getcwd() + "\u200e", className="odx-home-workspace-path", title=os.getcwd()),
-                ],
-                className="odx-home-workspace",
-            ),
-            html.Div(
                 [
                     pictogram("documentation", size="36px", className="odx-home-start-pictogram"),
                     html.Div(
@@ -138,12 +132,42 @@ def home_layout():
                                 ],
                                 className="odx-home-start-text",
                             ),
+                            html.Button(
+                                "Don't show again",
+                                className="odx-home-start-never",
+                                type="button",
+                            ),
                         ],
+                        className="odx-home-start-body",
+                    ),
+                    html.Button(
+                        "\u00d7",
+                        className="odx-home-start-close",
+                        type="button",
+                        title="Close",
+                        **{"aria-label": "Close"},
                     ),
                 ],
                 className="odx-home-start",
-            ),
+            )
+
+
+def home_layout():
+    """The home page of a workspace (built on each visit: it names the workspace)."""
+    return html.Div(
+        [
+            home_shared.home_header("Odatix", "Configure, run and explore your design space exploration."),
+            _start_banner(),
             home_shared.home_card_grid(home_cards, _card_visual),
+            html.Div(
+                [
+                    html.Span("Workspace", className="odx-home-workspace-label"),
+                    # Left-to-right marks: the path is cut on its left (see the CSS), and
+                    # its slashes stay where they are.
+                    html.Span("\u200e" + os.getcwd() + "\u200e", className="odx-home-workspace-path", title=os.getcwd()),
+                ],
+                className="odx-home-workspace",
+            ),
         ],
         className="xp-home",
     )

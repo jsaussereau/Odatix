@@ -769,7 +769,7 @@ textarea {
     align-items: baseline;
     gap: 8px;
     max-width: 760px;
-    margin: -16px auto 24px auto;
+    margin: 0 auto 24px auto;
     font-size: 13px;
 }
 .odx-home-workspace-label {
@@ -807,6 +807,69 @@ textarea {
     border-radius: var(--card-border-radius, 20px);
     box-shadow: var(--card-box-shadow);
     text-align: left;
+    position: relative;
+    overflow: hidden;
+    transition: opacity 0.25s ease, transform 0.25s ease, max-height 0.3s ease 0.1s,
+                margin 0.3s ease 0.1s, padding 0.3s ease 0.1s;
+    max-height: 300px;
+}
+.odx-home-start.is-closing {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    max-height: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.odx-home-start-body {
+    flex: 1 1 auto;
+    padding-right: 24px;
+}
+.odx-home-start-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 20px;
+    line-height: 1;
+    opacity: 0.55;
+    cursor: pointer;
+    transition: opacity 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+.odx-home-start-close:hover {
+    opacity: 1;
+    background-color: color-mix(in srgb, currentColor 12%, transparent);
+    transform: rotate(90deg);
+}
+.odx-home-start-close:focus-visible,
+.odx-home-start-never:focus-visible {
+    outline: 2px solid var(--theme-primary-color);
+    outline-offset: 2px;
+}
+.odx-home-start-never {
+    margin-top: 6px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font-size: 12px;
+    opacity: 0.6;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+.odx-home-start-never:hover {
+    opacity: 1;
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 .odx-home-start-pictogram {
     flex: 0 0 auto;
