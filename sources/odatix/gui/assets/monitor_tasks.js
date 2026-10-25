@@ -799,14 +799,18 @@
 
     stopAllPopup: function (displayed, _cancel, _backdrop, _confirm, lastAction) {
       var ctx = window.dash_clientside.callback_context;
-      var triggered = (ctx && ctx.triggered && ctx.triggered.length) ? ctx.triggered[0].prop_id : "";
+      var triggeredIds = (ctx && ctx.triggered) ? ctx.triggered.map(function (t) { return t.prop_id; }) : [];
+      // Dash holds this callback back while the kill-all (which writes
+      // monitor-last-action) runs, then calls it once with both the confirm
+      // click and the result: the result wins, or the dialog stays busy.
+      if (triggeredIds.indexOf("monitor-last-action.data") !== -1) {
+        if (lastAction && lastAction.action === "shutdown") return "overlay-odatix";
+        if (triggeredIds.length === 1) return noUpdate();
+      }
+      var triggered = triggeredIds.length ? triggeredIds[0] : "";
       if (triggered.indexOf("monitor-stop-all-confirm.") === 0) {
         // Stopping waits for the session's processes to be gone: say so.
         return _confirm ? "overlay-odatix visible busy" : noUpdate();
-      }
-      if (triggered.indexOf("monitor-last-action.") === 0) {
-        if (lastAction && lastAction.action === "shutdown") return "overlay-odatix";
-        return noUpdate();
       }
       if (triggered.indexOf("monitor-stop-all-displayed.") === 0) {
         return displayed ? "overlay-odatix visible" : "overlay-odatix";
