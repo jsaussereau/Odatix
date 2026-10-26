@@ -3211,7 +3211,7 @@ class TestConfigurationRules:
             {"domain_uuid": "depth-uuid", "domain_name": "depth"},
         ]
         updated = pages.rules.update_variable_cards(
-            [0, 1], [], [], rows, metadata, *self.field_values(variables, {
+            [0, 1], [], [], [], rows, metadata, [], [], *self.field_values(variables, {
                 ("main-uuid", "width"): {"type": "list", "list": "8"},
                 ("depth-uuid", "depth"): {"type": "list", "list": "4"},
             }),

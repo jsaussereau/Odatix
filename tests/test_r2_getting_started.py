@@ -52,8 +52,8 @@ def test_init_ends_with_a_first_run_when_the_examples_are_there(capsys):
     out = _plain(capsys.readouterr().out)
     assert "odatix " + OdatixSettings.FIRST_RUN_COMMAND in out
     assert doc_links.GETTING_STARTED_URL in out
-    # The first run names an example that exists, and stops after synthesis.
-    assert "--until synthesis" in OdatixSettings.FIRST_RUN_COMMAND
+    # The first run names an example that exists, and runs a single synthesis.
+    assert OdatixSettings.FIRST_RUN_COMMAND.startswith("synth ")
     examples = os.path.join(OdatixSettings.odatix_examples_path, "odatix_userconfig", "architectures")
     assert os.path.isfile(os.path.join(examples, "Example_Counter_verilog", "08bits.txt"))
 

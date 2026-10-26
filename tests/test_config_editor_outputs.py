@@ -213,7 +213,8 @@ class TestNewDomain:
         )
         use_ctx(editor, monkeypatch, triggered_id={"action": "add-domain", "type": "button"})
         sections, _initialized, new_uuid = editor.update_param_domains(
-            None, "?arch=arch", editor.page_path, [1], [], [], 0, {}, ["main", "add"], metadata(MAIN), "",
+            None, "?arch=arch", editor.page_path, [1], [], [], 0, [], {}, ["main", "add"], metadata(MAIN), "",
+            [], [], [],
         )
         assert new_uuid
         domain = instances["arch"].domains["new_domain1"]
