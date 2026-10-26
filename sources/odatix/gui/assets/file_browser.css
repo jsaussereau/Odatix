@@ -24,7 +24,7 @@
 /*  Path fields and their file browser (ui.path_input, file_browser.js)   */
 /* ====================================================================== */
 
-/* --- Field + browse button --------------------------------------------- */
+/* --- Field + button on its right (browse, auto detect...) ------------ */
 .odx-path-input {
     display: flex;
     align-items: stretch;
@@ -40,7 +40,7 @@
     border-bottom-right-radius: 0;
     box-sizing: border-box;
 }
-.odx-path-browse {
+.odx-input-button {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
@@ -55,17 +55,17 @@
     border-radius: 0 var(--input-border-radius) var(--input-border-radius) 0;
     transition: color 0.15s ease, background-color 0.15s ease;
 }
-.odx-path-input.multiline .odx-path-browse {
+.odx-path-input.multiline .odx-input-button {
     align-items: flex-start;
     padding-top: 9px;
 }
-.odx-path-browse:hover:not([disabled]),
-.odx-path-browse:focus-visible {
+.odx-input-button:hover:not([disabled]),
+.odx-input-button:focus-visible {
     color: var(--theme-primary-color);
     background: var(--theme-dimmed-element-background-color, var(--input-background));
     outline: none;
 }
-.odx-path-browse[disabled] {
+.odx-input-button[disabled] {
     cursor: default;
     opacity: 0.5;
 }

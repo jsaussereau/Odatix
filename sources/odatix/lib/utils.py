@@ -153,6 +153,50 @@ def _compile_copy_patterns(patterns, src):
         ))
     return compiled
 
+def _matches_copy_patterns(rel_path, patterns):
+    rel_path = os.path.normcase(rel_path)
+    for regex, _, _ in patterns:
+        if regex.match(rel_path):
+            return True
+    return False
+
+def _may_hold_whitelisted(rel_dir, white):
+    """Whether some whitelist pattern can match a path below `rel_dir`."""
+    rel_dir = rel_dir + "/"
+    for _, prefix, is_glob in white:
+        if prefix.startswith(rel_dir) or (is_glob and rel_dir.startswith(prefix)):
+            return True
+    return False
+
+def copytree_keeps(src, rel_file, whitelist=None, blacklist=None):
+    """
+    Whether copytree(src, ..., whitelist, blacklist) copies the file `rel_file`
+    (relative to `src`, "/" separators), by the same rules, without walking
+    anything: what an editor checks a path against before a run copies it.
+    """
+    src = os.path.realpath(src)
+    white = _compile_copy_patterns(whitelist, src)
+    black = _compile_copy_patterns(blacklist, src)
+    parts = [p for p in os.path.normpath(rel_file).replace(os.sep, "/").split("/") if p]
+    rel_root, root_whitelisted = "", not white
+    for d in parts[:-1]:
+        rel_dir = rel_root + "/" + d if rel_root else d
+        if black and _matches_copy_patterns(rel_dir, black):
+            return False
+        if root_whitelisted or _matches_copy_patterns(rel_dir, white):
+            root_whitelisted = True
+        elif not _may_hold_whitelisted(rel_dir, white):
+            return False
+        rel_root = rel_dir
+    if not parts:
+        return False
+    rel_file = "/".join(parts)
+    if not root_whitelisted and not _matches_copy_patterns(rel_file, white):
+        return False
+    if black and _matches_copy_patterns(rel_file, black):
+        return False
+    return True
+
 def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kwargs):
     """
     Custom copytree to copy directories with support for dirs_exist_ok, whitelist, and blacklist.
@@ -179,20 +223,10 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
     white = _compile_copy_patterns(whitelist, src)
     black = _compile_copy_patterns(blacklist, src)
 
-    def matches(rel_path, patterns):
-        rel_path = os.path.normcase(rel_path)
-        for regex, _, _ in patterns:
-            if regex.match(rel_path):
-                return True
-        return False
+    matches = _matches_copy_patterns
 
     def may_hold_whitelisted(rel_dir):
-        """Whether some whitelist pattern can match a path below `rel_dir`."""
-        rel_dir = rel_dir + "/"
-        for _, prefix, is_glob in white:
-            if prefix.startswith(rel_dir) or (is_glob and rel_dir.startswith(prefix)):
-                return True
-        return False
+        return _may_hold_whitelisted(rel_dir, white)
 
     # Ensure destination exists
     if os.path.exists(dst):

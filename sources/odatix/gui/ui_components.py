@@ -492,7 +492,7 @@ def path_input(
             control,
             html.Button(
                 icon("folder_open", width="18px", height="18px"),
-                className="odx-path-browse",
+                className="odx-input-button odx-path-browse",
                 title="Browse the workspace",
                 type="button",
                 disabled=disabled,

@@ -19,6 +19,9 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import json
+import os
+
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional#, Literal
@@ -34,6 +37,7 @@ from odatix.lib.config_generator import get_variables
 from odatix.workspace.space import config_set_rules
 from odatix.lib.constraint_files import DEFAULT_SCOPE, SCOPES
 import odatix.lib.overrides as overrides_lib
+import odatix.lib.hdl_detect as hdl_detect
 
 page_path = "/arch_editor"
 
@@ -123,10 +127,16 @@ def architecture_form_field(
     type = None,
     className: str=None,
     browse: Optional[dict]=None,
+    detect: bool=False,
 ):
-    """`browse`: the options of ui.path_input, for a field holding a path."""
+    """
+    `browse`: the options of ui.path_input, for a field holding a path.
+    `detect`: an "auto detect" button guessing the value from the HDL sources.
+    """
     if browse is not None:
         control = ui.path_input(id=id, value=value, placeholder=placeholder, className=className or "", **browse)
+    elif detect:
+        control = autodetect_input(id, value, placeholder)
     else:
         control = dcc.Input(
             id=id,
@@ -150,6 +160,154 @@ def architecture_form_field(
         className="odx-field",
         style={"marginBottom": "12px"},
     )
+
+######################################
+# Auto detection
+######################################
+
+# The fields an "auto detect" button can fill, guessed by lib/hdl_detect.py
+AUTODETECT_FIELDS = ("top_level_module", "clock_signal", "reset_signal")
+
+def autodetect_input(id, value, placeholder=""):
+    """
+    A field with an "auto detect" button on its right, styled like the browse
+    button of a path field, and below it the candidates to pick from when
+    there are several.
+    """
+    return html.Div([
+        html.Div(
+            [
+                dcc.Input(id=id, value=value, type="text", placeholder=placeholder),
+                html.Button(
+                    icon("generate", width="18px", height="18px"),
+                    id=f"{id}-autodetect",
+                    className="odx-input-button odx-autodetect",
+                    title="Auto detect from the HDL sources",
+                    type="button",
+                ),
+            ],
+            className="odx-path-input",
+        ),
+        ui.feedback(f"{id}-autodetect-feedback"),
+        html.Div(
+            dcc.RadioItems(id=f"{id}-autodetect-choices", options=[], value=None, className="odx-autodetect-choices"),
+            id=f"{id}-autodetect-choices-container",
+            className="odx-autodetect-container hide",
+        ),
+    ])
+
+def autodetect_sources(odatix_settings, generate_rtl, design_path, generate_output, rtl_path):
+    """The directory holding the HDL sources of the form, None if there is none."""
+    root = get_workspace(odatix_settings).root
+    if generate_rtl:
+        if not design_path:
+            return None
+        directory = os.path.join(root, design_path, generate_output or "")
+    else:
+        if not rtl_path:
+            return None
+        directory = os.path.join(root, rtl_path)
+    return directory if os.path.isdir(directory) else None
+
+def autodetect(field, odatix_settings, generate_rtl, design_path, generate_output, rtl_path,
+               top_level_file, top_level_module, arch_title):
+    """(candidates, error message) of one field."""
+    directory = autodetect_sources(odatix_settings, generate_rtl, design_path, generate_output, rtl_path)
+    if directory is None:
+        if generate_rtl:
+            return [], "No generated RTL found: set the design path and generation output, then run the generation once."
+        return [], "Set an existing RTL path first."
+    units = hdl_detect.read_directory(directory)
+    if not units:
+        return [], "No Verilog, SystemVerilog or VHDL module found in the RTL sources."
+    hints = [arch_title, os.path.basename(os.path.normpath(directory))]
+    if field == "top_level_module":
+        return hdl_detect.top_module_candidates(units, top_level_file or "", hints), None
+    unit = hdl_detect.find_unit(units, top_level_module, top_level_file or "")
+    if unit is None:
+        if top_level_module:
+            return [], f"Module '{top_level_module}' not found in the RTL sources."
+        tops = hdl_detect.top_module_candidates(units, top_level_file or "", hints)
+        if len(tops) != 1:
+            return [], "Set the top level module first."
+        unit = hdl_detect.find_unit(units, tops[0].value, tops[0].file)
+    if field == "clock_signal":
+        return hdl_detect.clock_candidates(unit, units), None
+    return hdl_detect.reset_candidates(unit, units), None
+
+def autodetect_option(field, candidate):
+    label = [html.Span(candidate.value, className="odx-autodetect-value")]
+    if candidate.detail:
+        label.append(html.Span(candidate.detail, className="odx-autodetect-detail"))
+    # a top level module also tells the file declaring it
+    value = json.dumps([candidate.value, candidate.file]) if field == "top_level_module" else json.dumps([candidate.value, ""])
+    return {"label": html.Span(label), "value": value}
+
+def register_autodetect_callbacks(field):
+    kind = {"top_level_module": "top level module", "clock_signal": "clock", "reset_signal": "reset"}[field]
+
+    @dash.callback(
+        Output(field, "value", allow_duplicate=True),
+        Output("top_level_file", "value", allow_duplicate=True),
+        Output(f"{field}-autodetect-choices", "options"),
+        Output(f"{field}-autodetect-choices", "value"),
+        Output(f"{field}-autodetect-choices-container", "className"),
+        Output(f"{field}-autodetect-feedback", "children"),
+        Input(f"{field}-autodetect", "n_clicks"),
+        State("generate_rtl", "value"),
+        State("design_path", "value"),
+        State("generate_output", "value"),
+        State("rtl_path", "value"),
+        State("top_level_file", "value"),
+        State("top_level_module", "value"),
+        State("arch-title", "value"),
+        State("odatix-settings", "data"),
+        prevent_initial_call=True,
+    )
+    def detect(n_clicks, generate_rtl, design_path, generate_output, rtl_path,
+               top_level_file, top_level_module, arch_title, odatix_settings):
+        if not n_clicks:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        try:
+            candidates, reason = autodetect(
+                field, odatix_settings, bool(generate_rtl), design_path, generate_output, rtl_path,
+                top_level_file, top_level_module, arch_title,
+            )
+        except Exception as e:
+            candidates, reason = [], f"Auto detection failed: {e}"
+        if reason:
+            return dash.no_update, dash.no_update, [], None, "odx-autodetect-container hide", ui.error(reason)
+        if not candidates:
+            return dash.no_update, dash.no_update, [], None, "odx-autodetect-container hide", ui.error(f"No likely {kind} found.")
+        if len(candidates) == 1:
+            best = candidates[0]
+            new_file = best.file if field == "top_level_module" and not top_level_file else dash.no_update
+            message = f"Detected '{best.value}'" + (f" ({best.detail})." if best.detail else ".")
+            return best.value, new_file, [], None, "odx-autodetect-container hide", ui.success(message)
+        options = [autodetect_option(field, c) for c in candidates]
+        return (
+            dash.no_update, dash.no_update, options, None, "odx-autodetect-container",
+            ui.success(f"Several possible {kind}s, most likely first: pick one."),
+        )
+
+    @dash.callback(
+        Output(field, "value", allow_duplicate=True),
+        Output("top_level_file", "value", allow_duplicate=True),
+        Output(f"{field}-autodetect-choices-container", "className", allow_duplicate=True),
+        Output(f"{field}-autodetect-feedback", "children", allow_duplicate=True),
+        Input(f"{field}-autodetect-choices", "value"),
+        State("top_level_file", "value"),
+        prevent_initial_call=True,
+    )
+    def pick(choice, top_level_file):
+        if not choice:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        value, file = json.loads(choice)
+        new_file = file if file and not top_level_file else dash.no_update
+        return value, new_file, "odx-autodetect-container hide", ""
+
+for _field in AUTODETECT_FIELDS:
+    register_autodetect_callbacks(_field)
 
 ######################################
 # Constraint files
@@ -576,18 +734,21 @@ def architecture_form(settings, names=None):
                     label="Top level module",
                     id="top_level_module",
                     value=defval("top_level_module", ""),
+                    detect=True,
                     tooltip="The name of the top level module/entity in your top level file.",
                 ),
                 architecture_form_field(
                     label="Clock signal",
                     id="clock_signal",
                     value=defval("clock_signal", ""),
+                    detect=True,
                     tooltip="The name of the clock signal in your top level module/entity.",
                 ),
                 architecture_form_field(
                     label="Reset signal",
                     id="reset_signal",
                     value=defval("reset_signal", ""),
+                    detect=True,
                     tooltip="The name of the reset signal in your top level module/entity.",
                 ),
             ], className="tile config"),

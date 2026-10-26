@@ -820,7 +820,143 @@ def domain_advanced_section(domain_uuid, settings, domain_name=None):
     )
 
 
-def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=None):
+######################################
+# Parameter detection
+######################################
+
+#: Relevance (lib/hdl_detect.parameter_relevance) from which a parameter found
+#: in the target file is checked by default.
+DETECT_CHECKED_FROM = 7
+
+
+def detect_panel(domain_uuid, file_base=""):
+    """
+    The parameters found in the target file, to pick the ones to add as
+    variables: empty and hidden until the "Detect" button fills it.
+    """
+    scope = {"domain_uuid": domain_uuid}
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Div(
+                        [
+                            html.H4("Parameters found", style={"margin": "0px"}),
+                            html.Span(id=dict(scope, type="cfg-detect-source"), className="odx-detect-source"),
+                        ],
+                        className="odx-detect-title",
+                    ),
+                    html.Div(
+                        [
+                            html.Button("All", id=dict(scope, type="cfg-detect-all"), className="odx-link-button", type="button"),
+                            html.Button("None", id=dict(scope, type="cfg-detect-none"), className="odx-link-button", type="button"),
+                        ],
+                        className="odx-detect-select",
+                    ),
+                ],
+                className="odx-detect-header",
+            ),
+            html.Div(
+                ui.path_input(
+                    id=dict(scope, type="cfg-detect-file"),
+                    placeholder="The target file of this domain",
+                    base=file_base,
+                ),
+                className="odx-detect-file",
+                title="The file to read the parameters from",
+            ),
+            ui.feedback(dict(scope, type="cfg-detect-feedback")),
+            dcc.Checklist(
+                id=dict(scope, type="cfg-detect-checklist"),
+                options=[], value=[],
+                className="odx-detect-list",
+                inputClassName="odx-detect-check",
+            ),
+            html.Div(
+                children=[
+                    html.Span(id=dict(scope, type="cfg-detect-hint"), className="odx-detect-hint"),
+                    html.Div(
+                        [
+                            ui.icon_button(
+                                icon=icon("cross", className="icon"), color="default", text="Cancel", width="100px",
+                                id=dict(scope, type="cfg-detect-cancel"),
+                            ),
+                            ui.icon_button(
+                                icon=icon("duplicate", className="icon"), color="default", text="Create domains", width="160px",
+                                id=dict(scope, type="cfg-detect-domains"),
+                                tooltip="One parameter domain per checked parameter, its delimiters found around the value",
+                                tooltip_options="top auto",
+                            ),
+                            ui.icon_button(
+                                icon=icon("check", className="icon"), color="primary", text="Add variables", width="150px",
+                                id=dict(scope, type="cfg-detect-add"),
+                                tooltip="Add the checked parameters as variables of this domain",
+                                tooltip_options="top auto",
+                            ),
+                        ],
+                        className="inline-flex-buttons",
+                    ),
+                ],
+                className="odx-detect-footer",
+            ),
+            dcc.Store(id=dict(scope, type="cfg-detect-store"), data=None),
+        ],
+        id=dict(scope, type="cfg-detect-panel"),
+        className="odx-detect-panel",
+        style=Style.hidden,
+    )
+
+
+def detect_option(param, taken):
+    """One parameter of the panel: its name, its value, what it is and where."""
+    reason = ""
+    if param["name"] in taken:
+        reason = "already a variable"
+    elif not VARIABLE_NAME.match(param["name"]):
+        reason = "not a valid variable name"
+    elif "," in param["value"] or "\n" in param["value"]:
+        reason = "value too complex for a list"
+    label = html.Div(
+        [
+            html.Span(param["name"], className="odx-detect-name"),
+            html.Span(param["value"], className="odx-detect-value", title=param["value"]),
+            html.Span(param["kind"], className="odx-detect-kind " + param["kind"]),
+            html.Span(reason or "line {0}".format(param["line"]), className="odx-detect-line"),
+        ],
+        className="odx-detect-row",
+    )
+    return {"label": label, "value": param["name"], "disabled": bool(reason)}
+
+
+def detected_template(store, selected):
+    """The content template the selected parameters make, None without a section."""
+    if not store or store.get("section") is None:
+        return None
+    text = store["section"]
+    pieces, pos = [], 0
+    for param in sorted((p for p in store["params"] if p["name"] in selected), key=lambda p: p["start"]):
+        if param["start"] < pos:
+            continue
+        pieces.append(text[pos:param["start"]])
+        pieces.append("${" + param["name"] + "}")
+        pos = param["end"]
+    pieces.append(text[pos:])
+    return "".join(pieces)
+
+
+def _is_default_variable(value):
+    """Whether the card read by `value(field)` is the "var" a domain starts with, untouched."""
+    defaults = DEFAULT_VARIABLE_SETTINGS["settings"]
+    return (
+        value("variable-title") == default_variable_name()
+        and value("variable-type") == DEFAULT_VARIABLE_SETTINGS["type"]
+        and str(value("variable-field-from")) == str(defaults["from"])
+        and str(value("variable-field-to")) == str(defaults["to"])
+        and str(value("variable-field-step") or 1) == str(defaults["step"])
+    )
+
+
+def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=None, file_base=""):
     """
     The variables of one parameter domain, and what they add up to.
 
@@ -879,6 +1015,15 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
             html.Div(
                 children=[
                     ui.icon_button(
+                        icon=icon("generate", className="icon"),
+                        color="default",
+                        text="Detect",
+                        width="100px",
+                        id={"type": "cfg-detect-params", "domain_uuid": domain_uuid},
+                        tooltip="Find the parameters of the target file and add them as variables",
+                        tooltip_options="bottom auto",
+                    ),
+                    ui.icon_button(
                         icon=icon("save", className="icon"),
                         color="disabled",
                         text="Save rules",
@@ -907,7 +1052,7 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
                 className="card-matrix config",
             ),
             html.Div(
-                html.Div([header], className="tile title", style={"marginTop": "10px"}),
+                html.Div([header, detect_panel(domain_uuid, file_base)], className="tile title", style={"marginTop": "10px"}),
                 className="card-matrix config",
             ),
             html.Div(
@@ -1129,12 +1274,16 @@ def update_variable_fields_visibility(types):
     Input({"type": "cfg-new-variable", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "cfg-duplicate-var", "name": dash.ALL, "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "cfg-delete-var", "name": dash.ALL, "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-detect-add", "domain_uuid": dash.ALL}, "n_clicks"),
     State({"type": "cfg-variable-cards-row", "domain_uuid": dash.ALL}, "children"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
     *variable_states(),
     prevent_initial_call=True,
 )
-def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, rows, domain_metadata, *field_values):
+def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, detect_clicks, rows, domain_metadata,
+                          detect_selections, detect_stores, *field_values):
     """Add, duplicate and delete the variables of one domain, leaving the others alone."""
     trigger = ctx.triggered_id
     if not isinstance(trigger, dict):
@@ -1161,6 +1310,34 @@ def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, rows, dom
         # Collapsible like every other card of the page: the two lists the fold
         # callback reads are the same cards, in the same order.
         cards.append(ve.variable_card(VE_PREFIX, new_name, scope=scope, collapsible=True))
+
+    elif trigger.get("type") == "cfg-detect-add":
+        detect_uuids = [i.get("domain_uuid") for i in matched_ids("cfg-detect-store")]
+        at = detect_uuids.index(domain_uuid) if domain_uuid in detect_uuids else None
+        store = detect_stores[at] if at is not None and at < len(detect_stores) else None
+        selected = set(detect_selections[at] or []) if at is not None and at < len(detect_selections) else set()
+        clicked = ctx.triggered[0].get("value") if ctx.triggered else None
+        if not clicked or not store or not selected:
+            return [dash.no_update] * len(rows)
+        # The "var" a new domain starts with is replaced, if nobody touched it.
+        ids = field_ids("variable-title")
+        positions = [
+            i for i, identifier in enumerate(ids) if identifier.get("domain_uuid") == domain_uuid
+        ]
+        if len(positions) == 1:
+            def value(field):
+                values = field_values[FIELD_PATTERNS.index(field)]
+                return values[positions[0]] if positions[0] < len(values) else ""
+            if _is_default_variable(value):
+                cards = [card for card in cards if _card_name(card) != default_variable_name()]
+                names = [_card_name(card) for card in cards]
+        for param in store["params"]:
+            if param["name"] in selected and param["name"] not in names:
+                cards.append(ve.variable_card(
+                    VE_PREFIX, param["name"], type_value="list", list_value=param["value"],
+                    scope=scope, collapsible=True, collapsed=True,
+                ))
+                names.append(param["name"])
 
     elif trigger.get("type") == "cfg-delete-var":
         cards = [card for card in cards if _card_name(card) != trigger.get("name")]

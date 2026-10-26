@@ -3367,6 +3367,14 @@ input[type="checkbox"] {
     position: relative;
     min-height: 270px;
 }
+/* Without parameter replacement the preview only says so: the row of the
+   parameters and preview tiles shrinks to its content. */
+.params-disabled .preview-pane-container {
+    min-height: 0;
+}
+.params-disabled .preview-pane-container > .preview-pane {
+    position: static;
+}
 .preview-pane-container > .preview-pane {
     position: absolute;
     top: 0;

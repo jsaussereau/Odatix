@@ -32,11 +32,12 @@ import odatix.gui.ui_components as ui
 import odatix.gui.config_rules as config_rules
 import odatix.gui.replacement_help as replacement_help
 import odatix.gui.sim_domains as sim_domains
-from odatix.gui.utils import get_instance_mode, get_instance_collection_context, get_key_from_url, get_workspace
+from odatix.gui.utils import get_instance_mode, get_instance_collection, get_instance_collection_context, get_key_from_url, get_workspace
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.utils import native_path
+from odatix.lib.utils import copytree_keeps, native_path
 import odatix.components.replace_params as replace_params
+import odatix.lib.hdl_detect as hdl_detect
 import odatix.workspace.sim_architectures as sim_architectures
 from odatix.workspace.domains import ParameterDomain
 from odatix.workspace.space import ORIGIN_BLACKLISTED, ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_MANUAL
@@ -144,6 +145,8 @@ def domain_uses_parameters(domain_settings):
     if not (domain_settings.get("start_delimiter") or domain_settings.get("stop_delimiter")):
         return False
     return bool(domain_settings.get("use_parameters", True))
+
+NO_DELIMITER_REASON = "Set a start or stop delimiter: without one there is nothing to replace."
 
 def params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings):
     """Whether the configuration parameters form differs from the saved settings."""
@@ -689,7 +692,79 @@ def sim_arch_entry_form(domain_uuid, entry):
     )
 
 
-def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None, entry=None):
+def target_file_directory(mode, instance_name, odatix_settings=None):
+    """
+    The directory the target file of a domain is relative to, relative to the
+    workspace, for its file browser: the one the preview reads it from. ""
+    (the workspace) when it cannot be told.
+    """
+    if not instance_name:
+        return ""
+    try:
+        workspace = get_workspace(odatix_settings)
+        instances = get_instance_collection(workspace, mode)
+        if mode == "simulation":
+            path = instances.entry(instance_name).path
+        else:
+            settings = instances.entry(instance_name).settings.to_dict()
+            if mode == "workflow":
+                sources = settings.get("sources", {})
+                path = sources.get("path", "") if isinstance(sources, dict) else ""
+            elif settings.get("generate_rtl", False):
+                path = settings.get("design_path", "")
+            else:
+                path = settings.get("rtl_path", "")
+        if not path:
+            return ""
+        path = os.path.relpath(os.path.join(workspace.root, path), workspace.root)
+        return "" if path == "." or path.startswith("..") else path
+    except Exception:
+        return ""
+
+def target_file_problem(mode, instance_name, target_file, odatix_settings=None):
+    """
+    What is wrong with the target file of a domain, as a run would find it:
+    "" when nothing is. A file the run does not copy into its work directory
+    (out of the sources, or left out by their whitelist/blacklist) is never
+    found there, whatever the preview shows.
+    """
+    if mode == "simulation" or not instance_name:
+        return ""  # read from the simulation or the RTL of each architecture
+    try:
+        workspace = get_workspace(odatix_settings)
+        settings = get_instance_collection(workspace, mode).entry(instance_name).settings.to_dict()
+    except Exception:
+        return ""
+    whitelist = blacklist = None
+    if mode == "workflow":
+        sources = settings.get("sources", {})
+        sources = sources if isinstance(sources, dict) else {}
+        base, label = sources.get("path", ""), "the sources path"
+        whitelist, blacklist = sources.get("whitelist"), sources.get("blacklist")
+    elif settings.get("generate_rtl", False):
+        base, label = settings.get("design_path", ""), "the design path"
+        whitelist, blacklist = settings.get("design_path_whitelist"), settings.get("design_path_blacklist")
+    else:
+        base, label = settings.get("rtl_path", ""), "the RTL path"
+    target_file = (target_file or "").strip()
+    if not target_file and mode == "arch":
+        target_file = settings.get("top_level_file", "")
+    if not base or not target_file:
+        return ""
+    base = os.path.join(workspace.root, base)
+    if os.path.isabs(target_file):
+        rel = os.path.relpath(os.path.realpath(target_file), os.path.realpath(base))
+    else:
+        rel = os.path.normpath(target_file)
+    if rel == ".." or rel.startswith(".." + os.sep):
+        return f"Outside of {label}: this file is not copied into the work directory of a run."
+    if not os.path.isfile(os.path.join(base, rel)):
+        return f"No such file in {label}."
+    if (whitelist or blacklist) and not copytree_keeps(base, rel, whitelist, blacklist):
+        return f"Left out by the whitelist/blacklist of {label}: this file is not copied into the work directory of a run."
+    return ""
+
+def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None, entry=None, target_file_base=""):
     defval = lambda k, v=None: settings.get(k, v)
 
     save_button = html.Div(
@@ -722,7 +797,13 @@ def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None,
                     html.Div([
                         html.Label("Param target file"),
                         ui.tooltip_icon("The file used as the target for parameter replacement. This is typically the top-level design file or a design configuration file."),
-                        dcc.Input(id={"type": "param_target_file", "domain_uuid": domain_uuid}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default" if mode == "arch" else "", style={"width": "100%"}),
+                        ui.path_input(
+                            id={"type": "param_target_file", "domain_uuid": domain_uuid},
+                            value=defval("param_target_file", ""),
+                            placeholder="Top level file used by default" if mode == "arch" else "",
+                            base=target_file_base,
+                        ),
+                        ui.field_error(id={"type": "param-target-warning", "domain_uuid": domain_uuid}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start delimiter"),
@@ -741,7 +822,12 @@ def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None,
             # How a configuration is named and what it writes: the other half of
             # the replacement set up above, and the half most domains never have
             # to touch -- so, folded, and here rather than apart.
-            config_rules.domain_advanced_section(domain_uuid, settings, domain_name=domain_name),
+            # Nothing is written without a replacement: nothing to name or fill.
+            html.Div(
+                config_rules.domain_advanced_section(domain_uuid, settings, domain_name=domain_name),
+                id={"type": "cfg-advanced-wrapper", "domain_uuid": domain_uuid},
+                style={} if use_parameters else Style.hidden,
+            ),
         ]
     )
 
@@ -892,6 +978,14 @@ def replacement_notice(context, replacement_text):
     return replace_params.commented_out_message(line, context.get("start_delimiter", ""), context.get("file", ""))
 
 
+PREVIEW_PRE_STYLE = {
+    "fontFamily": "monospace",
+    "fontWeight": "normal",
+    "padding": "5px",
+    "whiteSpace": "pre-wrap",
+    "box-sizing": "border-box",
+}
+
 def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str, base_path=None):
     """
     What the target file looks like once the selected configuration is written
@@ -906,7 +1000,9 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         # Still one section per domain, hidden, so the lists of
         # `update_preview_replacement` stay aligned with the domains.
         return replacement_span(domain_uuid, "", hidden=True)
-    use_parameters = domain_uses_parameters(domain_settings)
+    # The switch as it is in the form, delimiters or not: the file is what
+    # tells which delimiters to write.
+    use_parameters = bool(domain_settings.get("use_parameters"))
     if not use_parameters:
         return html.Div([
             html.Div("Parameter replacement disabled.", style={"color": "#888"}),
@@ -956,13 +1052,20 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         start_delimiter = domain_settings.get("start_delimiter", "")
         stop_delimiter = domain_settings.get("stop_delimiter", "")
         if not start_delimiter or not stop_delimiter:
-            # Without both delimiters nothing can match: say what is missing
-            # rather than showing the whole file as unmatched.
-            return html.Div([
-                html.Div("Set the start and stop delimiters of this domain to preview the replacement.",
-                         className="error warning"),
-                replacement_span(domain_uuid, "", hidden=True),
-            ])
+            # Without both delimiters nothing can match: say what is missing,
+            # and show the file as it is, which is where the delimiters to
+            # write are read from.
+            return html.Pre(
+                children=[
+                    html.Div("Set the start and stop delimiters of this domain to preview the replacement.",
+                             className="error warning", style={"fontFamily": "inherit", "marginBottom": "8px"}),
+                    base_text,
+                    replacement_span(domain_uuid, "", hidden=True),
+                ],
+                id={"type": "preview-pre", "domain_uuid": domain_uuid},
+                className="preview-pane",
+                style=PREVIEW_PRE_STYLE,
+            )
         new_content, match_found = replace_params.replace_content(
             base_text=base_text,
             replacement_text=replacement_text,
@@ -1009,13 +1112,7 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             children=preview_components,
             id={"type": "preview-pre", "domain_uuid": domain_uuid},
             className="preview-pane",
-            style={
-                "fontFamily": "monospace",
-                "fontWeight": "normal",
-                "padding": "5px",
-                "whiteSpace": "pre-wrap",
-                "box-sizing": "border-box",
-            }
+            style=PREVIEW_PRE_STYLE,
         )
         if match_found:
             # The pane stays the first child of its container, which it fills.
@@ -1054,6 +1151,10 @@ def preview_header(domain_uuid):
         },
     )
 
+def parameters_row_class(use_parameters):
+    """The row of the parameters and preview tiles: short when nothing is replaced."""
+    return "card-matrix config" if use_parameters else "card-matrix config params-disabled"
+
 def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None, open_rules: bool = False, entry=None):
     # Generate a unique UUID for non-main domains
     if not domain_uuid:
@@ -1081,7 +1182,10 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                     *content_hidden_divs,
                     html.Div(
                         children=[
-                            config_parameters_form(domain_uuid, settings, mode, domain_name=domain, entry=entry),
+                            config_parameters_form(
+                                domain_uuid, settings, mode, domain_name=domain, entry=entry,
+                                target_file_base=target_file_directory(mode, instance_name),
+                            ),
                         ],
                         id={"type": "config-parameters", "domain_uuid": domain_uuid}, 
                         className="tile config"),
@@ -1096,7 +1200,8 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                         className="tile config preview-tile",
                     ),
                 ], 
-                className="card-matrix config",
+                id={"type": "config-parameters-row", "domain_uuid": domain_uuid},
+                className=parameters_row_class(domain_uses_parameters(settings)),
                 # A simulation says where its parameters go, and with which
                 # delimiters, in its own settings: one entry per architecture,
                 # so neither the form nor the preview means anything here. They
@@ -1105,7 +1210,10 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                 style={"display": "none"} if (mode == "simulation" and entry is None) else {},
             ),
             html.Div(
-                config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain, entry=entry),
+                config_rules.rules_section(
+                    domain_uuid, settings, open=open_rules, domain_name=domain, entry=entry,
+                    file_base=target_file_directory(mode, instance_name),
+                ),
                 style={"display": "none"} if (entry is not None and not domain) else {},
             ),
             # Which origins the stat strip of this domain currently filters out.
@@ -1749,15 +1857,20 @@ def sim_arch_sections(search, odatix_settings, triggered_id, metadata, requested
     Input({"action": "duplicate-domain", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"action": "delete-domain", "domain_uuid": dash.ALL}, "n_clicks"),
     Input("sim-arch-reload", "data"),
+    Input({"type": "cfg-detect-domains", "domain_uuid": dash.ALL}, "n_clicks"),
     State("odatix-settings", "data"),
     State("param-domains-section", "children"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("param-domains-section-update", "data"),
+    State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
     prevent_initial_call=True
 )
 def update_param_domains(
     _, search, page, add_domain_click, duplicate_domain_click, delete_domain_click, sim_arch_reload,
-    odatix_settings, domain_sections, metadata, update_flag
+    detect_domains_click, odatix_settings, domain_sections, metadata, update_flag,
+    detect_selections, detect_stores, target_files,
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == "url":
@@ -1851,6 +1964,35 @@ def update_param_domains(
 
     elif isinstance(triggered_id, dict):
         trigger_action = triggered_id.get("action", "")
+        # One domain per parameter checked in the "Detect" panel of a domain
+        if triggered_id.get("type") == "cfg-detect-domains":
+            clicked = ctx.triggered[0].get("value") if ctx.triggered else None
+            source_uuid = triggered_id.get("domain_uuid")
+
+            def of_source(type_name, values):
+                for identifier, value in zip(config_rules.matched_ids(type_name), values):
+                    if identifier.get("domain_uuid") == source_uuid:
+                        return value
+                return None
+
+            store = of_source("cfg-detect-store", detect_stores)
+            selected = set(of_source("cfg-detect-checklist", detect_selections) or [])
+            if not clicked or not store or not selected:
+                return dash.no_update, dash.no_update, dash.no_update
+            new_domains, _ = detected_domains(
+                store, selected, store.get("target_file", of_source("param_target_file", target_files)), set(domains),
+            )
+            domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
+            new_uuids = []
+            for name, settings in new_domains.items():
+                instance.domains.create(name, **settings)
+                new_uuids.append(get_uuid())
+                domain_sections.append(domain_section(
+                    name, mode, instance_name, settings=settings, domain_uuid=new_uuids[-1], open_rules=True,
+                ))
+            domain_sections.append(add_domain_div)
+            return domain_sections, dash.no_update, ",".join(new_uuids) or dash.no_update
+
         # Add a new domain
         if trigger_action == "add-domain":
             base_name = "new_domain"
@@ -2047,6 +2189,10 @@ def update_config_cards(
     # domain only, and left every other one showing none.
     if "param-domains-section-initialized" in (ctx.triggered_prop_ids or {}).values():
         triggered_id = "param-domains-section-initialized"
+    # Likewise for the domains just added (several at once from detected
+    # parameters): the stores of their sections come along with the signal.
+    elif "param-domains-section-update" in (ctx.triggered_prop_ids or {}).values():
+        triggered_id = "param-domains-section-update"
 
     # Which rows this call rewrites. Every other one is answered with no_update:
     # a row is the whole card tree of a domain, and sending back the rows an
@@ -2263,14 +2409,15 @@ def update_config_cards(
     
     # If a domain was duplicated, load the new domain configs
     elif triggered_id == "param-domains-section-update":
-        # Reload only domain with uuid == update_domain_uuid
+        # Reload only the domains named by update_domain_uuid: one, or several
+        # separated by commas (the domains created from detected parameters)
+        updated = set(str(update_domain_uuid or "").split(","))
         for i, domain_uuid in enumerate(domains.keys()):
-            if domain_uuid == update_domain_uuid:
+            if domain_uuid in updated:
                 config_cards_row[i] = build_config_cards(
                     instance_domain(instances, instance_name, domains[domain_uuid]), domain_uuid, config_layout,
                 )
                 changed_rows.add(i)
-                break
 
     return [
         row if i in changed_rows else dash.no_update
@@ -2867,8 +3014,253 @@ def update_origin_indicators(config_metadata):
         read_only.append(origin in (ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_BLACKLISTED))
     return badges, badge_tooltips, delete_classes, delete_tooltips, read_only
 
+def target_file_path(mode, instance_name, target_file, odatix_settings=None):
+    """Where the target file of a domain is on disk ("" when it cannot be told)."""
+    target_file = (target_file or "").strip()
+    if not target_file and mode == "arch" and instance_name:
+        try:
+            settings = get_workspace(odatix_settings).architectures.entry(instance_name).settings.to_dict()
+            target_file = settings.get("top_level_file", "") or ""
+        except Exception:
+            target_file = ""
+    if not target_file:
+        return ""
+    if os.path.isabs(target_file):
+        return target_file
+    root = get_workspace(odatix_settings).root
+    return os.path.join(root, target_file_directory(mode, instance_name, odatix_settings), native_path(target_file))
+
+def detect_domain_parameters(path, start_delimiter, stop_delimiter):
+    """
+    (store, source, hint, error) of the "Detect" panel of a domain: the
+    parameters of the file at `path`, those between the delimiters when they
+    are set and found.
+    """
+    if not path:
+        return None, "", "", "Set the target file of this domain first (Configuration parameters, above)."
+    if not os.path.isfile(path):
+        return None, "", "", "Target file not found: {0}".format(path)
+    text = replace_params.read_file(path)
+    start = replace_params.unescape_delimiter(start_delimiter or "")
+    stop = replace_params.unescape_delimiter(stop_delimiter or "")
+    section = None
+    hint = ""
+    if start and stop:
+        at = text.find(start)
+        end = text.find(stop, at + len(start)) if at >= 0 else -1
+        if at >= 0 and end >= 0:
+            section = (at + len(start), end)
+        else:
+            hint = "Delimiters not found in the file: the whole file was searched, and no template is written."
+    else:
+        hint = "No delimiters yet: the variables are added, the content template is left to write."
+    params = hdl_detect.detect_parameters(text, path, section)
+    where = "between the delimiters of " if section else ""
+    if section is not None and not params:
+        # Nothing between the delimiters: say what the rest of the file holds.
+        params = hdl_detect.detect_parameters(text, path)
+        section = None
+        where = ""
+        hint = "Nothing between the delimiters: these come from the whole file, and no template is written."
+    if not params:
+        return None, "", "", "No parameter found in {0}.".format(os.path.basename(path))
+    if section is not None:
+        hint = "The content template is written from the section, if it is still empty."
+    offset = section[0] if section else 0
+    store = {
+        "path": path,
+        "section": text[section[0]:section[1]] if section else None,
+        "params": [
+            {
+                "name": p.name, "value": p.value.strip(), "kind": p.kind,
+                "start": p.start - offset, "end": p.end - offset,
+                "file_start": p.start, "file_end": p.end,
+                "line": hdl_detect.line_of(text, p.start),
+                "relevance": hdl_detect.parameter_relevance(p, params),
+            }
+            for p in params
+        ],
+    }
+    source = "{0}{1} · {2} found".format(where, os.path.basename(path), len(params))
+    return store, source, hint, ""
+
+def detected_domains(store, selected, target_file, taken):
+    """
+    {name: settings} of the parameter domains the checked parameters make: one
+    per parameter, writing its value into the same target file between
+    delimiters found around it. A parameter no delimiter isolates is left out.
+    """
+    if not store or not store.get("path") or not os.path.isfile(store["path"]):
+        return {}, []
+    text = replace_params.read_file(store["path"])
+    domains, skipped = {}, []
+    for param in store["params"]:
+        if param["name"] not in selected:
+            continue
+        found = hdl_detect.auto_delimiters(text, param["file_start"], param["file_end"], param["name"])
+        if found is None:
+            skipped.append(param["name"])
+            continue
+        name, suffix = param["name"], 1
+        while name in taken or name in domains or name == hard_settings.main_parameter_domain:
+            suffix += 1
+            name = "{0}_{1}".format(param["name"], suffix)
+        value = param["value"]
+        domains[name] = {
+            "use_parameters": True,
+            "param_target_file": target_file or "",
+            "start_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(found[0])),
+            "stop_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(found[1])),
+            "variables": {param["name"]: {"type": "list", "settings": {"list": [_number(value)]}}},
+        }
+    return domains, skipped
+
+def _number(value):
+    """A value as a settings file holds it: a number when it is one."""
+    for kind in (int, float):
+        try:
+            return kind(value)
+        except ValueError:
+            pass
+    return value
+
+@page_callback(PAGE_SCOPE,
+    Output({"type": "cfg-detect-panel", "domain_uuid": dash.ALL}, "style"),
+    Output({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "options"),
+    Output({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value"),
+    Output({"type": "cfg-detect-feedback", "domain_uuid": dash.ALL}, "children"),
+    Output({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
+    Output({"type": "cfg-detect-source", "domain_uuid": dash.ALL}, "children"),
+    Output({"type": "cfg-detect-hint", "domain_uuid": dash.ALL}, "children"),
+    Input({"type": "cfg-detect-params", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-detect-file", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-variable-title", "name": dash.ALL, "domain_uuid": dash.ALL}, "value"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def detect_parameters(clicks, detect_files, target_files, start_delims, stop_delims, variable_names, search, odatix_settings):
+    trigger = ctx.triggered_id
+    clicked = ctx.triggered[0].get("value") if ctx.triggered else None
+    outputs = 7
+    # a file typed or picked in the panel reads it again, the button opens it
+    # (not when a section is built: its field is empty then)
+    if isinstance(trigger, dict) and trigger.get("type") == "cfg-detect-file":
+        clicked = bool(clicked)
+    if not isinstance(trigger, dict) or not clicked:
+        return tuple([dash.no_update] * len(_callback_group("outputs_list", k) or []) for k in range(outputs))
+    domain_uuid = trigger.get("domain_uuid")
+
+    def of_domain(type_name, values):
+        ids = config_rules.matched_ids(type_name)
+        for identifier, value in zip(ids, values):
+            if identifier.get("domain_uuid") == domain_uuid:
+                return value
+        return ""
+
+    mode, instance_name = get_instance_mode(search)
+    target_file = of_domain("param_target_file", target_files) or ""
+    chosen = (of_domain("cfg-detect-file", detect_files) or "").strip()
+    # Another file than the target one: its delimiters mean nothing there.
+    other_file = bool(chosen) and chosen != target_file.strip()
+    path = target_file_path(mode, instance_name, chosen or target_file, odatix_settings)
+    try:
+        store, source, hint, error = detect_domain_parameters(
+            path,
+            "" if other_file else of_domain("start_delimiter", start_delims),
+            "" if other_file else of_domain("stop_delimiter", stop_delims),
+        )
+    except Exception as e:
+        store, source, hint, error = None, "", "", "Detection failed: {0}".format(e)
+    if store:
+        # what the domains created from these parameters write into
+        store["target_file"] = chosen or target_file
+        if other_file:
+            store["section"] = None
+            hint = "Another file than the target one: no template is written. Create domains to use it."
+    taken = set(
+        name for identifier, name in zip(config_rules.matched_ids("cfg-variable-title"), variable_names)
+        if identifier.get("domain_uuid") == domain_uuid
+    )
+    options, checked = [], []
+    if store:
+        for param in store["params"]:
+            option = config_rules.detect_option(param, taken)
+            options.append(option)
+            if not option["disabled"] and param["relevance"] >= config_rules.DETECT_CHECKED_FROM:
+                checked.append(param["name"])
+    values = [
+        {}, options, checked, ui.error(error) if error else "", store, source, hint,
+    ]
+    return tuple(
+        per_domain([value], [domain_uuid], group=k) for k, value in enumerate(values)
+    )
+
+@page_callback(PAGE_SCOPE,
+    Output({"type": "cfg-detect-panel", "domain_uuid": dash.ALL}, "style", allow_duplicate=True),
+    Output({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value", allow_duplicate=True),
+    Output({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-detect-cancel", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-detect-add", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-detect-all", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-detect-none", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-detect-domains", "domain_uuid": dash.ALL}, "n_clicks"),
+    State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "options"),
+    State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    prevent_initial_call=True,
+)
+def detect_panel_actions(cancel, add, select_all, select_none, create, options_list, selections, stores, templates):
+    trigger = ctx.triggered_id
+    clicked = ctx.triggered[0].get("value") if ctx.triggered else None
+    panels = [dash.no_update] * len(_callback_group("outputs_list", 0) or [])
+    values = [dash.no_update] * len(_callback_group("outputs_list", 1) or [])
+    template_ids = config_rules.matched_ids("cfg-gen-template")
+    new_templates = [dash.no_update] * len(template_ids)
+    if not isinstance(trigger, dict) or not clicked:
+        return panels, values, new_templates
+    domain_uuid = trigger.get("domain_uuid")
+    ids = config_rules.matched_ids("cfg-detect-checklist")
+    at = next((i for i, identifier in enumerate(ids) if identifier.get("domain_uuid") == domain_uuid), None)
+    if at is None:
+        return panels, values, new_templates
+    kind = trigger.get("type")
+    if kind == "cfg-detect-all":
+        values[at] = [o["value"] for o in (options_list[at] or []) if not o.get("disabled")]
+    elif kind == "cfg-detect-none":
+        values[at] = []
+    else:
+        panels[at] = Style.hidden
+        if kind == "cfg-detect-add":
+            # The content template, from the section between the delimiters,
+            # when the domain has a single set of rules whose template is empty.
+            mine = [i for i, identifier in enumerate(template_ids) if identifier.get("domain_uuid") == domain_uuid]
+            template = config_rules.detected_template(stores[at], set(selections[at] or []))
+            if template is not None and len(mine) == 1 and not (templates[mine[0]] or "").strip():
+                new_templates[mine[0]] = template
+    return panels, values, new_templates
+
+@page_callback(PAGE_SCOPE,
+    Output({"type": "param-target-warning", "domain_uuid": dash.ALL}, "children"),
+    Input({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+)
+def check_param_target_files(target_files, params_enables, search, odatix_settings):
+    mode, instance_name = get_instance_mode(search)
+    return [
+        target_file_problem(mode, instance_name, target_file, odatix_settings) if enabled else ""
+        for target_file, enabled in zip(target_files, params_enables)
+    ]
+
 @page_callback(PAGE_SCOPE,
     Output({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
+    Output({"type": "save-params-status", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
@@ -2885,8 +3277,10 @@ def update_params_save_button(
     entry_names, combines, entry_param_files, entry_param_dirs, entry_stores,
 ):
     save_classes = []
+    reasons = []
     disabled_class = "color-button disabled icon-button"
     enabled_class = "color-button warning icon-button"
+    error_class = "color-button error-status icon-button"
 
     for index, (use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings) in enumerate(
         zip(params_enables, target_files, start_delims, stop_delims, settings_list)
@@ -2905,8 +3299,16 @@ def update_params_save_button(
                 or values["param_file"] != str(previous.get("param_file", "") or "")
                 or values["combine"] != sim_architectures.combine_mode(previous)
             )
+        # Without a delimiter there is nothing to replace: the switch would be
+        # saved and read back off (see domain_uses_parameters), leaving the
+        # form dirty for good. Said rather than saved.
+        if use_parameters and not (start_delimiter or stop_delimiter):
+            save_classes.append(error_class)
+            reasons.append(ui.field_error(NO_DELIMITER_REASON))
+            continue
         save_classes.append(enabled_class if dirty else disabled_class)
-    return save_classes
+        reasons.append("")
+    return save_classes, reasons
 
 # Mirror the state of the individual save buttons on the page-wide save button.
 # The "warning" class is also what the unsaved-changes guard looks for to warn
@@ -3158,6 +3560,9 @@ def save_config_parameters(
             start_delimiter = start_delimiters[idx] if idx < len(start_delimiters) else ""
             stop_delimiter = stop_delimiters[idx] if idx < len(stop_delimiters) else ""
 
+            if use_parameters and not (start_delimiter or stop_delimiter):
+                return nothing
+
             # Update settings
             settings["use_parameters"] = use_parameters
             settings["param_target_file"] = param_target_file
@@ -3194,11 +3599,14 @@ def save_config_parameters(
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "style"),
     # The rules preview is part of that list: it goes away with it.
     Output({"type": "cfg-config-preview", "domain_uuid": dash.ALL}, "style"),
+    Output({"type": "cfg-advanced-wrapper", "domain_uuid": dash.ALL}, "style"),
+    Output({"type": "config-parameters-row", "domain_uuid": dash.ALL}, "className"),
     Input ({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
 )
 def toggle_params_fields(enabled_values):
     styles = []
     classes = []
+    rows = []
     for value in enabled_values:
         if value:
             styles.append({})
@@ -3206,7 +3614,8 @@ def toggle_params_fields(enabled_values):
         else:
             styles.append(Style.hidden)
             classes.append("animated-section hide")
-    return classes, styles, list(styles)
+        rows.append(parameters_row_class(bool(value)))
+    return classes, styles, list(styles), list(styles), rows
 
 @dash.callback(
     Output({"page": page_path, "type": "instance-title-div"}, "children"),

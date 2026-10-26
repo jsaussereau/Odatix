@@ -817,6 +817,48 @@
 .odx-migration.hide {
     display: none;
 }
+
+/* --- Auto detect (architecture editor) --------------------------------- */
+/* What the button found, then the candidates to pick from, under the field. */
+.odx-field .odx-path-input + .odx-feedback .odx-message {
+    margin: var(--space-2) 0 0 0;
+}
+.odx-autodetect-container {
+    margin-top: var(--space-2);
+    border: 1px solid var(--theme-border-color);
+    border-radius: var(--theme-normal-border-radius);
+    background: var(--theme-element-background-color);
+    overflow: hidden;
+}
+.odx-autodetect-container.hide {
+    display: none;
+}
+.odx-autodetect-choices label {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    font-size: 14px;
+}
+.odx-autodetect-choices label + label {
+    border-top: 1px solid var(--theme-border-color);
+}
+.odx-autodetect-choices label:hover {
+    background: var(--theme-dimmed-element-background-color, var(--input-background));
+}
+.odx-autodetect-choices input[type="radio"] {
+    display: none;
+}
+.odx-autodetect-value {
+    font-family: var(--theme-monospace-font, monospace);
+    font-weight: 600;
+}
+.odx-autodetect-detail {
+    color: var(--theme-secondary-text-color);
+    font-size: 13px;
+    margin-left: var(--space-3);
+}
 /* On a page of centered cards, the line is centered with them. */
 .odx-feedback.centered {
     width: 100%;
@@ -2306,4 +2348,139 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
 .odx-rule-set .wf-hl-wrap {
     width: 100%;
     box-sizing: border-box;
+}
+
+/* --- Parameter detection (config editor, "Detect" of a domain) --------- */
+/* The parameters found in the target file, one row each, to pick from. */
+.odx-detect-panel {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--theme-border-color);
+}
+.odx-detect-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+.odx-detect-title {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.odx-detect-file {
+    margin-bottom: var(--space-3);
+}
+.odx-detect-source,
+.odx-detect-hint {
+    color: var(--theme-secondary-text-color);
+    font-size: 13px;
+}
+.odx-detect-select {
+    display: flex;
+    gap: var(--space-2);
+}
+.odx-detect-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 360px;
+    overflow-y: auto;
+    border: 1px solid var(--theme-border-color);
+    border-radius: var(--theme-normal-border-radius);
+}
+.odx-detect-list:empty {
+    display: none;
+}
+.odx-detect-list > label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+}
+.odx-detect-list > label + label {
+    border-top: 1px solid var(--theme-border-color);
+}
+.odx-detect-list > label:hover {
+    background: var(--theme-dimmed-element-background-color, var(--input-background));
+}
+.odx-detect-list > label:has(input:disabled) {
+    cursor: default;
+    opacity: 0.5;
+}
+.odx-detect-check {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--theme-primary-color);
+    cursor: inherit;
+}
+.odx-detect-row {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(90px, 1.2fr) minmax(60px, 2fr) auto minmax(56px, auto);
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    font-size: 14px;
+}
+.odx-detect-name {
+    font-family: var(--theme-monospace-font, monospace);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.odx-detect-value {
+    justify-self: start;
+    max-width: 100%;
+    padding: 1px var(--space-2);
+    border-radius: var(--theme-small-border-radius, 4px);
+    background: var(--input-background);
+    font-family: var(--theme-monospace-font, monospace);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.odx-detect-kind {
+    padding: 1px var(--space-2);
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 12%, transparent);
+}
+.odx-detect-kind.localparam,
+.odx-detect-kind.constant {
+    color: var(--theme-secondary-text-color);
+    background: color-mix(in srgb, var(--theme-secondary-text-color) 12%, transparent);
+}
+.odx-detect-line {
+    justify-self: end;
+    color: var(--theme-secondary-text-color);
+    font-size: 12px;
+    white-space: nowrap;
+}
+.odx-detect-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: var(--space-3);
+}
+@media screen and (max-width: 560px) {
+    .odx-detect-row {
+        grid-template-columns: 1fr auto;
+    }
+    .odx-detect-kind,
+    .odx-detect-line {
+        display: none;
+    }
 }
