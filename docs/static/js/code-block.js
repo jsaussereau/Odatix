@@ -59,6 +59,13 @@
         return preElement ? preElement.textContent : '';
     }
 
+    // Look in the button's own code block first: ids may collide between blocks
+    function findBlock(button, targetId) {
+        var codeblock = button.closest('.codeblock');
+        var container = codeblock && targetId ? codeblock.querySelector('[id="' + targetId + '"]') : null;
+        return container || (targetId ? document.getElementById(targetId) : null);
+    }
+
     async function copyText(text) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(text);
@@ -88,7 +95,7 @@
             return;
         }
 
-        var container = document.getElementById(toggle.getAttribute('data-toggle-target'));
+        var container = findBlock(toggle, toggle.getAttribute('data-toggle-target'));
         if (!container) {
             return;
         }
@@ -110,7 +117,7 @@
 
         var targetId = button.getAttribute('data-copy-target');
 
-        var container = targetId ? document.getElementById(targetId) : null;
+        var container = findBlock(button, targetId);
         if (!container) {
             console.error('Code block not found for ID:', targetId);
             return;
