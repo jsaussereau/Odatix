@@ -122,12 +122,8 @@ strategies and what comes out are on the
 ### From the GUI
 
 `odatix-gui` → **Run jobs → Design space exploration** (`/dse`) lists the
-campaigns as cards, with how much of their budget is spent and how many designs
-are on their front. **Edit** opens a campaign in a form — objectives,
-constraints, search and architectures, with the metric names of the workspace
-suggested — and **Explore** checks the selection before handing it to the
-daemon. What an exploration found is on the **Exploration** page of Odatix
-Explorer.
+campaigns as cards, with how much of their budget is spent and how many design points are on their front. **Edit** opens a campaign in a form — objectives, constraints, search and architectures, with the metric names of the workspace suggested — and **Explore** checks the selection before handing it to the daemon. 
+What an exploration found is on the **Exploration** page of Odatix Explorer.
 
 ## Where to go next
 
