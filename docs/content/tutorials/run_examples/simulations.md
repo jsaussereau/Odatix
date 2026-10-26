@@ -52,7 +52,7 @@ $ odatix init --examples
 <font color="#555753">[odatix init]</font> <font color="#34E2E2">note: This command will create all the configuration files needed by Odatix in the current directory.</font>
 <font color="#555753">[odatix init]</font> Would you like to continue? (Y/n) y
 <font color="#555753">[odatix init]</font> <font color="#8AE234">Your directory can now be used by Odatix!</font>
-<font color="#555753">[odatix init]</font> Try a first run (with your tool in place of vivado): <b>odatix fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis</b>
+<font color="#555753">[odatix init]</font> Try a first run (with your tool in place of vivado): <b>odatix synth --tool vivado -a "Example_Counter_verilog/*" --at 50</b>
 <font color="#555753">[odatix init]</font> Run <b>odatix -h</b> to get a list of useful commands
 <font color="#555753">[odatix init]</font> New to Odatix? Follow https://odatix.readthedocs.io/en/latest/docs/getting-started/
 {{< /code >}}
@@ -65,6 +65,9 @@ Open `odatix_userconfig/sim_settings.yml`. Each entry maps a **simulation** to t
   - TB_Example_Cordic_Verilator:
     - Example_Cordic_sv + iterations/* + width/*
  
+  - TB_Example_Cordic_Icarus:
+    - Example_Cordic_sv + iterations/* + width/*
+
   - TB_Example_Cordic_GHDL:
     - Example_Cordic_vhdl + iterations/* + width/*
 
@@ -88,7 +91,7 @@ Open `odatix_userconfig/sim_settings.yml`. Each entry maps a **simulation** to t
 To disable a configuration and/or simulation, comment it out with `#` or simply remove the line.
 
 A simulation whose simulator is not in your `PATH` is listed among the invalid
-jobs and skipped, so you can keep the four of them. To run a single one, name it
+jobs and skipped, so you can keep the five of them. To run a single one, name it
 on the command line instead: `odatix sim -s TB_Example_Cordic_Verilator`.
 
 > [!NOTE]
@@ -119,6 +122,15 @@ $ odatix sim
   - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:4]
   - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:8]
   - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:12]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:4]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:8]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:12]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:4]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:8]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:12]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:4]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:8]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:12]
   - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:4]
   - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]
   - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:12]

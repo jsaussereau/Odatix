@@ -5,7 +5,7 @@ layout: "doc-features"
 badge: "Analysis"
 badgeColor: "#db2777"
 cta: true
-weight: 8
+weight: 9
 aliases:
   - /docs/features/rtl_analysis/
 features:

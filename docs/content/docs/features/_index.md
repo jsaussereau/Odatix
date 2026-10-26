@@ -48,6 +48,10 @@ Validate and benchmark every design configuration with the simulator of your cho
 Orchestrate arbitrary task pipelines with dependencies, progress tracking and custom metrics — for any kind of task, hardware or not.
 {{< /doc-card >}}
 
+{{< doc-card title="Design space exploration" link="/docs/features/dse/" icon="compass" accent="#4f46e5" cta="Search the space" >}}
+Search a space too large to sweep: evaluate configurations batch after batch and get the Pareto front of the best trade-offs.
+{{< /doc-card >}}
+
 {{< doc-card title="Results exploration" link="/docs/features/explorer/" icon="chart" accent="#db2777" cta="Explore your results" >}}
 Turn results into an interactive dashboard with line, column, scatter, radar and 3D charts, and export publication-ready figures.
 {{< /doc-card >}}
@@ -62,6 +66,7 @@ looks like this:
 2. Validate and benchmark them — [simulation](/docs/features/simulation/).
 3. Check that every configuration elaborates — [RTL analysis](/docs/features/analysis/).
 4. Implement them — [fmax](/docs/features/rtl_fmax_synthesis/) or [fixed-frequency synthesis](/docs/features/rtl_synthesis/).
+   When the space is too large to sweep, [search it](/docs/features/dse/) instead.
 5. Take the interesting ones further — [place & route](/docs/features/pnr/).
 6. Compare and publish — [Explorer](/docs/features/explorer/).
 

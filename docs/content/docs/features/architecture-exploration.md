@@ -135,7 +135,7 @@ Running every configuration is the right thing to do with forty of them, and
 the wrong thing with forty thousand. `odatix dse` searches the same space
 instead: it runs a batch of configurations, reads what came out, and chooses
 the next batch from there, until a budget is spent. What it returns is the
-**Pareto front**: every configuration that no other one beats on all the
+**Pareto front** ([design space exploration](/docs/features/dse/)): every configuration that no other one beats on all the
 objectives at once — the trade-off curve you would have drawn from a full
 sweep, for a fraction of the runs.
 
@@ -145,14 +145,20 @@ it adds is a *campaign*, a file of `odatix_userconfig/dse_campaigns/` saying
 what to search, for which objectives, and how long:
 
 {{< code lang=yaml filename="odatix_userconfig/dse_campaigns/core_area_speed.yml" >}}
-run:              fmax_synthesis
+run:              custom_freq_synthesis
 tool:             vivado
+frequencies:
+  explore:        Yes            # the frequency is one more axis of the search
+  range:          {from: 50, to: 500, step: 10}
 
 objectives:
-  - metric: Fmax                 # what an fmax synthesis measures
+  - metric: frequency            # what each design was synthesized at
     goal: max
   - metric: LUT_count
     goal: min
+constraints:
+  - metric: Worst_Slack          # and it has to meet it
+    min: 0
 
 search:
   strategy:       genetic        # genetic, random, exhaustive or bayesian
@@ -177,8 +183,9 @@ examples searches a workflow and needs no eda tool: it is the quickest one to
 try.
 
 The GUI has the same exploration under **Run jobs → Design space
-exploration**. Every key of a campaign, the strategies and what comes out are
-on the [design space exploration reference](/docs/reference/dse/).
+exploration**. The [design space exploration feature page](/docs/features/dse/)
+says when and how to use it; every key of a campaign, the strategies and what
+comes out are on the [design space exploration reference](/docs/reference/dse/).
 
 ## Working with the rest of Odatix
 
@@ -190,7 +197,7 @@ on the [design space exploration reference](/docs/reference/dse/).
 | [Simulation](/docs/features/simulation/) | Confirm every configuration still passes its testbench, not just the one you developed on. |
 | [Workflows](/docs/features/workflows/) | Reuse the same domains and generation rules on anything that runs from a shell. |
 | [Explorer](/docs/features/explorer/) | Every parameter domain becomes an axis you can plot metrics against. |
-| [Design space exploration](/docs/reference/dse/) | Search a space too large to sweep for its best trade-offs, with the same parameters. |
+| [Design space exploration](/docs/features/dse/) | Search a space too large to sweep for its best trade-offs, with the same parameters. |
 
 ## Using it
 
@@ -256,3 +263,4 @@ writes is the same YAML described above — the two interfaces edit one workspac
 - **Reference** — [Architecture settings](/docs/reference/architecture/) · [Run settings files](/docs/reference/run_settings/) · [Design space exploration](/docs/reference/dse/)
 - **Guides** — [Parameter domains](/docs/configurations/param_domains/) · [Configuration generation](/docs/configurations/config_generation/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/)
 - **Next feature** — [RTL analysis](/docs/features/analysis/), the cheap check to run before implementing a whole space.
+- **Related feature** — [Design space exploration](/docs/features/dse/), to search a space too large to sweep.

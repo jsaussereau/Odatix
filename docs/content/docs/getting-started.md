@@ -66,7 +66,7 @@ syntheses take about a quarter of an hour, where the full run below can take
 hours.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix fmax --tool vivado -a "Example_Counter_verilog/08bits" --until synthesis
+$ odatix synth --tool vivado -a "Example_Counter_verilog/*" --at 50
 {{< /code >}}
 
 Odatix first lists the jobs it is about to run and asks `Continue? (Y/n)`

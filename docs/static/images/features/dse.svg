@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" width="640" height="420" fill="none" role="img" aria-label="Design space exploration: successive batches of configurations converging to the Pareto front of the best trade-offs">
+  <defs>
+    <linearGradient id="dse-accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="dse-panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="dse-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#4f46e5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="24" y="18" width="592" height="384" rx="40" fill="url(#dse-panel)"/>
+  <rect x="24" y="18" width="592" height="384" rx="40" stroke="#e2e8f0" stroke-width="2"/>
+  <circle cx="90" cy="350" r="150" fill="url(#dse-glow)"/>
+
+  <!-- chart card -->
+  <rect x="62" y="70" width="516" height="290" rx="24" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+  <!-- axes -->
+  <g stroke="#94a3b8" stroke-width="3" stroke-linecap="round">
+    <path d="M110 100v222h430"/>
+  </g>
+  <g stroke="#e2e8f0" stroke-width="2" stroke-dasharray="4 8">
+    <path d="M110 160h430"/><path d="M110 220h430"/><path d="M110 280h430"/>
+  </g>
+
+  <!-- early batches: scattered, faded -->
+  <g fill="#cbd5e1">
+    <circle cx="420" cy="140" r="7"/><circle cx="470" cy="210" r="7"/><circle cx="380" cy="250" r="7"/>
+    <circle cx="500" cy="130" r="7"/><circle cx="330" cy="180" r="7"/><circle cx="440" cy="290" r="7"/>
+    <circle cx="290" cy="270" r="7"/><circle cx="510" cy="260" r="7"/>
+  </g>
+  <!-- later batches: closing in -->
+  <g fill="#a5b4fc">
+    <circle cx="250" cy="200" r="7"/><circle cx="350" cy="165" r="7"/><circle cx="200" cy="250" r="7"/>
+    <circle cx="390" cy="142" r="7"/><circle cx="280" cy="232" r="7"/>
+  </g>
+
+  <!-- Pareto front -->
+  <path d="M148 290C170 220 200 186 236 162S320 124 470 112" stroke="url(#dse-accent)" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <g fill="url(#dse-accent)" stroke="#ffffff" stroke-width="3">
+    <circle cx="148" cy="290" r="10"/><circle cx="172" cy="226" r="10"/><circle cx="206" cy="184" r="10"/>
+    <circle cx="250" cy="155" r="10"/><circle cx="318" cy="130" r="10"/><circle cx="400" cy="116" r="10"/>
+    <circle cx="470" cy="112" r="10"/>
+  </g>
+
+  <g fill="#64748b" font-family="Inter, system-ui, sans-serif" font-size="15" font-weight="600">
+    <text x="62" y="52">Pareto front, batch after batch</text>
+    <text x="440" y="344">area →</text>
+    <text x="118" y="94">↑ Fmax</text>
+  </g>
+</svg>

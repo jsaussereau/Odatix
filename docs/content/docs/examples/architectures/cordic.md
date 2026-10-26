@@ -6,7 +6,7 @@ weight: 1
 
 # Cordic (VHDL & SystemVerilog)
 
-The CORDIC example is one of the most complete design shipped with Odatix. The same core is provided in two languages (**VHDL** and **SystemVerilog**), swept over two independent parameters, and simulated by four different simulators (**Verilator**, **GHDL**, **QuestaSim/ModelSim**, **Vivado**), each testbench reporting its own accuracy and timing metrics.
+The CORDIC example is one of the most complete design shipped with Odatix. The same core is provided in two languages (**VHDL** and **SystemVerilog**), swept over two independent parameters, and simulated by five different simulators (**Verilator**, **Icarus Verilog**, **GHDL**, **QuestaSim/ModelSim**, **Vivado**), each testbench reporting its own accuracy and timing metrics.
 
 {{< details title="What this example demonstrates" >}}
 - **[Parameter domains](/docs/configurations/param_domains/)** — two independent parameters swept and combined automatically, with no hand-written configuration matrix.
@@ -90,6 +90,7 @@ odatix_userconfig/
 │   └── Example_Cordic_vhdl/            # same structure, VHDL delimiters
 └── simulations/                        # a template and the testbench metrics, no script
     ├── TB_Example_Cordic_Verilator/    # "verilator" template (SystemVerilog only)
+    ├── TB_Example_Cordic_Icarus/       # "icarus" template    (SystemVerilog only)
     ├── TB_Example_Cordic_GHDL/         # "ghdl" template      (VHDL only)
     ├── TB_Example_Cordic_QuestaSim/    # "questa" template    (both languages)
     └── TB_Example_Cordic_Vivado/       # "xsim" template      (both languages)
@@ -227,13 +228,14 @@ The `architectures` list is only an indication: running the testbench on another
 | Simulation | Template | Runs on |
 |---|---|---|
 | `TB_Example_Cordic_Verilator` | `verilator` | SystemVerilog |
+| `TB_Example_Cordic_Icarus` | `icarus` | SystemVerilog |
 | `TB_Example_Cordic_GHDL` | `ghdl` | VHDL |
 | `TB_Example_Cordic_QuestaSim` | `questa` | either |
 | `TB_Example_Cordic_Vivado` | `xsim` | either |
 
-The templates can also be named directly in the run settings, with no
-simulation directory: `- icarus: [Example_Cordic_sv + iterations/* + width/*]`
-runs the SystemVerilog testbench with Icarus, and reports only the metrics of
+A template can also be named directly in the run settings, with no
+simulation directory: `- verilator: [Example_Cordic_sv + iterations/* + width/*]`
+runs the SystemVerilog testbench with Verilator, and reports only the metrics of
 the template (status, errors, times, cycles per second).
 
 Both testbenches drive the design through its **ports only**: Questa and xsim,
@@ -246,6 +248,9 @@ The two domains are combined with `+`, and `*` expands every value:
 
 {{< code lang=yaml filename="sim_settings.yml" >}}
   - TB_Example_Cordic_Verilator:
+    - Example_Cordic_sv + iterations/* + width/*
+
+  - TB_Example_Cordic_Icarus:
     - Example_Cordic_sv + iterations/* + width/*
 
   - TB_Example_Cordic_GHDL:

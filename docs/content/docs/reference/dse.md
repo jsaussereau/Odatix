@@ -66,21 +66,32 @@ $ odatix dse -p fir_power        # run one of them, whatever the settings file s
 
 {{< code lang=yaml filename="odatix_userconfig/dse_campaigns/fir_area_speed.yml" >}}
 # what evaluating one design runs
-run:              fmax_synthesis
+run:              custom_freq_synthesis
 tool:             vivado
 flow:             ""
 target:           ""
+until:            ""
 simulations:      []
+
+# at what frequency: the search chooses one per design
+frequencies:
+  explore:        Yes
+  range:
+    from:         50
+    to:           500
+    step:         10
 
 # what makes a design better than another
 objectives:
-  - metric: Fmax
+  - metric: frequency
     goal: max
   - metric: LUT_count
     goal: min
 
 # what a design has to be for it to count at all
-constraints: []
+constraints:
+  - metric: Worst_Slack
+    min: 0
 
 # how the search looks for it
 search:
@@ -100,6 +111,7 @@ architectures:
 |-----|---------|
 | `run` | What evaluating one design runs: `fmax_synthesis`, `custom_freq_synthesis` or `workflow`. |
 | `tool`, `flow`, `target` | What runs a design: the eda tool, its flow, its target. One name each, or a list to search them (see below). |
+| `until` | Last step of the flow every evaluation runs, inclusive, like `--until`. Empty: the default step of the flow. `synthesis` on an FPGA tool is several times faster than place and route, and more optimistic. `odatix dse -C` refuses a step one of the flows does not have. |
 | `simulations` | Simulations every design is run through as well (see below). Empty: none. |
 | `frequencies` | What a fixed-frequency synthesis runs at (see below). Ignored by the other runs. |
 | `reuse_results` | Whether results already measured for designs of this space are given to the search for free (see [below](#starting-from-what-is-already-measured)). Default: yes. |
@@ -339,7 +351,7 @@ An objective is a metric to `min` or to `max`:
 
 {{< code lang=yaml >}}
 objectives:
-  - metric: Fmax
+  - metric: frequency
     goal: max
   - metric: LUT_count
     goal: min
@@ -350,7 +362,10 @@ Any metric of the results file works, [derived metrics](/docs/reference/metrics/
 included — which is how a simulation result becomes an objective (see above).
 `Fmax` is where an fmax synthesis puts its answer. So does any dimension a
 record carries as a number — `frequency` in particular, the frequency a
-`custom_freq_synthesis` ran at.
+`custom_freq_synthesis` ran at. Prefer that one: a design synthesized for the frequency
+it is judged at, with `Worst_Slack` constrained to be positive, lands closer to
+the Pareto front than the fastest clock one run of an fmax search happened to
+meet.
 
 **Nothing says how the objectives compare to each other**, and nothing has to. A
 smaller design that runs slower is not worse than a bigger one that runs faster;
@@ -795,7 +810,7 @@ campaign: fir_area_speed
 architecture: Example_FIR_hls
 strategy: genetic
 objectives:
-  - metric: Fmax
+  - metric: frequency
     goal: max
   - metric: LUT_count
     goal: min

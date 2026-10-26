@@ -291,7 +291,7 @@ reads `$target` or `target.txt` and does what it needs.
 | `Target file ... does not exist` | The tool has no target file yet: add a target (step 1). |
 | A target never runs | Its line is commented out, or `--target` names another one. |
 | `--target` is refused | It only picks among the **enabled** targets of the file. |
-| The tool check fails | The tool is not on your `PATH`. Add it there, or set `tool_install_path` for a tool whose commands use it. |
+| The tool check fails | The tool is not on your `PATH`. Add it there, or set `tool_install_path` to its installation directory. |
 | `Target 'x' already exists` from the API | The file has it, maybe disabled: `enable("x")`. |
 
 ## Next steps

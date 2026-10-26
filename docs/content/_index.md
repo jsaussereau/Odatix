@@ -171,12 +171,23 @@ description: "Odatix is a free and open-source design automation toolbox for the
 >}}
 
 {{< feature
+  title="Design space exploration"
+  description="When the design space is too large to sweep, let Odatix search it. odatix dse evaluates a batch of configurations, reads the results, and chooses the next batch from there until the budget is spent — returning the Pareto front of the best trade-offs for a fraction of the runs, on the same architectures and parameters."
+  badgeColor="#4f46e5"
+  image="/images/features/dse.svg"
+  features="Multi-objective Pareto front, Genetic\, Bayesian\, random and exhaustive strategies, Constraints and budget, Resumable campaigns, Live front in Explorer"
+  imagePosition="right"
+  buttonText="Learn more"
+  buttonLink="/docs/features/dse/"
+>}}
+
+{{< feature
   title="Interactive results exploration"
   description="Odatix Explorer turns your synthesis, simulation, analysis and workflow results into an interactive web dashboard. Compare architectures with line, column, scatter, radar and 3D charts, correlate metrics against each other, and export publication-ready figures in vector or raster formats."
   badgeColor="#db2777"
   image="/images/features/explorer.svg"
   features="Line, Column, Scatter 2D & 3D, Radar, Tables, SVG\, PNG\, JPEG\, WEBP export, Hostable interface on your own server"
-  imagePosition="right"
+  imagePosition="left"
   buttonText="Learn more"
   buttonLink="/docs/features/explorer/"
 >}}

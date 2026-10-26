@@ -2,6 +2,8 @@
 
      Context: a dict:
        page     (required) the section page whose children are listed
+       items    (optional) the pages to list, instead of the children of
+                           "page" — a titled group of an index's own choosing
        compact  (optional) render compact cards (no cover image)
        cols     (optional) 2 (default) or 3
        only     (optional) "pages" or "sections" to list only one of the two
@@ -20,7 +22,9 @@
 
 {{ $pages := slice }}
 {{ $sections := slice }}
-{{ range $page.Pages }}
+{{ $children := $page.Pages }}
+{{ with .items }}{{ $children = . }}{{ end }}
+{{ range $children }}
   {{ if eq .Kind "section" }}
     {{ if ne $only "pages" }}{{ $sections = $sections | append . }}{{ end }}
   {{ else }}
