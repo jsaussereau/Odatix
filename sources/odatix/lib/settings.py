@@ -111,7 +111,7 @@ class OdatixSettings:
     # Resource guard of the job scheduler: pause running jobs while the CPU or
     # memory usage of the machine is above these percentages.
     DEFAULT_RESOURCE_GUARD = True
-    DEFAULT_CPU_LIMIT = 98.0
+    DEFAULT_CPU_LIMIT = 100.0  # 100: no CPU limit
     DEFAULT_MEM_LIMIT = 98.0
     # A settings file is named after the command that reads it.
     DEFAULT_CLEAN_SETTINGS_FILE = DEFAULT_USERCONFIG_PATH + "/clean_settings.yml"

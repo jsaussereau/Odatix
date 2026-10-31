@@ -810,9 +810,12 @@ class ParallelJobHandler:
         # our own bookkeeping so we don't try to resume them later.
         self._auto_paused_jobs = [job for job in self._auto_paused_jobs if job.status == "paused"]
 
-        overloaded_cpu = cpu >= self.cpu_limit
-        overloaded_mem = mem >= self.mem_limit
-        calm = cpu < self.cpu_resume_limit and mem < self.mem_resume_limit
+        # A limit of 100% means no limit: a saturated resource reads 100%.
+        cpu_limited = self.cpu_limit < 100.0
+        mem_limited = self.mem_limit < 100.0
+        overloaded_cpu = cpu_limited and cpu >= self.cpu_limit
+        overloaded_mem = mem_limited and mem >= self.mem_limit
+        calm = (not cpu_limited or cpu < self.cpu_resume_limit) and (not mem_limited or mem < self.mem_resume_limit)
 
         # Between the two thresholds (the hysteresis band) both counts start
         # over: the load is neither high enough to pause nor low enough to resume.

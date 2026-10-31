@@ -19,6 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import socket
 import time
 
 def read_pipe_windows(pipe, job, append_callback=None):
@@ -55,3 +56,14 @@ def get_elapsed_time_str(job_start_time, job_stop_time):
     else:
         elapsed_time = "00:00:00"
     return elapsed_time
+
+def machine_name():
+    """The name of the machine this process runs on.
+
+    A workspace on a network share is seen by several machines at once, and a
+    pid only means something on the machine that issued it.
+    """
+    try:
+        return socket.gethostname()
+    except Exception:
+        return ""

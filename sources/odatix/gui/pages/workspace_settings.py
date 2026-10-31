@@ -179,12 +179,12 @@ FIELDS = {
     "cpu_limit": {
         "label": "CPU limit (%)",
         "kind": "number",
-        "tooltip": "CPU usage of the machine above which a running job is paused.",
+        "tooltip": "CPU usage of the machine above which a running job is paused. 100: no limit.",
     },
     "mem_limit": {
         "label": "Memory limit (%)",
         "kind": "number",
-        "tooltip": "Memory usage of the machine above which a running job is paused.",
+        "tooltip": "Memory usage of the machine above which a running job is paused. 100: no limit.",
     },
     "wsl": {
         "label": "Run in WSL",

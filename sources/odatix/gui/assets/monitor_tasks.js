@@ -699,7 +699,10 @@
       if (guard.unavailable) {
         return ["N/A", base + " unavailable", "Jobs are never paused because of the load: " + guard.unavailable];
       }
-      var limits = "CPU \u2265 " + Math.round(guard.cpu_limit) + "% or memory \u2265 " + Math.round(guard.mem_limit) + "%";
+      var parts = [];
+      if (guard.cpu_limit < 100) parts.push("CPU \u2265 " + Math.round(guard.cpu_limit) + "%");
+      if (guard.mem_limit < 100) parts.push("memory \u2265 " + Math.round(guard.mem_limit) + "%");
+      var limits = parts.length ? parts.join(" or ") : "no limit is set";
       var load = "";
       if (typeof guard.cpu === "number" && typeof guard.mem === "number") {
         load = " (now: CPU " + Math.round(guard.cpu) + "%, memory " + Math.round(guard.mem) + "%)";

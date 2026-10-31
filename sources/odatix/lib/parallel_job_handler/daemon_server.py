@@ -41,6 +41,7 @@ from odatix.lib.parallel_job_handler.auth import (
     write_secret_json,
 )
 from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
+from odatix.lib.parallel_job_handler.utils import machine_name
 from odatix.lib.parallel_job_handler.transport import (
     TRANSPORT_TCP,
     TRANSPORT_UNIX,
@@ -87,6 +88,7 @@ def _write_state_file(state_file, endpoint_fields, auth, session_name, host, acc
     session_name = str(session_name or host).strip() or str(host)
     state = {
         "pid": os.getpid(),
+        "machine": machine_name(),
         "session_name": session_name,
         "session_id": "{}.{}".format(os.getpid(), session_name),
         "started_at": int(time.time()),

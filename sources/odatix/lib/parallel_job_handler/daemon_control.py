@@ -50,7 +50,7 @@ from odatix.lib.parallel_job_handler.transport import (
     AuthError,
     Endpoint,
 )
-from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
+from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str, machine_name
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
 
@@ -382,6 +382,24 @@ def daemon_is_alive(state, timeout=0.6):
         return True
     except Exception:
         return False
+
+
+def _state_machine_elsewhere(state):
+    """The machine a session runs on, when it is not this one; None otherwise.
+
+    The pid of a session started on another machine sharing the workspace
+    tells nothing here: judged by it, a perfectly running session looks gone
+    and its state file gets deleted. State files written before the machine
+    was recorded are taken as local.
+    """
+    if not isinstance(state, dict):
+        return None
+    machine = state.get("machine")
+    if not isinstance(machine, str) or machine.strip() == "":
+        return None
+    if machine == machine_name():
+        return None
+    return machine
 
 
 def _delete_state_file(state_file):
@@ -1014,6 +1032,13 @@ def ensure_daemon_running(
         session_name = _unique_default_session_name(host=host, active_daemons=active_daemons)
         paths = get_daemon_paths(workspace_root, session_name=session_name)
 
+    elsewhere = _state_machine_elsewhere(_read_json_file(paths["state_file"]))
+    if elsewhere is not None:
+        raise DaemonControlError(
+            "Session '{}' runs on {}: use it from there, or choose another session name".format(
+                session_name, elsewhere
+            )
+        )
     if _state_file_is_unreadable(paths["state_file"]):
         # Another user's session of that name, which the listing missed.
         check_session_access({
@@ -1807,6 +1832,11 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None, token=
         if not isinstance(state, dict):
             continue
 
+        # Another machine's session: not reachable from here, and not ours to
+        # judge dead either.
+        if _state_machine_elsewhere(state) is not None:
+            continue
+
         # Cheapest question first: a state file whose process is gone needs no
         # probing, and probing patiently for one would cost seconds per listing.
         if not _pid_is_running(state.get("pid")):
@@ -2140,6 +2170,8 @@ def list_zombie_daemons(workspace_root=None, session=None, any_user=False):
         state["state_file"] = state_file
         state.setdefault("workspace_root", paths["workspace_root"])
 
+        if _state_machine_elsewhere(state) is not None:
+            continue
         if _pid_is_running(state.get("pid")):
             continue
         if daemon_is_alive(state, timeout=0.6):
