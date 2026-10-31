@@ -20,7 +20,18 @@ targets:
   # - AMS_h18_2V2
   # - AMS_h18_3V3
   # - AMS_h18_5V0
-  # - XFAB180CMOS
+  # - TSMC_N28_HPCplus_P140_7T_0V8
+  # - TSMC_N28_HPCplus_P140_7T_0V9
+  # - TSMC_N28_HPCplus_P140_7T_1V0
+  # - TSMC_N28_HPCplus_P140_9T_0V8
+  # - TSMC_N28_HPCplus_P140_9T_0V9
+  # - TSMC_N28_HPCplus_P140_9T_1V0
+  # - TSMC_N28_HPCplus_P140_12T_0V8
+  # - TSMC_N28_HPCplus_P140_12T_0V9
+  # - TSMC_N28_HPCplus_P140_12T_1V0
+  # - GF_22FDXplus_9T_LVT_ULVT_0V65_NoBB
+  # - GF_22FDXplus_9T_LVT_ULVT_0V8_NoBB
+  # - GF_22FDXplus_9T_LVT_ULVT_0V9_NoBB
 
 # Replace with your own synopsys_dc_setup.tcl for each technology
 target_settings:
@@ -48,6 +59,39 @@ target_settings:
   AMS_h18_5V0:
     script_copy_enable: Yes
     script_copy_source: $eda_tools_path/design_compiler/technology/AMS_h18_5V0/synopsys_dc_setup.tcl
-  XFAB180CMOS:
+  GF_22FDXplus_9T_LVT_ULVT_0V65_NoBB:
     script_copy_enable: Yes
-    script_copy_source: $eda_tools_path/design_compiler/technology/XFAB_180nm_CMOS/synopsys_dc_setup.tcl
+    script_copy_source: /asic/tools/dc_setup/GF_22FDXplus_9T_LVT_ULVT_0V65_NoBB/synopsys_dc_setup.tcl
+  GF_22FDXplus_9T_LVT_ULVT_0V8_NoBB:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/GF_22FDXplus_9T_LVT_ULVT_0V8_NoBB/synopsys_dc_setup.tcl
+  GF_22FDXplus_9T_LVT_ULVT_0V9_NoBB:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/GF_22FDXplus_9T_LVT_ULVT_0V9_NoBB/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_7T_0V8:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_7T_0V8/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_7T_0V9:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_7T_0V9/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_7T_1V0:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_7T_1V0/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_9T_0V8:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_9T_0V8/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_9T_0V9:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_9T_0V9/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_9T_1V0:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_9T_1V0/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_12T_0V8:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_12T_0V8/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_12T_0V9:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_12T_0V9/synopsys_dc_setup.tcl
+  TSMC_N28_HPCplus_P140_12T_1V0:
+    script_copy_enable: Yes
+    script_copy_source: /asic/tools/dc_setup/TSMC_N28_HPCplus_P140_12T_1V0/synopsys_dc_setup.tcl
