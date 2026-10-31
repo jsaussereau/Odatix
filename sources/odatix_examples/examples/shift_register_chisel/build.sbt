@@ -1,14 +1,14 @@
 // ******************************
 //           PARAMETERS
 // ******************************
-ThisBuild / scalaVersion     := "2.13.10"
+ThisBuild / scalaVersion     := "2.13.12"
 ThisBuild / version          := "0.1.0"
 ThisBuild / organization     := "IMS Laboratory"
-val chiselVersion = "5.0.0"
+val chiselVersion = "5.1.0"
 
 val libDep = Seq(
   "org.chipsalliance" %% "chisel" % chiselVersion,
-  "edu.berkeley.cs" %% "chiseltest" % "5.0.0" % "test"
+  "edu.berkeley.cs" %% "chiseltest" % "5.0.2" % "test"
 )
 
 val scalacOpt = Seq(

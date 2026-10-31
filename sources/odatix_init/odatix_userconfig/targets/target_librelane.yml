@@ -11,8 +11,6 @@ constraint_file: librelane_period.json
 # /!\ UPDATE WITH YOUR OWN INSTALL PATH HERE /!\
 tool_install_path: ~/librelane
 
-force_single_thread: No
-
 script_copy_enable: No
 script_copy_source: /dev/null
 

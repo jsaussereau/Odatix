@@ -19,12 +19,15 @@ log_size_limit:   300  # overridden by --logsize
 # maximum number of parallel jobs
 nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
+# force single thread execution (to avoid cpu overload when running many jobs in parallel)
+force_single_thread: No
+
 # Completed synthesis jobs to place & route.
 #
 # Unlike every other job type, "odatix pnr" does not start from the RTL: it takes
 # a synthesis that has already run and succeeded, and places & routes it with the
 # tool given by -t / --tool. That is what a Design Compiler + Innovus or a
-# Genus + ICC2 chain is:
+# Genus + Innovus chain is:
 #
 #   odatix synth -t design_compiler
 #   odatix pnr  -t innovus --from-tool design_compiler

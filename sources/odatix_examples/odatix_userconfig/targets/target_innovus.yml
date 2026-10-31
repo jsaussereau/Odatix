@@ -11,8 +11,6 @@ constraint_file: timing_constraints.txt
 
 tool_install_path: '' # Innovus should be in your $PATH
 
-force_single_thread: No
-
 # The technology script sourced by the "init" step (it must be named
 # technology_setup.tcl). Without it, the flow stops with an explicit error
 # rather than implementing against nothing.

@@ -1,0 +1,39 @@
+# A bit-accurate Python model of the CORDIC core of Example_Cordic_sv, swept
+# over a wider space than the RTL: the algorithm explored before any RTL is
+# simulated or synthesized. It gives the same numbers as the simulations of
+# the RTL on the configurations both have.
+
+# Design sources (copied into each work directory)
+sources:
+  path: examples/workflow_cordic_model
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress: ([0-9]+)"
+
+# Generated design settings
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    commands:
+      - python3 cordic_model.py --width ${width} --iterations ${iterations}
+
+# Same names as the parameter domains of the architecture, so that the model
+# and the RTL land on the same axes in Explorer.
+variables:
+  width:
+    type: range
+    settings:
+      from: 4
+      to: 16
+      step: 2
+
+  iterations:
+    type: range
+    settings:
+      from: 4
+      to: 24
+      step: 2

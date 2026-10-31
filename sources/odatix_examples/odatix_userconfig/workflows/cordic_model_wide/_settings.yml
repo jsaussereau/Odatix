@@ -1,0 +1,35 @@
+# The bit-accurate model of the CORDIC core of Example_Cordic_sv (see the
+# "cordic_model" workflow), over every width from 4 to 20 bits and every
+# number of stages from 2 to 24: 391 configurations. Made to be searched
+# rather than swept (see "dse_campaigns/cordic_model_front.yml").
+
+# Design sources (copied into each work directory)
+sources:
+  path: examples/workflow_cordic_model
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress: ([0-9]+)"
+
+# Generated design settings
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    commands:
+      - python3 cordic_model.py --width ${width} --iterations ${iterations}
+
+variables:
+  width:
+    type: range
+    settings:
+      from: 4
+      to: 20
+
+  iterations:
+    type: range
+    settings:
+      from: 2
+      to: 24

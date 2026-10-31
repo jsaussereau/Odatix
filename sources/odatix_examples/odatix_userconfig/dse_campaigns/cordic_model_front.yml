@@ -1,0 +1,42 @@
+##############################################
+# Odatix design space exploration campaign
+##############################################
+---
+# The first level of a two-level exploration: search the bit-accurate model of
+# the CORDIC core, which runs in a fraction of a second, for the configurations
+# no other one beats on both accuracy and estimated cost. Only those are then
+# simulated and synthesized as RTL (see the "The algorithm before the RTL"
+# page of the workshop).
+
+# what evaluating one design runs: the model, as a workflow
+run:              workflow
+tool:             ""
+flow:             ""
+target:           ""
+
+simulations:      []
+
+# what makes a design better than another
+objectives:
+  - metric: snr
+    goal: max
+  - metric: adder_bits
+    goal: min
+
+# a design that is not accurate enough for anything is not a trade-off
+constraints:
+  - metric: snr
+    min: 20
+
+# how the search looks for it
+search:
+  strategy:       bayesian
+  mode:           async
+  budget:         60
+  batch:          8
+  patience:       0
+  seed:           1
+
+# the workflow to explore: 391 configurations
+architectures:
+  - cordic_model_wide

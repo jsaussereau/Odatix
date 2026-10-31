@@ -7,8 +7,6 @@ constraint_file: constraints.xdc
 
 tool_install_path: "" # Vivado should be in your $PATH
 
-force_single_thread: No # Setting this to 'Yes' may improve performance with a high number of parallel jobs
-
 script_copy_enable: No
 script_copy_source: "/dev/null"
 

@@ -1,0 +1,64 @@
+##############################################
+# Metrics for this workflow
+##############################################
+# Extracted from "results.yml", written by cordic_model.py. Same names and
+# units as the metrics of the CORDIC simulations (TB_Example_Cordic_*).
+
+metrics:
+  max_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: max_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  rms_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: rms_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  mean_error:
+    type: yaml
+    settings:
+      file: results.yml
+      key: mean_error_lsb
+    unit: "LSB"
+    format: "%.3f"
+
+  snr:
+    type: yaml
+    settings:
+      file: results.yml
+      key: snr_db
+    unit: "dB"
+    format: "%.2f"
+
+  enob:
+    type: yaml
+    settings:
+      file: results.yml
+      key: enob
+    unit: "bits"
+    format: "%.2f"
+
+  latency:
+    type: yaml
+    settings:
+      file: results.yml
+      key: latency_cycles
+    unit: "cycles"
+    format: "%.0f"
+
+  # What the core costs, estimated by the model from its adders: about one LUT
+  # per bit on an FPGA.
+  adder_bits:
+    type: yaml
+    settings:
+      file: results.yml
+      key: adder_bits
+    unit: "bits"
+    format: "%.0f"

@@ -19,6 +19,9 @@ log_size_limit:   300  # overridden by --logsize
 # maximum number of parallel jobs
 nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
+# force single thread execution (to avoid cpu overload when running many jobs in parallel)
+force_single_thread: No
+
 # targeted architectures
 architectures: 
 

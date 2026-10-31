@@ -45,7 +45,9 @@ sim.run(
     # A default timescale for the modules without one, which xelab refuses to
     # mix with modules that have one.
     # "$dumpvars" needs the signals to be kept.
+    # "--mt off": xelab compiles the snapshot on several threads otherwise.
     ["xelab", "-L", LIBRARY, "-debug", "typical" if sim.waves else "off", "--timescale", "1ns/1ps", "-s", SNAPSHOT]
+    + (["--mt", "off"] if sim.single_thread else [])
     + generics + [LIBRARY + "." + top],
     log="xelab",
 )

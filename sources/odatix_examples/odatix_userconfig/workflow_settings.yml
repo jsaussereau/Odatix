@@ -19,6 +19,9 @@ log_size_limit:   300  # overridden by --logsize
 # maximum number of parallel jobs
 nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
+# force single thread execution (to avoid cpu overload when running many jobs in parallel)
+force_single_thread: No
+
 workflows:
   # Platform-specific task implementation example
   - crossplatform
@@ -39,6 +42,10 @@ workflows:
 
   # Multiple parameter domains replaced in a json
   - param_domains_json + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
+
+  # A bit-accurate model of the CORDIC core of Example_Cordic_sv, swept over
+  # 7 widths and 11 stage counts: its accuracy, before any RTL is simulated
+  - cordic_model + width/* + iterations/*
 
   # A small image codec, whose four knobs are variables of its command line.
   # 3150 configurations: worth exploring rather than running (see

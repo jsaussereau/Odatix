@@ -56,3 +56,7 @@ campaigns:
   # way to see an exploration run.
   - image_codec_rate_quality
 
+  # The bit-accurate model of the CORDIC core, searched for the accuracy/cost
+  # trade-off before any RTL is synthesized. No eda tool, about a minute.
+  #- cordic_model_front
+
