@@ -1866,6 +1866,13 @@ details[open] > summary.admonition-header::before {
 @media (min-width: 1280px) {
   .tutorial-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+@media (min-width: 768px) {
+  .tutorial-grid--center:not(.tutorial-grid--3) > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: calc(50% - 0.75rem);
+  }
+}
 
 .tutorial-card {
   --accent: #0d9488;

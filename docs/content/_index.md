@@ -14,7 +14,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
     secondary_button_url="https://github.com/jsaussereau/odatix"
     image="/images/screenshots/explorer-overview.png"
     image_caption="Odatix Explorer — interactive comparison of implementation metrics"
-    tools="Vivado, Quartus, Design Compiler, Genus, Innovus, IC Compiler II, OpenLane, Verilator, GHDL"
+    tools="Vivado, Quartus, Design Compiler, Genus, Innovus, OpenLane, Verilator, GHDL"
     arrow=true
 >}}
 
@@ -139,7 +139,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
 
 {{< feature
   title="Place & route"
-  description="Chain two EDA tools: place & route a netlist another tool synthesized: Design Compiler + IC Compiler II, Genus + Innovus, Design Compiler + Innovus, Genus + IC Compiler II, or a pair of your own — and get post-route numbers next to the synthesis figures in the same results files."
+  description="Chain two EDA tools: place & route a netlist another tool synthesized: Design Compiler + Innovus, Genus + Innovus, or a pair of your own — and get post-route numbers next to the synthesis figures in the same results files."
   badgeColor="#0d9488"
   image="/images/features/pnr.svg"
   features="Synthesize with one tool\, place and route with another, Parallel runs, Step-by-step or one-shot (init\, place\, cts\, route\, signoff)"

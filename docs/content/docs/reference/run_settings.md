@@ -34,6 +34,7 @@ Each path is a default and can be changed in
 | `nb_jobs` | int or `auto` | **required** | `-j`, `--jobs` | Maximum jobs running at once. `auto` means available CPUs − 1. |
 | `exit_when_done` | bool | `No` | `-E`, `--exit` | Close the Job Monitor when the last job finishes. |
 | `log_size_limit` | int | `300` | `--logsize` | Lines of log history kept per job in the monitor. |
+| `force_single_thread` | bool | `No` | — | Run each job on a single thread, whatever its tool (see [Single threading](#single-threading)). Jobs still run in parallel (`nb_jobs`). |
 
 The first three keys must be in the file, even when a command-line option
 overrides them: they say what happens to results that already exist and how much
@@ -45,6 +46,43 @@ settings file yourself, keep these three lines and change only the selection.
 > About 75 % of your logical cores is usually a good value for `nb_jobs`. EDA
 > tools are memory hungry: a job that gets swapped out is slower than a job that
 > waited its turn.
+
+### Single threading
+
+Many EDA tools take every core of the machine. With several jobs running at
+once, each of them taking several threads, the processor is oversubscribed and
+every job runs slower. `force_single_thread: Yes` keeps each job on one thread,
+so that `nb_jobs` alone says how much of the machine a run takes.
+
+Every job of the run is told, two ways:
+
+- its environment sets `ODATIX_SINGLE_THREAD=1`, and the thread counts of the
+  usual runtimes (`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`…)
+  to `1`. The commands of your own tools and workflows can read it too;
+- the `settings.tcl` of its scripts says `set single_thread 1`.
+
+What each built-in tool does of it:
+
+| Tool | What it is told |
+|------|-----------------|
+| Vivado | `set_param general.maxThreads 1` (and `synth.maxThreads 1`) |
+| Quartus | `NUM_PARALLEL_PROCESSORS 1` |
+| Design Compiler, DC NXT | `set_host_options -max_cores 1` |
+| Genus | `set_multi_cpu_usage -local_cpu 1`, `max_cpus_per_server 1` |
+| Innovus | `setMultiCpuUsage -localCpu 1` |
+| LibreLane | `-j 1` |
+| OpenLane | `ROUTING_CORES=1` |
+| Verilator (simulation) | the C++ is built with `-j 1` |
+| xsim (simulation) | `xelab --mt off` |
+| GHDL, Icarus, Questa, Yosys, Verilator (analysis) | already single-threaded: nothing to change |
+
+A Tcl tool of your own gets the commands above that it knows: they are run by
+`odatix_limit_threads`, in the shared `settings.tcl` every job sources.
+
+> [!NOTE]
+> In Odatix 3, `force_single_thread` was a key of the target files
+> (`target_<tool>.yml`). A target file that still sets it to `Yes` is followed,
+> with a warning: move it to the run settings file.
 
 ## `architectures` — designs and configurations
 
@@ -284,7 +322,9 @@ remove_list:
 ## In the GUI
 
 **Run jobs** edits these files for you: a job type, a tool, targets and designs
-are picked on the page, and **Save all** writes what you changed to the settings
+are picked on the page, the keys above are the switches and fields of its
+**Execution** panel (**Force single threading** is `force_single_thread`), and
+**Save all** writes what you changed to the settings
 file documented here, keeping its comments. **Run jobs** runs what the page
 shows, saved or not, from a temporary copy: launching never writes the file.
 See [The Odatix GUI](/docs/gui/app/).

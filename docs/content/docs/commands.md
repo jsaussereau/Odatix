@@ -205,6 +205,8 @@ settings, so a run stays one click away whatever the tool offers.
 $ odatix init                  # asks before writing, and whether to add the examples
 $ odatix init -y               # asks nothing (what a script, or no terminal, gets)
 $ odatix init -y --examples    # same, with the examples
+$ odatix init -y --cordic      # the material of the workshop, without the description of its CORDIC
+$ odatix init -y --cordic-solution   # same, with its description as My_Cordic_*_solution
 {{< /code >}}
 
 The `odatix.yml` it writes sets `default_tool: vivado`, the tool the run
@@ -279,7 +281,7 @@ Place & route a netlist another tool synthesized — see [Place & route](/docs/f
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix pnr --tool innovus --from-tool design_compiler
-$ odatix pnr --tool icc2 --from-type fmax_synthesis
+$ odatix pnr --tool innovus --from-type fmax_synthesis
 $ odatix pnr --tool innovus --until route
 $ odatix pnr --tool innovus --flow area                # dense floorplan, area reclaim
 {{< /code >}}

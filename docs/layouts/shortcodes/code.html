@@ -36,7 +36,11 @@
     {{ end }}
 {{ end }}
 {{ $promptLinesAttr := delimit $promptLines "," }}
-{{ $codeBlockID := printf "code-block-%d" .Ordinal }}
+{{/* .Ordinal is relative to the parent shortcode: chain the parents' ordinals to stay unique */}}
+{{ $ordinals := slice .Ordinal }}
+{{ $parent := .Parent }}
+{{ range seq 10 }}{{ with $parent }}{{ $ordinals = $ordinals | append .Ordinal }}{{ $parent = .Parent }}{{ end }}{{ end }}
+{{ $codeBlockID := printf "code-block-%s" (delimit $ordinals "-") }}
 
 <div class="codeblock not-prose my-8 overflow-hidden rounded-lg bg-gray-900 shadow-lg">
 <div class="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">

@@ -164,10 +164,10 @@ tool_install_path: "/opt/altera/altera_pro/26.1.1"
 
 ## Synopsys and Cadence tools
 
-Design Compiler (and Design Compiler NXT), IC Compiler II, Genus and Innovus
+Design Compiler (and Design Compiler NXT), Genus and Innovus
 come from their vendors, with a license server, and are usually set up by your
 CAD team. Odatix needs nothing more than a terminal where they already work:
-their executables (`dc_shell`, `dcnxt_shell`, `icc2_shell`, `genus`, `innovus`)
+their executables (`dc_shell`, `dcnxt_shell`, `genus`, `innovus`)
 on the `PATH`, and the license variables of your site set. Check it with:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
@@ -243,6 +243,10 @@ Verilator simulation needs a C++ compiler and `make`, simpler to get in
 ## Install GHDL
 
 GHDL is a free and open-source simulator for VHDL.
+
+Odatix runs it for VHDL simulations and for RTL analyses (`odatix analyze -t ghdl`),
+which also synthesize the design with the synthesis built into GHDL to report
+latches and multiple drivers.
 
 {{< tabs >}}
 
@@ -401,7 +405,9 @@ the default one. See [the WSL keys of
 
 Questa and ModelSim come from Siemens, with a license, and the Vivado simulator
 (`xvlog`, `xvhdl`, `xelab`, `xsim`) with [Vivado](#install-vivado). Odatix only
-needs their executables on the `PATH`. Check it with:
+needs their executables on the `PATH`. An RTL analysis with Questa or ModelSim
+(`odatix analyze -t questa`) compiles the design with `vlog` and `vcom`, then
+elaborates it with `vsim`, which needs the license. Check it with:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ vsim -version

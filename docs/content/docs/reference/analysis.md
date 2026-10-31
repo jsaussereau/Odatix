@@ -45,7 +45,7 @@ and an entry mapped to nothing (`missing_module:`, YAML null) removes it; the
 `ignore` patterns add up.
 
 Odatix ships definitions for Vivado, Quartus, Design Compiler, Genus, Verilator,
-Icarus Verilog, Yosys and LibreLane.
+Icarus Verilog, Yosys, GHDL, Questa and LibreLane.
 
 ## Keys of `analysis.yml`
 

@@ -106,7 +106,7 @@ from.
 | Key | Type | Required | Description |
 |-----|------|----------|-------------|
 | `testbench.top` | string | No | Module or entity at the top of the testbench. |
-| `testbench.files` | path or list | No | Its sources, relative to the simulation directory. Glob patterns are accepted. |
+| `testbench.files` | path or list | No | Its sources, relative to the simulation directory or, when a path matches nothing there, to the workspace (the files are then copied into the job, as those of an architecture). Glob patterns are accepted; one matching no file is an error. |
 | `testbench.parameters` | mapping | No | Parameters (generics) given to the top of the testbench. Values may use the [placeholders](#placeholders-available-in-commands). Read by the [templates](#templates). |
 | `testbench.cycles` | int | No | Cycles the [generated testbench](#generated-testbench) runs. Default 1000. |
 | `testbench.stimulus` | string | No | What it drives the inputs with: `random` (default) or `zero`. |

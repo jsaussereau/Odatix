@@ -5,7 +5,7 @@ author: "Jonathan Saussereau"
 weight: 5
 description: "Chain two EDA tools: synthesize with one, then place & route the resulting netlist with another, and compare estimates against post-route reality."
 categories: ["Tutorial", "PNR"]
-tags: ["pnr", "innovus", "icc2", "asic"]
+tags: ["pnr", "innovus", "asic"]
 featured_image: "/images/features/pnr.svg"
 ---
 
@@ -19,7 +19,7 @@ second tool. This tutorial runs that chain end to end.
 
 > [!NOTE]
 > You need a synthesis tool (Design Compiler or Genus) **and** a place & route
-> tool (Innovus or IC Compiler II), each with its own installation and licence.
+> tool (Innovus), each with its own installation and licence.
 > The shipped place & route definitions are a starting point, not a validated
 > flow — see [step 6](#step-6--adapt-the-flow-to-your-pdk).
 
@@ -30,8 +30,7 @@ For this tutorial, you need **both**, installed and available in your `PATH`:
 - an ASIC synthesis tool, which writes the gate-level netlist:
   [Synopsys Design Compiler](https://www.synopsys.com/implementation-and-signoff/rtl-synthesis.html)
   or [Cadence Genus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/synthesis/genus-synthesis-solution.html);
-- a place & route tool: [Cadence Innovus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/soc-implementation-and-floorplanning/innovus-implementation-system.html)
-  or [Synopsys IC Compiler II](https://www.synopsys.com/implementation-and-signoff/physical-implementation/ic-compiler.html).
+- a place & route tool: [Cadence Innovus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/soc-implementation-and-floorplanning/innovus-implementation-system.html).
 
 The commands below use Design Compiler and Innovus on the AMS C35 1.8 V
 technology, whose setup scripts Odatix ships. An FPGA tool such as Vivado places
@@ -116,7 +115,7 @@ the sources there are.
 ### Step 4 — Check the place & route target
 
 The technology is selected in the target file of the place & route tool —
-`odatix_userconfig/targets/target_innovus.yml` or `target_icc2.yml`. A place &
+`odatix_userconfig/targets/target_innovus.yml`. A place &
 route job keeps the target of its synthesis, so this file lists the same target
 names as the one of the synthesis tool; the workspace already does for
 `AMS_c35_1V8`. This is also where the technology setup script that your PDK
@@ -169,7 +168,7 @@ the settings file:
 ### Step 6 — Adapt the flow to your PDK
 
 > [!WARNING]
-> The shipped Innovus and IC Compiler II definitions run the usual sequence, but
+> The shipped Innovus definition runs the usual sequence, but
 > the technology setup — LEF, QRC, MMMC, NDM libraries, power intent — is design
 > and foundry specific. Adjust the scripts brought in by your target file before
 > trusting the numbers.

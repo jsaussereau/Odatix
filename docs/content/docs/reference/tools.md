@@ -11,7 +11,7 @@ fmax search, which one runs a fixed-frequency synthesis, an analysis or a place
 & route, and how to check the tool is installed.
 
 Odatix ships definitions for Vivado, Quartus, Design Compiler, Genus, LibreLane,
-OpenLane, Verilator, Innovus and IC Compiler II. Your own go in `tools_path` (default
+OpenLane, Verilator and Innovus. Your own go in `tools_path` (default
 `odatix_userconfig/tools/<tool>/`).
 
 This page is the schema. For the walkthrough, see

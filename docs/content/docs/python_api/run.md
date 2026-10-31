@@ -111,6 +111,7 @@ failed = [job["name"] for job in jobs if job["status"] != "success"]
 | `was_checked` *(property)* | Whether checking has already been done, and its plan is in hand. |
 | `plan` *(property)* | What the run would do (see `check()`). |
 | `jobs` *(property)* | The jobs this run would run, as the objects its flow builds. |
+| `single_thread` *(property)* | Whether each job runs on a single thread: `options.force_single_thread`, or "force_single_thread" in the run settings file. |
 | `session` *(property)* | The `Session` running the jobs, once `start()` handed them over. None before. |
 | `followed` *(property)* | Whether `start()` followed the jobs until they were over: in the job monitor until it closed, or, when the terminal could not show it, by waiting for them ("exit_when_done"). False when the run was detached, or could not show the monitor and was not told to wait: the jobs may then still be running. |
 | `tool_check_sink` | Eda tool checks handed over instead of being waited for. Left None so that the flows wait for them, which is what a run without a screen showing their progress wants. |

@@ -1340,7 +1340,6 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `targets` *(property)* | The targets of the tool, in file order. |
 | `constraint_file` *(property)* | File of the job directory that holds the clock constraint: Odatix writes it there as SDC before the job runs, then the scripts of a tool that sources `_common/init_script.tcl` rewrite it in the tool's own format. "constraints.sdc" when the file names none. |
 | `tool_install_path` *(property)* | Installation directory of the tool; empty when it is on the PATH. |
-| `force_single_thread` *(property)* | Whether the tool is asked to run on a single thread. |
 
 | Method | What it does |
 |---|---|
@@ -1357,7 +1356,7 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `disable(name, save=True)` |  |
 | `save()` | Write the target list back, keeping the comments and every other key of the file. Disabled targets are written as commented-out entries. Only what changed is written: a target added, removed, renamed, enabled or disabled changes its own line, and a setting changed by `update()` its own value, in the style the file writes it. |
 | `settings()` | Everything the target file holds, as plain values. Useful to read the keys that belong to the tool rather than to the target list (its constraint file, its install path, ...). Changes made by `update()` and not saved yet are included. |
-| `update(save=True, **values)` | Change the settings of the tool held by this file, and, unless told otherwise, write the file back. Example: `ws.targets["mytool"].update(constraint_file="constraints.sdc", tool_install_path="/opt/mytool")` *Args:* `constraint_file` *(str)* — file of the job directory holding the clock constraint.; `tool_install_path` *(str)* — installation directory of the tool; empty when it is on the PATH.; `force_single_thread` *(bool)* — run the tool on a single thread. |
+| `update(save=True, **values)` | Change the settings of the tool held by this file, and, unless told otherwise, write the file back. Example: `ws.targets["mytool"].update(constraint_file="constraints.sdc", tool_install_path="/opt/mytool")` *Args:* `constraint_file` *(str)* — file of the job directory holding the clock constraint.; `tool_install_path` *(str)* — installation directory of the tool; empty when it is on the PATH. |
 
 ### `TargetFileCollection`
 

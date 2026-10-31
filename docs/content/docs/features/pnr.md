@@ -1,6 +1,6 @@
 ---
 title: "Place & Route"
-description: "Chain two EDA tools: place & route a netlist another tool synthesized, with Innovus, IC Compiler II or a tool of your own, and get post-route numbers."
+description: "Chain two EDA tools: place & route a netlist another tool synthesized, with Innovus or a tool of your own, and get post-route numbers."
 layout: "doc-features"
 badge: "Implementation"
 badgeColor: "#0d9488"
@@ -10,7 +10,7 @@ aliases:
   - /docs/pnr/
 features:
   - title: "Two tools, one flow"
-    description: "Synthesize with one tool, implement with another — Design Compiler + Innovus, Genus + ICC2, or your own pair."
+    description: "Synthesize with one tool, implement with another — Design Compiler + Innovus, Genus + Innovus, or your own pair."
   - title: "Post-route numbers"
     description: "Real interconnect instead of estimates, next to the synthesis figures in Explorer."
   - title: "Selectable sources"
@@ -27,7 +27,7 @@ features:
 from your RTL: it starts from a synthesis job that has already run and succeeded,
 and places & routes it with another tool.
 
-That is exactly what a Design Compiler + Innovus or a Genus + ICC2 flow is — two
+That is exactly what a Design Compiler + Innovus or a Genus + Innovus flow is — two
 commands instead of one:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
@@ -86,12 +86,12 @@ behind.
 
 A place & route flow is split into ordered, resumable
 [**steps**](/docs/reference/tools/#steps) — `init`, `place`, `cts`, `route`,
-`signoff` for both shipped tools. Each runs as its own process and hands the
+`signoff`. Each runs as its own process and hands the
 design over through a saved design database, so a run can stop partway and a
 later one picks up where it left off instead of starting over.
 
-Odatix ships two place & route tool definitions, **Innovus** and **IC Compiler
-II**. Both declare `pnr` as their only job type, so they never appear as a target
+Odatix ships one place & route tool definition, **Innovus**. It declares `pnr`
+as its only job type, so it never appears as a target
 for `odatix fmax` or `odatix synth`.
 
 Innovus comes with several **strategies**, picked with `-f/--flow` like the
@@ -153,7 +153,7 @@ control how far a run goes:
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix pnr -t innovus --from-tool design_compiler
 $ odatix pnr -t innovus --from-type fmax_synthesis
-$ odatix pnr -t icc2    --from-tool genus --from-flow timing
+$ odatix pnr -t innovus --from-tool genus --from-flow timing
 $ odatix pnr -t innovus --until route          # stop after routing
 $ odatix pnr -t innovus --rerun-from place     # redo placement onwards
 {{< /code >}}

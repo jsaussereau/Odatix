@@ -35,8 +35,6 @@ constraint_file: constraints.xdc
 
 tool_install_path: "" # Vivado should be in your $PATH
 
-force_single_thread: No
-
 script_copy_enable: No
 script_copy_source: "/dev/null"
 
@@ -159,13 +157,12 @@ all optional:
 | Key | Default | When to set it |
 |-----|---------|----------------|
 | `tool_install_path` | empty: on your `PATH` | The tool is installed elsewhere. Commands get it as `$tool_install_path`; the built-in Quartus, LibreLane and OpenLane use it, the other built-in tools expect to be on your `PATH`. |
-| `force_single_thread` | `No` | Many jobs run at once and the tool takes every core. |
 | `constraint_file` | `constraints.sdc` | The tool scripts expect another name for the clock constraint of a job. |
 
 {{< tabs groupId="how" >}}
 {{% tab name="Graphical interface" %}}
 
-The **Tool settings** panel, above the target cards, edits these three keys.
+The **Tool settings** panel, above the target cards, edits these two keys.
 **Save all** writes them.
 
 {{% /tab %}}
@@ -173,20 +170,22 @@ The **Tool settings** panel, above the target cards, edits these three keys.
 
 {{< code lang=yaml filename="odatix_userconfig/targets/target_quartus.yml" >}}
 tool_install_path: "/opt/altera/altera_pro/26.1.1"
-force_single_thread: Yes
 {{< /code >}}
 
 {{% /tab %}}
 {{% tab name="Python API" %}}
 
 {{< code lang=python filename="targets.py" >}}
-ws.targets["quartus"].update(tool_install_path="/opt/altera/altera_pro/26.1.1",
-                             force_single_thread=True)
+ws.targets["quartus"].update(tool_install_path="/opt/altera/altera_pro/26.1.1")
 print(ws.targets["quartus"].tool_install_path)
 {{< /code >}}
 
 {{% /tab %}}
 {{< /tabs >}}
+
+When many jobs run at once and the tool takes every core, keep each job on a
+single thread: that is `force_single_thread` in the run settings file, for every
+tool (see [Run settings files](/docs/reference/run_settings/#single-threading)).
 
 Before a fixed-frequency synthesis, Odatix writes the constraint file in the job
 directory as an SDC clock constraint; the scripts of the built-in tools rewrite

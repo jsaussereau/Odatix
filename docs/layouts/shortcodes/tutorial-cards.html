@@ -7,6 +7,7 @@
        {{< tutorial-cards only="pages" >}}     skip the sub-sections
        {{< tutorial-cards numbered="true" >}}  badge the cards 1, 2, 3, ...
        {{< tutorial-cards pages="intro,fpga" >}}  only these, in this order
+       {{< tutorial-cards center="true" >}}    center a lone last card
 
      "pages" names tutorials of the section, in the order they should appear,
      which is how one index renders several titled groups of its own children
@@ -45,4 +46,5 @@
      "compact" (eq (.Get "compact") "true")
      "cols" (.Get "cols" | default 2)
      "only" (.Get "only" | default "")
-     "numbered" (eq (.Get "numbered") "true")) }}
+     "numbered" (eq (.Get "numbered") "true")
+     "center" (eq (.Get "center") "true")) }}

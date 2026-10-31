@@ -20,8 +20,7 @@ odatix_userconfig/targets/
 ├── target_design_compiler.yml
 ├── target_genus.yml
 ├── target_openlane.yml
-├── target_innovus.yml
-└── target_icc2.yml
+└── target_innovus.yml
 {{< /code >}}
 
 {{< toc >}}
@@ -33,16 +32,17 @@ odatix_userconfig/targets/
 | `targets` | list of strings | Yes | The devices or technologies to implement for. Their names are the ones the tool's scripts expect. |
 | `constraint_file` | filename | No (default `constraints.sdc`) | File of the job directory holding the clock constraint at the target frequency (`constraints.xdc`, `constraints.sdc`…). Odatix writes it as SDC before a fixed-frequency synthesis runs; the scripts of the built-in tools rewrite it in their own format. |
 | `tool_install_path` | path | No | Where the tool is installed, for any tool (`~` is expanded). Its `bin` directory and the directory itself are put first on the `PATH` of the tool's commands, and the path is exposed to them as `$tool_install_path`. It wins over a tool of the same name found on your `PATH`. For most tools, point it to the installation directory holding `bin` (Vivado: `/opt/Xilinx/Vivado/2024.2`). Some tools expect a specific directory: **Quartus**, the directory holding `qinit.sh` (`/opt/altera/altera_pro/26.1.1`); **LibreLane**, the LibreLane git checkout (holding `shell.nix`); **OpenLane**, its installation directory. A path that does not exist stops the run. Leave empty, or leave out, when the tool is on your `PATH`. |
-| `force_single_thread` | bool | No (default `No`) | Make each job of this tool run on a single thread (Vivado: `maxThreads 1`, LibreLane: `-j 1`). Jobs still run in parallel (`-j`): this helps when many parallel jobs, each taking several threads, oversubscribe the processor. |
 | `script_copy_enable` | bool | No | Copy an extra script into each job's script directory. |
 | `script_copy_source` | path | If enabled | The script to copy. Ignored with a note if the file does not exist. |
 | `target_settings` | mapping | No | Per-target overrides, keyed by target name. |
+
+Running each job on a single thread is a setting of the run, not of the tool:
+see `force_single_thread` in [Run settings files](/docs/reference/run_settings/#single-threading).
 
 {{< code lang=yaml filename="odatix_userconfig/targets/target_vivado.yml" >}}
 constraint_file: constraints.xdc
 
 tool_install_path: ""       # Vivado is on the PATH
-force_single_thread: No
 
 script_copy_enable: No
 script_copy_source: "/dev/null"
@@ -134,8 +134,6 @@ constraint_file: constraints.sdc
 
 tool_install_path: "" # empty: the tool is on your PATH
 
-force_single_thread: No
-
 script_copy_enable: No
 script_copy_source: "/dev/null"
 
@@ -145,8 +143,7 @@ targets:
 
 From the API, `ws.targets["mytool"]` is the target file of a tool: `add()`,
 `enable()`, `disable()`, `rename()` and `remove()` change its targets, and
-`update(constraint_file=..., tool_install_path=..., force_single_thread=...)`
-its settings.
+`update(constraint_file=..., tool_install_path=...)` its settings.
 
 ## In the GUI
 
@@ -154,8 +151,8 @@ On the run page of a synthesis or a place & route (**Run**, then a job type and
 a tool), **Choose targets** opens the targets of the selected tool: one card per
 target, with an **Enable** switch, and **Add new target** to add one. The
 **Tool settings** panel above them edits `constraint_file`, `tool_install_path`
-(with what to put there for the tools that expect a specific directory)
-and `force_single_thread`. **Add new target**, **Duplicate** and **Remove**
+(with what to put there for the tools that expect a specific directory).
+**Add new target**, **Duplicate** and **Remove**
 only change the page: nothing is written before **Save all**, which writes the file. See
 [The Odatix GUI](/docs/gui/app/).
 

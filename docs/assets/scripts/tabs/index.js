@@ -21,23 +21,25 @@ function saveSelection(group, tabId) {
 }
 
 function setActiveForGroup(tabGroup, tabId) {
-  const allGroupElements = Array.from(document.querySelectorAll(`[data-tab-group="${CSS.escape(tabGroup)}"]`));
-  const groupButtons = allGroupElements.filter((el) => el.classList.contains('tab-nav-button'));
-  const groupItems = allGroupElements.filter((el) => el.classList.contains('tab-item'));
+  const panels = document.querySelectorAll(`.tab-panel[data-tab-group="${CSS.escape(tabGroup)}"]`);
+  panels.forEach((panel) => setActiveForPanel(panel, tabId));
+}
 
-  const targetExists = allGroupElements.some((el) => el.dataset.tabItem === tabId);
-  const targetId = targetExists
-    ? tabId
-    : (groupButtons[0]?.dataset.tabItem || groupItems[0]?.dataset.tabItem || tabId);
+function setActiveForPanel(panel, tabId) {
+  const panelButtons = Array.from(panel.querySelectorAll(':scope > .tab-nav > .tab-nav-button'));
+  const panelItems = Array.from(panel.querySelectorAll(':scope > .tab-content > .tab-item'));
 
-  groupButtons.forEach((button) => {
-    const isActive = button.dataset.tabItem === targetId;
+  // A panel without this tab keeps its current selection
+  if (!panelButtons.some((button) => button.dataset.tabItem === tabId)) return;
+
+  panelButtons.forEach((button) => {
+    const isActive = button.dataset.tabItem === tabId;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
 
-  groupItems.forEach((item) => {
-    const isActive = item.dataset.tabItem === targetId;
+  panelItems.forEach((item) => {
+    const isActive = item.dataset.tabItem === tabId;
     item.classList.toggle('active', isActive);
     item.hidden = !isActive;
   });

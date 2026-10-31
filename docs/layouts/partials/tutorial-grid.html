@@ -9,6 +9,7 @@
        only     (optional) "pages" or "sections" to list only one of the two
        numbered (optional) badge each card with its position, for sections
                            whose tutorials build on one another
+       center   (optional) center the last card when it sits alone on its row
 
      Sub-sections are rendered as titled groups, each with its own grid, so
      the hub page keeps the shape of the sidebar tree instead of flattening
@@ -19,6 +20,7 @@
 {{ $only := string (.only | default "") }}
 {{ $numbered := .numbered | default false }}
 {{ $gridClass := cond (eq $cols 3) "tutorial-grid tutorial-grid--3" "tutorial-grid" }}
+{{ if .center }}{{ $gridClass = printf "%s tutorial-grid--center" $gridClass }}{{ end }}
 
 {{ $pages := slice }}
 {{ $sections := slice }}

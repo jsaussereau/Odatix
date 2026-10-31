@@ -40,6 +40,21 @@ both are things you can add yourself.
 
 {{< tutorial-cards section="/tutorials" only="pages" cols="3" >}}
 
+## Teaching it to a room
+
+A guided session built out of these pieces, for people who arrive with different
+machines and different licenses: one common track everybody can run, independent
+modules each participant picks from, and one exploration to finish on. The
+[workshop pages](/tutorials/workshop/) are written for the participants and can
+be handed out as they are; [Running the
+session](/tutorials/workshop/running_the_session/) is the part written for you.
+
+{{< card
+  title="Hands-on workshop"
+  link="/tutorials/workshop/"
+  description="Three hours taking a signal processing design from RTL to a Pareto front — with the tools each participant actually has, and a fallback for every step."
+/>}}
+
 ## One tutorial per feature
 
 | Feature | Tutorial |

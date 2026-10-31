@@ -192,6 +192,13 @@ source scripts/settings.tcl
 # constraints_file, lib_name, continue_on_error, single_thread
 {{< /code >}}
 
+`single_thread` is `1` when the run keeps each job on one thread
+(`force_single_thread` in its [run settings file](/docs/reference/run_settings/#single-threading)).
+Sourcing `settings.tcl` already tells the tools it knows (Design Compiler,
+Genus, Innovus, Vivado…); a tool that takes its thread count another way reads
+`$single_thread` in its scripts, or `ODATIX_SINGLE_THREAD` in the environment
+of its commands.
+
 `source scripts/<file>.tcl` lines are rewritten into absolute paths when the job
 is prepared, so a script keeps sourcing its siblings whatever directory the tool
 runs from.
