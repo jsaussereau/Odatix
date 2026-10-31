@@ -39,6 +39,8 @@ Usage:
 """
 
 import os
+import re
+import shutil
 import sys
 import yaml
 
@@ -412,6 +414,85 @@ class OdatixSettings:
             return False
         return True
 
+    #: What "odatix init --cordic" copies: the sources of the CORDIC of the
+    #: workshop, for participants who describe the design themselves, and the
+    #: material of its modules (the workflows and campaigns they run). The
+    #: descriptions of the CORDIC are left out: they are the answer.
+    CORDIC_SOURCES = (
+        "examples/cordic_sv",
+        "examples/cordic_vhdl",
+        "examples/cordic_tb",
+        "examples/workflow_cordic_model",
+        "examples/workflow_image_codec",
+        "odatix_userconfig/workflows/cordic_model",
+        "odatix_userconfig/workflows/cordic_model_wide",
+        "odatix_userconfig/workflows/image_codec",
+        "odatix_userconfig/dse_campaigns/cordic_model_front.yml",
+        "odatix_userconfig/dse_campaigns/image_codec_rate_quality.yml",
+    )
+    #: The shipped descriptions of the CORDIC, and the names their copies take
+    #: with "--cordic-solution": "_solution" keeps them apart from My_Cordic.
+    CORDIC_SOLUTION = (
+        ("architectures", "Example_Cordic_sv", "My_Cordic_sv_solution"),
+        ("architectures", "Example_Cordic_vhdl", "My_Cordic_vhdl_solution"),
+        ("simulations", "TB_Example_Cordic_Verilator", "TB_My_Cordic_sv_solution"),
+        ("simulations", "TB_Example_Cordic_GHDL", "TB_My_Cordic_vhdl_solution"),
+    )
+
+    @staticmethod
+    def init_cordic(solution=False):
+        """
+        Copy the sources of the CORDIC (RTL and testbenches) and the material
+        of the workshop modules to the current directory, and with solution, its architectures and simulations under
+        names of their own.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            src_root = OdatixSettings.odatix_examples_path
+            dst_root = os.getcwd()
+            for path in OdatixSettings.CORDIC_SOURCES:
+                src = os.path.join(src_root, path)
+                dst = os.path.join(dst_root, path)
+                if os.path.isdir(src):
+                    copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    shutil.copyfile(src, dst)
+            if solution:
+                renames = dict((old, new) for _, old, new in OdatixSettings.CORDIC_SOLUTION)
+                pattern = re.compile(r"\b(" + "|".join(sorted(renames, key=len, reverse=True)) + r")\b")
+                for kind, old, new in OdatixSettings.CORDIC_SOLUTION:
+                    src = os.path.join(src_root, OdatixSettings.DEFAULT_USERCONFIG_PATH, kind, old)
+                    dst = os.path.join(dst_root, OdatixSettings.DEFAULT_USERCONFIG_PATH, kind, new)
+                    copytree(src, dst, dirs_exist_ok=True)
+                    settings_file = os.path.join(dst, "_settings.yml")
+                    with open(settings_file) as f:
+                        text = f.read()
+                    with open(settings_file, "w") as f:
+                        f.write(pattern.sub(lambda m: renames[m.group(1)], text))
+        except Exception as e:
+            printc.error("Could not copy the CORDIC: " + str(e), script_name=script_name)
+            return False
+        return True
+
+    @staticmethod
+    def init_cordic_and_report(solution=False, prog=""):
+        """
+        init_cordic, then what was copied and what to do next.
+        """
+        if not OdatixSettings.init_cordic(solution):
+            return False
+        prog = prog or "odatix"
+        printc.green("Your directory can now be used by Odatix!", script_name=script_name)
+        printc.say("The sources of the CORDIC are in examples/cordic_sv, examples/cordic_vhdl and examples/cordic_tb: describe it as My_Cordic_sv or My_Cordic_vhdl", script_name=script_name)
+        if solution:
+            names = ", ".join(new for _, _, new in OdatixSettings.CORDIC_SOLUTION)
+            printc.say("The solution is in " + names + ": compare it with your own description", script_name=script_name)
+        printc.say("New to Odatix? Follow " + printc.colors.BLUE + GETTING_STARTED_URL + printc.colors.ENDC, script_name=script_name)
+        return True
+
     @staticmethod
     def init_path():
         """
@@ -434,13 +515,15 @@ class OdatixSettings:
         return True
 
     @staticmethod
-    def init_directory_dialog(include_examples=None, prog=""):
+    def init_directory_dialog(include_examples=None, prog="", cordic=False, cordic_solution=False):
         """
         Initialize the configuration directory with user interaction.
 
         Args:
             include_examples (bool | None): Whether to include example files (prompted if None).
             prog (str): Program name for success message.
+            cordic (bool): Copy only the sources of the CORDIC (no question about the examples).
+            cordic_solution (bool): Also copy the CORDIC descriptions, as "..._solution".
 
         Returns:
             bool: True if initialization is successful, False otherwise.
@@ -455,6 +538,8 @@ class OdatixSettings:
         success = OdatixSettings.init_path()
         if not success:
             return False
+        if cordic or cordic_solution:
+            return OdatixSettings.init_cordic_and_report(cordic_solution, prog)
         if include_examples is None:
             printc.say("Would you like to add Odatix examples? ", end="", script_name=script_name)
             include_examples = ask_yes_no()
@@ -466,13 +551,15 @@ class OdatixSettings:
         return True
 
     @staticmethod
-    def init_directory_nodialog(include_examples=None, prog="", silent=False):
+    def init_directory_nodialog(include_examples=None, prog="", silent=False, cordic=False, cordic_solution=False):
         """
         Initialize the configuration directory without user interaction.
 
         Args:
             include_examples (bool | None): Whether to include example files.
             prog (str): Program name for success message.
+            cordic (bool): Also copy the sources of the CORDIC.
+            cordic_solution (bool): Also copy the CORDIC descriptions, as "..._solution".
 
         Returns:
             bool: True if initialization is successful, False otherwise.
@@ -480,6 +567,10 @@ class OdatixSettings:
         success = OdatixSettings.init_path()
         if not success:
             return False
+        if (cordic or cordic_solution) and not include_examples:
+            if silent:
+                return OdatixSettings.init_cordic(cordic_solution)
+            return OdatixSettings.init_cordic_and_report(cordic_solution, prog)
         if include_examples:
             success = OdatixSettings.init_examples()
             if not success:
@@ -513,15 +604,15 @@ class OdatixSettings:
         prog = prog or "odatix"
         printc.green("Your directory can now be used by Odatix!", script_name=script_name)
         if examples:
-            printc.say("Try a first run (with your tool in place of vivado): ", end="", script_name=script_name)
-            printc.bold(prog + " " + OdatixSettings.FIRST_RUN_COMMAND)
+            printc.tip("Try a first run (with your tool in place of vivado): ", end="", script_name=script_name)
+            printc.magenta(printc.colors.BOLD + prog + " " + OdatixSettings.FIRST_RUN_COMMAND)
         else:
-            printc.say("Next, add your design (" + OWN_DESIGNS_URL + "), or start from the examples: ", end="", script_name=script_name)
+            printc.say("Next, add your design (" + printc.colors.BLUE + OWN_DESIGNS_URL + printc.colors.ENDC + "), or start from the examples: ", end="", script_name=script_name)
             printc.bold(prog + " init --examples")
         printc.say("Run ", end="", script_name=script_name)
         printc.bold(prog + " -h", end="")
         print(" to get a list of useful commands")
-        printc.say("New to Odatix? Follow " + GETTING_STARTED_URL, script_name=script_name)
+        printc.say("New to Odatix? Follow " + printc.colors.BLUE + GETTING_STARTED_URL + printc.colors.ENDC, script_name=script_name)
 
     def to_dict(self):
         """

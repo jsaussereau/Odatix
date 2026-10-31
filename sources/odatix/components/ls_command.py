@@ -133,13 +133,13 @@ def print_listing(listing, long_format=False):
       print_names([item["name"] for item in entries], "  ", long_format)
       continue
     for item in entries:
-      print("  " + item["name"])
+      printc.blue("  " + item["name"])
       for label, names in item["configurations"].items():
         # The main domain's configurations right under the entry, those of
         # each other domain under its name, as "-a MyCPU + width/16bits" reads.
         indent = "    "
         if label != item["name"]:
-          printc.grey(indent + "+ " + label)
+          printc.cyan(indent + "+ " + label)
           indent += "  "
         print_names(names, indent, long_format)
 
