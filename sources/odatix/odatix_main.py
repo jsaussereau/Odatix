@@ -289,6 +289,8 @@ class ArgParser:
     ArgParser.init_parser.add_argument("-y", "--yes", dest="noask", action="store_true", help="do not ask anything: create the files, without the examples unless --examples is given")
     ArgParser.init_parser.add_argument("--examples", action="store_true", default=None, help="include the examples")
     deprecated_option(ArgParser.init_parser, "-e", "--examples", action="store_true", dest="examples")
+    ArgParser.init_parser.add_argument("--cordic", action="store_true", help="copy the sources of the CORDIC of the workshop (RTL and testbenches) and the material of its modules, without its description, to describe it yourself")
+    ArgParser.init_parser.add_argument("--cordic-solution", dest="cordic_solution", action="store_true", help="with the sources of the CORDIC, the architectures and simulations that describe it, named \"..._solution\" to stay apart from yours")
     ArgParser.add_nobanner(ArgParser.init_parser)
 
     ArgParser.gen_configs_parser = add("generate", "generate configurations")
@@ -631,8 +633,8 @@ def init_directory(args):
   one to ask (no terminal, as in a script).
   """
   if args.noask or not sys.stdin.isatty():
-    return OdatixSettings.init_directory_nodialog(bool(args.examples), prog)
-  return OdatixSettings.init_directory_dialog(include_examples=args.examples, prog=prog)
+    return OdatixSettings.init_directory_nodialog(bool(args.examples), prog, cordic=args.cordic, cordic_solution=args.cordic_solution)
+  return OdatixSettings.init_directory_dialog(include_examples=args.examples, prog=prog, cordic=args.cordic, cordic_solution=args.cordic_solution)
 
 #: What runs each command.
 COMMANDS = {
