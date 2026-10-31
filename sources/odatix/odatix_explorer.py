@@ -66,7 +66,25 @@ def theme_help():
         text += ": " + ", ".join(names)
     return text
 
+#: Page to open, as "odatix-explorer <page>" names it, and its url path.
+explorer_pages = {
+    "home": "/explorer",
+    "lines": "/explorer/lines",
+    "columns": "/explorer/columns",
+    "scatter": "/explorer/scatter",
+    "scatter3d": "/explorer/scatter3d",
+    "radar": "/explorer/radar",
+    "parcoords": "/explorer/parcoords",
+    "overview": "/explorer/overview",
+    "table": "/explorer/table",
+    "analysis": "/explorer/analysis",
+    "dse": "/explorer/dse",
+}
+default_page = "home"
+landing_page = explorer_pages[default_page]
+
 def add_arguments(parser):
+    parser.add_argument('page', nargs='?', default=default_page, choices=list(explorer_pages), metavar='<page>', help='page to open: ' + ', '.join(explorer_pages) + ' (default: ' + default_page + ')')
     parser.add_argument('-i', '--input', type=str, default=None, help='result directory (default: "result_path" of the workspace settings file, else ' + OdatixSettings.DEFAULT_RESULT_PATH + ')')
     parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='workspace settings file, which gives the result directory (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
     parser.add_argument('-n', '--network', action='store_true', help='serve on the network, not only on this machine')
@@ -100,17 +118,20 @@ def parse_arguments():
 
 def open_browser(host_address):
     """Open the explorer page, once the server is up and accepting connections."""
-    open_browser_when_ready("http://" + ip_address + ':' + str(port) + "/explorer", host_address, port, script_name=script_name)
+    open_browser_when_ready("http://" + ip_address + ':' + str(port) + landing_page, host_address, port, script_name=script_name)
 
 def close_server(old_settings):
     if old_settings is not None:
         term_mode.restore_mode(old_settings)
     os._exit(0)
 
-def start_result_explorer(input, network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, theme=None, read_only=False):
+def start_result_explorer(input, network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, theme=None, read_only=False, page=default_page):
 
     global ip_address
     global port
+    global landing_page
+
+    landing_page = explorer_pages.get(page, explorer_pages[default_page])
 
     # Default ip address: local
     host_address = '127.0.0.1'
@@ -212,7 +233,7 @@ def main(args=None):
     do_not_open_browser = args.nobrowser
     port = args.port
 
-    start_result_explorer(input, network, port, normal_term_mode, safe_mode, do_not_open_browser, args.theme, getattr(args, "read_only", False))
+    start_result_explorer(input, network, port, normal_term_mode, safe_mode, do_not_open_browser, args.theme, getattr(args, "read_only", False), getattr(args, "page", None) or default_page)
 
 if __name__ == "__main__":
     main()
