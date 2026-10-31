@@ -1023,7 +1023,9 @@ def update_metric_cards(
     existing = list(definitions.keys())
 
     if trigger_id == f"{METRIC_PREFIX}-new" and new_click:
-        definitions[unique_name(existing, "new_metric")] = {"type": derived_metrics_lib.KIND_IMPORT}
+        # Read from a simulation: what the field shows, and the most common case.
+        # Left as a placeholder, it looked set but was saved without any "from".
+        definitions[unique_name(existing, "new_metric")] = {"type": derived_metrics_lib.KIND_IMPORT, "from": "simulation"}
         return metric_cards(definitions)
 
     if isinstance(trigger_id, dict):

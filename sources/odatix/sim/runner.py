@@ -55,6 +55,7 @@ import time
 
 import yaml
 
+from odatix.lib import single_thread
 import odatix.sim.design_info as design_info
 
 REPORT_FILENAME = "sim_report.yml"
@@ -219,13 +220,25 @@ class SimRunner(object):
     return None
 
   @property
+  def single_thread(self):
+    """
+    Whether the run asks each job to run on a single thread
+    ("force_single_thread" in its settings file): the tools are then given one
+    thread or process each.
+    """
+    return single_thread.in_environment()
+
+  @property
   def build_jobs(self):
     """
     How many processes one job may build with: the cores of the machine shared
     among the jobs Odatix runs at once ("parallel_jobs" in odatix_sim.yml), at
-    least one. A build taking every core in each of several jobs at once runs
-    them all slower than one after the other.
+    least one, and only one for a job run on a single thread. A build taking
+    every core in each of several jobs at once runs them all slower than one
+    after the other.
     """
+    if self.single_thread:
+      return 1
     try:
       cores = multiprocessing.cpu_count()
     except NotImplementedError:

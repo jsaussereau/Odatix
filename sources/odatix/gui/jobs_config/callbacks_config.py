@@ -1077,9 +1077,9 @@ def changed_settings(current_settings, saved_settings):
     """
     What Save writes: only the settings the page changed since it loaded them.
     The file is updated in place, so what is left out stays as it is written
-    there -- a key the file never had is not added (force_single_thread, the
-    frequencies of a run that does not override them...), and a block the page
-    does not edit (the "expected" findings of an analysis) is not rewritten.
+    there -- a key the file never had is not added (the frequencies of a run
+    that does not override them...), and a block the page does not edit (the
+    "expected" findings of an analysis) is not rewritten.
     """
     if not isinstance(saved_settings, dict):
         return dict(current_settings)

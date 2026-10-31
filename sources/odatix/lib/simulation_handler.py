@@ -758,9 +758,35 @@ class SimulationHandler:
                   param_file=new_domain_param_file,
                 ))
 
+    # The testbench files the simulation names, relative to its own directory
+    # or to the workspace (see run_simulations.own_testbench): one matching
+    # nothing would leave a generated testbench in its place, silently.
+    testbench_languages = []
+    if testbench.get("files"):
+      patterns = testbench["files"]
+      patterns = [patterns] if isinstance(patterns, str) else patterns
+      matched, unmatched = [], []
+      for pattern in patterns:
+        found = []
+        for directory in definition_dirs:
+          found = design_info.match_files([pattern], directory)
+          if found:
+            break
+        found = found or design_info.match_files([pattern])
+        matched.extend(found)
+        if not found:
+          unmatched.append(str(pattern))
+      if unmatched:
+        printc.error(
+          "The testbench files of \"" + sim + "\" (" + ", ".join(unmatched)
+          + ") match no file, in its directory or in the workspace", script_name
+        )
+        self.plan.add(sim_display_name, Category.ERROR)
+        return None
+      testbench_languages = design_info.languages_of(design_info.split_by_language(matched))
+
     # The testbench of the architecture, which the simulation runs unless it
     # names its own files (see run_simulations.select_testbench)
-    testbench_languages = []
     arch_testbench = getattr(architecture, "testbench", None) or {}
     if arch_testbench.get("files") and not testbench.get("files"):
       matched = design_info.match_files(arch_testbench["files"])

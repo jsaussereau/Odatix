@@ -107,7 +107,7 @@ set fmax_mindiff       1
 set fmax_safezone      5
 
 set continue_on_error  0
-set single_thread      1
+set single_thread      0
 
 set lib_name           WORK
 
@@ -177,6 +177,51 @@ proc odatix_read_user_constraints {stage read_command signature} {
             exit -1
         }
         puts "$signature <cyan>read $stage constraints from $constraint_file<end>"
+    }
+}
+
+proc odatix_limit_threads {} {
+    # Keep this process of the tool on a single thread, when the run asks each
+    # job to run on one ("force_single_thread" in the run settings file).
+    #
+    # What a tool takes to do so is its own: whichever of these commands the
+    # tool running this script knows is the one that applies. Vivado, Quartus
+    # and LibreLane are also told by their own scripts, at the point their flow
+    # takes it (odatix_single_thread, NUM_PARALLEL_PROCESSORS, -j 1). The
+    # environment is set too, for what the tool starts in turn: the OpenLane
+    # flow reads ROUTING_CORES from it, and the runtimes tools are built on
+    # read their own thread counts (see odatix/lib/single_thread.py).
+    global single_thread
+    if {![info exists single_thread] || $single_thread != 1 || [info exists ::odatix_threads_limited]} {
+        return
+    }
+    set ::odatix_threads_limited 1
+
+    foreach name {ODATIX_SINGLE_THREAD OMP_NUM_THREADS OPENBLAS_NUM_THREADS MKL_NUM_THREADS NUMEXPR_NUM_THREADS VECLIB_MAXIMUM_THREADS ROUTING_CORES} {
+        set ::env($name) 1
+    }
+
+    set applied [list]
+    # Vivado, for the scripts that do not call odatix_single_thread (analysis)
+    if {[llength [info commands set_param]] && ![catch {set_param general.maxThreads 1}]} {
+        lappend applied "set_param general.maxThreads 1"
+    }
+    # Synopsys: Design Compiler, DC NXT, IC Compiler II, PrimeTime
+    if {[llength [info commands set_host_options]] && ![catch {set_host_options -max_cores 1}]} {
+        lappend applied "set_host_options -max_cores 1"
+    }
+    # Cadence: Innovus, then the common UI of Genus and Innovus
+    if {[llength [info commands setMultiCpuUsage]] && ![catch {setMultiCpuUsage -localCpu 1}]} {
+        lappend applied "setMultiCpuUsage -localCpu 1"
+    } elseif {[llength [info commands set_multi_cpu_usage]] && ![catch {set_multi_cpu_usage -local_cpu 1}]} {
+        lappend applied "set_multi_cpu_usage -local_cpu 1"
+    }
+    # Genus: the CPUs of its super-threading
+    if {[llength [info commands set_db]] && ![catch {set_db max_cpus_per_server 1}]} {
+        lappend applied "set_db max_cpus_per_server 1"
+    }
+    foreach command $applied {
+        puts "<grey>\[settings.tcl\]<end> <cyan>single thread: $command<end>"
     }
 }
 
@@ -307,3 +352,16 @@ proc get_files_recursive {path patterns} {
     }
     return $file_list
 }
+
+
+######################################
+# Single thread
+######################################
+
+# A job run on a single thread is told so by its settings (the value above,
+# written by Odatix) or by its environment, which a run asked from the API
+# sets alone (see odatix/lib/single_thread.py).
+if {[info exists ::env(ODATIX_SINGLE_THREAD)] && $::env(ODATIX_SINGLE_THREAD) eq "1"} {
+    set single_thread 1
+}
+odatix_limit_threads

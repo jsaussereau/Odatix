@@ -484,6 +484,15 @@ class OdatixSettings:
         """
         if not OdatixSettings.init_cordic(solution):
             return False
+        OdatixSettings.cordic_success(prog, solution)
+        return True
+
+    @staticmethod
+    def cordic_success(prog="", solution=False):
+        """
+        What "odatix init --cordic" says once done: what was copied, and what
+        to do next.
+        """
         prog = prog or "odatix"
         printc.green("Your directory can now be used by Odatix!", script_name=script_name)
         printc.say("The sources of the CORDIC are in examples/cordic_sv, examples/cordic_vhdl and examples/cordic_tb: describe it as My_Cordic_sv or My_Cordic_vhdl", script_name=script_name)
@@ -491,7 +500,6 @@ class OdatixSettings:
             names = ", ".join(new for _, _, new in OdatixSettings.CORDIC_SOLUTION)
             printc.say("The solution is in " + names + ": compare it with your own description", script_name=script_name)
         printc.say("New to Odatix? Follow " + printc.colors.BLUE + GETTING_STARTED_URL + printc.colors.ENDC, script_name=script_name)
-        return True
 
     @staticmethod
     def init_path():

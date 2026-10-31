@@ -102,18 +102,25 @@ def _init_output_pages():
     return pages
 
 
-def test_the_documentation_shows_the_output_of_init_as_it_is(capsys):
+def _init_success_lines(capsys, success):
     printc.set_command("odatix init")
     try:
-        OdatixSettings.init_success("odatix", examples=True)
+        success()
     finally:
         printc.set_command("")
-    expected = [line.strip() for line in _plain(capsys.readouterr().out).splitlines() if line.strip()]
+    return [line.strip() for line in _plain(capsys.readouterr().out).splitlines() if line.strip()]
+
+
+def test_the_documentation_shows_the_output_of_init_as_it_is(capsys):
+    examples = _init_success_lines(capsys, lambda: OdatixSettings.init_success("odatix", examples=True))
+    # The workshop starts from "odatix init --cordic", which says something else
+    cordic = _init_success_lines(capsys, lambda: OdatixSettings.cordic_success("odatix"))
     pages = _init_output_pages()
     assert len(pages) >= 4
     for path, text in pages:
         shown = re.sub(r"<[^>]+>", "", text)
         assert "[settings.py]" not in shown, path
+        expected = cordic if "$ odatix init --cordic" in text else examples
         for line in expected:
             assert line in shown, (path, line)
 

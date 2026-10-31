@@ -51,7 +51,7 @@ unix:
   # separate synthesis job left behind: $source_netlist and $source_sdc point at
   # it, and $source_work_path at the job directory it came from.
   #
-  # This is what makes a Design Compiler + Innovus or Genus + ICC2 chain two
+  # This is what makes a Design Compiler + Innovus or Genus + Innovus chain two
   # commands instead of one monolithic flow. The dummy tool implements it end to
   # end so the chain can be exercised without a licence:
   #

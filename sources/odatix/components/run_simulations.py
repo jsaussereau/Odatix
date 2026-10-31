@@ -290,7 +290,7 @@ def select_testbench(sim_instance):
     """
     own = dict(sim_instance.testbench or {})
     if own.get("files"):
-        return own
+        return own_testbench(sim_instance, own)
     arch_testbench = getattr(sim_instance.architecture, "testbench", None) or {}
     if not arch_testbench.get("files"):
         # The "tb" directory, or else the testbench Odatix generates: with what
@@ -302,32 +302,64 @@ def select_testbench(sim_instance):
         generated.update(own)
         return generated
 
-    patterns = arch_testbench["files"]
+    sources = workspace_files(arch_testbench["files"])
+    if not sources:
+        return own
+    files = copy_testbench_files(sources, sim_instance.tmp_dir)
+    return {
+        "top": arch_testbench.get("top") or "",
+        "files": files,
+        "parameters": dict(arch_testbench.get("parameters") or {}),
+    }
+
+
+def workspace_files(patterns):
+    """The files that patterns relative to the workspace match, absolute and without duplicates."""
     patterns = [patterns] if isinstance(patterns, str) else patterns
     sources = []
     for pattern in patterns:
         sources.extend(path for path in sorted(glob.glob(str(pattern))) if os.path.isfile(path))
-    sources = list(dict.fromkeys(os.path.abspath(path) for path in sources))
-    if not sources:
-        return own
+    return list(dict.fromkeys(os.path.abspath(path) for path in sources))
 
+
+def copy_testbench_files(sources, work_dir):
+    """
+    Copy testbench files into "testbench/" of the work directory, and return
+    the HDL ones, relative to it.
+    """
     # Keep the layout of the files (a header next to the file including it),
     # from the deepest directory holding them all.
     common = os.path.commonpath([os.path.dirname(path) for path in sources])
     files = []
     for path in sources:
         relpath = os.path.relpath(path, common)
-        destination = os.path.join(sim_instance.tmp_dir, ARCHITECTURE_TESTBENCH_DIR, relpath)
+        destination = os.path.join(work_dir, ARCHITECTURE_TESTBENCH_DIR, relpath)
         if not os.path.isdir(os.path.dirname(destination)):
             os.makedirs(os.path.dirname(destination))
         shutil.copy2(path, destination)
         if design_info.language_of(path) is not None:
             files.append((ARCHITECTURE_TESTBENCH_DIR + "/" + relpath).replace(os.sep, "/"))
-    return {
-        "top": arch_testbench.get("top") or "",
-        "files": files,
-        "parameters": dict(arch_testbench.get("parameters") or {}),
-    }
+    return files
+
+
+def own_testbench(sim_instance, own):
+    """
+    The testbench a simulation names itself. Each pattern is relative to the
+    simulation's own directory (copied into the work directory) or, when it
+    matches nothing there, to the workspace, as the testbench of an
+    architecture is: those files are copied in.
+    """
+    patterns = own["files"]
+    patterns = [patterns] if isinstance(patterns, str) else patterns
+    files = []
+    for pattern in patterns:
+        if design_info.match_files([pattern], sim_instance.tmp_dir):
+            files.append(pattern)
+            continue
+        sources = workspace_files([pattern])
+        if sources:
+            files.extend(copy_testbench_files(sources, sim_instance.tmp_dir))
+    return dict(own, files=files)
 
 
 def reset_active_low(architecture):

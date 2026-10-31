@@ -119,18 +119,13 @@ def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_s
                             checked=settings.get("overwrite", False),
                             tooltip="If enabled, previous results will be overwritten. (overridden by -o / --overwrite).",
                         ),
-                        # Whether a tool runs on a single thread is a setting
-                        # of its target file ("force_single_thread"), which the
-                        # targets page edits: no run reads it from here. The
-                        # switch is kept, hidden, for the callbacks that read it.
-                        html.Div(
-                            ui.switch_row(
-                                "Force single threading",
-                                id="force_single_thread",
-                                checked=settings.get("force_single_thread", _JOB_SETTINGS_DEFAULTS["force_single_thread"]),
-                                tooltip="If enabled, each job will run using a single thread.",
-                            ),
-                            style={"display": "none"},
+                        ui.switch_row(
+                            "Force single threading",
+                            id="force_single_thread",
+                            checked=settings.get("force_single_thread", _JOB_SETTINGS_DEFAULTS["force_single_thread"]),
+                            tooltip="If enabled, each job runs on a single thread, whatever its tool. Jobs still run "
+                                    "in parallel: useful when many parallel jobs, each taking several threads, "
+                                    "oversubscribe the processor.",
                         ),
                     ],
                     className="odx-switch-stack",

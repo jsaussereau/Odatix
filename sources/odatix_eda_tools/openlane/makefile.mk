@@ -45,7 +45,8 @@ GEN_CONFIG_SCRIPT       = $(EDA_TOOLS_PATH)/openlane/scripts/gen_config.py
 LIB_NAME                = openlane_test
 
 MOUNT_CMD               = cd $(TOOL_INSTALL_PATH); make mount ENV_MOUNT='-d -v $(TOOL_INSTALL_PATH):/openlane --name $(LIB_NAME)'
-FLOW_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); tclsh scripts/$(SYNTH_FREQ_SCRIPT)'
+# ODATIX_SINGLE_THREAD: a job run on a single thread says so inside the container too
+FLOW_CMD                = docker exec -e ODATIX_SINGLE_THREAD $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); tclsh scripts/$(SYNTH_FREQ_SCRIPT)'
 GEN_CONFIG_CMD          = python3 $(GEN_CONFIG_SCRIPT) --basepath $(WORK_DIR)
 TEST_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'exit'
 

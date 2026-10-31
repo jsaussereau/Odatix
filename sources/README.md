@@ -43,7 +43,6 @@ Odatix also enables parallel simulations of different configurations of the same
 | EDA Tool                                                         | Status              |
 | :--------------------------------------------------------------- | :------------------ |
 | Cadence Innovus                                                  | ✔️ supported        |
-| Synopsys IC Compiler II                                          | 🧪 experimental     |
 
 ### Simulation
 

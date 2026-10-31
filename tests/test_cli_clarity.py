@@ -375,7 +375,7 @@ class TestInit:
 
         seen = {}
         monkeypatch.setattr(odatix_main.sys.stdin, "isatty", lambda: False)
-        monkeypatch.setattr(OdatixSettings, "init_directory_nodialog", staticmethod(lambda examples, prog: seen.setdefault("examples", examples) or True))
+        monkeypatch.setattr(OdatixSettings, "init_directory_nodialog", staticmethod(lambda examples, prog, **kwargs: seen.setdefault("examples", examples) or True))
         monkeypatch.setattr(OdatixSettings, "init_directory_dialog", staticmethod(lambda **kwargs: pytest.fail("asked")))
         odatix_main.init_directory(odatix_main.ArgParser.parse_arguments(argv))
         assert seen["examples"] is examples
@@ -385,10 +385,23 @@ class TestInit:
 
         seen = []
         monkeypatch.setattr(odatix_main.sys.stdin, "isatty", lambda: True)
-        monkeypatch.setattr(OdatixSettings, "init_directory_nodialog", staticmethod(lambda examples, prog: seen.append(examples) or True))
+        monkeypatch.setattr(OdatixSettings, "init_directory_nodialog", staticmethod(lambda examples, prog, **kwargs: seen.append(examples) or True))
         monkeypatch.setattr(OdatixSettings, "init_directory_dialog", staticmethod(lambda **kwargs: pytest.fail("asked")))
         odatix_main.init_directory(odatix_main.ArgParser.parse_arguments(["init", "-y"]))
         assert seen == [False]
+
+    @pytest.mark.parametrize("argv, solution", [(["init", "-y", "--cordic"], False), (["init", "-y", "--cordic-solution"], True)])
+    def test_cordic_copies_only_its_sources(self, argv, solution, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        odatix_main.init_directory(odatix_main.ArgParser.parse_arguments(argv))
+        assert (tmp_path / "examples" / "cordic_sv" / "cordic.sv").is_file()
+        assert (tmp_path / "examples" / "cordic_tb" / "tb_cordic.vhdl").is_file()
+        assert not (tmp_path / "examples" / "counter").exists()
+        architectures = sorted(p.name for p in (tmp_path / "odatix_userconfig" / "architectures").iterdir())
+        assert architectures == (["My_Cordic_sv_solution", "My_Cordic_vhdl_solution"] if solution else [])
+        if solution:
+            settings = (tmp_path / "odatix_userconfig" / "simulations" / "TB_My_Cordic_sv_solution" / "_settings.yml").read_text()
+            assert "My_Cordic_sv_solution" in settings and "Example_Cordic" not in settings
 
 
 ######################################

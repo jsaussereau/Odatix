@@ -59,7 +59,7 @@ __all__ = ["Target", "TargetFile", "TargetFileCollection"]
 # The settings of a target file that belong to the tool rather than to one
 # target, and what a new file starts with: the values Odatix uses when a key is
 # missing, written out so the file says what can be set.
-TOOL_SETTINGS = ("constraint_file", "tool_install_path", "force_single_thread")
+TOOL_SETTINGS = ("constraint_file", "tool_install_path")
 
 
 def _new_file_text(tool):
@@ -76,8 +76,6 @@ def _new_file_text(tool):
         "constraint_file: {constraint_file}\n"
         "\n"
         "tool_install_path: \"\" # empty: the tool is on your PATH\n"
-        "\n"
-        "force_single_thread: No\n"
         "\n"
         "script_copy_enable: No\n"
         "script_copy_source: \"/dev/null\"\n"
@@ -589,11 +587,6 @@ class TargetFile(object):
         value = self.settings().get("tool_install_path")
         return "" if value is None else str(value)
 
-    @property
-    def force_single_thread(self):
-        """Whether the tool is asked to run on a single thread."""
-        return parse_bool(self.settings().get("force_single_thread"), False)
-
     def update(self, save=True, **values):
         """
         Change the settings of the tool held by this file, and, unless told
@@ -604,7 +597,6 @@ class TargetFile(object):
                 constraint.
             tool_install_path (str): installation directory of the tool; empty
                 when it is on the PATH.
-            force_single_thread (bool): run the tool on a single thread.
 
         Example::
 
@@ -619,11 +611,7 @@ class TargetFile(object):
                 )
             )
         for key, value in values.items():
-            if key == "force_single_thread":
-                value = parse_bool(value, False)
-            else:
-                value = "" if value is None else str(value)
-            self._changes[key] = value
+            self._changes[key] = "" if value is None else str(value)
         if save:
             self.save()
         return self

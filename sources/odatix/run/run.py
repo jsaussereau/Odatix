@@ -254,9 +254,29 @@ class Run(object):
         """
         checked = self.checked()
         self._parallel_jobs = self._step(
-            "prepare", lambda: self._with_workspace_guard(self.flow.prepare(self, checked))
+            "prepare", lambda: self._with_single_thread(self._with_workspace_guard(self.flow.prepare(self, checked)))
         )
         return self._parallel_jobs
+
+    @property
+    def single_thread(self):
+        """
+        Whether each job runs on a single thread: ``options.force_single_thread``,
+        or "force_single_thread" in the run settings file.
+        """
+        from odatix.lib import single_thread
+
+        if self.options.force_single_thread:
+            return True
+        return single_thread.requested(os.path.join(self.workspace.root, self.settings_file))
+
+    def _with_single_thread(self, parallel_jobs):
+        """Make every job run on a single thread, when the run asks for it."""
+        if self.single_thread:
+            from odatix.lib import single_thread
+
+            single_thread.apply_to_jobs(getattr(parallel_jobs, "job_list", None))
+        return parallel_jobs
 
     def _with_workspace_guard(self, parallel_jobs):
         """

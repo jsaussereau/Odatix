@@ -210,20 +210,22 @@ class TestTargetFiles(object):
         assert data["targets"] == ["generic"]
         assert data["constraint_file"] == "constraints.sdc"
         assert data["tool_install_path"] == ""
-        assert data["force_single_thread"] is False
+        # A setting of the run, not of the tool (see the run settings files)
+        assert "force_single_thread" not in data
         assert data["script_copy_enable"] is False
 
     def test_tool_settings_are_editable(self, workspace):
         target_file = workspace.targets["mytool"]
         target_file.add("generic")
-        target_file.update(constraint_file="timing.sdc", tool_install_path="/opt/mytool", force_single_thread=True)
+        target_file.update(constraint_file="timing.sdc", tool_install_path="/opt/mytool")
         reloaded = workspace.targets["mytool"]
         assert reloaded.constraint_file == "timing.sdc"
         assert reloaded.tool_install_path == "/opt/mytool"
-        assert reloaded.force_single_thread is True
         assert reloaded.names() == ["generic"]
         with pytest.raises(ValueError):
             reloaded.update(nonsense=1)
+        with pytest.raises(ValueError):
+            reloaded.update(force_single_thread=True)
 
     def test_an_existing_file_keeps_its_comments(self, workspace):
         target_file = workspace.targets["vivado"]
@@ -235,9 +237,9 @@ class TestTargetFiles(object):
 
     def test_select_targets_shows_what_a_new_file_will_hold(self, pages, workspace):
         values = pages.select_targets.tool_settings_values("?tool=mytool", {})
-        assert values == {"constraint_file": "constraints.sdc", "tool_install_path": "", "force_single_thread": False}
-        assert not pages.select_targets.tool_settings_changed("constraints.sdc", "", [], values)
-        assert pages.select_targets.tool_settings_changed("constraints.sdc", "/opt", [], values)
+        assert values == {"constraint_file": "constraints.sdc", "tool_install_path": ""}
+        assert not pages.select_targets.tool_settings_changed("constraints.sdc", "", values)
+        assert pages.select_targets.tool_settings_changed("constraints.sdc", "/opt", values)
 
     def test_constraint_file_is_optional(self, workspace):
         # read by the run flows (see synthesis_common), defaulting to SDC

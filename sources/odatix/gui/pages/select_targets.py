@@ -288,11 +288,11 @@ def empty_message(search, odatix_settings):
 def tool_settings_values(search, odatix_settings):
     """
     The settings of the tool held by its target file (constraint file, install
-    path, single thread), as the fields of the page show them.
+    path), as the fields of the page show them.
     """
     tool = get_key_from_url(search, "tool")
     if not tool:
-        return {"constraint_file": "", "tool_install_path": "", "force_single_thread": False}
+        return {"constraint_file": "", "tool_install_path": ""}
     target_file = get_workspace(odatix_settings).targets[tool]
     settings = target_file.settings()
     if not target_file.exists:
@@ -303,7 +303,6 @@ def tool_settings_values(search, odatix_settings):
     return {
         "constraint_file": str(settings.get("constraint_file") or ""),
         "tool_install_path": str(settings.get("tool_install_path") or ""),
-        "force_single_thread": bool(target_file.force_single_thread),
     }
 
 
@@ -337,7 +336,6 @@ def install_path_field(tool, value):
     Output("select-targets-title", "children"),
     Output("target-constraint-file", "value"),
     Output("target-install-path", "value"),
-    Output("target-single-thread", "value"),
     Output("target-tool-settings", "data"),
     Output("select-targets-back", "href"),
     Output("target-saved-names", "data"),
@@ -360,7 +358,6 @@ def load_page(search, odatix_settings):
         title,
         values["constraint_file"],
         values["tool_install_path"],
-        [True] if values["force_single_thread"] else [],
         values,
         back_link(search),
         names,
@@ -385,13 +382,12 @@ def back_link(search):
     return "/choose_job_type"
 
 
-def tool_settings_changed(constraint_file, install_path, single_thread, loaded):
+def tool_settings_changed(constraint_file, install_path, loaded):
     """Whether the tool settings fields differ from what the file holds."""
     loaded = loaded if isinstance(loaded, dict) else {}
     return (
         str(constraint_file or "").strip() != str(loaded.get("constraint_file", ""))
         or str(install_path or "").strip() != str(loaded.get("tool_install_path", ""))
-        or bool(single_thread) != bool(loaded.get("force_single_thread", False))
     )
 
 
@@ -513,7 +509,6 @@ def update_card_enabled_style(enable_value):
     Input({"type": "target-script-copy-source", "name": ALL}, "value"),
     Input("target-constraint-file", "value"),
     Input("target-install-path", "value"),
-    Input("target-single-thread", "value"),
     Input({"type": "target-metadata", "name": ALL}, "data"),
     State("target-tool-settings", "data"),
     State("target-saved-names", "data"),
@@ -523,7 +518,7 @@ def update_card_enabled_style(enable_value):
     prevent_initial_call=True,
 )
 def save_or_mark_dirty(save_n_clicks, _titles, _enables, _script_copy_enables, _script_copy_sources,
-                       constraint_file, install_path, single_thread, _metadata, loaded_settings, saved,
+                       constraint_file, install_path, _metadata, loaded_settings, saved,
                        order, search, odatix_settings):
     trigger_id = ctx.triggered_id
     unchanged = (dash.no_update,) * 6
@@ -543,15 +538,13 @@ def save_or_mark_dirty(save_n_clicks, _titles, _enables, _script_copy_enables, _
         target_file = get_workspace(odatix_settings).targets[tool]
         # Only what changed is written: a file that leaves a key out keeps
         # leaving it out (and its default applying).
-        if tool_settings_changed(constraint_file, install_path, single_thread, loaded_settings):
+        if tool_settings_changed(constraint_file, install_path, loaded_settings):
             loaded = loaded_settings if isinstance(loaded_settings, dict) else {}
             changes = {}
             if str(constraint_file or "").strip() != str(loaded.get("constraint_file", "")):
                 changes["constraint_file"] = str(constraint_file or "").strip()
             if str(install_path or "").strip() != str(loaded.get("tool_install_path", "")):
                 changes["tool_install_path"] = str(install_path or "").strip()
-            if bool(single_thread) != bool(loaded.get("force_single_thread", False)):
-                changes["force_single_thread"] = bool(single_thread)
             target_file.update(save=False, **changes)
         target_file.targets = targets
         try:
@@ -571,7 +564,7 @@ def save_or_mark_dirty(save_n_clicks, _titles, _enables, _script_copy_enables, _
         )
 
     # Any other trigger: compare current values against the loaded metadata
-    if tool_settings_changed(constraint_file, install_path, single_thread, loaded_settings) or targets_changed(
+    if tool_settings_changed(constraint_file, install_path, loaded_settings) or targets_changed(
         titles, enables, script_copy_enables, script_copy_sources, metadata, saved
     ):
         return (save_button_enabled,) + unchanged
@@ -822,13 +815,6 @@ layout = html.Div(
                         ],
                         id="target-install-path-field",
                         style=Style.hidden,
-                    ),
-                    ui.inline_switch(
-                        "Force single thread",
-                        id="target-single-thread",
-                        tooltip="Make each job of this tool run on a single thread (Vivado: maxThreads 1, "
-                                "LibreLane: -j 1). Jobs still run in parallel: useful when many parallel jobs, "
-                                "each taking several threads, oversubscribe the processor.",
                     ),
                 ]),
             ),

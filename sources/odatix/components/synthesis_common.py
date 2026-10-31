@@ -24,6 +24,7 @@ from odatix.lib.variables import replace_variables, Variables, with_install_path
 import odatix.lib.wsl as wsl
 import odatix.lib.job_steps as job_steps
 import odatix.lib.constraint_files as constraint_files
+from odatix.lib import single_thread
 import odatix.lib.yaml_loader as yaml_loader
 
 
@@ -218,10 +219,20 @@ def load_synthesis_context(
             # Optional: the tool is on the PATH.
             install_path = ""
 
-        # Optional, and off unless asked for: nothing worth a note when absent.
-        force_single_thread, _ = get_from_dict(
+        # Single threading is a setting of the run ("force_single_thread" in
+        # its settings file). A target file that still says it is followed,
+        # since that is where Odatix 3 read it.
+        force_single_thread = single_thread.requested(run_config_settings_filename)
+        legacy_single_thread, _ = get_from_dict(
             "force_single_thread", settings_data, eda_target_filename, default_value=False, silent=True, script_name=script_name
         )
+        if legacy_single_thread:
+            force_single_thread = True
+            printc.warning(
+                '"force_single_thread" in "' + eda_target_filename + '" is deprecated: '
+                'set it in the run settings file "' + run_config_settings_filename + '" instead',
+                script_name,
+            )
 
     if isinstance(tool_test_command, list):
         tool_test_command = " ".join(map(str, tool_test_command))
@@ -578,6 +589,9 @@ def build_parallel_job(
     )
 
     job.console_log = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.console_log_filename)
+
+    if getattr(arch_instance, "force_single_thread", False):
+        single_thread.apply(job)
 
     if steps:
         # The pipeline holds only what is left to do (see build_job_command);

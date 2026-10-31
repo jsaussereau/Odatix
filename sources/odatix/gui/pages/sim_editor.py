@@ -591,7 +591,8 @@ def template_tiles(settings, inherited, current_sim="", warning=""):
                     children=[
                         html.Label("Files"),
                         ui.tooltip_icon(
-                            "Sources of the testbench, one per line, relative to the simulation directory. "
+                            "Sources of the testbench, one per line, relative to the simulation directory "
+                            "or to the workspace. "
                             "Glob patterns are accepted. When empty, the testbench of the architecture "
                             "runs, else the files of tb/, else a minimal generated one."
                         ),

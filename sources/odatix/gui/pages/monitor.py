@@ -1203,6 +1203,28 @@ def _poll_status(_n, selected_session, sync_state, selected_job_id, cursor_state
 _WAIT_FOR_URL_SESSION_TICKS = 15
 
 
+@dash.callback(
+    Output("monitor-session-status", "data", allow_duplicate=True),
+    Input("session-dropdown", "value"),
+    State(f"url_{page_path}", "search"),
+    State("monitor-stopped-search", "data"),
+    State("monitor-session-status", "data"),
+    prevent_initial_call=True,
+)
+def _session_status_on_selection(selected, search, stopped_search, session_status):
+    """A session picked in the list replaces the "no session" card at once.
+
+    _refresh_session_list leaves a selection made by the user alone (it does
+    not even rescan while the menu is closed), so it never recomputes the status.
+    """
+    if _is_dummy(search):
+        raise PreventUpdate
+    status = _session_status(selected, search, stopped_search)
+    if status == session_status:
+        raise PreventUpdate
+    return status
+
+
 def _has_session_to_poll(search, selected_session, stopped_search=None) -> bool:
     """Whether the page has a session to poll: one selected, or one the URL names."""
     if _is_dummy(search) or _normalize_optional_str(selected_session) is not None:

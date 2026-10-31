@@ -239,7 +239,7 @@ def test_the_glossary_is_published_and_linked():
 #: Words that keep their capital wherever they are: names and acronyms.
 PROPER_NOUNS = set(
     "Odatix Fmax RTL EDA Vivado Explorer GUI DSE MHz HLS CSV YAML JSON XML Python "
-    "Verilator Quartus Genus Innovus LibreLane OpenLane ICC2 Pareto CPU ID UUID "
+    "Verilator Quartus Genus Innovus LibreLane OpenLane Pareto CPU ID UUID "
     "Dhrystone Chisel VHDL Verilog SystemVerilog TCL Tcl DC NXT Monte Carlo Windows Linux".split()
 )
 

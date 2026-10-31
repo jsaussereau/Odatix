@@ -328,6 +328,28 @@ class TestTestbench:
         _work, info = prepared_info(example_workspace, "TB_mine", CORDIC.format("vhdl"))
         assert info["testbench"]["files"] == ["tb/tb_cordic.sv"]
 
+    def test_a_simulation_may_name_files_of_the_workspace(self, example_workspace, fake_simulators):
+        # What the file browser of the simulation editor gives: a path from the
+        # workspace, not from the simulation directory.
+        sims = example_workspace / "odatix_userconfig" / "simulations"
+        (sims / "TB_ws").mkdir(parents=True)
+        settings = {"template": "questa", "testbench": {"files": ["examples/cordic_tb/tb_cordic.sv"]}}
+        (sims / "TB_ws" / "_settings.yml").write_text(yaml.dump(settings), encoding="utf-8")
+
+        work, info = prepared_info(example_workspace, "TB_ws", CORDIC.format("vhdl"))
+        assert info["testbench"]["files"] == ["testbench/tb_cordic.sv"]
+        assert info["testbench"]["top"] == "tb_cordic"
+        assert os.path.isfile(os.path.join(work, "testbench", "tb_cordic.sv"))
+
+    def test_files_a_simulation_names_that_match_nothing_are_refused_at_check(self, example_workspace, fake_simulators):
+        sims = example_workspace / "odatix_userconfig" / "simulations"
+        (sims / "TB_none").mkdir(parents=True)
+        settings = {"template": "questa", "testbench": {"files": ["nowhere/tb.sv"]}}
+        (sims / "TB_none" / "_settings.yml").write_text(yaml.dump(settings), encoding="utf-8")
+        with pytest.raises(RunError) as error:
+            Run(Workspace.open(), "simulation", simulations=["TB_none"], architectures=[CORDIC.format("sv")]).check()
+        assert "match no file" in str(error.value)
+
     def test_the_tb_directory_comes_last(self, example_workspace, fake_simulators):
         sims = example_workspace / "odatix_userconfig" / "simulations"
         (sims / "TB_dir" / "tb").mkdir(parents=True)

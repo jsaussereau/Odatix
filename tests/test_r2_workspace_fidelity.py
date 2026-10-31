@@ -101,9 +101,9 @@ def test_analysis_tools_uncommented_in_place(ws):
     assert _roundtrip(cfg.path, cfg.save) == ["-  # - genus", "+  - genus"]
 
 
-def test_target_update_keeps_comments_and_yes(ws):
-    diff = _roundtrip(ws.targets["quartus"].path, lambda: ws.targets["quartus"].update(force_single_thread=True))
-    assert len(diff) == 2 and diff[1].startswith("+force_single_thread: Yes")
+def test_target_update_keeps_comments(ws):
+    diff = _roundtrip(ws.targets["quartus"].path, lambda: ws.targets["quartus"].update(tool_install_path="/opt/quartus"))
+    assert diff == ['-tool_install_path: ""', '+tool_install_path: "/opt/quartus"']
 
 
 def test_in_place_mutation_is_saved(ws):  # AR-04

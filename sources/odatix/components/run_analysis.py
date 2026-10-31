@@ -40,6 +40,7 @@ from odatix.lib.check_tool import start_tool_check, ToolCheck
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables, with_install_path
 import odatix.lib.wsl as wsl
+from odatix.lib import single_thread
 
 import odatix.run.cli as run_cli
 from odatix.components.cli_options import add_options
@@ -241,6 +242,7 @@ def load_tool_context(tool, target_path, flow=None):
   targets = [hard_settings.default_analysis_target]
   constraint_file = hard_settings.default_analysis_constraint_file
   install_path = analysis_install_path(tool, target_path)
+  # A setting of the run, not of the tool: check_settings sets it.
   force_single_thread = False
 
   # Concat all strings if it is a list
@@ -557,9 +559,11 @@ def check_settings(
       sys.exit(-1)
 
   flows = parse_flow_selection(None, tools) if flows is None else dict(flows)
+  force_single_thread = single_thread.requested(run_config_settings_filename)
   tool_contexts = {}
   for current_tool in tools:
     tool_contexts[current_tool] = load_tool_context(current_tool, target_path, flow=flows.get(current_tool))
+    tool_contexts[current_tool]["force_single_thread"] = force_single_thread
   # Every tool check runs in the background while the settings are processed;
   # they are waited for just before the checklist and the confirmation.
   tool_checks = []

@@ -7,6 +7,7 @@ designs (a missing module, an undeclared signal, a latch...) by each tool.
 """
 
 import os
+import shutil
 import sys
 import time
 
@@ -217,6 +218,158 @@ class TestYosys:
         log = "ERROR: File `rtl/top.vhd' not found or is a directory\n"
         result = result_of("yosys", make_job(tmp_path, "D", log, sources=("top.vhd",)))
         assert result.status == analysis.STATUS_UNSUPPORTED
+
+
+GHDL_LOG = """\
+rtl/top.vhd:3:35:warning: signal "unused_s" is never referenced [-Wunused]
+architecture rtl of top is signal unused_s: std_logic; begin
+                                  ^
+analyze rtl/sub.vhd
+analyze rtl/top.vhd
+rtl/top.vhd:2:55:warning: no assignment for port "r" [-Wnowrite]
+entity top is port(d: in std_logic; q: out std_logic; r: out std_logic); end;
+                                                      ^
+elaborate top
+rtl/top.vhd:4:3:error: latch infered for net "q" (use --latches)
+  process(en, d) begin if en = '1' then q <= d; end if; end process;
+  ^
+rtl/top.vhd:2:39:error: multiple assignments for "q" offsets 0:0
+entity top is port(a,b: in std_logic; q: out std_logic); end;
+                                      ^
+"""
+
+
+class TestGhdl:
+    def test_findings(self, tmp_path):
+        result = result_of("ghdl", make_job(tmp_path, "D", GHDL_LOG, sources=("top.vhd",)))
+        assert result.status == analysis.STATUS_FAILED
+        found = {finding.category: finding for finding in result.findings}
+        assert (found["unused"].subject, found["unused"].location) == ("unused_s", "rtl/top.vhd:3")
+        assert found["unused"].message == 'signal "unused_s" is never referenced'
+        assert found["undriven"].subject == "r"
+        # A latch is a warning, as for every other tool
+        assert (found["latch"].severity, found["latch"].subject) == ("warning", "q")
+        assert found["multiple_drivers"].subject == "q"
+        # The source line and the caret below a message are its detail
+        assert len(found["latch"].detail) == 2
+
+    @pytest.mark.parametrize("log, category, subject", [
+        ('rtl/top.vhd:4:18:error: unit "sub_missing" not found in library "work"\n', "missing_module", "sub_missing"),
+        ("/usr/bin/ghdl:error: cannot find entity or configuration top\n", "missing_top", "top"),
+        ('rtl/top.vhd:4:52:error: no declaration for "dd"\n', "undeclared", "dd"),
+        ('rtl/top.vhd:4:3:error: port "a" of mode IN must be connected\n', "port_mismatch", "a"),
+        ('rtl/top.vhd:4:8:error: can\'t match "d" with type integer\n', "type_mismatch", "d"),
+        ("rtl/top.vhd:4:8:error: out of bound expression\n", "width_mismatch", None),
+        ("rtl/top.vhd:4:11:error: ';' expected at end of signal assignment\nrtl/top.vhd:4:11:error: (found: 'end')\n",
+         "syntax", None),
+    ])
+    def test_errors(self, tmp_path, log, category, subject):
+        result = result_of("ghdl", make_job(tmp_path, "D", log, sources=("top.vhd",)))
+        assert [(finding.category, finding.subject) for finding in result.findings] == [(category, subject)]
+
+    def test_a_verilog_design_is_not_supported(self, tmp_path):
+        log = "/usr/bin/ghdl:error: cannot find entity or configuration top\n"
+        result = result_of("ghdl", make_job(tmp_path, "D", log))
+        assert result.status == analysis.STATUS_UNSUPPORTED
+
+
+QUESTA_LOG = """\
+** Note: (vlog-220) '/opt/siemens/modelsim_dlx/2025.09/linuxpe/../modelsim.ini' is used as the ini file.
+** Error: rtl/top.sv(1): Cannot open `include file "rtl/defs.vh".
+** Error: (vlog-13069) rtl/top.sv(2): near "assign": syntax error, unexpected assign, expecting ';'.
+** Error: rtl/top.sv(2): (vlog-2730) Undefined variable: 'dd'.
+** Error: (vcom-11) Could not find work.sub_missing. Make sure the top design unit is compiled into the correct library or that the correct library is being referenced.
+** Error (suppressible): rtl/top.vhd(4): (vcom-1195) Cannot find expanded name "work.sub_missing".
+** Error: rtl/top.vhd(4): Unknown expanded name.
+** Note: rtl/top.vhd(5): VHDL Compiler exiting
+** Error: rtl/top.vhd(4): (vcom-1484) Unknown formal identifier "zz".
+** Error (suppressible): rtl/top.vhd(4): (vcom-1272) Length of expected is 4; length of actual is 8.
+Errors: 1, Warnings: 0
+"""
+
+
+class TestQuesta:
+    def test_compilation_findings(self, tmp_path):
+        result = result_of("questa", make_job(tmp_path, "D", QUESTA_LOG, sources=("top.sv", "top.vhd")))
+        assert result.status == analysis.STATUS_FAILED
+        assert set((finding.category, finding.subject, finding.code) for finding in result.findings) == {
+            ("missing_file", "rtl/defs.vh", None),
+            ("syntax", None, "vlog-13069"),
+            ("undeclared", "dd", "vlog-2730"),
+            ("missing_module", "sub_missing", "vcom-11"),
+            ("port_mismatch", "zz", "vcom-1484"),
+            ("width_mismatch", None, "vcom-1272"),
+        }
+
+    def test_elaboration_findings(self, tmp_path):
+        log = (
+            "** Error: (vsim-3033) rtl/top.sv(2): Instantiation of 'sub_missing' failed. The design unit was not found.\n"
+            "    Time: 0 ps  Iteration: 0  Instance: /top File: rtl/top.sv\n"
+            "** Warning: (vsim-3015) [PCDPC] - Port size (4) does not match connection size (8) for port 'a'.\n"
+            "    Time: 0 ps  Iteration: 0  Instance: /top/u File: rtl/top.sv Line: 3\n"
+            "Error loading design\n"
+        )
+        result = result_of("questa", make_job(tmp_path, "D", log))
+        found = {finding.category: finding for finding in result.findings}
+        assert (found["missing_module"].subject, found["missing_module"].location) == ("sub_missing", "rtl/top.sv:2")
+        assert (found["width_mismatch"].subject, found["width_mismatch"].location) == ("a", "rtl/top.sv:3")
+        assert len(result.findings) == 2
+
+    def test_a_missing_license_is_the_tool_s_failure(self, tmp_path):
+        log = (
+            "Unable to checkout a license. Make sure your license file environment variable (SALT_LICENSE_SERVER)\n"
+            "is set correctly and then run 'lmutil lmdiag' to diagnose the problem.\n"
+            "** Error: FATAL ERROR in license manager 0\n"
+        )
+        result = result_of("questa", make_job(tmp_path, "D", log))
+        assert [finding.category for finding in result.findings] == ["tool_setup"]
+
+
+@pytest.mark.skipif(shutil.which("ghdl") is None, reason="GHDL is not installed")
+class TestGhdlRun:
+    """What _common/rtl_analysis.py runs, with the real GHDL."""
+
+    def run(self, tmp_path, sources):
+        from conftest import SOURCES_DIR
+        import subprocess
+
+        (tmp_path / "rtl").mkdir()
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "settings.tcl").write_text("set top_level_module top\nset top_level_file top.vhd\n")
+        for name, text in sources.items():
+            (tmp_path / "rtl" / name).write_text(text)
+        script = os.path.join(SOURCES_DIR, "odatix_eda_tools", "_common", "rtl_analysis.py")
+        subprocess.call([sys.executable, script, "ghdl"], cwd=str(tmp_path), stdout=subprocess.DEVNULL)
+        return (tmp_path / "log" / "analysis.log").read_text()
+
+    def test_every_message_is_said_once(self, tmp_path):
+        log = self.run(tmp_path, {"top.vhd": (
+            "library ieee; use ieee.std_logic_1164.all;\n"
+            "entity top is port(en: in std_logic; d: in std_logic; q: out std_logic); end;\n"
+            "architecture rtl of top is signal unused_s: std_logic; begin\n"
+            "  process(en, d) begin if en = '1' then q <= d; end if; end process;\n"
+            "end;\n"
+        )})
+        assert log.count('signal "unused_s" is never referenced') == 1
+        # The synthesis runs once the design is elaborated
+        assert 'latch infered for net "q"' in log
+        assert (tmp_path / "log" / hard_settings.synth_status_filename).is_file()
+
+    def test_the_compilation_order_is_found(self, tmp_path):
+        log = self.run(tmp_path, {
+            # "top" comes first in the directory, and uses "sub"
+            "top.vhd": (
+                "library ieee; use ieee.std_logic_1164.all;\n"
+                "entity top is port(d: in std_logic; q: out std_logic); end;\n"
+                "architecture rtl of top is begin u: entity work.sub port map(a => d, b => q); end;\n"
+            ),
+            "z_sub.vhd": (
+                "library ieee; use ieee.std_logic_1164.all;\n"
+                "entity sub is port(a: in std_logic; b: out std_logic); end;\n"
+                "architecture rtl of sub is begin b <= a; end;\n"
+            ),
+        })
+        assert "error" not in log
 
 
 class TestVivado:
@@ -506,7 +659,7 @@ class TestExpectations:
 ######################################
 
 class TestDefinitions:
-    @pytest.mark.parametrize("tool", ["verilator", "icarus", "yosys", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "librelane"])
+    @pytest.mark.parametrize("tool", ["verilator", "icarus", "yosys", "ghdl", "questa", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "librelane"])
     def test_every_category_a_definition_names_exists(self, tool):
         definition = analysis.load_definition(tool)
         assert definition.rules
