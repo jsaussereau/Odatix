@@ -1,0 +1,148 @@
+##################################################
+# RTL analysis: how Questa reports
+##################################################
+
+# Questa (or ModelSim) reads every language of a design, mixed or not: there
+# is no "languages" list.
+
+# Where its messages are, relative to the job directory. vsim starts every
+# line with "# " in the console: the analysis writes them without it.
+logs:
+  - log/analysis.log
+
+# Lines that are no finding of their own.
+ignore:
+  - "^\\*\\* Note: "
+  - "^Errors: \\d+, Warnings: \\d+"
+  # What it says once the errors themselves are out.
+  - "^\\*\\* Error: Error loading design"
+  - "^Error loading design"
+
+# The word each message is introduced with ("** Error (suppressible):").
+severities:
+  Error: error
+  Fatal: error
+  Warning: warning
+
+# vsim says where a message is on the indented line below it
+# ("   Time: 0 ps  Iteration: 0  Instance: /top/u File: rtl/top.sv Line: 3").
+continuation: "^\\s"
+
+# What each message code of Questa is about. A code mapped to a category alone
+# keeps the severity of its message.
+codes:
+  vlog-2730: undeclared
+  vlog-2388: undeclared
+  vlog-13069: syntax
+  vlog-13205: syntax
+  vlog-2110: style
+  vlog-2182: style
+  vcom-1136: undeclared
+  vcom-1484: port_mismatch
+  vcom-1035: port_mismatch
+  vcom-1272: width_mismatch
+  vcom-1576: syntax
+  vcom-1600: syntax
+  vcom-1078: undeclared
+  vcom-1195: missing_module
+  vcom-11: missing_module
+  vcom-1246: style
+  vcom-1399: other
+  vsim-3033: missing_module
+  vsim-3170: missing_top
+  vsim-3015: width_mismatch
+  vsim-3389: port_mismatch
+  vsim-3365: port_mismatch
+  vsim-3722: port_mismatch
+  vsim-3053: port_mismatch
+  vsim-8684: multiple_drivers
+  vsim-3601: elaboration
+  vsim-8822: style
+
+# What Questa says with "-lint" that is normal: reported apart, it does not
+# make a design worth looking at. Add your own in the "expected" section of
+# analyze_settings.yml rather than here.
+expected:
+  style:
+    category: style
+    reason: "Coding style remark of the Questa lint, without effect on the hardware"
+
+# The messages of Questa, tried in order on every line. A compiler message says
+# where it is as "file(line)", before or after its code.
+messages:
+
+  license:
+    pattern: "^(?P<message>Unable to checkout a license)"
+    message: "Unable to check out a license"
+    severity: error
+    category: tool_setup
+
+  # What it says next about the license.
+  license_detail:
+    pattern: "^(?:\\*\\* Error: )?(?P<message>FATAL ERROR in license manager.*)"
+    severity: error
+    category: tool_setup
+    secondary: true
+
+  missing_include:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error)\\S*(?: \\(suppressible\\))?: (?:\\([a-z]+-\\d+\\) )?(?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): (?:\\([a-z]+-\\d+\\) )?(?P<message>Cannot open `include file \"(?P<subject>[^\"]+)\"\\.?)"
+    severity: error
+    category: missing_file
+
+  missing_library_unit:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error)(?: \\(suppressible\\))?: \\(vcom-11\\) (?P<message>Could not find \\w+\\.(?P<subject>\\w+)\\.)"
+    severity: error
+    category: missing_module
+
+  # What vcom says again of the unit it could not find, on the line using it.
+  missing_name:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* Error(?: \\(suppressible\\))?: (?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): (?:\\(vcom-1195\\) )?(?P<message>(?:Cannot find expanded name|Unknown expanded name).*)"
+    severity: error
+    category: missing_module
+    secondary: true
+
+  missing_module:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error|Fatal)(?: \\(suppressible\\))?: \\(vsim-3033\\) (?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): (?P<message>Instantiation of '(?P<subject>[^']+)' failed\\..*)"
+    severity: error
+    category: missing_module
+
+  missing_top:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error|Fatal)(?: \\(suppressible\\))?: \\(vsim-3170\\) (?P<message>Could not find '(?:[^'.]+\\.)?(?P<subject>[^'.]+)'\\.?.*)"
+    severity: error
+    category: missing_top
+
+  undeclared:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error)(?: \\(suppressible\\))?: (?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): \\([a-z]+-\\d+\\) (?P<message>(?:Undefined variable|Unknown identifier):? ['\"](?P<subject>[^'\"]+)['\"]\\.?)"
+    severity: error
+    category: undeclared
+
+  port:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error|Fatal|Warning)(?: \\(suppressible\\))?: (?:\\([a-z]+-\\d+\\) )?(?:(?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): )?(?:\\([a-z]+-\\d+\\) )?(?P<message>(?:Unknown formal identifier|Port|Too (?:many|few) port connections|.*[Pp]ort '?\"?(?:\\w+)'?\"? not found).*?['\"](?P<subject>[^'\"]+)['\"].*)"
+    severity: error
+    category: port_mismatch
+
+  # "[PCDPC] - Port size (4) does not match connection size (8) for port 'a'."
+  port_size:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error|Warning)(?: \\(suppressible\\))?: \\(vsim-3015\\) (?:(?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): )?(?P<message>.*[Pp]ort size .* for port '(?P<subject>[^']+)'.*)"
+    severity: warning
+    category: width_mismatch
+    after:
+      pattern: "File: (?P<file>\\S+) Line: (?P<line>\\d+)"
+      within: 2
+
+  syntax:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error)(?: \\(suppressible\\))?: (?:\\([a-z]+-\\d+\\) )?(?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): (?:near \"[^\"]*\": )?(?:\\([a-z]+-\\d+\\) )?(?P<message>(?:near |.*syntax error|expecting ).*)"
+    severity: error
+    category: syntax
+
+  # Every other message saying where it is: "file(line)", before or after its
+  # code. The code is looked up in the table above.
+  located:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error|Fatal|Warning)(?: \\(suppressible\\))?: (?:\\([a-z]+-\\d+\\) )?(?P<file>[^(\\s]+)\\((?P<line>\\d+)\\): (?:\\([a-z]+-\\d+\\) )?(?P<message>.*)"
+    severity: error
+    fallback: true
+
+  any_message:
+    pattern: "^(?=(?:.*?\\((?P<code>[a-z]+-\\d+)\\))?)\\*\\* (?P<severity>Error|Fatal|Warning)(?: \\(suppressible\\))?: (?:\\([a-z]+-\\d+\\) )?(?P<message>.*)"
+    severity: error
+    fallback: true

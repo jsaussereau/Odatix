@@ -1,0 +1,144 @@
+##################################################
+# RTL analysis: how GHDL reports
+##################################################
+
+# GHDL reads VHDL only: a Verilog design is reported as not supported, instead
+# of failing with syntax errors.
+languages: [vhdl]
+
+# Where its messages are, relative to the job directory.
+logs:
+  - log/analysis.log
+
+# Lines that are no finding of their own.
+ignore:
+  # What "ghdl -m" says of each step it goes through.
+  - "^analyze \\S+$"
+  - "^elaborate \\S+$"
+  # What it says once the errors themselves are out.
+  - "ghdl:error: compilation error$"
+
+# The word each message is introduced with.
+severities:
+  error: error
+  warning: warning
+
+# GHDL prints the source line of a message, and a caret under where it is, on
+# the lines below it: anything that is not a message of its own.
+continuation: "^(?!\\S+:\\d+:\\d+:|\\S*ghdl:)"
+
+# What each warning of GHDL is about: the name of the option enabling it
+# ("[-Wunused]").
+codes:
+  unused: unused
+  nowrite: undriven
+  sensitivity: other
+  hide: style
+  library: style
+  specs: style
+  others: style
+  pure: style
+  static: style
+  shared: style
+  body: style
+  elaboration: elaboration
+
+# What GHDL says with "-Wall" that is normal: reported apart, it does not make
+# a design worth looking at. Add your own in the "expected" section of
+# analyze_settings.yml rather than here.
+expected:
+  style:
+    category: style
+    reason: "Coding style remark of the GHDL analysis, without effect on the hardware"
+
+# The messages of GHDL, tried in order on every line.
+messages:
+
+  missing_module:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>unit \"(?P<subject>[^\"]+)\" not found in library \"[^\"]+\")"
+    severity: error
+    category: missing_module
+
+  missing_component:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:(?:error|warning): (?P<message>(?:component|entity) (?:instance \\S+ )?\"?(?P<subject>[^\" ]+)\"? (?:is not bound|not found).*)"
+    severity: error
+    category: missing_module
+
+  missing_top:
+    pattern: "^\\S*ghdl:error: (?P<message>cannot find entity or configuration (?P<subject>\\S+))"
+    severity: error
+    category: missing_top
+
+  missing_file:
+    pattern: "^(?:\\S*ghdl:error: )?(?P<message>cannot open (?:file )?\"?(?P<subject>[^\"]+)\"?.*)"
+    severity: error
+    category: missing_file
+
+  undeclared:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>no declaration for \"(?P<subject>[^\"]+)\")"
+    severity: error
+    category: undeclared
+
+  unconnected_port:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>port \"(?P<subject>[^\"]+)\" of mode \\w+ must be connected)"
+    severity: error
+    category: port_mismatch
+
+  missing_association:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>(?:missing association for|too many actuals|no interface for) .*)"
+    severity: error
+    category: port_mismatch
+
+  type:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>(?:can't match \"(?P<subject>[^\"]+)\" with|no function declarations for|type of .* (?:doesn't|does not) match|operator .* not found|incompatible type).*)"
+    severity: error
+    category: type_mismatch
+
+  width:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:(?P<severity>error|warning): (?P<message>(?:out of bound expression|value constraints don't match target ones|(?:length|bound) mismatch|.*index .* out of bounds?).*?)(?: \\[-W(?P<code>[\\w-]+)\\])?$"
+    severity: error
+    category: width_mismatch
+
+  # From the synthesis: a latch is a warning for every other tool, here too.
+  latch:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>latch infered for net \"(?P<subject>[^\"]+)\").*"
+    message: "Latch inferred for net '{subject}'"
+    severity: warning
+    category: latch
+
+  multiple_drivers:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>multiple (?:assignments|drivers) for \"(?P<subject>[^\"]+)\".*)"
+    severity: error
+    category: multiple_drivers
+
+  combinational_loop:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:(?:error|warning): (?P<message>(?:combinational loop|logical loop).*)"
+    severity: error
+    category: combinational_loop
+
+  # What the parser says, and what it found instead on the next message
+  # ("(found: 'end')").
+  syntax:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>(?:.* expected\\b|unexpected |missing |extra |'.*' is a reserved word|garbage ).*)"
+    severity: error
+    category: syntax
+
+  syntax_detail:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:error: (?P<message>\\(found: .*\\))"
+    severity: error
+    category: syntax
+    secondary: true
+
+  signal_warning:
+    pattern: "^(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:warning: (?P<message>.*\"(?P<subject>[^\"]+)\".*?)(?: \\[-W(?P<code>[\\w-]+)\\])?$"
+    severity: warning
+
+  any_warning:
+    pattern: "^(?:(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:)?(?:\\S*ghdl:)?warning: (?P<message>.*?)(?: \\[-W(?P<code>[\\w-]+)\\])?$"
+    severity: warning
+    fallback: true
+
+  any_error:
+    pattern: "^(?:(?P<file>[^:\\s]+):(?P<line>\\d+):\\d+:)?(?:\\S*ghdl:)?error: (?P<message>.*)"
+    severity: error
+    fallback: true

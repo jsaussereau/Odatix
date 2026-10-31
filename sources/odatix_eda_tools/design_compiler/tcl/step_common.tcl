@@ -358,7 +358,7 @@ proc odatix_dc_reports {frequency signature} {
 
 # The gate level netlist, its constraints and its delays, published under the
 # names "odatix pnr" looks for so this synthesis can be placed & routed by
-# Innovus, ICC2 or any other tool declaring a pnr flow.
+# Innovus or any other tool declaring a pnr flow.
 proc odatix_dc_netlist {signature} {
     global result_path top_level_module
 

@@ -1,9 +1,9 @@
 """
 RTL analysis with a linter, without make nor a POSIX shell: what the "analyze"
 target of the makefile of icarus and verilator does, for Windows, and how
-yosys analyzes a design on every system.
+yosys, GHDL and Questa analyze a design on every system.
 
-    python rtl_analysis.py <icarus|verilator|yosys> [--version]
+    python rtl_analysis.py <ghdl|icarus|questa|verilator|yosys> [--version]
 
 Run in the work directory of a job: it reads the top level from
 scripts/settings.tcl, writes what the linter says to log/analysis.log and marks
@@ -23,21 +23,28 @@ LOG_DIR = "log"
 # The programs of each linter, the first one found is run: Windows does not run
 # the Perl front end of Verilator, only its binary.
 PROGRAMS = {
+  "ghdl": ["ghdl"],
   "icarus": ["iverilog"],
+  "questa": ["vsim"],
   "verilator": ["verilator", "verilator_bin"],
   "yosys": ["yosys"],
 }
 
 # Highest exit code meaning that the linter went through the design
 FINISHED = {
+  "ghdl": 1,
   "icarus": 125,
+  # vlog, vcom and vsim exit with 2 when they report errors in the design.
+  "questa": 2,
   "verilator": 1,
   "yosys": 1,
 }
 
 # What each linter is asked to print its version with
 VERSION = {
+  "ghdl": "--version",
   "icarus": "-V",
+  "questa": "-version",
   "verilator": "--version",
   "yosys": "-V",
 }
@@ -46,6 +53,14 @@ VERSION = {
 # of its own for SystemVerilog ("-y rtl" of the others), so it is given every
 # one, elaborated only if the design uses it ("-defer").
 VERILOG_EXTENSIONS = (".v", ".sv")
+
+# Where GHDL and Questa compile the design, in the work directory
+GHDL_WORKDIR = "ghdl_work"
+QUESTA_LIBRARY = "questa_work"
+
+# The first line of a message of GHDL, and the number of lines below it showing
+# where it is (the source line, then a caret)
+GHDL_MESSAGE = (re.compile(rb"^\S+:\d+:\d+:"), 2)
 
 
 def program(tool):
@@ -110,6 +125,71 @@ def yosys_script(top_level_module, top_level_file):
   ])
 
 
+def design_sources():
+  """
+  The sources of the design by language, in compilation order (see
+  odatix.sim.design_info): a filelist.f of rtl/ when the design has one, an
+  order computed from the sources otherwise.
+  """
+  try:
+    from odatix.sim.design_info import collect_sources
+  except ImportError:
+    # Run from a source tree: odatix is next to odatix_eda_tools
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from odatix.sim.design_info import collect_sources
+  return collect_sources(".")
+
+
+def ghdl_analysis(path, top_level_module, log):
+  """
+  GHDL finds the compilation order itself: the files are imported ("-i"), then
+  "-m" analyzes and elaborates the design from its top level, and "--synth"
+  turns it into logic, which reports latches and multiple drivers. Each step
+  runs only if the one before went through: the next would only say again
+  that the design is broken.
+  """
+  options = ["--std=08", "-fsynopsys", "--workdir=" + GHDL_WORKDIR]
+  if not os.path.isdir(GHDL_WORKDIR):
+    os.makedirs(GHDL_WORKDIR)
+  # What "-i" says of the sources, "-m" says again: it is kept only when it
+  # fails. "-m" itself says its warnings twice, once when it looks for what is
+  # out of date and once when it analyzes it.
+  status = run([path, "-i"] + options + design_sources()["vhdl"], log, quiet=True)
+  if status == 0:
+    status = run([path, "-m", "-Wall"] + options + [top_level_module], log, once=GHDL_MESSAGE)
+  if status == 0:
+    status = run([path, "--synth", "-Wall", "--out=none"] + options + [top_level_module], log)
+  return status
+
+
+def questa_analysis(path, top_level_module, log):
+  """
+  Questa (or ModelSim) compiles the sources in the order Odatix computes,
+  Verilog first, then VHDL one file at a time so that every file is reported
+  on, and elaborates the design from its top level once everything compiled.
+  """
+  bin_dir = os.path.dirname(path)
+  sources = design_sources()
+  status = run([os.path.join(bin_dir, "vlib"), QUESTA_LIBRARY], log, quiet=True)
+  if status != 0:
+    return status
+  options = ["-lint", "-quiet", "-work", QUESTA_LIBRARY]
+  incdirs = ["+incdir+" + directory for directory in sources["include_dirs"]]
+  steps = []
+  if sources["verilog"]:
+    steps.append([os.path.join(bin_dir, "vlog")] + options + incdirs + sources["verilog"])
+  if sources["sv"]:
+    steps.append([os.path.join(bin_dir, "vlog"), "-sv"] + options + incdirs + sources["sv"])
+  for source in sources["vhdl"]:
+    steps.append([os.path.join(bin_dir, "vcom"), "-2008"] + options + [source])
+  for args in steps:
+    status = max(status, run(args, log))
+  if status != 0:
+    return status
+  # vsim starts every line it prints in the console with "# ".
+  return run([path, "-c", "-quiet", "-lib", QUESTA_LIBRARY, "-do", "quit -f", top_level_module], log, prefix="# ")
+
+
 def command(tool, top_level_module, top_level_file):
   # "/" whatever the system: a finding is located the way the log names it
   source = "rtl/" + top_level_file
@@ -119,6 +199,45 @@ def command(tool, top_level_module, top_level_file):
     return ["-g2012", "-Wall", "-t", "null", "-I", "rtl", "-y", "rtl", "-Y", ".sv", "-Y", ".svh",
             "-s", top_level_module, source]
   return ["--lint-only", "-Wall", "-Wno-fatal", "-Irtl", "-y", "rtl", "--top-module", top_level_module, source]
+
+
+def run(args, log, quiet=False, prefix=None, once=None):
+  """
+  Run a command, writing what it says to the console and to the log, without
+  `prefix` at the start of its lines. A quiet command is written only if it
+  fails. With `once`, the pattern of the first line of a message and the
+  number of lines below it, a message said again is left out.
+  """
+  process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=environment(args[0]))
+  lines = []
+  said = set()
+  skipped = 0
+  for line in iter(process.stdout.readline, b""):
+    if prefix is not None and line.startswith(prefix.encode()):
+      line = line[len(prefix):]
+    if skipped:
+      skipped -= 1
+      continue
+    if once is not None and once[0].search(line):
+      if line in said:
+        skipped = once[1]
+        continue
+      said.add(line)
+    if quiet:
+      lines.append(line)
+    else:
+      write(line, log)
+  status = process.wait()
+  if status != 0:
+    for line in lines:
+      write(line, log)
+  return status
+
+
+def write(line, log):
+  log.write(line)
+  sys.stdout.write(line.decode("utf-8", "replace"))
+  sys.stdout.flush()
 
 
 def main(argv):
@@ -133,16 +252,16 @@ def main(argv):
   print("Running " + tool + " analysis...")
   sys.stdout.flush()
   path = program(tool)
-  args = [path] + command(tool, setting("top_level_module"), setting("top_level_file"))
+  top_level_module = setting("top_level_module")
   if not os.path.isdir(LOG_DIR):
     os.makedirs(LOG_DIR)
-  process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=environment(path))
   with open(os.path.join(LOG_DIR, "analysis.log"), "wb") as log:
-    for line in iter(process.stdout.readline, b""):
-      log.write(line)
-      sys.stdout.write(line.decode("utf-8", "replace"))
-      sys.stdout.flush()
-  status = process.wait()
+    if tool == "ghdl":
+      status = ghdl_analysis(path, top_level_module, log)
+    elif tool == "questa":
+      status = questa_analysis(path, top_level_module, log)
+    else:
+      status = run([path] + command(tool, top_level_module, setting("top_level_file")), log)
   if status <= FINISHED[tool]:
     with open(os.path.join(LOG_DIR, "synth_status.log"), "w", encoding="utf-8") as f:
       f.write("Done: 100%\n")

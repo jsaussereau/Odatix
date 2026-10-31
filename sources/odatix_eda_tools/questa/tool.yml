@@ -1,0 +1,64 @@
+##################################################
+# Settings for Questa (RTL Analysis)
+##################################################
+
+# Display metadata (used by the GUI tool selection page)
+label: "Questa"
+description: "Siemens Questa (or ModelSim) compilation and elaboration check"
+
+process_group: True
+
+# No metrics file: an RTL analysis reports a status, errors and warnings, not
+# metrics read from reports.
+
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: lint
+
+# Questa compiles the design and elaborates it from its top level (see
+# _common/rtl_analysis.py). The same script runs everywhere: it needs vsim,
+# vlog, vcom and vlib in the PATH (Questa or ModelSim, with their license).
+unix:
+
+  # Check if Questa is installed
+  tool_test_command: '"$python" "$eda_tools_path/_common/rtl_analysis.py" questa --version'
+
+  # RTL Analysis
+  analysis_command:
+    - cd "$work_path" &&
+    - '"$python" "$eda_tools_path/_common/rtl_analysis.py" questa'
+
+windows:
+
+  tool_test_command: '"$python" "$eda_tools_path/_common/rtl_analysis.py" questa --version'
+
+  analysis_command:
+    - cd /d "$work_path" &&
+    - '"$python" "$eda_tools_path/_common/rtl_analysis.py" questa'
+
+##############################################
+# Flows
+##############################################
+# Different ways of running the same job type with this tool. The commands
+# declared in the platform sections above are those of the default flow.
+
+flows:
+  lint:
+    label: "Lint"
+    description: "Questa compilation and elaboration check"
+
+# Log formatting
+format:
+
+  logs:
+    error:         ['<error>', '** Error', '** Fatal']
+    warning:       ['<warning>', '** Warning']
+
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']

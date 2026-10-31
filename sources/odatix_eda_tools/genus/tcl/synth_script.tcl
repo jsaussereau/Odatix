@@ -85,7 +85,7 @@ if {![info exists ::cur_freq] || [is_slack_met $report_path $timing_rep]} {
     write_sdc > $result_path/${top_level_module}.sdc
 
     # Publish them under the names "odatix pnr" looks for, so this synthesis can be
-    # placed & routed by Innovus, ICC2 or any other tool declaring a pnr flow.
+    # placed & routed by Innovus or any other tool declaring a pnr flow.
     odatix_publish_handoff \
         $result_path/${top_level_module}_netlist.v \
         $result_path/${top_level_module}.sdc \
