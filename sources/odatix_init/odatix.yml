@@ -107,10 +107,10 @@ default_tool: vivado  # overridden by -t / --tool
 # whether running jobs are paused while the machine is overloaded
 # resource_guard: Yes
 
-# CPU usage (%) above which jobs are paused
-# cpu_limit: 98
+# CPU usage (%) above which jobs are paused (100: no limit)
+# cpu_limit: 100
 
-# memory usage (%) above which jobs are paused
+# memory usage (%) above which jobs are paused (100: no limit)
 # mem_limit: 98
 
 #--------------------------------------------#

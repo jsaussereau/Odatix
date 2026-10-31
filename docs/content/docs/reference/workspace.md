@@ -124,8 +124,8 @@ very load that got them paused. The log of the job says what happened
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `resource_guard` | bool | `true` | Pause running jobs while the machine is overloaded. |
-| `cpu_limit` | number | `98` | CPU usage (%) at which a job is paused. |
-| `mem_limit` | number | `98` | Memory usage (%) at which a job is paused. |
+| `cpu_limit` | number | `100` | CPU usage (%) at which a job is paused. `100`: no limit. |
+| `mem_limit` | number | `98` | Memory usage (%) at which a job is paused. `100`: no limit. |
 
 These values apply to every run started afterwards, from the command line, the
 GUI or the [Python API](/docs/python_api/), including runs that add jobs to a
