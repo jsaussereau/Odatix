@@ -176,7 +176,7 @@ def _match_chip(group, index):
   )
 
 
-def _group_actions(group, depth, can_clear):
+def _group_actions(group, depth, can_clear, inverted=False):
   """"+ Rule" / "+ Group" (and "Clear" at the root) for one group."""
   buttons = [
     html.Button(
@@ -205,6 +205,16 @@ def _group_actions(group, depth, can_clear):
         n_clicks=0,
         className="xp-mini-button",
         disabled=not can_clear,
+      )
+    )
+    buttons.append(
+      html.Button(
+        "Invert",
+        id=rule_action_id("invert", group["id"]),
+        n_clicks=0,
+        className="xp-mini-button xp-rule-invert" + (" xp-rule-invert-on" if inverted else ""),
+        title="Inverted: the records that do not meet the rules are selected — click to restore"
+        if inverted else "Invert the rules: select the records that do not meet them",
       )
     )
   return html.Div(buttons, className="xp-filter-buttons xp-rule-actions")
@@ -247,6 +257,60 @@ def _group_card(group, metric_options, units, depth):
   )
 
 
+def _color_option(color, label):
+  return {
+    "label": html.Span(
+      [html.Span(className="xp-rule-swatch", style={"background": color}), label],
+      className="xp-rule-color-option",
+    ),
+    "value": color,
+  }
+
+
+def _outside_picker(state):
+  """How the rules show: hide, dim or highlight the others, or highlight the matching records."""
+  children = [
+    html.Span("Records outside the rules", className="xp-rule-outside-label"),
+    dcc.Dropdown(
+      id=rule_field_id(rules.ROOT_ID, "outside"),
+      options=[{"label": label, "value": value} for value, label in rules.OUTSIDE_ACTIONS],
+      value=state["outside"],
+      clearable=False,
+      searchable=False,
+      className="xp-dropdown xp-rule-outside",
+      style={"width": "100%"},
+    ),
+  ]
+  if state["outside"] == rules.OUTSIDE_HIGHLIGHT:
+    children.append(
+      html.Div(
+        [
+          dcc.Dropdown(
+            id=rule_field_id(rules.ROOT_ID, "highlight_color"),
+            options=[_color_option(color, label) for color, label in rules.HIGHLIGHT_COLORS],
+            value=state["highlight_color"],
+            clearable=False,
+            searchable=False,
+            className="xp-dropdown xp-rule-highlight-color",
+            style={"width": "100%"},
+          ),
+          dcc.Dropdown(
+            id=rule_field_id(rules.ROOT_ID, "highlight_effect"),
+            options=[{"label": label, "value": value} for value, label in rules.HIGHLIGHT_EFFECTS],
+            value=state["highlight_effect"],
+            clearable=False,
+            searchable=False,
+            className="xp-dropdown xp-rule-highlight-effect",
+            style={"width": "100%"},
+          ),
+        ],
+        className="xp-rule-highlight-row",
+        title="Highlight style: color, and how the points show it (larger, recolored, or ringed)",
+      )
+    )
+  return html.Div(children, className="xp-rule-outside-row")
+
+
 def build_rules_section(metrics, rule_state, units, matched=None, total=None):
   """
   Build the "Rules" section of the Filters tab.
@@ -272,7 +336,8 @@ def build_rules_section(metrics, rule_state, units, matched=None, total=None):
         html.Div('No rule yet — e.g. "LUT < 1000" to hide the designs that do not fit.', className="xp-rule-empty")
       )
 
-    children.append(_group_actions(state, depth=0, can_clear=bool(state["children"])))
+    children.append(_group_actions(state, depth=0, can_clear=bool(state["children"]), inverted=state["invert"]))
+    children.append(_outside_picker(state))
 
     expression = rules.describe(state, metrics)
     if expression:
@@ -286,7 +351,7 @@ def build_rules_section(metrics, rule_state, units, matched=None, total=None):
   if active and matched is not None and total is not None:
     children.append(
       html.Div(
-        "Keeps " + str(matched) + " of " + str(total) + (" record" if total == 1 else " records"),
+        ("Keeps " if state["outside"] == rules.OUTSIDE_HIDE else "Matches ") + str(matched) + " of " + str(total) + (" record" if total == 1 else " records"),
         className="xp-rule-count" + (" xp-rule-count-empty" if matched == 0 else ""),
       )
     )

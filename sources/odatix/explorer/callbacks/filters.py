@@ -155,7 +155,7 @@ def register_callbacks():
     filters = build_filters_dict(filter_values, filter_ids)
     df = query.select_dataframe(STORE, sources=sources, filters=filters)
     _dimensions, metrics = query.discover(df, STORE, sources)
-    matched = len(rules.apply_rules(df, rule_state)) if not df.empty else 0
+    matched = len(rules.matching(df, rule_state)) if not df.empty else 0
     return ui_rules.build_rules_section(metrics, rule_state, STORE.units(sources), matched=matched, total=len(df))
 
   @page_callback(PAGE_SCOPE,
@@ -199,6 +199,8 @@ def register_callbacks():
         rules.add_child(state, group_id, rules.new_group(state))
       elif action == "clear":
         rules.remove(state, group_id)
+      elif action == "invert":
+        rules.toggle_invert(state)
       else:
         raise dash.exceptions.PreventUpdate
     elif kind == "xp-rule-remove":

@@ -31,12 +31,21 @@ driven by arbitrary dimensions, so any data can be plotted against anything.
 import pandas as pd
 import plotly.graph_objects as go
 
+import odatix.explorer.core.rules as rules
 import odatix.explorer.core.schema as schema
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
 from odatix.explorer.charts.spec import NONE_VALUE, x_is_symbolic
 
 TRANSPARENT = "rgba(0,0,0,0)"
+
+# How the records marked by the metric rules are drawn (see core.rules.mark_of)
+DIM_ALPHA = 0.15
+MARKER_SIZE = 6
+MARKER_SIZE_3D = 4
+LARGE_SCALE = 1.8
+RING_SCALE = 1.4
+RING_WIDTH = 2.5
 
 # Notes about what a chart leaves out ("3 records ... not drawn") sit just
 # above the plot area, under the title: below it they ended up printed over
@@ -482,12 +491,14 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
       trace = _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, columns)
     else:
       trace = _line_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, x_is_metric, columns)
+    trace, extra = (trace[0], trace[1:]) if isinstance(trace, list) else (trace, [])
     if not _has_value(trace):
       # Nothing to draw: a legend entry with no line or point behind it only
       # says "there is nothing here" in a confusing way. Counted instead.
       empty_traces += 1
       continue
     traces.append(trace)
+    traces.extend(extra)
 
   _apply_layout(layout, spec, categories, units, chrome, height, plot_theme, axis_categories)
   notes = []
@@ -645,6 +656,147 @@ class _ColumnCache(object):
           self.points[index] = (labels[x_value], float(y_value))
 
 
+######################################
+# Points outside the rules
+######################################
+
+
+def _mark_series(df):
+  """The rule mark of each row ("" when plain), or None when no row is marked."""
+  if rules.MARK_COLUMN not in df.columns:
+    return None
+  series = df[rules.MARK_COLUMN].fillna("").astype(str)
+  return series if (series != "").any() else None
+
+
+def _faded(color, alpha=DIM_ALPHA):
+  parsed = _parse_color(color)
+  if parsed is None:
+    return color
+  red, green, blue, _alpha = parsed
+  return "rgba(" + str(red) + "," + str(green) + "," + str(blue) + "," + str(alpha) + ")"
+
+
+def _point_color(color, mark):
+  """The fill color of a point (or a parcoords line) carrying a rule mark."""
+  kind, highlight, effect = rules.parse_mark(mark)
+  if kind == rules.MARK_DIM:
+    return _faded(color)
+  if kind == rules.MARK_HIGHLIGHT and effect != rules.EFFECT_RING:
+    return highlight
+  return color
+
+
+def _marker(color, marks, symbol=None, size=None):
+  """
+  The marker of a trace, styled point by point when some carry a rule mark.
+  ``size`` is the default marker size, None for bars (which have no size).
+  """
+  marker = dict(color=color)
+  if symbol is not None:
+    marker["symbol"] = symbol
+  if size is not None and size != MARKER_SIZE:
+    marker["size"] = size
+  if not marks or not any(marks):
+    return marker
+
+  colors, sizes, ring_colors, ring_widths = [], [], [], []
+  for mark in marks:
+    kind, highlight, effect = rules.parse_mark(mark)
+    colors.append(_point_color(color, mark))
+    scale, ring_color, ring_width = 1, color, 0
+    if kind == rules.MARK_HIGHLIGHT and effect == rules.EFFECT_LARGE:
+      scale = LARGE_SCALE
+    elif kind == rules.MARK_HIGHLIGHT and effect == rules.EFFECT_RING:
+      scale, ring_color, ring_width = RING_SCALE, highlight, RING_WIDTH
+    sizes.append((size or MARKER_SIZE) * scale)
+    ring_colors.append(ring_color)
+    ring_widths.append(ring_width)
+
+  marker["color"] = colors
+  if size is not None:
+    marker["size"] = sizes
+  if any(ring_widths):
+    marker["line"] = dict(color=ring_colors, width=ring_widths)
+  return marker
+
+
+def _with_marked_line(trace, marks, values_key="y"):
+  """
+  A trace whose line follows the rule marks of its points, as a list of traces.
+
+  A plotly line has a single color, so the marks are drawn by extra traces,
+  tied to the trace in the legend: around dimmed points the trace's own line
+  is faded and an overlay redraws at full color the segments between two
+  points that are not dimmed; the segments touching a highlighted point are
+  redrawn in the highlight color.
+  """
+  if not marks or "lines" not in str(trace.get("mode", "")):
+    return [trace]
+  kinds = [rules.parse_mark(mark)[0] for mark in marks]
+  dimmed = [kind == rules.MARK_DIM for kind in kinds]
+  highlighted = [kind == rules.MARK_HIGHLIGHT for kind in kinds]
+  if not any(dimmed) and not any(highlighted):
+    return [trace]
+
+  color = trace["line"]["color"]
+  group = trace.get("legendgroup") or "rules:" + str(trace.get("name"))
+  trace = dict(trace, legendgroup=group)
+  x_key = "theta" if "theta" in trace else "x"
+  xs, values = trace[x_key], trace[values_key]
+
+  def overlay(x, y, line):
+    return {
+      "type": trace["type"], "mode": "lines", "line": line, "connectgaps": False,
+      "showlegend": False, "hoverinfo": "skip", "legendgroup": group, "name": trace.get("name"),
+      x_key: x, values_key: y,
+    }
+
+  traces = [trace]
+  if any(dimmed):
+    trace["line"] = dict(trace["line"], color=_faded(color))
+    traces.append(overlay(xs, [None if dim else value for value, dim in zip(values, dimmed)], dict(trace["line"], color=color)))
+  if any(highlighted):
+    # Each run of highlighted points, extended by one point on both sides,
+    # then a gap: only the segments touching a highlighted point are drawn
+    _kind, highlight, effect = rules.parse_mark(marks[highlighted.index(True)])
+    x, y = [], []
+    index = 0
+    while index < len(marks):
+      if not highlighted[index]:
+        index += 1
+        continue
+      stop = index
+      while stop + 1 < len(marks) and highlighted[stop + 1]:
+        stop += 1
+      for position in range(max(index - 1, 0), min(stop + 2, len(marks))):
+        x.append(xs[position])
+        y.append(values[position])
+      x.append(None)
+      y.append(None)
+      index = stop + 1
+    line = dict(trace["line"], color=highlight)
+    if effect == rules.EFFECT_LARGE:
+      line["width"] = 3
+    traces.append(overlay(x, y, line))
+  return traces
+
+
+def _categorical_marks(sub_df, spec, categories, columns=None):
+  """The rule mark of each shared x label of a trace, aligned like _categorical_xy."""
+  marks = _mark_series(sub_df)
+  if marks is None:
+    return None
+  if columns is None or not columns.aligned:
+    columns = _ColumnCache(sub_df, spec)
+  by_label = {}
+  for index in sub_df.index:
+    point = columns.points.get(index)
+    if point is not None:
+      by_label[point[0]] = marks.loc[index]
+  return [by_label.get(label, "") for label in _x_labels(categories, spec)]
+
+
 def _categorical_xy(sub_df, spec, categories, columns=None):
   """Align a trace on the shared x labels (None where a label has no value)."""
   if columns is None or not columns.aligned:
@@ -663,30 +815,36 @@ def _line_trace(sub_df, spec, categories, units, color, symbol_index, hover_head
   if x_is_metric:
     points = sub_df[[spec.x, spec.y]].apply(pd.to_numeric, errors="coerce").dropna().sort_values(spec.x)
     x, y = points[spec.x].tolist(), points[spec.y].tolist()
+    marks = _mark_series(sub_df)
+    marks = None if marks is None else marks.loc[points.index].tolist()
     hover_x = _metric_hover_line(spec.x, "x", units)
   else:
     x, y = _categorical_xy(sub_df, spec, categories, columns)
+    marks = _categorical_marks(sub_df, spec, categories, columns)
     hover_x = "<b>" + str(spec.x) + ":</b> %{x}"
-  return dict(
+  return _with_marked_line(dict(
     type="scatter",
     x=x,
     y=y,
     mode="lines+markers" if spec.has("lines") else "markers",
     line=dict(dash="dot", color=color),
-    marker=dict(symbol=palettes.get_marker_symbol(symbol_index), color=color),
+    marker=_marker(color, marks, palettes.get_marker_symbol(symbol_index), MARKER_SIZE),
     connectgaps=spec.has("connect_gaps"),
     hovertemplate=hover_header + ("<br>" if hover_header else "") + hover_x + "<br>" + _metric_hover_line(spec.y, "y", units) + "<extra></extra>",
     **common
-  )
+  ), marks)
 
 
 def _bar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, columns=None):
   x, y = _categorical_xy(sub_df, spec, categories, columns)
+  marks = _categorical_marks(sub_df, spec, categories, columns)
+  marker = _marker(color, marks)
+  marker["pattern"] = dict(shape=palettes.get_bar_pattern(symbol_index))
   return dict(
     type="bar",
     x=x,
     y=y,
-    marker=dict(color=color, pattern=dict(shape=palettes.get_bar_pattern(symbol_index))),
+    marker=marker,
     hovertemplate=hover_header + ("<br>" if hover_header else "") + "<b>" + str(spec.x) + ":</b> %{x}<br>" + _metric_hover_line(spec.y, "y", units) + "<extra></extra>",
     **common
   )
@@ -694,27 +852,29 @@ def _bar_trace(sub_df, spec, categories, units, color, symbol_index, hover_heade
 
 def _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, columns=None):
   theta, r = _categorical_xy(sub_df, spec, categories, columns)
+  marks = _categorical_marks(sub_df, spec, categories, columns)
   if spec.has("close_line") and len(theta) > 0:
     theta = theta + [theta[0]]
     r = r + [r[0]]
+    marks = None if marks is None else marks + [marks[0]]
   # Shortened labels around the circle, the full one in the hover. Only when
   # shortening keeps every label distinct, or two categories would merge.
   labels = _x_labels(categories, spec)
   full = theta
   if len(set(short_label(label) for label in labels)) == len(labels):
     theta = [short_label(label) for label in theta]
-  return dict(
+  return _with_marked_line(dict(
     type="scatterpolar",
     theta=theta,
     customdata=full,
     r=r,
     mode="lines+markers",
     line=dict(dash="dot", color=color),
-    marker=dict(symbol=palettes.get_marker_symbol(symbol_index), color=color),
+    marker=_marker(color, marks, palettes.get_marker_symbol(symbol_index), MARKER_SIZE),
     connectgaps=spec.has("connect_gaps"),
     hovertemplate=hover_header + ("<br>" if hover_header else "") + "<b>" + str(spec.x) + ":</b> %{customdata}<br>" + _metric_hover_line(spec.y, "r", units) + "<extra></extra>",
     **common
-  )
+  ), marks, values_key="r")
 
 
 def _parcoords_numeric_color(df, spec):
@@ -776,6 +936,19 @@ def _parcoords_trace(df, spec, units, palette, reference=None):
         )
       else:
         line = _parcoords_categorical_line(df[color_column], color_column, palette, (reference or {}).get(color_column))
+
+  marks = _mark_series(df)
+  if marks is not None:
+    # A parcoords line has a single color scale: the marked lines take it
+    # over, highlighted or faded against the first palette color.
+    base = palettes.get_color(0, palette)
+    mark = marks[marks != ""].iloc[0]
+    line = dict(
+      color=[1 if value else 0 for value in marks],
+      colorscale=[[0, base], [1, _point_color(base, mark)]],
+      cmin=0,
+      cmax=1,
+    )
 
   return dict(type="parcoords", dimensions=dimensions, line=line)
 
@@ -875,6 +1048,9 @@ def _scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, commo
   if spec.has("labels") and labels is not None:
     mode += "+text"
 
+  marks = _mark_series(kept_df)
+  marks = None if marks is None else marks.tolist()
+
   hover_lines = [_metric_hover_line(axis_metric, axis_name, units) for axis_metric, axis_name in zip(axes, ["x", "y", "z"])]
   if labels is not None:
     hover_lines.insert(0, "<b>" + str(spec.label_by) + ":</b> %{text}")
@@ -889,23 +1065,24 @@ def _scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, commo
       y=points[spec.y].tolist(),
       z=points[spec.z].tolist(),
       mode=mode,
-      line=dict(dash="dot", color=color),
-      marker=dict(symbol=palettes.get_marker_symbol_3d(symbol_index), color=color, size=4),
+      # A 3D line takes one color per point: dimmed points fade their segments
+      line=dict(dash="dot", color=color if not marks else [_faded(color) if rules.parse_mark(mark)[0] == rules.MARK_DIM else color for mark in marks]),
+      marker=_marker(color, marks, palettes.get_marker_symbol_3d(symbol_index), MARKER_SIZE_3D),
       hovertemplate=hovertemplate,
       **common
     )
-  return dict(
+  return _with_marked_line(dict(
     type="scatter",
     x=points[spec.x].tolist(),
     y=points[spec.y].tolist(),
     mode=mode,
     textposition="top center",
     line=dict(dash="dot", color=color),
-    marker=dict(symbol=palettes.get_marker_symbol(symbol_index), color=color),
+    marker=_marker(color, marks, palettes.get_marker_symbol(symbol_index), MARKER_SIZE),
     connectgaps=True,
     hovertemplate=hovertemplate,
     **common
-  )
+  ), marks)
 
 
 ######################################

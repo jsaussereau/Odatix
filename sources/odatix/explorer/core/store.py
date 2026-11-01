@@ -38,6 +38,7 @@ import threading
 
 import pandas as pd
 
+import odatix.lib.analysis as analysis
 import odatix.lib.results_schema as results_schema
 import odatix.explorer.core.schema as schema
 
@@ -229,6 +230,21 @@ class ResultStore:
       except OSError:
         continue
       found[name] = (entry.path, stat.st_mtime, stat.st_size)
+    # The analyses have their own folder; their sources keep the names they
+    # had as "results_analysis_<tool>.yml", which they replace.
+    analysis_dir = os.path.join(self._result_path, analysis.RESULTS_SUBDIR)
+    try:
+      entries = sorted(os.scandir(analysis_dir), key=lambda entry: entry.name) if os.path.isdir(analysis_dir) else []
+    except OSError:
+      entries = []
+    for entry in entries:
+      if not entry.is_file() or not entry.name.endswith(".yml"):
+        continue
+      try:
+        stat = entry.stat()
+      except OSError:
+        continue
+      found["analysis_" + entry.name[:-len(".yml")]] = (entry.path, stat.st_mtime, stat.st_size)
     return found
 
   def _load_source(self, source):

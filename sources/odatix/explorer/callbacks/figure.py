@@ -35,6 +35,7 @@ import odatix.gui.content_lib as content_lib
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
+import odatix.explorer.core.rules as rules
 import odatix.explorer.core.schema as schema
 from odatix.explorer.charts.spec import FigureSpec, OVERVIEW_LAYOUTS, resolve_defaults
 import odatix.explorer.charts.builder as builder
@@ -44,6 +45,9 @@ from odatix.explorer.callbacks.filters import effective_filters
 
 # Shared dependency list of the figure and overview callbacks. Order matters:
 # the callback signatures follow it.
+# CSV column saying whether a record kept by Highlight / Dim matches the rules
+MATCHES_RULES_COLUMN = "Matches rules"
+
 _FIGURE_DEPS = [
   Input("xp-data-version", "data"),
   Input("xp-source-select", "value"),
@@ -177,6 +181,24 @@ def dimension_header(column):
   return text[:1].upper() + text[1:] if text[:1].islower() else text
 
 
+def _mark_row_styles():
+  """Rows carrying a rule mark: faded, or in the highlight color (bold)."""
+  styles = [
+    {
+      "if": {"filter_query": "{" + rules.MARK_COLUMN + '} = "' + rules.MARK_DIM + '"'},
+      "opacity": 0.4,
+    },
+  ]
+  for color, _label in rules.HIGHLIGHT_COLORS:
+    prefix = rules.MARK_HIGHLIGHT + ":" + color + ":"
+    styles.append({
+      "if": {"filter_query": "{" + rules.MARK_COLUMN + '} contains "' + prefix + '"'},
+      "color": color,
+      "fontWeight": "600",
+    })
+  return styles
+
+
 def build_data_table(df, selected, dimensions, metrics, units):
   """A sortable/filterable DataTable of the current selection.
 
@@ -194,6 +216,9 @@ def build_data_table(df, selected, dimensions, metrics, units):
 
   metric_set = set(metrics)
   data_df = df[columns_ids].copy()
+  if rules.MARK_COLUMN in df.columns:
+    # Hidden column, read by the row styles of the records the rules mark
+    data_df[rules.MARK_COLUMN] = df[rules.MARK_COLUMN]
   for column in columns_ids:
     if column in metric_set:
       data_df[column] = pd.to_numeric(data_df[column], errors="coerce")
@@ -250,7 +275,7 @@ def build_data_table(df, selected, dimensions, metrics, units):
     },
     style_data_conditional=[
       {"if": {"row_index": "odd"}, "backgroundColor": "var(--theme-element-background-color)"},
-    ],
+    ] + _mark_row_styles(),
     css=[
       {"selector": ".dash-filter input", "rule": "color: var(--theme-text-color) !important; text-align: left !important;"},
       {"selector": ".dash-spreadsheet-menu", "rule": "color: var(--theme-text-color);"},
@@ -271,6 +296,9 @@ def csv_frame(df, units=None):
   """
   columns = [column for column in df.columns if not str(column).startswith("_")]
   frame = df[columns].copy()
+  if rules.MISS_COLUMN in df.columns:
+    # Records kept although outside the rules (Highlight / Dim): say which
+    frame[MATCHES_RULES_COLUMN] = ~df[rules.MISS_COLUMN].fillna(False).astype(bool)
   for column in columns:
     if frame[column].map(lambda value: isinstance(value, (list, tuple))).any():
       frame[column] = frame[column].map(lambda value: "; ".join(str(item) for item in value) if isinstance(value, (list, tuple)) else value)

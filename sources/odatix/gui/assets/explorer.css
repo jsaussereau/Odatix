@@ -2604,3 +2604,49 @@ button.xpa-stat-card:hover {
     justify-content: flex-end;
     margin-top: 16px;
 }
+
+.xp-rule-outside-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.xp-rule-outside-label {
+    white-space: nowrap;
+    opacity: 0.8;
+}
+
+.xp-rule-outside {
+    width: 100%;
+}
+
+.xp-rule-highlight-row {
+    display: flex;
+    gap: 6px;
+}
+
+.xp-rule-highlight-row > * {
+    flex: 1;
+    min-width: 0;
+}
+
+.xp-rule-color-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.xp-rule-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.xp-rule-invert-on {
+    color: var(--theme-contrast-text-color, #fff);
+    background: var(--theme-primary-color);
+    border-color: var(--theme-primary-color);
+}
