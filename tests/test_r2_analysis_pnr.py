@@ -75,3 +75,24 @@ def test_read_results(tmp_path):  # AP-13
   assert [(r.tool, r.name, r.status) for r in read] == [("verilator", "Counter/08bits", "failed")]
   assert analysis.read_results(str(tmp_path), tools=["vivado"]) == []
   assert analysis.count_by_status(read)["failed"] == 1
+
+
+def test_analysis_results_folder(tmp_path):
+  import odatix.lib.results_cache as results_cache
+  from odatix.explorer.core.store import ResultStore
+  old = analysis.AnalysisResult("verilator", "Counter", "08bits", status=analysis.STATUS_FAILED)
+  export_analysis.export_analysis_results([old], str(tmp_path), quiet=True)
+  results_cache.flush()
+  (tmp_path / "analysis" / "verilator.yml").rename(tmp_path / "results_analysis_verilator.yml")
+  (tmp_path / "analysis").rmdir()
+  # a former file is still read...
+  assert [r.name for r in analysis.read_results(str(tmp_path))] == ["Counter/08bits"]
+  # ...and moved to its folder by the next export
+  new = analysis.AnalysisResult("verilator", "Counter", "16bits", status=analysis.STATUS_FAILED)
+  export_analysis.export_analysis_results([new], str(tmp_path), quiet=True)
+  results_cache.flush()
+  assert not (tmp_path / "results_analysis_verilator.yml").exists()
+  assert [r.name for r in analysis.read_results(str(tmp_path))] == ["Counter/08bits", "Counter/16bits"]
+  store = ResultStore()
+  store.configure(str(tmp_path))
+  assert [source.name for source in store.sources()] == ["analysis_verilator"]

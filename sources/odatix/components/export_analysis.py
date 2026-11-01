@@ -24,7 +24,7 @@ Export of RTL analysis results to the results files.
 
 An analysis concludes, for each design and tool, a status and a list of
 findings (see odatix.lib.analysis). Each of those results is a record of
-"results_analysis_<tool>.yml" in the workspace result directory, written as
+"analysis/<tool>.yml" in the workspace result directory, written as
 soon as its job ends -- whether the tool succeeded or not: an analysis that
 found errors is a result too -- so that Odatix Explorer shows it on its RTL
 Analysis page, and "odatix results analysis" can report it again.
@@ -73,6 +73,11 @@ def export_analysis_results(results, output_dir, quiet=False):
   success = True
   for tool, tool_results in sorted(by_tool.items()):
     output_file = os.path.join(output_dir, analysis_results_filename(tool))
+    try:
+      analysis.move_legacy_results_file(output_dir, tool)
+      os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    except OSError:
+      pass  # reported by the write below
     units, records = load_existing_results_file(output_file)
     records = _without_records_replaced(records, tool, tool_results)
     records = results_schema.upsert_records(records, [result.to_record(results_schema) for result in tool_results])

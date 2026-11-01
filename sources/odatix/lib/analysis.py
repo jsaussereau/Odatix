@@ -993,13 +993,47 @@ class AnalysisResult(object):
 #: Result type of analysis records in a results file.
 TYPE_ANALYSIS = "analysis"
 
-#: The results file of the analyses of a tool is "results_analysis_<tool>.yml".
-RESULTS_FILE_PREFIX = "results_analysis_"
+#: The analyses have their own folder of the result directory, as the DSE
+#: campaigns do: "analysis/<tool>.yml".
+RESULTS_SUBDIR = "analysis"
+
+#: Former results file of the analyses of a tool, "results_analysis_<tool>.yml"
+#: at the root of the result directory: still read, moved at the next export.
+LEGACY_RESULTS_FILE_PREFIX = "results_analysis_"
 
 
 def results_filename(tool):
-  """The results file of the analyses of a tool, in the result directory of a workspace."""
-  return RESULTS_FILE_PREFIX + str(tool) + ".yml"
+  """The results file of the analyses of a tool, relative to the result directory of a workspace."""
+  return os.path.join(RESULTS_SUBDIR, str(tool) + ".yml")
+
+
+def legacy_results_filename(tool):
+  return LEGACY_RESULTS_FILE_PREFIX + str(tool) + ".yml"
+
+
+def results_files(result_path):
+  """{tool: path} of the analysis results files of a result directory, former ones included."""
+  result_path = str(result_path)
+  files = {}
+  for path in glob.glob(os.path.join(result_path, LEGACY_RESULTS_FILE_PREFIX + "*.yml")):
+    files[os.path.basename(path)[len(LEGACY_RESULTS_FILE_PREFIX):-len(".yml")]] = path
+  for path in glob.glob(os.path.join(result_path, RESULTS_SUBDIR, "*.yml")):
+    files[os.path.basename(path)[:-len(".yml")]] = path
+  return files
+
+
+def move_legacy_results_file(result_path, tool):
+  """Move the former results file of a tool to its place, unless the new one exists."""
+  import odatix.lib.results_cache as results_cache
+
+  legacy = os.path.join(str(result_path), legacy_results_filename(tool))
+  target = os.path.join(str(result_path), results_filename(tool))
+  if not os.path.isfile(legacy) or os.path.exists(target):
+    return
+  results_cache.flush(legacy)
+  results_cache.invalidate(legacy)
+  os.makedirs(os.path.dirname(target), exist_ok=True)
+  os.replace(legacy, target)
 
 
 def read_results(result_path, tools=None, designs=None):
@@ -1037,8 +1071,7 @@ def read_results(result_path, tools=None, designs=None):
     patterns = [designs] if isinstance(designs, str) else [str(design) for design in designs]
 
   results = []
-  for path in sorted(glob.glob(os.path.join(str(result_path), RESULTS_FILE_PREFIX + "*.yml"))):
-    tool = os.path.basename(path)[len(RESULTS_FILE_PREFIX):-len(".yml")]
+  for tool, path in sorted(results_files(result_path).items()):
     if tools is not None and tool not in tools:
       continue
     _units, records = results_cache.load(path)

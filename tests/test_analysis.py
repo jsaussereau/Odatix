@@ -707,7 +707,7 @@ class TestRecords:
         assert export_analysis_results([old], str(tmp_path))
         new = analysis.AnalysisResult("verilator", "D", "D", flow="lint", status=analysis.STATUS_PASSED)
         assert export_analysis_results([new], str(tmp_path))
-        records = results_schema.load_results_file(str(tmp_path / "results_analysis_verilator.yml")).records
+        records = results_schema.load_results_file(str(tmp_path / "analysis" / "verilator.yml")).records
         assert [record["meta"]["_status"] for record in records] == ["passed"]
 
     def test_round_trip(self, tmp_path):
@@ -736,7 +736,7 @@ class TestRecords:
 
         result = result_of("verilator", make_job(tmp_path, "D", VERILATOR_LOG))
         assert export_analysis_results([result], str(tmp_path / "results"))
-        records = results_schema.load_results_file(str(tmp_path / "results" / "results_analysis_verilator.yml")).records
+        records = results_schema.load_results_file(str(tmp_path / "results" / "analysis" / "verilator.yml")).records
         assert len(records) == 1 and records[0]["meta"]["_status"] == "failed"
 
 
@@ -880,7 +880,7 @@ class TestCommands:
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Cannot find file containing module" in result.stdout
-        assert (example_workspace / "results" / "results_analysis_verilator.yml").is_file()
+        assert (example_workspace / "results" / "analysis" / "verilator.yml").is_file()
 
 
 class TestExtends:
