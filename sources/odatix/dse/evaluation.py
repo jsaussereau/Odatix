@@ -617,6 +617,7 @@ class Evaluator(object):
             with _quiet() as said:
                 run.check()
                 parallel_jobs = run.prepare()
+                self.name_jobs(parallel_jobs, toolchain)
                 run.start()
         except RunError as error:
             if error.code == NOTHING_TO_RUN:
@@ -632,6 +633,37 @@ class Evaluator(object):
             )
 
         return parallel_jobs, None
+
+    def name_jobs(self, parallel_jobs, toolchain):
+        """
+        Name the jobs of a batch after what the search chose to run them with.
+
+        A job is named after its configuration and its frequency, which is all
+        that tells two jobs of an ordinary run apart. When the search chooses
+        the tool, the flow or the target, two jobs of the same configuration at
+        the same frequency are two designs: only the parts that vary are added,
+        "(area)" rather than the whole toolchain repeated on every line.
+        """
+        if toolchain is None:
+            return
+        parts = [
+            part for part, varies in (
+                (toolchain.tool, self.explores_tool),
+                (toolchain.flow, self.explores_flow),
+                (toolchain.target, self.explores_target),
+            )
+            if varies and part
+        ]
+        if not parts:
+            return
+        suffix = " ({0})".format(", ".join(parts))
+        jobs = getattr(parallel_jobs, "job_list", None) or []
+        for job in jobs:
+            name = getattr(job, "display_name", None)
+            if name is not None and not str(name).endswith(suffix):
+                job.display_name = str(name) + suffix
+        if jobs and hasattr(parallel_jobs, "max_title_length"):
+            parallel_jobs.max_title_length = max(len(job.display_name) for job in jobs)
 
     @property
     def simulations(self):

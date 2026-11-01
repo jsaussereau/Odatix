@@ -2294,6 +2294,33 @@ class TestReuse:
         assert len(known) == 1
         assert known[0].design.toolchain.label == "vivado@area"
 
+    def test_a_job_is_named_after_the_part_of_its_toolchain_that_was_searched(self, tmp_path):
+        # Two jobs of one configuration at one frequency are two designs when
+        # the flow is searched: their name has to tell them apart, and only by
+        # the flow, the tool and the target being the same for every job.
+        from types import SimpleNamespace
+
+        from odatix.dse.space import Toolchain
+        from odatix.workspace import Workspace
+
+        toolchains = [
+            Toolchain("vivado", "standard", "xc7a100t"),
+            Toolchain("vivado", "area", "xc7a100t"),
+        ]
+        settings = campaign_settings(objectives=self.objectives(), flow=["standard", "area"])
+        evaluator = Evaluator(
+            Workspace(str(tmp_path)), settings, settings.objective_list(), toolchains=toolchains
+        )
+        jobs = SimpleNamespace(
+            job_list=[SimpleNamespace(display_name="Design/8bits @ 180 MHz")],
+            max_title_length=0,
+        )
+
+        evaluator.name_jobs(jobs, toolchains[1])
+        evaluator.name_jobs(jobs, toolchains[1])
+        assert jobs.job_list[0].display_name == "Design/8bits @ 180 MHz (area)"
+        assert jobs.max_title_length == len("Design/8bits @ 180 MHz (area)")
+
 
 class _KnowingEvaluator(FakeEvaluator):
     """An evaluator that was handed designs the workspace already measured."""
