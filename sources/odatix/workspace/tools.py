@@ -90,7 +90,7 @@ STEPPED_JOB_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analysis
 #: Settings of a built-in tool a workspace may override, i.e. everything but its
 #: flows: the built-in flows and their commands belong to Odatix.
 OVERRIDABLE_KEYS = (
-    "label", "description", "icon", "icon_filter", "process_group",
+    "label", "description", "icon", "icon_filter", "tags", "process_group",
     "target_file", "default_metrics_file",
 )
 
@@ -124,6 +124,23 @@ def _as_marker_list(markers):
     if isinstance(markers, (list, tuple)):
         return [str(marker) for marker in markers if str(marker).strip() != ""]
     return []
+
+
+def normalize_tags(tags):
+    """Normalize the tags of a tool (a list, or a comma-separated text) to a list, without duplicates."""
+    unique = []
+    for tag in _as_marker_list(tags):
+        tag = tag.strip()
+        if tag not in unique:
+            unique.append(tag)
+    return unique
+
+
+def _flow_seq(values):
+    """A list written on one line, "[a, b]", the way a short list of words reads best."""
+    seq = CommentedSeq(values)
+    seq.fa.set_flow_style()
+    return seq
 
 
 ######################################
@@ -571,7 +588,7 @@ class ToolSettings(object):
 
     def __init__(self, label="", description="", icon="", icon_filter=False, process_group=True,
                  target_file="", default_metrics_file="",
-                 flows=None, format=None, extra=None, extends=""):
+                 flows=None, format=None, extra=None, extends="", tags=None):
         # The tool this one is a variant of (see odatix.lib.eda_tools.get_base_tool):
         # it then only declares what differs from it.
         self.extends = str(extends or "").strip()
@@ -579,6 +596,9 @@ class ToolSettings(object):
         self.description = str(description or "")
         self.icon = str(icon or "")
         self.icon_filter = bool(icon_filter)
+        # What the tool does and targets ("synthesis", "fpga", ...), shown as
+        # colored chips on its card.
+        self.tags = normalize_tags(tags)
         self.process_group = bool(process_group)
         self.target_file = str(target_file or "")
         self.default_metrics_file = str(default_metrics_file or "")
@@ -658,6 +678,7 @@ class ToolSettings(object):
             description=data.get("description", ""),
             icon=data.get("icon", ""),
             icon_filter=data.get("icon_filter", False),
+            tags=data.get("tags"),
             process_group=data.get("process_group", True),
             target_file=data.get("target_file", ""),
             default_metrics_file=data.get("default_metrics_file", ""),
@@ -756,6 +777,7 @@ class ToolSettings(object):
             "description": self.description,
             "icon": self.icon,
             "icon_filter": self.icon_filter,
+            "tags": list(self.tags),
             "process_group": self.process_group,
             "target_file": self.target_file,
             "default_metrics_file": self.default_metrics_file,
@@ -790,6 +812,8 @@ class ToolSettings(object):
         # Only written when set: an icon is drawn as-is unless asked otherwise.
         if self.icon_filter:
             document["icon_filter"] = True
+        if self.tags:
+            document["tags"] = _flow_seq(self.tags)
 
         document["process_group"] = bool(self.process_group)
         for key in ("target_file", "default_metrics_file"):
@@ -906,6 +930,9 @@ def overlay_document(name, overrides, flows, header=None):
         if key not in overrides:
             continue
         value = overrides.get(key)
+        if key == "tags":
+            document[key] = _flow_seq(normalize_tags(value))
+            continue
         document[key] = (
             bool(value) if key in ("process_group", "icon_filter")
             else ("" if value is None else str(value))

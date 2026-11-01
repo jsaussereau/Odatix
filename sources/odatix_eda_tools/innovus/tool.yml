@@ -18,8 +18,8 @@
 # Display metadata (used by the GUI tool selection page)
 label: "Innovus"
 description: "Cadence® Innovus™ Implementation System"
-icon: "assets/icons/cadence.png"
-icon_filter: true
+icon: "pictogram:pnr:Innovus"
+tags: [pnr, asic]
 
 process_group: True
 

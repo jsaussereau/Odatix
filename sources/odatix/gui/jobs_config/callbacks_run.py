@@ -545,6 +545,6 @@ def back_href(search):
     of a job type otherwise.
     """
     run_mode = get_key_from_url(search, "type")
-    if run_mode in ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analyze"):
+    if run_mode in ("fmax_synthesis", "custom_freq_synthesis", "pnr"):
         return "/choose_eda_tool?type=" + quote(run_mode, safe="")
     return "/choose_job_type"

@@ -85,23 +85,7 @@ def tool_icon_image(meta):
     icon when none is defined, mirroring the image handling of /choose_eda_tool.
     Wrapped in a fixed-height box so tool names line up regardless of each
     logo's own aspect ratio."""
-    tool_icon = meta.get("icon") if isinstance(meta.get("icon"), str) else None
-    # "icon_filter" recolors the logo to the theme, for the monochrome ones that
-    # would otherwise vanish on a background of the same shade.
-    filtered = bool(meta.get("icon_filter")) if tool_icon else False
-    # On the light plate of /choose_eda_tool: the logos are drawn for a light
-    # background, and some vanish on a dark card.
-    return html.Div(
-        html.Div(
-            html.Img(
-                src=tool_icon or DEFAULT_TOOL_ICON,
-                className="card-img filter" if filtered else "card-img",
-                style={"maxHeight": "48px", "maxWidth": "100%", "display": "block"},
-            ),
-            className="odx-tool-logo",
-        ),
-        className="card-pictogram-wrap",
-    )
+    return html.Div(ui.tool_logo(meta, "card-img odx-tool-img", DEFAULT_TOOL_ICON, size="44px"), className="card-pictogram-wrap odx-tool-visual")
 
 
 def installed_badge(name):
@@ -162,6 +146,7 @@ def workspace_tool_card(tool):
     unique_key = str(uuid.uuid4())
     document = tool.document
     visual = tool_icon_image(document)
+    tags = ui.tool_tags(document)
     flows = flows_line(name)
     # The tool's own label (tool.yml), the directory name when it has none.
     label = str(document.get("label") or "").strip() or name
@@ -180,6 +165,7 @@ def workspace_tool_card(tool):
                 style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px",
                        "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"},
             )] if description else []),
+            *([tags] if tags is not None else []),
             *([flows] if flows is not None else []),
             installed_badge(name),
             html.Div(
@@ -243,7 +229,9 @@ def builtin_tool_card(tool):
     name = tool.name
     unique_key = str(uuid.uuid4())
     label = eda_tools.get_tool_label(name)
-    visual = tool_icon_image(eda_tools.load_tool_settings(name))
+    settings = eda_tools.load_tool_settings(name)
+    visual = tool_icon_image(settings)
+    tags = ui.tool_tags(settings)
     flows = flows_line(name)
     # A built-in tool the workspace already adds flows to or overrides settings of
     # says so: the card is still the built-in one, its flows are not owned by the
@@ -257,6 +245,7 @@ def builtin_tool_card(tool):
                 "built-in + your changes" if extended else "built-in",
                 style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px"},
             ),
+            *([tags] if tags is not None else []),
             *([flows] if flows is not None else []),
             installed_badge(name),
             html.Div(

@@ -19,6 +19,7 @@
 label: "LibreLane"
 description: "Open source RTL to GDSII flow: Yosys, OpenROAD, Magic, KLayout"
 icon: "assets/icons/librelane.png"
+tags: [synthesis, pnr, asic, open_source]
 
 process_group: True
 

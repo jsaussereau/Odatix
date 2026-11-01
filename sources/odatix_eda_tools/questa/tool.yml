@@ -5,6 +5,8 @@
 # Display metadata (used by the GUI tool selection page)
 label: "Questa"
 description: "Siemens Questa (or ModelSim) compilation and elaboration check"
+icon: "pictogram:simulation:Questa"
+tags: [analysis, simulation]
 
 process_group: True
 

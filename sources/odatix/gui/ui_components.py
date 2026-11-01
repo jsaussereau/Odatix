@@ -634,6 +634,58 @@ def card_pictogram(name: str, size: str = "52px") -> Component:
     return html.Div(pictogram(name, size=size), className="card-pictogram-wrap")
 
 
+TOOL_PICTOGRAM_PREFIX = "pictogram:"
+
+
+def tool_logo(meta: dict, img_class: str, default_icon: str, size: str = "48px") -> Component:
+    """
+    The visual of an EDA tool card. A tool.yml "icon" naming a file shows that
+    image on the light logo plate; "pictogram:<name>[:<badge>]" draws a
+    theme-colored pictogram instead, with the badge (the short name of the tool)
+    in a pill under it -- what the tools whose logo cannot be shipped wear.
+    """
+    icon_path = meta.get("icon") if isinstance(meta.get("icon"), str) else None
+    if icon_path and icon_path.startswith(TOOL_PICTOGRAM_PREFIX):
+        name, _, badge = icon_path[len(TOOL_PICTOGRAM_PREFIX):].partition(":")
+        children = [pictogram(name, size=size, className="card-pictogram")]
+        if badge:
+            children.append(html.Span(badge, className="odx-tool-badge"))
+        return html.Div(children, className="odx-tool-logo pictogram")
+    # "icon_filter" recolors the logo to the theme, for the monochrome ones that
+    # would otherwise vanish on a background of the same shade.
+    filtered = bool(meta.get("icon_filter")) if icon_path else False
+    return html.Div(
+        html.Img(src=icon_path or default_icon, className=f"{img_class} filter" if filtered else img_class),
+        className="odx-tool-logo",
+    )
+
+
+# The tags a tool.yml "tags" list may hold, with their label. Each has its own
+# color (".odx-tool-tag.<tag>"); a tag outside this list is shown as written,
+# in a neutral color.
+TOOL_TAG_LABELS = {
+    "synthesis": "Synthesis",
+    "pnr": "P&R",
+    "simulation": "Simulation",
+    "analysis": "Analysis",
+    "asic": "ASIC",
+    "fpga": "FPGA",
+    "open_source": "Open source",
+}
+
+
+def tool_tags(meta: dict) -> Optional[Component]:
+    """The tool.yml "tags" of a tool as a row of colored chips, None without any."""
+    tags = meta.get("tags")
+    if not isinstance(tags, list):
+        return None
+    chips = [
+        html.Span(TOOL_TAG_LABELS.get(tag, tag), className=f"odx-tool-tag {tag}")
+        for tag in (str(tag).strip() for tag in tags) if tag
+    ]
+    return html.Div(chips, className="odx-tool-tags") if chips else None
+
+
 def page_header(title: str, subtitle: str = "", back_link: Optional[str] = None) -> Component:
     """Centered page header (title + optional subtitle) in the modern Odatix style."""
     children = []

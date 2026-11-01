@@ -69,7 +69,7 @@ import re
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-from odatix.workspace.tools import DEFAULT_METRICS_FILE, OVERRIDABLE_KEYS, ToolSettings
+from odatix.workspace.tools import DEFAULT_METRICS_FILE, OVERRIDABLE_KEYS, ToolSettings, normalize_tags
 import odatix.lib.eda_tools as eda_tools
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, get_workspace
@@ -468,6 +468,7 @@ def normalize_tool_settings(raw):
         "description": str(raw.get("description", "") or ""),
         "icon": str(raw.get("icon", "") or ""),
         "icon_filter": bool(raw.get("icon_filter", False)),
+        "tags": normalize_tags(raw.get("tags")),
         "process_group": bool(raw.get("process_group", True)),
         "target_file": str(raw.get("target_file", "") or ""),
         "default_metrics_file": str(raw.get("default_metrics_file", "") or ""),
@@ -484,6 +485,7 @@ def normalize_tool_settings(raw):
 def build_tool_settings(
     label, description, icon_value, icon_filter, process_group, target_file, default_metrics_file,
     flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls, extends="", extra=None,
+    tool_tags=None,
 ):
     """
     Build the canonical settings dict from the raw field values gathered by the
@@ -517,6 +519,7 @@ def build_tool_settings(
         "description": description or "",
         "icon": icon_value or "",
         "icon_filter": True if icon_filter else False,
+        "tags": normalize_tags(tool_tags),
         "process_group": True if process_group else False,
         "target_file": target_file or "",
         "default_metrics_file": default_metrics_file or "",
@@ -587,6 +590,7 @@ def normalize_for_compare(settings):
         "description": str(n.get("description", "") or ""),
         "icon": str(n.get("icon", "") or ""),
         "icon_filter": bool(n.get("icon_filter", False)),
+        "tags": normalize_tags(n.get("tags")),
         "process_group": bool(n.get("process_group", True)),
         "target_file": str(n.get("target_file", "") or ""),
         "default_metrics_file": str(n.get("default_metrics_file", "") or ""),
@@ -813,6 +817,26 @@ def base_tool_field(settings, options, overlay=False):
         style={"marginBottom": "12px"} if (not overlay or extends) else {"display": "none"},
     )
 
+def tool_tags_field(tags):
+    """The tags of the tool, picked among the known ones; a tag the tool.yml
+    holds that is not one of them is kept as an option of its own."""
+    options = [{"label": label, "value": tag} for tag, label in ui.TOOL_TAG_LABELS.items()]
+    options += [{"label": tag, "value": tag} for tag in tags if tag not in ui.TOOL_TAG_LABELS]
+    return html.Div(
+        [
+            html.Label("Tags"),
+            ui.tooltip_icon("What the tool does and what it targets, shown as colored tags on its card."),
+            dcc.Dropdown(
+                id="tool-tags",
+                options=options,
+                value=list(tags),
+                multi=True,
+                placeholder="Synthesis, FPGA...",
+            ),
+        ],
+        style={"marginBottom": "12px"},
+    )
+
 def tool_form(settings, tool_name="", overlay=False, base_options=None):
     target_placeholder = f"target_{tool_name}.yml" if tool_name else "target_<tool>.yml"
 
@@ -826,7 +850,8 @@ def tool_form(settings, tool_name="", overlay=False, base_options=None):
                             tooltip="Short description shown on the tool selection page."),
             tool_form_field("Icon", "tool-icon", value=settings.get("icon", ""),
                             placeholder="assets/icons/my_tool.png",
-                            tooltip="Optional icon path (relative to the GUI assets) shown on the tool selection page."),
+                            tooltip="Optional icon path (relative to the GUI assets) shown on the tool selection page, "
+                                    "or \"pictogram:<name>:<short name>\" for a pictogram drawn in the theme colors."),
             html.Div(
                 children=[
                     dcc.Checklist(
@@ -840,6 +865,7 @@ def tool_form(settings, tool_name="", overlay=False, base_options=None):
                                     "which would otherwise be invisible in one of the themes."),
                 ],
             ),
+            tool_tags_field(settings.get("tags", [])),
         ],
         className="tile config",
     )
@@ -2497,7 +2523,7 @@ def init_form(search, page, odatix_settings):
 # The section a reset button puts back to the built-in state, and the settings
 # keys it covers. "logs", "tags" and "replace" are the "format" subsections.
 RESET_SECTIONS = {
-    "metadata": ("label", "description", "icon", "icon_filter"),
+    "metadata": ("label", "description", "icon", "icon_filter", "tags"),
     "behaviour": ("process_group", "target_file", "default_metrics_file"),
 }
 
@@ -2510,6 +2536,7 @@ RESET_SECTIONS = {
     State("tool-description", "value"),
     State("tool-icon", "value"),
     State("tool-icon-filter", "value"),
+    State("tool-tags", "value"),
     State("tool-process-group", "value"),
     State("tool-target-file", "value"),
     State("tool-default-metrics-file", "value"),
@@ -2527,7 +2554,7 @@ RESET_SECTIONS = {
     prevent_initial_call=True,
 )
 def reset_section_to_builtin(
-    reset_clicks, label, description, icon_value, icon_filter, process_group, target_file, default_metrics_file,
+    reset_clicks, label, description, icon_value, icon_filter, tool_tags, process_group, target_file, default_metrics_file,
     log_error, log_crit, log_warning, log_info, log_trace,
     tag_markers, tag_ids, replace_patterns, replace_repls, builtin, search,
 ):
@@ -2552,6 +2579,7 @@ def reset_section_to_builtin(
     settings = build_tool_settings(
         label, description, icon_value, icon_filter, process_group, target_file, default_metrics_file,
         [], log_values, tag_names, tag_markers, replace_patterns, replace_repls,
+        tool_tags=tool_tags,
     )
 
     builtin = builtin if isinstance(builtin, dict) else normalize_tool_settings({})
@@ -2647,6 +2675,7 @@ def flow_errors(flows):
     Input("tool-description", "value"),
     Input("tool-icon", "value"),
     Input("tool-icon-filter", "value"),
+    Input("tool-tags", "value"),
     Input("tool-process-group", "value"),
     Input("tool-target-file", "value"),
     Input("tool-default-metrics-file", "value"),
@@ -2670,13 +2699,13 @@ def flow_errors(flows):
     prevent_initial_call=True,
 )
 def save_and_status(*args):
-    (n_clicks, tool_title_value, extends, label, description, icon_value, icon_filter, process_group,
-     target_file, default_metrics_file) = args[:10]
-    fields = flow_field_values(args[10:10 + NB_FLOW_FIELDS])
+    (n_clicks, tool_title_value, extends, label, description, icon_value, icon_filter, tool_tags, process_group,
+     target_file, default_metrics_file) = args[:11]
+    fields = flow_field_values(args[11:11 + NB_FLOW_FIELDS])
     (log_error, log_crit, log_warning, log_info, log_trace,
      tag_markers, replace_patterns, replace_repls,
      tag_ids, search, page, initial_settings, saved_settings, odatix_settings, overlay, builtin_settings,
-     ) = args[10 + NB_FLOW_FIELDS:]
+     ) = args[11 + NB_FLOW_FIELDS:]
 
     # The tag set is fixed (the ANSI style/color names): the tag names come from
     # the markers inputs' ids, not from an editable field.
@@ -2699,6 +2728,7 @@ def save_and_status(*args):
         flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls,
         extends=(reference or {}).get("extends", "") if overlay else extends,
         extra=(reference or {}).get("extra"),
+        tool_tags=tool_tags,
     )
 
     reference_settings = normalize_for_compare(reference)

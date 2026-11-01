@@ -50,7 +50,7 @@ run_jobs_cards = [
     # place and route, simulate, then automate and explore.
     {
         "name": "Run RTL analysis",
-        "link": "/choose_eda_tool?type=analysis",
+        "link": "/run_jobs?type=analyze",
         "icon": "analysis",
         "description": "Check that your RTL is synthesizable with the selected tools",
     },

@@ -6,6 +6,7 @@
 label: "OpenLane"
 description: "Open Source OpenLane flow"
 icon: "assets/icons/openroad.png"
+tags: [synthesis, pnr, asic, open_source]
 
 # Group processes
 process_group: False

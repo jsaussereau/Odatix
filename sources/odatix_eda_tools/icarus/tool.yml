@@ -5,6 +5,8 @@
 # Display metadata (used by the GUI tool selection page)
 label: "Icarus Verilog"
 description: "Open Source Icarus Verilog RTL analysis"
+icon: "pictogram:simulation:Icarus"
+tags: [analysis, simulation, open_source]
 
 process_group: True
 

@@ -6,6 +6,7 @@
 label: "Verilator"
 description: "Open Source Verilator RTL analysis"
 icon: "assets/icons/verilator.png"
+tags: [analysis, simulation, open_source]
 icon_filter: true
 
 process_group: True

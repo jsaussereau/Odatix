@@ -51,7 +51,7 @@ nav_groups = [
     ("Run", "/choose_job_type", [
         ("Workflows", "/run_jobs?type=workflow"),
         ("Simulations", "/run_jobs?type=simulation"),
-        ("RTL analysis", "/choose_eda_tool?type=analysis"),
+        ("RTL analysis", "/run_jobs?type=analyze"),
         ("Fmax synthesis", "/choose_eda_tool?type=fmax_synthesis"),
         ("Fixed-frequency synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
         ("Place & route", "/choose_eda_tool?type=pnr"),

@@ -5,6 +5,8 @@
 # Display metadata (used by the GUI tool selection page)
 label: "GHDL"
 description: "Open Source GHDL VHDL analysis"
+icon: "assets/icons/ghdl.png"
+tags: [analysis, simulation, open_source]
 
 process_group: True
 

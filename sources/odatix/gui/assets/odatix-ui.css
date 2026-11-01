@@ -954,6 +954,33 @@
     border-radius: var(--theme-small-border-radius);
     background: color-mix(in srgb, var(--theme-element-background-color) 12%, white);
 }
+/* A pictogram follows the theme: a tint of the primary color instead of the
+   light plate, and the badge naming the tool across its bottom edge. */
+.odx-tool-logo.pictogram {
+    position: relative;
+    flex-shrink: 0;
+    margin-bottom: 14px;
+    padding: 10px;
+    border-radius: var(--theme-normal-border-radius);
+    background: color-mix(in srgb, var(--theme-primary-color) 12%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-primary-color) 22%, transparent);
+}
+.odx-tool-badge {
+    position: absolute;
+    left: 50%;
+    bottom: -8px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--theme-primary-color);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 16px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 0 0 2px var(--theme-element-background-color, #fff);
+}
 .odx-tool-logo .odx-tool-img {
     display: block;
     max-height: 56px;
@@ -983,6 +1010,35 @@
     line-height: 1.35;
     color: var(--theme-secondary-text-color);
 }
+
+/* Tags of a tool: what it does and what it targets. A tint of each tag's hue
+   on the card, so they read in both light and dark themes. */
+.odx-tool-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 6px;
+}
+.odx-tool-tag {
+    --odx-tag-hue: var(--theme-secondary-text-color, #868e96);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    white-space: nowrap;
+    color: color-mix(in srgb, var(--odx-tag-hue) 85%, var(--theme-text-color, #000));
+    background: color-mix(in srgb, var(--odx-tag-hue) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--odx-tag-hue) 28%, transparent);
+}
+.odx-tool-tag.synthesis   { --odx-tag-hue: #4c6ef5; }
+.odx-tool-tag.pnr         { --odx-tag-hue: #ae3ec9; }
+.odx-tool-tag.simulation  { --odx-tag-hue: #0c8599; }
+.odx-tool-tag.analysis    { --odx-tag-hue: #e8590c; }
+.odx-tool-tag.asic        { --odx-tag-hue: #2b8a3e; }
+.odx-tool-tag.fpga        { --odx-tag-hue: #d6336c; }
+.odx-tool-tag.open_source { --odx-tag-hue: #868e96; }
 
 /* Flows spread over as many columns as the card was given (--odx-tool-cols,
    set from the number of flows): stacking a dozen of them would make a card
@@ -2483,4 +2539,11 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
     .odx-detect-line {
         display: none;
     }
+}
+
+/* /tools: room for the badge hanging under a pictogram, the names of all the
+   cards still lining up. */
+.card-pictogram-wrap.odx-tool-visual {
+    height: 84px;
+    align-items: flex-start;
 }

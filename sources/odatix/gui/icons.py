@@ -577,6 +577,28 @@ _pictograms = {
         Rect(x="28", y="28", width="7", height="7", rx="1", fill=_PRIMARY, fillOpacity="0.75"),
         Polyline(points="20,16.5 24,16.5 24,31.5 28,31.5", stroke=_PRIMARY, strokeWidth="2", fill="none", strokeLinecap="round", strokeLinejoin="round"),
     ], size),
+    # Logic synthesis: an AND gate mapped onto a netlist
+    "synthesis": lambda size: _picto([
+        Line(x1="6", y1="18", x2="16", y2="18", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+        Line(x1="6", y1="30", x2="16", y2="30", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+        Path(d="M16 12 h8 a12 12 0 0 1 0 24 h-8 z", stroke=_PRIMARY, strokeWidth="2.5", strokeLinejoin="round"),
+        Line(x1="36", y1="24", x2="42", y2="24", stroke=_PRIMARY, strokeWidth="2.5", strokeLinecap="round"),
+        Circle(cx="6", cy="18", r="2.2", fill=_TEXT, fillOpacity="0.5"),
+        Circle(cx="6", cy="30", r="2.2", fill=_TEXT, fillOpacity="0.5"),
+        Circle(cx="42", cy="24", r="2.6", fill=_PRIMARY),
+    ], size),
+    # FPGA: a fabric of logic blocks, a few of them configured and routed
+    "fpga": lambda size: _picto([
+        Rect(x="8", y="8", width="9", height="9", rx="2", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4"),
+        Rect(x="31", y="8", width="9", height="9", rx="2", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4"),
+        Rect(x="19.5", y="19.5", width="9", height="9", rx="2", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4"),
+        Rect(x="8", y="31", width="9", height="9", rx="2", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4"),
+        Rect(x="19.5", y="8", width="9", height="9", rx="2", fill=_PRIMARY),
+        Rect(x="31", y="19.5", width="9", height="9", rx="2", fill=_PRIMARY, fillOpacity="0.7"),
+        Rect(x="31", y="31", width="9", height="9", rx="2", fill=_PRIMARY, fillOpacity="0.45"),
+        Polyline(points="28.5,12.5 35.5,12.5 35.5,19.5", stroke=_PRIMARY, strokeWidth="2", fill="none", strokeLinecap="round", strokeLinejoin="round"),
+        Line(x1="35.5", y1="28.5", x2="35.5", y2="31", stroke=_PRIMARY, strokeWidth="2", strokeLinecap="round"),
+    ], size),
     # Simulation: digital waveform
     "simulation": lambda size: _picto([
         Line(x1="8", y1="40", x2="40", y2="40", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
