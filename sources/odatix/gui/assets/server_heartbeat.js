@@ -52,6 +52,15 @@
       window.location.reload();
     };
 
+    var closeEl = document.createElement("button");
+    closeEl.className = "close";
+    closeEl.textContent = "\u00d7";
+    closeEl.title = "Close";
+    closeEl.onclick = function () {
+      overlay.classList.remove("visible");
+    };
+
+    popup.appendChild(closeEl);
     popup.appendChild(title);
     popup.appendChild(messageEl);
     popup.appendChild(buttonEl);

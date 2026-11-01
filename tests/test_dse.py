@@ -1874,7 +1874,8 @@ class TestSimulations:
                     results_schema.META_TYPE: results_schema.TYPE_FMAX,
                     results_schema.META_TOOL: "vivado",
                     results_schema.META_ARCHITECTURE: "Design",
-                    results_schema.META_CONFIGURATION: design.configuration,
+                    # The composed name, which a simulation never writes
+                    results_schema.META_CONFIGURATION: design.configuration + "+corner_tt",
                     results_schema.MAIN_DOMAIN_META_KEY: design.configuration,
                     "frequency": 250,
                 },

@@ -47,7 +47,7 @@ import time
 
 import odatix.lib.printc as printc
 from odatix.dse.space import MAIN_DOMAIN
-from odatix.lib.results_schema import load_results_file
+from odatix.lib.results_schema import MAIN_DOMAIN_META_KEY, load_results_file
 
 __all__ = ["Evaluation", "Evaluator", "EvaluationError", "Pending"]
 
@@ -1226,8 +1226,13 @@ class Evaluator(object):
         ]
         if not wanted:
             return record
-        meta = record.get("meta") or {}
-        reserved = ("type", "simulation", "timestamp")
+        meta = dict(record.get("meta") or {})
+        # A simulation names the configuration of the main domain alone, the
+        # other domains apart; a synthesis names the composed one, and keeps
+        # the main domain's under "main" when there are other domains.
+        if MAIN_DOMAIN_META_KEY in meta:
+            meta["configuration"] = meta[MAIN_DOMAIN_META_KEY]
+        reserved = ("type", "simulation", "timestamp", MAIN_DOMAIN_META_KEY)
         borrowed = {}
         for simulated in simulated_records:
             sim_meta = simulated.get("meta") or {}

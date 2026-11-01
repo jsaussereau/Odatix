@@ -1150,6 +1150,11 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
             "cpu_limit": float(getattr(parallel_jobs, "cpu_limit", 98.0)),
             "mem_limit": float(getattr(parallel_jobs, "mem_limit", 98.0)),
         }
+    elif format_yaml not in (None, ""):
+        # How the jobs' logs read is not a setting of the session the others
+        # depend on: a batch enqueued into a session it is part of (an
+        # exploration) still brings the tool.yml its logs are formatted with.
+        payload["options"] = {"format_yaml": str(format_yaml)}
 
     response = _api_request(
         state,
