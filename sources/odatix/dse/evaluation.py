@@ -1156,6 +1156,7 @@ class Evaluator(object):
         """
         records = {}
         derived = self._derived_records()
+        simulated_records = self._simulation_records(derived)
         for tool in self.tools:
             path = self.results_file(tool)
             if not os.path.isfile(path):
@@ -1173,8 +1174,78 @@ class Evaluator(object):
                 meta = record.get("meta", {}) if isinstance(record, dict) else {}
                 if not self.is_measured_step(meta):
                     continue
+                record = self.with_simulated_metrics(record, simulated_records)
                 records.setdefault(self.identity(meta), []).append(record)
         return records
+
+    def _simulation_records(self, derived=None):
+        """
+        The records of the simulations of the campaign, newest last -- the
+        ones that measured nothing (a simulator that did not start, a
+        testbench that did not compile) left out.
+        """
+        names = set(self.simulations)
+        if not names:
+            return []
+        path = os.path.join(self.workspace.paths.result_path, "results_simulation.yml")
+        if not os.path.isfile(path):
+            return []
+        if derived is not None:
+            file_records = derived.get(os.path.normpath(path), [])
+        else:
+            try:
+                file_records = load_results_file(path).records
+            except Exception as error:
+                printc.warning("Could not read \"{0}\": {1}".format(path, error), script_name)
+                return []
+        found = [
+            record for record in file_records
+            if isinstance(record, dict) and record.get("metrics")
+            and str((record.get("meta") or {}).get("simulation", "")) in names
+        ]
+        found.sort(key=lambda record: str((record.get("meta") or {}).get("timestamp", "")))
+        return found
+
+    def with_simulated_metrics(self, record, simulated_records):
+        """
+        A synthesis record, with what the campaign's simulations measured of
+        the same design wherever the synthesis has no number of its own.
+
+        The campaign names its simulations: that is all it takes to say where a
+        metric no synthesis produces comes from, and having to declare it once
+        more as a derived metric only got it lost. A simulation record is of the
+        same design when it has the same architecture, the same configuration
+        and agrees on every parameter domain it carries; it knows nothing of
+        the flow, the target or the frequency, so it measures all the synthesis
+        records of that configuration at once. The newest one that has the
+        metric wins.
+        """
+        wanted = [
+            metric for metric in self.objectives.measured_metrics
+            if (record.get("metrics") or {}).get(metric) is None
+        ]
+        if not wanted:
+            return record
+        meta = record.get("meta") or {}
+        reserved = ("type", "simulation", "timestamp")
+        borrowed = {}
+        for simulated in simulated_records:
+            sim_meta = simulated.get("meta") or {}
+            if any(
+                str(meta.get(key)) != str(value)
+                for key, value in sim_meta.items()
+                if key not in reserved and not str(key).startswith("_")
+            ):
+                continue
+            for metric in wanted:
+                value = (simulated.get("metrics") or {}).get(metric)
+                if value is not None:
+                    borrowed[metric] = value
+        if not borrowed:
+            return record
+        record = dict(record)
+        record["metrics"] = dict(record.get("metrics") or {}, **borrowed)
+        return record
 
     def end_step(self, tool, flow):
         """

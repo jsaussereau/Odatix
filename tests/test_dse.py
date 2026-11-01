@@ -1853,6 +1853,62 @@ class TestSimulations:
         assert result.measured
         assert result.metrics["Cycles"] == 120
 
+    def test_a_simulated_metric_needs_no_derived_metric(self, tmp_path, architecture):
+        # Naming the simulation in the campaign says where the metric comes
+        # from. A simulation that measured nothing (a simulator that did not
+        # start) is passed over, and another configuration is not borrowed.
+        import odatix.lib.results_schema as results_schema
+        from odatix.workspace import Workspace
+
+        workspace = Workspace(str(tmp_path))
+        space = ArchitectureSpace(architecture)
+        design = space.design((0, 0))
+        other = space.design((1, 0))
+
+        results = workspace.paths.result_path
+        os.makedirs(results, exist_ok=True)
+        results_schema.dump_results_file(
+            os.path.join(results, "results_vivado.yml"), {},
+            [results_schema.make_record(
+                {
+                    results_schema.META_TYPE: results_schema.TYPE_FMAX,
+                    results_schema.META_TOOL: "vivado",
+                    results_schema.META_ARCHITECTURE: "Design",
+                    results_schema.META_CONFIGURATION: design.configuration,
+                    results_schema.MAIN_DOMAIN_META_KEY: design.configuration,
+                    "frequency": 250,
+                },
+                {"LUT_count": 40},
+            )],
+        )
+
+        def simulated(configuration, metrics):
+            return results_schema.make_simulation_record(
+                simulation="TB_Design", architecture="Design",
+                configuration=configuration, arch_full=configuration,
+                run_dir=None, simulation_definition_dir=None, metrics=metrics,
+            )
+
+        results_schema.dump_results_file(
+            os.path.join(results, "results_simulation.yml"), {},
+            [
+                simulated(design.configuration, {"Cycles": 120}),
+                simulated(design.configuration, {}),
+                simulated(other.configuration, {"Cycles": 7}),
+            ],
+        )
+
+        settings = campaign_settings(
+            simulations=["TB_Design"],
+            objectives=[{"metric": "frequency", "goal": "max"}, "Cycles"],
+        )
+        evaluator = Evaluator(workspace, settings, settings.objective_list())
+        assert evaluator.derive() is False
+
+        result = evaluator.measure(design, evaluator._records(), {})
+        assert result.measured
+        assert result.metrics["Cycles"] == 120
+
     def test_the_exploration_never_writes_the_results_files(self, tmp_path, architecture):
         # The daemon exporting the jobs is their one writer: a file rewritten
         # from here lost the record it was about to publish. The derived metrics
