@@ -22,6 +22,7 @@
 import os
 import sys
 import dash
+from werkzeug.exceptions import HTTPException
 from dash import dcc, html
 
 import odatix.gui.icons as icons
@@ -93,6 +94,8 @@ class OdatixApp:
         """
         Handle flask exceptions
         """
+        if isinstance(e, HTTPException):
+            return e
         if self.old_settings is not None:
             term_mode.restore_mode(self.old_settings)
         internal_error(e, error_logfile, script_name)

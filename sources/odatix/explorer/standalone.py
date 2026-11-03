@@ -29,6 +29,7 @@ import os
 import warnings
 
 import dash
+from werkzeug.exceptions import HTTPException
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 
@@ -98,6 +99,8 @@ class ExplorerStandaloneApp:
     dash.register_page("explorer_root", path="/", layout=lambda **kwargs: dcc.Location(id="xp-root-redirect", pathname="/explorer"))
 
   def handle_flask_exception(self, e):
+    if isinstance(e, HTTPException):
+      return e
     if self.old_settings is not None:
       term_mode.restore_mode(self.old_settings)
     internal_error(e, error_logfile, script_name)

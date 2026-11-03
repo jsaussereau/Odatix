@@ -1863,6 +1863,7 @@ def sim_arch_sections(search, odatix_settings, triggered_id, metadata, requested
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("param-domains-section-update", "data"),
     State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-detect-checklist-more", "domain_uuid": dash.ALL}, "value"),
     State({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
     State({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
     prevent_initial_call=True
@@ -1870,7 +1871,7 @@ def sim_arch_sections(search, odatix_settings, triggered_id, metadata, requested
 def update_param_domains(
     _, search, page, add_domain_click, duplicate_domain_click, delete_domain_click, sim_arch_reload,
     detect_domains_click, odatix_settings, domain_sections, metadata, update_flag,
-    detect_selections, detect_stores, target_files,
+    detect_selections, detect_more_selections, detect_stores, target_files,
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == "url":
@@ -1977,6 +1978,7 @@ def update_param_domains(
 
             store = of_source("cfg-detect-store", detect_stores)
             selected = set(of_source("cfg-detect-checklist", detect_selections) or [])
+            selected |= set(of_source("cfg-detect-checklist-more", detect_more_selections) or [])
             if not clicked or not store or not selected:
                 return dash.no_update, dash.no_update, dash.no_update
             new_domains, _ = detected_domains(
@@ -3132,6 +3134,10 @@ def _number(value):
     Output({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
     Output({"type": "cfg-detect-source", "domain_uuid": dash.ALL}, "children"),
     Output({"type": "cfg-detect-hint", "domain_uuid": dash.ALL}, "children"),
+    Output({"type": "cfg-detect-checklist-more", "domain_uuid": dash.ALL}, "options"),
+    Output({"type": "cfg-detect-checklist-more", "domain_uuid": dash.ALL}, "value"),
+    Output({"type": "cfg-detect-more", "domain_uuid": dash.ALL}, "style"),
+    Output({"type": "cfg-detect-more-title", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "cfg-detect-params", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "cfg-detect-file", "domain_uuid": dash.ALL}, "value"),
     State({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
@@ -3145,7 +3151,7 @@ def _number(value):
 def detect_parameters(clicks, detect_files, target_files, start_delims, stop_delims, variable_names, search, odatix_settings):
     trigger = ctx.triggered_id
     clicked = ctx.triggered[0].get("value") if ctx.triggered else None
-    outputs = 7
+    outputs = 11
     # a file typed or picked in the panel reads it again, the button opens it
     # (not when a section is built: its field is empty then)
     if isinstance(trigger, dict) and trigger.get("type") == "cfg-detect-file":
@@ -3185,15 +3191,20 @@ def detect_parameters(clicks, detect_files, target_files, start_delims, stop_del
         name for identifier, name in zip(config_rules.matched_ids("cfg-variable-title"), variable_names)
         if identifier.get("domain_uuid") == domain_uuid
     )
-    options, checked = [], []
+    # Checked by default in the list, the rest folded away below it.
+    options, checked, more = [], [], []
     if store:
         for param in store["params"]:
             option = config_rules.detect_option(param, taken)
-            options.append(option)
             if not option["disabled"] and param["relevance"] >= config_rules.DETECT_CHECKED_FROM:
+                options.append(option)
                 checked.append(param["name"])
+            else:
+                more.append(option)
+    more_title = "{0} other parameter{1}".format(len(more), "" if len(more) == 1 else "s")
     values = [
         {}, options, checked, ui.error(error) if error else "", store, source, hint,
+        more, [], {} if more else Style.hidden, more_title,
     ]
     return tuple(
         per_domain([value], [domain_uuid], group=k) for k, value in enumerate(values)
@@ -3203,6 +3214,7 @@ def detect_parameters(clicks, detect_files, target_files, start_delims, stop_del
     Output({"type": "cfg-detect-panel", "domain_uuid": dash.ALL}, "style", allow_duplicate=True),
     Output({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value", allow_duplicate=True),
     Output({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Output({"type": "cfg-detect-checklist-more", "domain_uuid": dash.ALL}, "value", allow_duplicate=True),
     Input({"type": "cfg-detect-cancel", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "cfg-detect-add", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "cfg-detect-all", "domain_uuid": dash.ALL}, "n_clicks"),
@@ -3210,39 +3222,46 @@ def detect_parameters(clicks, detect_files, target_files, start_delims, stop_del
     Input({"type": "cfg-detect-domains", "domain_uuid": dash.ALL}, "n_clicks"),
     State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "options"),
     State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-detect-checklist-more", "domain_uuid": dash.ALL}, "options"),
+    State({"type": "cfg-detect-checklist-more", "domain_uuid": dash.ALL}, "value"),
     State({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
     State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     prevent_initial_call=True,
 )
-def detect_panel_actions(cancel, add, select_all, select_none, create, options_list, selections, stores, templates):
+def detect_panel_actions(cancel, add, select_all, select_none, create, options_list, selections,
+                         more_options_list, more_selections, stores, templates):
     trigger = ctx.triggered_id
     clicked = ctx.triggered[0].get("value") if ctx.triggered else None
     panels = [dash.no_update] * len(_callback_group("outputs_list", 0) or [])
     values = [dash.no_update] * len(_callback_group("outputs_list", 1) or [])
     template_ids = config_rules.matched_ids("cfg-gen-template")
     new_templates = [dash.no_update] * len(template_ids)
+    more_values = [dash.no_update] * len(_callback_group("outputs_list", 3) or [])
     if not isinstance(trigger, dict) or not clicked:
-        return panels, values, new_templates
+        return panels, values, new_templates, more_values
     domain_uuid = trigger.get("domain_uuid")
     ids = config_rules.matched_ids("cfg-detect-checklist")
     at = next((i for i, identifier in enumerate(ids) if identifier.get("domain_uuid") == domain_uuid), None)
     if at is None:
-        return panels, values, new_templates
+        return panels, values, new_templates, more_values
     kind = trigger.get("type")
     if kind == "cfg-detect-all":
         values[at] = [o["value"] for o in (options_list[at] or []) if not o.get("disabled")]
+        more_values[at] = [o["value"] for o in (more_options_list[at] or []) if not o.get("disabled")]
     elif kind == "cfg-detect-none":
         values[at] = []
+        more_values[at] = []
     else:
         panels[at] = Style.hidden
         if kind == "cfg-detect-add":
             # The content template, from the section between the delimiters,
             # when the domain has a single set of rules whose template is empty.
             mine = [i for i, identifier in enumerate(template_ids) if identifier.get("domain_uuid") == domain_uuid]
-            template = config_rules.detected_template(stores[at], set(selections[at] or []))
+            selected = set(selections[at] or []) | set(more_selections[at] or [])
+            template = config_rules.detected_template(stores[at], selected)
             if template is not None and len(mine) == 1 and not (templates[mine[0]] or "").strip():
                 new_templates[mine[0]] = template
-    return panels, values, new_templates
+    return panels, values, new_templates, more_values
 
 @page_callback(PAGE_SCOPE,
     Output({"type": "param-target-warning", "domain_uuid": dash.ALL}, "children"),

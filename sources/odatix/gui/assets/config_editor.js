@@ -255,6 +255,7 @@ window.dash_clientside.odatix_config_editor.save_all_status = function(_scope, c
         "cfg-variable-collapse": {panel: "cfg-variable-fields-container", shown: "", icon: "cfg-variable-collapse-icon"},
         "cfg-advanced-toggle": {panel: "cfg-advanced-panel", shown: "12px", icon: "cfg-advanced-icon"},
         "cfg-help-toggle": {panel: "cfg-help-panel", shown: "", icon: "cfg-help-icon"},
+        "cfg-detect-more-toggle": {panel: "cfg-detect-more-panel", shown: "", icon: "cfg-detect-more-icon"},
     };
 
     // Dash writes a pattern id as JSON with its keys sorted: to name the panel

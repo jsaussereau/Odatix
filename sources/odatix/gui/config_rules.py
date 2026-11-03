@@ -872,6 +872,38 @@ def detect_panel(domain_uuid, file_base=""):
                 className="odx-detect-list",
                 inputClassName="odx-detect-check",
             ),
+            # The parameters not checked by default -- local ones, those already
+            # variables -- behind the Show/Hide fold of the editor, folded.
+            html.Div(
+                children=[
+                    html.Div(
+                        children=[
+                            ui.icon_button(
+                                icon=icon("more", className="icon normal rotate", id=dict(scope, type="cfg-detect-more-icon")),
+                                color="default",
+                                id=dict(scope, type="cfg-detect-more-toggle"),
+                                tooltip="Show/hide the parameters left unchecked",
+                                tooltip_options="bottom small",
+                            ),
+                            html.Span(id=dict(scope, type="cfg-detect-more-title"), className="odx-detect-more-title"),
+                        ],
+                        className="odx-detect-more-header",
+                    ),
+                    html.Div(
+                        dcc.Checklist(
+                            id=dict(scope, type="cfg-detect-checklist-more"),
+                            options=[], value=[],
+                            className="odx-detect-list",
+                            inputClassName="odx-detect-check",
+                        ),
+                        id=dict(scope, type="cfg-detect-more-panel"),
+                        style=Style.hidden,
+                    ),
+                ],
+                id=dict(scope, type="cfg-detect-more"),
+                className="odx-detect-more",
+                style=Style.hidden,
+            ),
             html.Div(
                 children=[
                     html.Span(id=dict(scope, type="cfg-detect-hint"), className="odx-detect-hint"),
@@ -1034,9 +1066,11 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=Non
                     ),
                 ],
                 className="inline-flex-buttons",
+                style={"width": "auto", "flexShrink": "0", "marginLeft": "auto"},
             ),
         ],
-        style={"display": "flex", "alignItems": "center", "justifyContent": "space-between", "gap": "10px"},
+        style={"display": "flex", "alignItems": "center", "justifyContent": "space-between", "gap": "10px",
+               "flexWrap": "wrap"},
     )
 
     return html.Div(
@@ -1278,12 +1312,13 @@ def update_variable_fields_visibility(types):
     State({"type": "cfg-variable-cards-row", "domain_uuid": dash.ALL}, "children"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State({"type": "cfg-detect-checklist", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-detect-checklist-more", "domain_uuid": dash.ALL}, "value"),
     State({"type": "cfg-detect-store", "domain_uuid": dash.ALL}, "data"),
     *variable_states(),
     prevent_initial_call=True,
 )
 def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, detect_clicks, rows, domain_metadata,
-                          detect_selections, detect_stores, *field_values):
+                          detect_selections, detect_more_selections, detect_stores, *field_values):
     """Add, duplicate and delete the variables of one domain, leaving the others alone."""
     trigger = ctx.triggered_id
     if not isinstance(trigger, dict):
@@ -1315,7 +1350,9 @@ def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, detect_cl
         detect_uuids = [i.get("domain_uuid") for i in matched_ids("cfg-detect-store")]
         at = detect_uuids.index(domain_uuid) if domain_uuid in detect_uuids else None
         store = detect_stores[at] if at is not None and at < len(detect_stores) else None
-        selected = set(detect_selections[at] or []) if at is not None and at < len(detect_selections) else set()
+        selected = set()
+        if at is not None and at < len(detect_selections):
+            selected = set(detect_selections[at] or []) | set(detect_more_selections[at] or [])
         clicked = ctx.triggered[0].get("value") if ctx.triggered else None
         if not clicked or not store or not selected:
             return [dash.no_update] * len(rows)
@@ -1802,7 +1839,7 @@ def variable_values_inline(values):
     if len(shown) > hard_settings.max_preview_values:
         shown = shown[:hard_settings.max_preview_values - 2] + ["[...]"] + [shown[-1]]
     return [
-        html.Span(f"{len(values)} values", className="odx-variable-count"),
+        html.Span(f"{len(values)} value{'' if len(values) == 1 else 's'}", className="odx-variable-count"),
         html.Span(", ".join(map(str, shown)), className="odx-variable-values-list"),
     ]
 

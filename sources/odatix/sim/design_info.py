@@ -136,7 +136,8 @@ def read_filelist(path, root, _seen=None):
   One or more entries per line; "//" and "#" start a comment. "+incdir+a+b"
   adds include directories, "-f"/"-F" another filelist; other options are
   ignored, as are files that are not HDL sources. Relative paths are relative
-  to the directory of the filelist naming them, and environment variables are
+  to the directory of the filelist naming them (or to `root` when they do not
+  exist there, as some designs write them), and environment variables are
   expanded.
 
   Returns:
@@ -150,7 +151,9 @@ def read_filelist(path, root, _seen=None):
   def resolve(entry):
     entry = os.path.expandvars(entry)
     if not os.path.isabs(entry):
-      entry = os.path.join(base, entry)
+      local = os.path.join(base, entry)
+      from_root = os.path.join(root, entry)
+      entry = from_root if not os.path.exists(local) and os.path.exists(from_root) else local
     return entry
 
   tokens = []

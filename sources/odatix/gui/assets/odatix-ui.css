@@ -2178,6 +2178,14 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
     box-sizing: border-box;
 }
 
+/* As wide as the title tiles above it, which shrink to one tile width. */
+@media screen and (max-width: 1250px) {
+    .card-matrix.configs.odx-variable-list {
+        /* The tile width, plus the side padding of the list. */
+        max-width: calc(var(--tile-width) + 10px);
+    }
+}
+
 /* Name, type and values on one line; the actions at the end of it. */
 .odx-variable-head {
     display: flex;
@@ -2312,6 +2320,8 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
     flex-direction: row;
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 .odx-config-card-save {
@@ -2335,6 +2345,10 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
     align-items: center;
     margin-left: 0px;
     gap: 6px;
+    /* the chip and two buttons: wider than the 100px of .inline-flex-buttons */
+    width: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .odx-config-origin {
@@ -2523,6 +2537,19 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
     font-size: 12px;
     white-space: nowrap;
 }
+.odx-detect-more {
+    margin-top: var(--space-3);
+}
+.odx-detect-more-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+.odx-detect-more-title {
+    opacity: 0.65;
+    font-size: 13px;
+}
 .odx-detect-footer {
     display: flex;
     align-items: center;
@@ -2530,6 +2557,15 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
     gap: var(--space-3);
     flex-wrap: wrap;
     margin-top: var(--space-3);
+}
+/* Three buttons: wider than the 100px of .inline-flex-buttons, and wrapped
+   rather than spilled out of the panel when the window is narrow. */
+.odx-detect-footer > .inline-flex-buttons {
+    width: auto;
+    max-width: 100%;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    margin-left: auto;
 }
 @media screen and (max-width: 560px) {
     .odx-detect-row {
