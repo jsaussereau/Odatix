@@ -233,7 +233,7 @@ def template_simulation(workspace, name, template, testbench):
         "template": template,
         "testbench": {
             "files": ["tb/" + testbench],
-            "parameters": {"WIDTH": "${width}", "ITERATIONS": "${iterations}"},
+            "parameters": {"WIDTH": "${WIDTH}", "ITERATIONS": "${ITERATIONS}"},
         },
     }
     (sims / name / "_settings.yml").write_text(yaml.dump(settings), encoding="utf-8")
@@ -261,19 +261,19 @@ def set_architecture_testbench(workspace, architecture, testbench):
     path.write_text(yaml.dump(data), encoding="utf-8")
 
 
-CORDIC = "Example_Cordic_{} + iterations/12 + width/8"
+CORDIC = "Example_Cordic_{} + ITERATIONS/12 + WIDTH/8"
 
 
 class TestRuns:
     def test_a_template_is_named_in_a_run(self, example_workspace, fake_simulators):
         plan = Run(Workspace.open(), "simulation", simulations=["ghdl"], architectures=[CORDIC.format("vhdl")]).check()
-        assert [entry["name"] for entry in plan.entries] == ["ghdl: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
+        assert [entry["name"] for entry in plan.entries] == ["ghdl: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:8]"]
         assert plan_names(plan, "error") == []
 
     def test_a_language_the_simulator_does_not_compile_is_refused_at_check(self, example_workspace, fake_simulators):
         run = Run(Workspace.open(), "simulation", simulations=["verilator", "ghdl"], architectures=[CORDIC.format("vhdl")])
         plan = run.check()
-        assert plan_names(plan, "error") == ["verilator: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
+        assert plan_names(plan, "error") == ["verilator: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:8]"]
         assert any('"verilator" cannot compile vhdl' in str(message) for message in run.reporter.messages)
 
     def test_so_is_the_language_of_the_testbench(self, example_workspace, fake_simulators):
@@ -287,7 +287,7 @@ class TestRuns:
         os.environ["PATH"] = str(fake_simulators)
         run = Run(Workspace.open(), "simulation", simulations=["questa", "ghdl"], architectures=[CORDIC.format("vhdl")])
         plan = run.check()
-        assert plan_names(plan, "error") == ["questa: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]"]
+        assert plan_names(plan, "error") == ["questa: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:8]"]
         assert any('"questa" runs "vsim", which is not in the PATH' in str(message) for message in run.reporter.messages)
 
     def test_an_unknown_simulation(self, example_workspace, fake_simulators):

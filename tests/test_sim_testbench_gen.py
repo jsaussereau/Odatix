@@ -244,8 +244,8 @@ class TestRuns:
         ("questa", "Example_Counter_vhdl/08bits"),
         ("questa", "Example_Counter_verilog/08bits"),
         ("xsim", "Example_Counter_sv/08bits"),
-        ("ghdl", "Example_Cordic_vhdl + iterations/12 + width/8"),
-        ("icarus", "Example_Cordic_sv + iterations/12 + width/8"),
+        ("ghdl", "Example_Cordic_vhdl + ITERATIONS/12 + WIDTH/8"),
+        ("icarus", "Example_Cordic_sv + ITERATIONS/12 + WIDTH/8"),
     ]
 
     @pytest.mark.integration

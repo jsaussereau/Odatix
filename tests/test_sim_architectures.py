@@ -333,7 +333,7 @@ class TestWhatARunSubstitutes(TestSimulationHandlerReadsIt):
     """
 
     ARCH = "Example_Cordic_sv"
-    SELECTION = ARCH + " + width/8 + iterations/12"
+    SELECTION = ARCH + " + WIDTH/8 + ITERATIONS/12"
 
     def _sim_with(self, overrides):
         self._write(
@@ -341,7 +341,7 @@ class TestWhatARunSubstitutes(TestSimulationHandlerReadsIt):
             "architectures:\n"
             "  - " + self.ARCH + ":\n"
             "      param_domains:\n"
-            "        width:\n" + overrides + self.TASKS,
+            "        WIDTH:\n" + overrides + self.TASKS,
         )
         os.makedirs("odatix_userconfig/simulations/TB_Combining/tb_params", exist_ok=True)
         with open("odatix_userconfig/simulations/TB_Combining/tb_params/8.txt", "w", encoding="utf-8") as f:
@@ -351,7 +351,7 @@ class TestWhatARunSubstitutes(TestSimulationHandlerReadsIt):
 
         simulations = self._handler().get_simulations([{"TB_Combining": [self.SELECTION]}])
         assert len(simulations) == 1
-        return [pd for pd in simulations[0].architecture.param_domains if pd.domain == "width"]
+        return [pd for pd in simulations[0].architecture.param_domains if pd.domain == "WIDTH"]
 
     def test_a_parameter_file_replaces_the_configuration(self, example_workspace):
         domains = self._sim_with('          param_file: "fixed.txt"\n')
@@ -372,7 +372,7 @@ class TestWhatARunSubstitutes(TestSimulationHandlerReadsIt):
         assert len(domains) == 2
         architectures, simulations = domains
         # The architecture's substitution is untouched...
-        assert architectures.param_file.endswith(os.path.join("width", "8.txt"))
+        assert architectures.param_file.endswith(os.path.join("WIDTH", "8.txt"))
         assert not architectures.param_target_file.endswith("tb/tb.sv")
         # ...and the simulation's is done as well, inheriting the delimiters.
         assert simulations.param_file.endswith(os.path.join("tb_params", "8.txt"))
@@ -431,7 +431,7 @@ class TestWhatARunSubstitutes(TestSimulationHandlerReadsIt):
             "architectures:\n"
             "  - " + self.ARCH + ":\n"
             "      param_domains:\n"
-            "        width: tb/tb.sv\n" + self.TASKS,
+            "        WIDTH: tb/tb.sv\n" + self.TASKS,
         )
         assert self._handler().get_simulations([{"TB_Empty": [self.SELECTION]}]) == []
         assert "must be a mapping, or a list of mappings" in capsys.readouterr().out
@@ -442,7 +442,7 @@ class TestWhatARunSubstitutes(TestSimulationHandlerReadsIt):
             "architectures:\n"
             "  - " + self.ARCH + ":\n"
             "      param_domains:\n"
-            "        width:\n"
+            "        WIDTH:\n"
             '          param_dir: "tb_params"\n' + self.TASKS,
         )
         os.makedirs("odatix_userconfig/simulations/TB_Missing/tb_params", exist_ok=True)
@@ -457,7 +457,7 @@ class TestTheDirectorySaysHowItIsWritten(TestSimulationHandlerReadsIt):
     """
 
     ARCH = "Example_Cordic_sv"
-    SELECTION = ARCH + " + width/8 + iterations/12"
+    SELECTION = ARCH + " + WIDTH/8 + ITERATIONS/12"
 
     def _sim_with(self, directory_settings):
         self._write(
@@ -465,7 +465,7 @@ class TestTheDirectorySaysHowItIsWritten(TestSimulationHandlerReadsIt):
             "architectures:\n"
             "  - " + self.ARCH + ":\n"
             "      param_domains:\n"
-            "        width:\n"
+            "        WIDTH:\n"
             '          param_dir: "tb_params"\n' + self.TASKS,
         )
         os.makedirs("odatix_userconfig/simulations/TB_Directory/tb_params", exist_ok=True)
@@ -476,7 +476,7 @@ class TestTheDirectorySaysHowItIsWritten(TestSimulationHandlerReadsIt):
                 f.write(directory_settings)
         simulations = self._handler().get_simulations([{"TB_Directory": [self.SELECTION]}])
         assert len(simulations) == 1
-        return [pd for pd in simulations[0].architecture.param_domains if pd.domain == "width"]
+        return [pd for pd in simulations[0].architecture.param_domains if pd.domain == "WIDTH"]
 
     def test_the_directory_settings_are_read(self, example_workspace):
         domains = self._sim_with(
@@ -503,7 +503,7 @@ class TestTheDirectorySaysHowItIsWritten(TestSimulationHandlerReadsIt):
             "architectures:\n"
             "  - " + self.ARCH + ":\n"
             "      param_domains:\n"
-            "        width:\n"
+            "        WIDTH:\n"
             '          param_dir: "tb_params"\n'
             '          param_target_file: "tb/from_entry.sv"\n' + self.TASKS,
         )
@@ -514,7 +514,7 @@ class TestTheDirectorySaysHowItIsWritten(TestSimulationHandlerReadsIt):
             f.write("param_target_file: tb/from_directory.sv\n")
         simulations = self._handler().get_simulations([{"TB_Legacy": [self.SELECTION]}])
         assert len(simulations) == 1
-        domains = [pd for pd in simulations[0].architecture.param_domains if pd.domain == "width"]
+        domains = [pd for pd in simulations[0].architecture.param_domains if pd.domain == "WIDTH"]
         assert domains[0].param_target_file == "tb/from_entry.sv"
 
 

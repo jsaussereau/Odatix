@@ -33,6 +33,24 @@ def test_store_loads_results_and_query_filters_missing_values(tmp_path):
     assert store.units() == {"area": "um2"}
 
 
+def test_a_simulation_is_charted_under_the_configuration_a_synthesis_names(tmp_path):
+    # A simulation record keeps the main configuration alone: one x per run is
+    # given back by its domains, and the invariant ones stay out.
+    _write_results(
+        tmp_path / "results_simulation.yml",
+        [
+            {"meta": {"type": "simulation", "architecture": "cordic", "configuration": "cordic", "ITERATIONS": "12", "WIDTH": "8",
+                      "_arch_full": "cordic+ITERATIONS/12+WIDTH/8"}, "metrics": {"snr": 28.7}},
+            {"meta": {"type": "simulation", "architecture": "cordic", "configuration": "cordic", "WIDTH": "4",
+                      "_arch_full": "cordic+ITERATIONS/12+WIDTH/4", "_invariant_domains": ["ITERATIONS"]}, "metrics": {"snr": 1.8}},
+        ],
+    )
+    store = ResultStore()
+    store.configure(tmp_path)
+
+    assert store.dataframe()[schema.COL_CONFIGURATION].tolist() == ["cordic+ITERATIONS_12+WIDTH_8", "cordic+WIDTH_4"]
+
+
 def test_cascaded_dimensions_keep_a_dimension_reenableable(tmp_path):
     _write_results(
         tmp_path / "results_demo.yml",

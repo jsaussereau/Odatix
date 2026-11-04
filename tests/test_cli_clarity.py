@@ -327,7 +327,7 @@ class TestSimulations:
     def test_a_run_simulates_what_it_is_told(self, example_workspace, fake_simulators):
         run = Run(
             Workspace.open(), "simulation",
-            simulations=["TB_Example_Cordic_Verilator"], architectures=["Example_Cordic_sv + iterations/* + width/*"],
+            simulations=["TB_Example_Cordic_Verilator"], architectures=["Example_Cordic_sv + ITERATIONS/* + WIDTH/*"],
         )
         names = [entry["name"] for entry in run.check().entries]
         assert names

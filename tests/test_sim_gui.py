@@ -36,7 +36,7 @@ class TestApi:
         )
         written = yaml.safe_load(open(simulation.settings_path, encoding="utf-8").read())
         assert written == {"template": "questa", "testbench": {"parameters": {"WIDTH": "${width}"}}}
-        plan = Run(ws, "simulation", simulations=["TB_new"], architectures=["Example_Cordic_vhdl + iterations/12 + width/8"]).check()
+        plan = Run(ws, "simulation", simulations=["TB_new"], architectures=["Example_Cordic_vhdl + ITERATIONS/12 + WIDTH/8"]).check()
         assert [entry["category"] for entry in plan.entries] == ["new"]
 
     def test_metrics_set_on_a_simulation_are_saved(self, example_workspace):

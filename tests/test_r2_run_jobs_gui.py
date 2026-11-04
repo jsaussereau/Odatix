@@ -211,9 +211,11 @@ class TestLoad:
     def test_frequency_note_follows_the_override(self):
         from odatix.gui.jobs_config.settings_form import frequency_fields_class, frequency_note
         assert "ignored" in frequency_note("fmax_synthesis", False)
-        assert "own frequencies" in frequency_note("custom_freq_synthesis", False)
-        assert "inactive" in frequency_fields_class(False)
-        assert "inactive" not in frequency_fields_class(True)
+        assert "Default frequencies" in frequency_note("custom_freq_synthesis", False)
+        assert "inactive" in frequency_fields_class("fmax_synthesis", False)
+        assert "inactive" not in frequency_fields_class("fmax_synthesis", True)
+        # Without the override, fixed frequencies are defaults: never dimmed.
+        assert "inactive" not in frequency_fields_class("custom_freq_synthesis", False)
 
 
 def test_a_run_with_everything_done_says_nothing_to_run(page, monkeypatch):
