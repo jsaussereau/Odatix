@@ -96,6 +96,7 @@ Examples:
 | Synopsys Design Compiler (and DC NXT)                            | ✔️ supported        |
 | Cadence Genus                                                    | ✔️ supported        |
 | [LibreLane](https://github.com/librelane/librelane)              | ✔️ supported        |
+| [Yosys](https://github.com/YosysHQ/yosys) + [nextpnr](https://github.com/YosysHQ/nextpnr) (ECP5, iCE40) | ✔️ supported |
 | [OpenLane 1](https://github.com/The-OpenROAD-Project/OpenLane)   | ✔️ supported        |
 
 ### **Place & route**
@@ -103,7 +104,6 @@ Examples:
 | EDA Tool                                                         | Status              |
 | :--------------------------------------------------------------- | :------------------ |
 | Cadence Innovus                                                  | ✔️ supported        |
-| Synopsys IC Compiler II                                          | 🧪 experimental     |
 
 See [Install supported EDA tools](https://odatix.readthedocs.io/en/latest/install/eda_tools/) for how to set each one up.
 
