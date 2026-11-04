@@ -19,7 +19,7 @@ Result files live in the results directory (`results/` by default) and are named
 | `results_<tool>.yml` | Synthesis, fixed-frequency and place & route results of one EDA tool (`results_vivado.yml`, `results_design_compiler.yml`, …). |
 | `results_simulation.yml` | Simulation results. |
 | `results_workflow.yml` | Workflow results. |
-| `results_analysis_<tool>.yml` | RTL analysis results of one tool: one record per design and configuration, with its verdict and its warning and error counts. Shown by the **RTL Analysis** page of Explorer rather than by the charts. |
+| `analysis/<tool>.yml` | RTL analysis results of one tool: one record per design and configuration, with its verdict and its warning and error counts. Shown by the **RTL Analysis** page of Explorer rather than by the charts. |
 
 One file per source keeps things separable — you can delete, regenerate or share a single tool's results without touching the others. [Odatix Explorer](/docs/gui/explorer/) reads every result file it finds in the directory and presents them together, and [derived metrics](/docs/results/derived_metrics/) are exactly the mechanism that connects records across those files.
 

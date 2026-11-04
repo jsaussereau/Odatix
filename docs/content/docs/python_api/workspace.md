@@ -1179,7 +1179,7 @@ Supports `x["name"]`, iteration.
 
 ### `ToolSettings`
 
-`ToolSettings(label='', description='', icon='', icon_filter=False, process_group=True, target_file='', default_metrics_file='', flows=None, format=None, extra=None, extends='')`
+`ToolSettings(label='', description='', icon='', icon_filter=False, process_group=True, target_file='', default_metrics_file='', flows=None, format=None, extra=None, extends='', tags=None)`
 
 The settings of a tool, as its "tool.yml" describes them.
 

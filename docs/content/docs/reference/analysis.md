@@ -220,13 +220,13 @@ expected:
 
 ## Analysis records
 
-Each result is one record of `results/results_analysis_<tool>.yml`, written as
+Each result is one record of `results/analysis/<tool>.yml`, written as
 soon as its job ends, whether the tool succeeded or not: an analysis that found
 errors is a result too. It is what the
 [Explorer](/docs/features/explorer/) RTL Analysis page and `odatix results analysis`
 read.
 
-{{< code lang=yaml filename="results/results_analysis_verilator.yml" >}}
+{{< code lang=yaml filename="results/analysis/verilator.yml" >}}
 schema: 2
 units: {}
 results:

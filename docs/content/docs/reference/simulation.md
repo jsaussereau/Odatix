@@ -117,8 +117,8 @@ testbench:
   top: tb_cordic
   files: [tb/tb_cordic.sv]
   parameters:
-    WIDTH: ${width}
-    ITERATIONS: ${iterations}
+    WIDTH: ${WIDTH}
+    ITERATIONS: ${ITERATIONS}
 {{< /code >}}
 
 Without `top`, Odatix takes `tb_<top_level_module>` when the testbench defines
@@ -189,7 +189,7 @@ parameters of the configuration are written into the RTL:
 simulation: TB_Example_Cordic_QuestaSim
 architecture: Example_Cordic_vhdl
 configuration: Example_Cordic_vhdl
-arch_full: Example_Cordic_vhdl+iterations/12+width/8
+arch_full: Example_Cordic_vhdl+ITERATIONS/12+WIDTH/8
 dut:
   top: cordic
   clock: clock
@@ -213,8 +213,8 @@ testbench:
     ITERATIONS: '12'
   include_dirs: []
 param_domains:
-  iterations: '12'
-  width: '8'
+  ITERATIONS: '12'
+  WIDTH: '8'
 parallel_jobs: 1
 {{< /code >}}
 
@@ -404,15 +404,15 @@ architectures:
   - Example_Cordic_sv:
       param_domains:
         width:
-          param_dir: "tb_params/width"          # tb_params/width/8bits.txt, 16bits.txt, ...
+          param_dir: "tb_params/width"          # tb_params/WIDTH/8bits.txt, 16bits.txt, ...
 {{< /code >}}
 
 {{< code lang=yaml filename="tb_params/width/_settings.yml" >}}
 param_target_file: "tb/tb_cordic.sv"
 
 configurations:
-  name: "${width}bits"
-  template: "localparam TB_WIDTH = ${width};"
+  name: "${WIDTH}bits"
+  template: "localparam TB_WIDTH = ${WIDTH};"
 
 variables:
   width:

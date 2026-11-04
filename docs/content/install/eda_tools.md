@@ -5,12 +5,27 @@ date: 2026-05-15
 author: "Jonathan Saussereau"
 description: "Install and configure the EDA tools supported by Odatix."
 categories: ["Tutorial", "Installation"]
-tags: ["eda", "vivado", "quartus", "openlane", "verilator", "ghdl"]
+tags: ["eda", "vivado", "quartus", "openlane", "verilator", "ghdl", "yosys", "nextpnr"]
 ---
 
 {{< toc >}}
 
 # Synthesis
+
+## Install Yosys and nextpnr (FPGA)
+
+Yosys and nextpnr are the open source FPGA flow: Yosys synthesizes the design
+for a Lattice ECP5 or iCE40, nextpnr places and routes it and says the frequency
+the routed design reaches. Odatix runs them as the `yosys_fpga` tool, for an
+Fmax or a synthesis at given frequencies, on Linux, macOS and Windows alike,
+without a license.
+
+Both come with the OSS CAD Suite: see [Install the OSS CAD
+Suite](/install/oss_cad_suite/). Distribution packages of nextpnr are often
+too old, or built without the ECP5.
+
+The targets are in `odatix_userconfig/targets/target_yosys_fpga.yml`, as
+`<family>-<device>-<package>[-<speed>]` (`ecp5-25k-CABGA381-6` by default).
 
 ## Install LibreLane
 
@@ -193,6 +208,10 @@ is checked, and skipped.
 GHDL (VHDL), Verilator and Icarus Verilog (Verilog, SystemVerilog) are free and
 packaged by most Linux distributions.
 
+> [!NOTE]
+> The [OSS CAD Suite](/install/oss_cad_suite/) packages recent builds of Yosys,
+> nextpnr, Verilator, Icarus Verilog and GHDL for Linux, macOS and Windows alike.
+> Alternatively, the tools can be installed from their own sources or through a package manager:
 
 ## Install Verilator
 
@@ -229,9 +248,8 @@ $ sudo pacman -S verilator --noconfirm
 
 {{% tab name="Windows" %}}
 
-The [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build) ships
-Verilator, Icarus Verilog and Yosys for Windows: extract it and add its `bin`
-and `lib` directories to the `PATH`. Its Verilator runs RTL analyses; a
+The [OSS CAD Suite](/install/oss_cad_suite/#windows) ships Verilator, Icarus
+Verilog and Yosys for Windows. Its Verilator runs RTL analyses; a
 Verilator simulation needs a C++ compiler and `make`, simpler to get in
 [WSL](#tools-of-linux-on-windows-wsl).
 
@@ -361,16 +379,11 @@ $ sudo pacman -S yosys --noconfirm
 
 {{% tab name="Windows" %}}
 
-Install the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), and
-add its `bin` and `lib` directories to the `PATH`.
+Install the [OSS CAD Suite](/install/oss_cad_suite/#windows).
 
 {{% /tab %}}
 
 {{< /tabs >}}
-
-The [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build) packages
-recent builds of Yosys, Verilator and Icarus Verilog for Linux, macOS and
-Windows alike.
 
 
 # Tools of Linux on Windows (WSL)

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" width="640" height="420" fill="none" role="img" aria-label="Create a workspace: one init command in a terminal produces a workspace directory holding designs, testbenches and settings">
+  <defs>
+    <linearGradient id="ws-accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="ws-panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="ws-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#059669" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#059669" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="24" y="18" width="592" height="384" rx="40" fill="url(#ws-panel)"/>
+  <rect x="24" y="18" width="592" height="384" rx="40" stroke="#e2e8f0" stroke-width="2"/>
+  <circle cx="110" cy="370" r="160" fill="url(#ws-glow)"/>
+
+  <g fill="#64748b" font-family="Inter, system-ui, sans-serif" font-size="15" font-weight="600">
+    <text x="64" y="92">terminal</text>
+    <text x="386" y="92">your workspace</text>
+  </g>
+
+  <!-- terminal -->
+  <rect x="64" y="112" width="200" height="150" rx="20" fill="#0f172a"/>
+  <g fill="#334155"><circle cx="86" cy="132" r="5"/><circle cx="102" cy="132" r="5"/><circle cx="118" cy="132" r="5"/></g>
+  <g font-family="ui-monospace, monospace" font-size="13" font-weight="600">
+    <text x="82" y="172" fill="#34d399">$</text><text x="96" y="172" fill="#e2e8f0">odatix init</text>
+    <text x="96" y="192" fill="#e2e8f0">--examples</text>
+    <text x="82" y="222" fill="#34d399">$</text><text x="96" y="222" fill="#e2e8f0">odatix ls</text>
+  </g>
+  <rect x="82" y="236" width="10" height="14" fill="#34d399" opacity="0.8"/>
+
+  <!-- arrow -->
+  <path d="M282 220h28" stroke="#6ee7b7" stroke-width="6" stroke-linecap="round"/>
+  <path d="m304 208 16 12-16 12" stroke="#34d399" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- workspace folder -->
+  <path d="M356 112h56l14 16h124c14.4 0 26 11.6 26 26v148c0 14.4-11.6 26-26 26H356c-14.4 0-26-11.6-26-26V138c0-14.4 11.6-26 26-26z" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <path d="M356 112h56l14 16h124c14.4 0 26 11.6 26 26v6H330v-22c0-14.4 11.6-26 26-26z" fill="url(#ws-accent)"/>
+  <g>
+    <rect x="350" y="172" width="206" height="36" rx="12" fill="#f8fafc"/>
+    <rect x="366" y="182" width="16" height="16" rx="5" fill="url(#ws-accent)"/>
+    <rect x="396" y="185" width="70" height="10" rx="5" fill="#cbd5e1"/><rect x="480" y="185" width="58" height="10" rx="5" fill="#a7f3d0"/>
+    <rect x="350" y="218" width="206" height="36" rx="12" fill="#f8fafc"/>
+    <rect x="366" y="228" width="16" height="16" rx="5" fill="url(#ws-accent)"/>
+    <rect x="396" y="231" width="88" height="10" rx="5" fill="#cbd5e1"/><rect x="498" y="231" width="40" height="10" rx="5" fill="#a7f3d0"/>
+    <rect x="350" y="264" width="206" height="36" rx="12" fill="#f8fafc"/>
+    <rect x="366" y="274" width="16" height="16" rx="5" fill="url(#ws-accent)"/>
+    <rect x="396" y="277" width="56" height="10" rx="5" fill="#cbd5e1"/><rect x="466" y="277" width="72" height="10" rx="5" fill="#a7f3d0"/>
+  </g>
+</svg>

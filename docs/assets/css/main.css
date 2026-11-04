@@ -144,7 +144,15 @@
     @apply text-green-400;
   }
 
-  .highlight .mi, .highlight .mf {
+  .highlight .nt {
+    @apply text-blue-400;
+  }
+
+  .highlight .kc {
+    @apply text-purple-400;
+  }
+
+  .highlight .mi, .highlight .mf, .highlight .m {
     @apply text-orange-400;
   }
 
@@ -3232,4 +3240,10 @@ details[open] > summary.admonition-header::before {
   --adm-caution-rgb: 230, 69, 83;
   --adm-info: #04a5e5;
   --adm-info-rgb: 4, 165, 229;
+}
+
+img.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }

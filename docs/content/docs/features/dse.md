@@ -127,6 +127,6 @@ What an exploration found is on the **Exploration** page of Odatix Explorer.
 
 ## Where to go next
 
-- **Tutorials** — [Workshop: let the search do the work](/tutorials/workshop/dse/)
+- **Tutorials** — [Workshop: let the search do the work](/tutorials/workshop/finale/dse/)
 - **Reference** — [Design space exploration](/docs/reference/dse/) · [Exclusions](/docs/configurations/exclusions/)
 - **Related features** — [Architecture exploration](/docs/features/architecture-exploration/), which defines the space · [Results exploration](/docs/features/explorer/), where the front is drawn.

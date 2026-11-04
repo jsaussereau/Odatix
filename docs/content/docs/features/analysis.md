@@ -134,7 +134,7 @@ At the end of the run, `odatix analyze` prints:
    Other      ×10 in 10 designs (quartus): Quartus advises the Reset Release IP for every Agilex design
 {{< /code >}}
 
-Every result is also a record of `results/results_analysis_<tool>.yml`, written
+Every result is also a record of `results/analysis/<tool>.yml`, written
 as soon as its job ends — whether the tool found errors or not. A finished analysis
 is not run again unless `-o/--overwrite` is given: after fixing the RTL, run
 `odatix analyze -o`. Five metrics come

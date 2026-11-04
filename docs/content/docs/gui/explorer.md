@@ -71,7 +71,14 @@ The sidebar has three tabs.
 
 **Filters**
 : **Rules** keep the records whose metrics meet a condition (`LUT_count < 1000`),
-  and say how many records they keep. Below, one checklist per dimension
+  and say how many records they keep. **Invert** turns
+  the rules around, to select the records that do not meet them. **Records
+  outside the rules** sets what becomes of the others: hidden (the default),
+  dimmed (points and lines faded) or highlighted: `worst_slack >= 0` with
+  **Highlight** shows the designs that miss timing; inverted, it highlights
+  the others. A highlight has a color and an effect: **Large** (bigger points
+  in that color), **Color** (recolored points) or **Ring** (an outline). Marked
+  records are styled in the table too, and the CSV export gains a `Matches rules` column. Below, one checklist per dimension
   (architecture, target, frequency, step scope...) hides values. By default
   only the last step of each job is shown (**Step scope**: last): check
   `intermediate` to see the other steps too.

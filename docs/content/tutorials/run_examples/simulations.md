@@ -11,7 +11,7 @@ featured_image: "/images/features/simulation.svg"
 
 {{< toc >}}
 
-In this tutorial, you will run **simulations** for every configuration of a Cordic example design. This design has two parameters: `iterations` and `width`. Each parameter has several values, which combine into several configurations. Odatix will run a simulation for each configuration, in parallel. This example has two identical implementations, one in SystemVerilog and one in VHDL.
+In this tutorial, you will run **simulations** for every configuration of a Cordic example design. This design has two parameters: `ITERATIONS` and `WIDTH`. Each parameter has several values, which combine into several configurations. Odatix will run a simulation for each configuration, in parallel. This example has two identical implementations, one in SystemVerilog and one in VHDL.
 
 ## Prerequisites
 
@@ -63,21 +63,21 @@ Open `odatix_userconfig/sim_settings.yml`. Each entry maps a **simulation** to t
 
 {{< code lang=yaml filename="odatix_userconfig/sim_settings.yml" linenos="true" linenostart="48" >}}
   - TB_Example_Cordic_Verilator:
-    - Example_Cordic_sv + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
  
   - TB_Example_Cordic_Icarus:
-    - Example_Cordic_sv + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
 
   - TB_Example_Cordic_GHDL:
-    - Example_Cordic_vhdl + iterations/* + width/*
+    - Example_Cordic_vhdl + ITERATIONS/* + WIDTH/*
 
   - TB_Example_Cordic_QuestaSim:
-    - Example_Cordic_sv + iterations/* + width/*
-    - Example_Cordic_vhdl + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
+    - Example_Cordic_vhdl + ITERATIONS/* + WIDTH/*
 
   - TB_Example_Cordic_Vivado:
-    - Example_Cordic_sv + iterations/* + width/*
-    - Example_Cordic_vhdl + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
+    - Example_Cordic_vhdl + ITERATIONS/* + WIDTH/*
 
   # - TB_Example_Counter_GHDL:
   #   - Example_Counter_vhdl/*
@@ -95,7 +95,7 @@ jobs and skipped, so you can keep the five of them. To run a single one, name it
 on the command line instead: `odatix sim -s TB_Example_Cordic_Verilator`.
 
 > [!NOTE]
-> The `*` wildcard selects all configurations in the architecture's directory. You can replace it with a specific configuration name, or use multiple lines to select several configurations. Here ` + iterations/* + width/*` means "all combinations of the `iterations` and `width` parameters". 
+> The `*` wildcard selects all configurations in the architecture's directory. You can replace it with a specific configuration name, or use multiple lines to select several configurations. Here ` + ITERATIONS/* + WIDTH/*` means "all combinations of the `ITERATIONS` and `WIDTH` parameters". 
 
 ### Step 3 — Run
 
@@ -113,69 +113,69 @@ $ odatix sim
 
 
 <b>New simulations:</b>
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:4]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:8]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:12]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:4]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:8]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:12]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:4]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:8]
-  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:12]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:4]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:8]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:12]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:4]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:8]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:12]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:4]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:8]
-  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:12]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:4]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:12]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:4]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:8]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:12]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:4]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:8]
-  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:12]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:4]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:8]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:12]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:4]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:8]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:12]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:4]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:8]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:12]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:4]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:12]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:4]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:8]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:12]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:4]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:8]
-  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:12]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:4]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:8]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:12, width:12]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:4]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:8]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:16, width:12]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:4]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:8]
-  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [iterations:24, width:12]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:4]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:8]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:12, width:12]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:4]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:8]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:16, width:12]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:4]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:8]
-  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [iterations:24, width:12]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:4]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:8]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:12]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:4]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:8]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:12]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:4]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:8]
+  - TB_Example_Cordic_Verilator: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:12]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:4]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:8]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:12]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:4]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:8]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:12]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:4]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:8]
+  - TB_Example_Cordic_Icarus: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:12]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:4]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:8]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:12]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:4]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:8]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:12]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:4]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:8]
+  - TB_Example_Cordic_GHDL: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:12]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:4]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:8]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:12]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:4]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:8]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:12]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:4]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:8]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:12]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:4]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:8]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:12]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:4]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:8]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:12]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:4]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:8]
+  - TB_Example_Cordic_QuestaSim: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:12]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:4]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:8]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:12, WIDTH:12]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:4]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:8]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:16, WIDTH:12]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:4]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:8]
+  - TB_Example_Cordic_Vivado: Example_Cordic_sv/Example_Cordic_sv [ITERATIONS:24, WIDTH:12]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:4]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:8]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:12, WIDTH:12]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:4]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:8]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:16, WIDTH:12]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:4]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:8]
+  - TB_Example_Cordic_Vivado: Example_Cordic_vhdl/Example_Cordic_vhdl [ITERATIONS:24, WIDTH:12]
 
 <b>Total: 54</b>
 Continue? (Y/n)

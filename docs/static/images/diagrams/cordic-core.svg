@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 380" width="840" height="380" role="img" aria-labelledby="cd-title cd-desc">
+  <title id="cd-title">The CORDIC core</title>
+  <desc id="cd-desc">Pipelined CORDIC rotation core: inputs clock, reset, i_valid, i_x and i_y on WIDTH bits, i_angle on 32 bits; outputs o_valid, o_x and o_y on WIDTH bits. Two parameters: WIDTH and ITERATIONS. Latency is ITERATIONS + 2 cycles.</desc>
+  <style>
+    .bg    { fill: #ffffff; }
+    .core  { fill: #eef1fc; stroke: #99abec; stroke-width: 1.5; }
+    .param { fill: #faf5ff; stroke: #d8b4fe; stroke-width: 1.2; }
+    .wire  { fill: none; stroke: #94a3b8; stroke-width: 1.5; }
+    .arrow { fill: none; stroke: #94a3b8; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .t     { font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif; fill: #0f172a; }
+    .port  { font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; fill: #0f172a; }
+    .bus   { font-size: 10.5px; font-weight: 700; fill: #7e22ce; }
+    .h     { font-size: 18px; font-weight: 700; fill: #283680; }
+    .mut   { font-size: 11.5px; fill: #64748b; }
+    .eyebrow { font-size: 10.5px; font-weight: 700; fill: #64748b; letter-spacing: 0.08em; }
+    .pn    { font-size: 12px; font-weight: 700; fill: #7e22ce; }
+    .pv    { font-size: 11.5px; fill: #475569; }
+  </style>
+  <rect class="bg" width="840" height="380" rx="16"/>
+  <rect class="core" x="300" y="70" width="240" height="250" rx="14"/>
+  <text class="t h" x="420" y="102" text-anchor="middle">cordic</text>
+  <text class="t mut" x="420" y="122" text-anchor="middle">pipelined rotation</text>
+  <text class="t mut" x="420" y="190" text-anchor="middle">1 result per cycle</text>
+  <text class="t mut" x="420" y="208" text-anchor="middle">latency: ITERATIONS + 2</text>
+  <text class="t eyebrow" x="420" y="28" text-anchor="middle">PARAMETERS</text>
+  <rect class="param" x="280" y="36" width="100" height="24" rx="12"/>
+  <text class="t" x="330" y="52" text-anchor="middle"><tspan class="pn">WIDTH</tspan></text>
+  <rect class="param" x="460" y="36" width="110" height="24" rx="12"/>
+  <text class="t" x="515" y="52" text-anchor="middle"><tspan class="pn">ITERATIONS</tspan></text>
+  <path class="wire" d="M330 60V70M515 60V70" stroke-dasharray="4 4"/>
+  <path class="wire" d="M150 120H292"/><path class="arrow" d="m288 115 8 5-8 5"/>
+  <text class="t port" x="140" y="124" text-anchor="end">clock</text>
+  <path class="wire" d="M150 156H292"/><path class="arrow" d="m288 151 8 5-8 5"/>
+  <text class="t port" x="140" y="160" text-anchor="end">reset</text>
+  <path class="wire" d="M150 192H292"/><path class="arrow" d="m288 187 8 5-8 5"/>
+  <text class="t port" x="140" y="196" text-anchor="end">i_valid</text>
+  <path class="wire" d="M150 228H292"/><path class="arrow" d="m288 223 8 5-8 5"/>
+  <text class="t port" x="140" y="232" text-anchor="end">i_x</text>
+  <path class="wire" d="M220 234 230 222"/><text class="t bus" x="225" y="219" text-anchor="middle">WIDTH</text>
+  <path class="wire" d="M150 264H292"/><path class="arrow" d="m288 259 8 5-8 5"/>
+  <text class="t port" x="140" y="268" text-anchor="end">i_y</text>
+  <path class="wire" d="M220 270 230 258"/><text class="t bus" x="225" y="255" text-anchor="middle">WIDTH</text>
+  <path class="wire" d="M150 300H292"/><path class="arrow" d="m288 295 8 5-8 5"/>
+  <text class="t port" x="140" y="304" text-anchor="end">i_angle</text>
+  <path class="wire" d="M220 306 230 294"/><text class="t bus" x="225" y="291" text-anchor="middle">32</text>
+  <path class="wire" d="M540 192H682"/><path class="arrow" d="m678 187 8 5-8 5"/>
+  <text class="t port" x="700" y="196">o_valid</text>
+  <path class="wire" d="M540 228H682"/><path class="arrow" d="m678 223 8 5-8 5"/>
+  <text class="t port" x="700" y="232">o_x</text>
+  <path class="wire" d="M610 234 620 222"/><text class="t bus" x="615" y="219" text-anchor="middle">WIDTH</text>
+  <path class="wire" d="M540 264H682"/><path class="arrow" d="m678 259 8 5-8 5"/>
+  <text class="t port" x="700" y="268">o_y</text>
+  <path class="wire" d="M610 270 620 258"/><text class="t bus" x="615" y="255" text-anchor="middle">WIDTH</text>
+</svg>

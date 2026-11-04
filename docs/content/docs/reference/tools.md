@@ -26,8 +26,9 @@ This page is the schema. For the walkthrough, see
 |-----|------|-------------|
 | `label` | string | Human-readable name, shown in the GUI. |
 | `description` | string | One-line description, shown in the GUI. |
-| `icon` | path | Image replacing the default pictogram in the GUI. |
+| `icon` | path | Image replacing the default pictogram in the GUI, or `pictogram:<name>:<short name>` for a pictogram drawn in the theme colors, its short name in a badge (`synthesis`, `fpga`, `pnr`, `simulation`, ...). |
 | `icon_filter` | boolean | Recolor the icon to follow the theme (default: `false`). Useful for monochrome logos, invisible on a background of the same shade. |
+| `tags` | list | What the tool does and targets, shown as colored tags on its card: `synthesis`, `pnr`, `simulation`, `analysis`, `asic`, `fpga`, `open_source`. Any other word is shown as written. |
 | `default_flow` | string | Name of the flow the `unix` / `windows` commands belong to. Default `default`. |
 | `extends` | string | A tool this one is a variant of. See [Extending a tool](#extending-a-tool). |
 | `parameters` | mapping | Parameters of the default flow, inherited by every other flow. See [Flow parameters](#flow-parameters). |

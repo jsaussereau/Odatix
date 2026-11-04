@@ -25,7 +25,7 @@ package is installed, two things are left before your first job.
     <span class="install-next__step" aria-hidden="true">1</span>
     <span>
       <h3 class="install-next__title">Install your EDA tools</h3>
-      <p class="install-next__text">Vivado, Quartus, Design Compiler, Genus, OpenLane, Verilator, GHDL… at least one supported tool is required.</p>
+      <p class="install-next__text">Vivado, Quartus, Design Compiler, Genus, LibreLane, Yosys + nextpnr, Verilator, GHDL… at least one supported tool is required. No license? The OSS CAD Suite has a complete open source flow.</p>
     </span>
   </a>
   <a class="install-next__card" href="/tutorials/" style="--accent:#0d9488">

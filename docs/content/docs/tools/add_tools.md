@@ -57,8 +57,9 @@ Nothing else is registered anywhere: dropping this directory in
 |-----|------|---------|-------------|
 | `label` | string | the directory name | Display name in the GUI. |
 | `description` | string | — | One line, shown on the tool's card. |
-| `icon` | string | — | Image shown on the tool's card, relative to the GUI assets. |
+| `icon` | string | — | Image shown on the tool's card, relative to the GUI assets, or `pictogram:<name>:<short name>` for a pictogram in the theme colors. |
 | `icon_filter` | bool | `false` | Recolor the icon to follow the theme, for a monochrome logo. |
+| `tags` | list | — | Colored tags on the tool's card, e.g. `[synthesis, fpga]`. Known tags: `synthesis`, `pnr`, `simulation`, `analysis`, `asic`, `fpga`, `open_source`. |
 | `extends` | string | — | A tool this one is a variant of: it runs that tool's flows and scripts, and only says what differs. See [Extending a tool](/docs/reference/tools/#extending-a-tool). |
 | `process_group` | bool | `true` | Run each job in its own process group, so that pausing, resuming or killing it reaches the tool and everything it started. Set to `false` for tools that manage their own process group (containers, `make` wrappers): only the job's own process -- the shell running the command -- is then signaled, and whatever the tool started on its own is left running on purpose, for the tool to stop. See [Stopping a job](#stopping-a-job). |
 | `default_metrics_file` | string | `$tool_path/metrics.yml` when that file exists | Metrics definition file used at export time; use `$tool_path/metrics.yml` to point inside your own tool directory. Needed to export results: only a tool that measures nothing (an RTL linter) goes without. |

@@ -81,10 +81,10 @@ odatix_userconfig/
 ├── architectures/
 │   ├── Example_Cordic_sv/
 │   │   ├── _settings.yml               # main architecture settings
-│   │   ├── width/                      # 'width' parameter domain
+│   │   ├── WIDTH/                      # 'WIDTH' parameter domain
 │   │   │   ├── _settings.yml
 │   │   │   ├── 4.txt, 8.txt, 12.txt
-│   │   └── iterations/                 # 'iterations' parameter domain
+│   │   └── ITERATIONS/                 # 'ITERATIONS' parameter domain
 │   │       ├── _settings.yml
 │   │       └── 12.txt, 16.txt, 24.txt
 │   └── Example_Cordic_vhdl/            # same structure, VHDL delimiters
@@ -136,14 +136,14 @@ module cordic #(
 )(
 {{< /code >}}
 
-{{< code lang=yaml filename="architectures/Example_Cordic_sv/width/_settings.yml" >}}
+{{< code lang=yaml filename="architectures/Example_Cordic_sv/WIDTH/_settings.yml" >}}
 use_parameters: Yes
 param_target_file: ''
 start_delimiter: 'parameter WIDTH = '
 stop_delimiter: ','
 {{< /code >}}
 
-{{< code lang=yaml filename="architectures/Example_Cordic_sv/iterations/_settings.yml" >}}
+{{< code lang=yaml filename="architectures/Example_Cordic_sv/ITERATIONS/_settings.yml" >}}
 use_parameters: Yes
 param_target_file: ''
 start_delimiter: 'parameter ITERATIONS = '
@@ -154,7 +154,7 @@ stop_delimiter: '\n'
 
 The parameter files themselves hold nothing but the value to write:
 
-{{< code lang=text filename="architectures/Example_Cordic_sv/width/8.txt" >}}
+{{< code lang=text filename="architectures/Example_Cordic_sv/WIDTH/8.txt" >}}
 8
 {{< /code >}}
 
@@ -170,14 +170,14 @@ entity cordic is
   );
 {{< /code >}}
 
-{{< code lang=yaml filename="architectures/Example_Cordic_vhdl/width/_settings.yml" >}}
+{{< code lang=yaml filename="architectures/Example_Cordic_vhdl/WIDTH/_settings.yml" >}}
 use_parameters: Yes
 param_target_file: ''
 start_delimiter: 'WIDTH : integer := '
 stop_delimiter: ';'
 {{< /code >}}
 
-{{< code lang=yaml filename="architectures/Example_Cordic_vhdl/iterations/_settings.yml" >}}
+{{< code lang=yaml filename="architectures/Example_Cordic_vhdl/ITERATIONS/_settings.yml" >}}
 use_parameters: Yes
 param_target_file: ''
 start_delimiter: 'ITERATIONS : integer := '
@@ -187,7 +187,7 @@ stop_delimiter: '\n'
 Here again, `ITERATIONS` is the last generic of the clause and is followed by no `;`, so the replacement stops at the end of the line.
 
 > [!INFO]
-> The domain directories carry the **same names** (`width`, `iterations`) in both architectures. That is what makes the run settings below symmetric between the two languages: only the architecture name changes.
+> The domain directories carry the **same names** (`WIDTH`, `ITERATIONS`) in both architectures. That is what makes the run settings below symmetric between the two languages: only the architecture name changes.
 
 ## Simulation settings
 
@@ -201,12 +201,12 @@ testbench:
   top: tb_cordic
   files: [examples/cordic_tb/tb_cordic.vhdl]
   parameters:
-    WIDTH: ${width}
-    ITERATIONS: ${iterations}
+    WIDTH: ${WIDTH}
+    ITERATIONS: ${ITERATIONS}
 {{< /code >}}
 
 The testbench needs the width and the number of iterations of the configuration
-under test to build its reference model. `${width}` and `${iterations}` are the
+under test to build its reference model. `${WIDTH}` and `${ITERATIONS}` are the
 values of the two [parameter domains](/docs/configurations/param_domains/):
 each simulator receives them as the generics of the testbench top (`-g` for
 GHDL and Questa, `-generic_top` for xsim, `-G` for Verilator, `-P` for Icarus).
@@ -234,7 +234,7 @@ The `architectures` list is only an indication: running the testbench on another
 | `TB_Example_Cordic_Vivado` | `xsim` | either |
 
 A template can also be named directly in the run settings, with no
-simulation directory: `- verilator: [Example_Cordic_sv + iterations/* + width/*]`
+simulation directory: `- verilator: [Example_Cordic_sv + ITERATIONS/* + WIDTH/*]`
 runs the SystemVerilog testbench with Verilator, and reports only the metrics of
 the template (status, errors, times, cycles per second).
 
@@ -248,21 +248,21 @@ The two domains are combined with `+`, and `*` expands every value:
 
 {{< code lang=yaml filename="sim_settings.yml" >}}
   - TB_Example_Cordic_Verilator:
-    - Example_Cordic_sv + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
 
   - TB_Example_Cordic_Icarus:
-    - Example_Cordic_sv + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
 
   - TB_Example_Cordic_GHDL:
-    - Example_Cordic_vhdl + iterations/* + width/*
+    - Example_Cordic_vhdl + ITERATIONS/* + WIDTH/*
 
   - TB_Example_Cordic_QuestaSim:
-    - Example_Cordic_sv + iterations/* + width/*
-    - Example_Cordic_vhdl + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
+    - Example_Cordic_vhdl + ITERATIONS/* + WIDTH/*
 
   - TB_Example_Cordic_Vivado:
-    - Example_Cordic_sv + iterations/* + width/*
-    - Example_Cordic_vhdl + iterations/* + width/*
+    - Example_Cordic_sv + ITERATIONS/* + WIDTH/*
+    - Example_Cordic_vhdl + ITERATIONS/* + WIDTH/*
 {{< /code >}}
 
 With 3 widths (4, 8, 12) and 3 iteration counts (12, 16, 24), each line expands to 9 simulations.
@@ -290,7 +290,7 @@ metrics:
     format: '%.2f'
 {{< /code >}}
 
-The reported metrics fall into three groups (the configuration itself, `width` and `iterations`, is already in each record as its parameters):
+The reported metrics fall into three groups (the configuration itself, `WIDTH` and `ITERATIONS`, is already in each record as its parameters):
 
 - **Accuracy** — `max_error`, `rms_error`, `mean_error` (in LSB), `max_angle_error`, `rms_angle_error` (in degrees), `snr`, `enob`, `worst_case_angle`.
 - **Timing** — `latency` (cycles), `throughput` (samples/cycle).
