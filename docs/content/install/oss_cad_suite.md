@@ -201,17 +201,66 @@ and an RTL analysis with `verilator` needs nothing more.
 A simulation needs one more thing: Verilator turns the design into C++, which
 has to be compiled, and the suite has no C++ compiler on Windows. Odatix
 compiles it without `make` or Perl, with the `g++` or `clang++` it finds on the
-`PATH` (or the one `CXX` names). With [MSYS2](https://www.msys2.org/), for
-instance:
+`PATH` (or the one `CXX` names). Installing one takes ten to fifteen minutes,
+and about 1 GB of disk.
 
-{{< code lang=bash filename="MSYS2 UCRT64" prompt="true" >}}
+{{< tabs >}}
+
+{{% tab name="WinLibs (zip)" %}}
+
+The simplest: a zip, no installer, no administrator rights.
+
+1. Open the [download section of winlibs.com](https://winlibs.com/#download-release).
+   It has two tables: take the one titled **UCRT runtime** (not MSVCRT).
+2. In its first line (the latest release, **POSIX threads**), follow the
+   **Win64** link of the variant **without LLVM/Clang/LLD/LLDB**, as a **Zip
+   archive**. The file is named like
+   `winlibs-x86_64-posix-seh-gcc-<version>-mingw-w64ucrt-<version>.zip`, about
+   280 MB. The same files are on the [WinLibs GitHub
+   releases](https://github.com/brechtsanders/winlibs_mingw/releases/latest).
+3. Extract it, for instance to `C:\tools`: it creates `C:\tools\mingw64`.
+4. Add `C:\tools\mingw64\bin` to the `PATH`, **after** the two directories of
+   the suite (see below).
+
+{{% /tab %}}
+
+{{% tab name="MSYS2" %}}
+
+Better if you also develop in C or C++: a package manager keeps the compiler
+up to date.
+
+1. Install MSYS2 from [msys2.org](https://www.msys2.org/).
+2. In the **MSYS2 UCRT64** terminal:
+
+   {{< code lang=bash filename="MSYS2 UCRT64" prompt="true" >}}
 $ pacman -S mingw-w64-ucrt-x86_64-gcc
 {{< /code >}}
 
-then add `C:\msys64\ucrt64\bin` to the `PATH`, **after** the two directories of
-the suite. Without a compiler, a Verilator simulation fails at once and says
-so; the `icarus` template simulates the same SystemVerilog with nothing to
-install.
+3. Add `C:\msys64\ucrt64\bin` to the `PATH`, **after** the two directories of
+   the suite (see below).
+
+{{% /tab %}}
+
+{{< /tabs >}}
+
+Then, in a new terminal:
+
+{{< code lang=powershell filename="PowerShell" >}}
+PS> g++ --version
+{{< /code >}}
+
+> [!WARNING] The compiler goes after the suite on the PATH
+> The `lib` directory of the suite and the `bin` directory of the compiler both
+> hold a `libstdc++-6.dll`, of different versions. Yosys and nextpnr load
+> theirs from the `PATH`: with the compiler first, they get the wrong one and
+> stop at once (*The procedure entry point could not be located*, or exit code
+> `0xC0000139`). The other way round is safe: `g++` loads the libraries of its
+> own directory first, and Odatix links the simulator statically, so it needs
+> no library at all.
+
+Nothing else is needed: neither `make` nor Perl, Odatix finds `g++` on its own.
+Without a compiler, a Verilator simulation fails at once and says so; the
+`icarus` template simulates the same SystemVerilog with nothing to install.
 
 ### GHDL on Windows
 
@@ -255,5 +304,6 @@ project is as simple: keep the archive.
 | Windows: *The code execution cannot proceed because ... .dll was not found* | `lib` is missing from the `PATH`. |
 | Windows: every job fails with *No such file or directory* on a file that exists | The path of the job is longer than 260 characters: move the workspace to a shorter path. |
 | Windows: a Verilator simulation says no C++ compiler is in the `PATH` | See [Verilator simulations on Windows](#verilator-simulations-on-windows), or use the `icarus` template. |
+| Windows: Yosys or nextpnr stops at once with *entry point could not be located* (`0xC0000139`) since a compiler was installed | Its `bin` directory is before those of the suite on the `PATH`: move it after them. The same happens in a Git Bash or MSYS2 terminal, which puts its own `bin` first: start Odatix from PowerShell or a command prompt. |
 | `Can't load module './ghdl'` in a Yosys log | The GHDL plugin of this build does not match its Yosys. `yosys_fpga` does not use it (it runs `ghdl` itself), only scripts of your own calling `plugin -i ghdl` are affected. |
 | `yosys_fpga` reports a package with too few I/Os | nextpnr places every port of the design on a pin: take a larger package in `target_yosys_fpga.yml`. |
