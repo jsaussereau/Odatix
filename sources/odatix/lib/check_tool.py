@@ -200,7 +200,10 @@ def _print_check_failure(tool, supported_tools, error_message, debug, script_nam
   # would then only repeat it, less precisely.
   if "note:" not in (error_message or ""):
     printc.note("Did you add the directory of the tool's executables to your PATH environment variable?", script_name)
-    printc.note("Example -> export PATH=$PATH:<installation directory of " + tool + ">/bin", script_name)
+    if os.name == "nt":
+      printc.note('Example (PowerShell) -> $env:PATH = "<installation directory of ' + tool + '>\\bin;$env:PATH"', script_name)
+    else:
+      printc.note("Example -> export PATH=$PATH:<installation directory of " + tool + ">/bin", script_name)
     printc.note(
       'or set tool_install_path in odatix_userconfig/targets/target_' + tool + '.yml',
       script_name,

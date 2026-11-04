@@ -53,6 +53,8 @@ import shutil
 import subprocess
 import sys
 
+from odatix.lib import programs
+
 MODE_AUTO = "auto"
 MODE_NEVER = "never"
 MODES = (MODE_AUTO, MODE_NEVER)
@@ -176,7 +178,7 @@ def simulation_runs_in_wsl(names, program):
   chosen = _chosen(names)
   if chosen is not None:
     return chosen
-  if not program or shutil.which(program) is not None or not is_installed():
+  if not program or programs.which(program) is not None or not is_installed():
     return False
   return which(program) is not None
 
@@ -199,12 +201,28 @@ def _ask(shell_command, timeout=60):
 
 
 def which(program):
-  """Where a program is in the PATH of WSL (that of a login shell), or None."""
+  """
+  Where a program is in the PATH of WSL (that of a login shell), or None.
+
+  WSL appends the PATH of Windows to its own by default: a program found on a
+  drive of Windows (/mnt/c/...) is a program of Windows, which WSL starts
+  through interop -- the Perl front end of Verilator of OSS CAD Suite, say,
+  which then cannot find its binary. It is not a program installed in WSL.
+  """
   key = (settings().distribution, program)
   if key not in _programs:
-    found = _ask("command -v " + program) if _PROGRAM.match(str(program)) else None
-    _programs[key] = found.splitlines()[-1] if found else None
+    found = _ask("type -ap " + program) if _PROGRAM.match(str(program)) else None
+    paths = [line.strip() for line in (found or "").splitlines() if line.strip()]
+    _programs[key] = next((path for path in paths if not on_windows_drive(path)), None)
   return _programs[key]
+
+
+def on_windows_drive(path):
+  """Whether a path of WSL is on a drive of Windows (/mnt/c/...)."""
+  root = mount_root()
+  if not root.endswith("/"):
+    root += "/"
+  return re.match(re.escape(root) + r"[A-Za-z](/|$)", str(path)) is not None
 
 
 def python_problem():

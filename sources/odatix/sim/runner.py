@@ -55,7 +55,7 @@ import time
 
 import yaml
 
-from odatix.lib import single_thread
+from odatix.lib import programs, single_thread
 import odatix.sim.design_info as design_info
 
 REPORT_FILENAME = "sim_report.yml"
@@ -93,11 +93,13 @@ def program_path(program):
   The program a command starts with, as the system runs it. Windows only looks
   for an ".exe" when a process is started without a shell: a simulator
   installed as a batch file (xvhdl.bat, xelab.bat) is found through the PATH
-  and its extensions instead. Anywhere else, the program is left as it is.
+  and its extensions instead, and one installed under another name
+  (verilator_bin.exe, see odatix.lib.programs) under that name. Anywhere
+  else, the program is left as it is.
   """
   if os.name != "nt":
     return program
-  return shutil.which(program) or program
+  return programs.which(program) or program
 
 
 def _batch_command(command):

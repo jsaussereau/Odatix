@@ -67,6 +67,7 @@ import yaml
 
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.wsl as wsl
+import odatix.lib.programs as programs
 import odatix.lib.yaml_loader as yaml_loader
 
 TEMPLATE_KEY = "template"
@@ -259,7 +260,7 @@ def is_installed(name, timeout=15):
       return False
     command = wsl.command(" ".join(shlex.quote(part) for part in command))
   else:
-    program = shutil.which(command[0])
+    program = programs.which(command[0])
     if program is None:
       return False
     # As found in the PATH: Windows does not look for a ".cmd" or ".bat" itself

@@ -39,6 +39,7 @@ import odatix.sim.design_info as design_info
 from odatix.sim.design_info import check_testbench
 import odatix.sim.templates as sim_templates
 import odatix.lib.wsl as wsl
+import odatix.lib.programs as programs
 from odatix.workspace.space import selected_config_file
 
 script_name = os.path.basename(__file__)
@@ -895,7 +896,7 @@ class SimulationHandler:
     """
     program = sim_templates.test_program(settings)
     if not in_wsl:
-      if program is None or shutil.which(program):
+      if program is None or programs.which(program):
         return None
       return (
         '"' + sim + '" runs "' + program + '", which is not in the PATH',

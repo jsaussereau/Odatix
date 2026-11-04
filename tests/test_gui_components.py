@@ -33,9 +33,14 @@ JOBS_CONFIG_MODULES = [
 ]
 
 
+_MISSING = object()
+
+
 class _ModuleGroup:
     def __init__(self, modules):
         object.__setattr__(self, "_modules", modules)
+        # What each module held before a name was first set, for __delattr__
+        object.__setattr__(self, "_saved", {})
 
     def __getattr__(self, name):
         for module in self._modules:
@@ -44,9 +49,20 @@ class _ModuleGroup:
         raise AttributeError(name)
 
     def __setattr__(self, name, value):
-        holders = [module for module in self._modules if hasattr(module, name)]
-        for module in holders or self._modules[:1]:
+        holders = [module for module in self._modules if hasattr(module, name)] or self._modules[:1]
+        self._saved.setdefault(name, [(module, getattr(module, name, _MISSING)) for module in holders])
+        for module in holders:
             setattr(module, name, value)
+
+    def __delattr__(self, name):
+        # monkeypatch undoes a patch of a name the group itself does not hold
+        # by deleting it (pytest 9): each module gets back what it held.
+        for module, value in self._saved.pop(name, []):
+            if value is _MISSING:
+                if hasattr(module, name):
+                    delattr(module, name)
+            else:
+                setattr(module, name, value)
 
 
 def import_jobs_config():

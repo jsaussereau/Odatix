@@ -28,7 +28,7 @@ tasks:
       - "echo 'Progress: 80' > progress.txt"
       - sleep 1
       - echo 'step 3/3 done'
-      - python3 main.py   # writes output.txt, which _metrics.yml reads
+      - '"${python}" main.py'   # writes output.txt, which _metrics.yml reads
 
   - name: "generate_config"
     commands:

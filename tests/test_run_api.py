@@ -8,12 +8,16 @@ and what it says is kept.
 """
 
 import os
+import shutil
 
 import pytest
 
 from odatix.run import Run, RunError, RunOptions
 from odatix.run.planner import JobPlanner
 from odatix.workspace import Workspace
+
+# The dummy tool is checked by running tclsh: a run that checks it needs it.
+needs_tclsh = pytest.mark.skipif(shutil.which("tclsh") is None, reason="the dummy tool runs tclsh")
 
 
 ######################################
@@ -93,6 +97,7 @@ class TestTargets:
         ))
         return Workspace.open()
 
+    @needs_tclsh
     def test_a_run_works_on_every_enabled_target(self, dummy_workspace):
         workspace = self.two_targets(dummy_workspace)
         both = Run(workspace, "custom_freq_synthesis", tool="dummy").check()
@@ -113,6 +118,7 @@ class TestTargets:
 ######################################
 
 class TestCheck:
+    @needs_tclsh
     def test_a_run_knows_what_it_would_do(self, dummy_workspace):
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy")
         plan = run.check()
@@ -120,6 +126,7 @@ class TestCheck:
         assert len(run.jobs) == plan.run_count()
         assert run.was_checked
 
+    @needs_tclsh
     def test_a_workspace_opened_from_elsewhere_finds_its_files(self, dummy_workspace, tmp_path, monkeypatch):
         # The settings files name rtl_path, work_path... relative to the
         # workspace root: a script started elsewhere must still find them.
@@ -131,11 +138,13 @@ class TestCheck:
         assert run.check().run_count() > 0
         assert os.getcwd() == str(elsewhere)
 
+    @needs_tclsh
     def test_a_redirected_output_gets_no_color_codes(self, dummy_workspace, capsys):
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy")
         run.check()
         assert "\033[" not in capsys.readouterr().out
 
+    @needs_tclsh
     def test_checking_twice_does_not_check_twice(self, dummy_workspace):
         run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy")
         assert run.checked() is run.checked()

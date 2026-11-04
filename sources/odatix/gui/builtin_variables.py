@@ -105,6 +105,7 @@ BUILTIN_VARIABLES = {
         ("workflow_path", "This workflow's definition directory."),
         ("source_path", "Directory the workflow's sources are copied from."),
         ("odatix_path", "Odatix installation directory."),
+        ("python", "The Python interpreter running Odatix."),
     ],
     "architecture": [
         ("architecture", "Name of this architecture."),

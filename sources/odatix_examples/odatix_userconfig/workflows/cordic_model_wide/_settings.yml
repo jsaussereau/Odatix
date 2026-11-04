@@ -19,7 +19,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 cordic_model.py --width ${WIDTH} --iterations ${ITERATIONS}
+      - '"${python}" cordic_model.py --width ${WIDTH} --iterations ${ITERATIONS}'
 
 variables:
   WIDTH:

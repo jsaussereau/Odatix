@@ -20,21 +20,25 @@ from odatix.sim.runner import SimRunner, parameter_args
 sim = SimRunner("verilator", languages=["verilog", "sv"])
 top = sim.tb_top
 
-# "-j" builds the C++ with the cores this job may use: "-j 0" takes every core
-# in each of the jobs running at once, which runs them all slower.
-command = [
-    "verilator", "--binary", "--assert", "-j", str(sim.build_jobs), "-Wno-fatal",
-    "--top-module", top, "-Mdir", "obj_dir", "-o", "odatix_sim",
-]
+options = ["--assert", "-Wno-fatal", "--top-module", top]
 if sim.waves:
     # "$dumpvars" in the testbench only records something when traced
-    command += ["--trace"]
-command += ["+incdir+" + directory for directory in sim.include_dirs]
-command += parameter_args(sim.tb_parameters, "-G{name}={value}")
-command += sim.files("verilog", "sv")
+    options += ["--trace"]
+options += ["+incdir+" + directory for directory in sim.include_dirs]
+options += parameter_args(sim.tb_parameters, "-G{name}={value}")
+options += sim.files("verilog", "sv")
 
 # Verilating and building the C++ is both compiling and elaborating: there is
 # no elaboration time of its own (see _metrics.yml).
-sim.run("compile", command, log="verilator")
+if os.name == "nt":
+    # Neither the Perl front end nor make runs on Windows: the binary of
+    # Verilator verilates, and Odatix compiles the C++ (see odatix.sim.verilator).
+    from odatix.sim import verilator
+    verilator.build(sim, options, executable="odatix_sim")
+else:
+    # "-j" builds the C++ with the cores this job may use: "-j 0" takes every
+    # core in each of the jobs running at once, which runs them all slower.
+    command = ["verilator", "--binary", "-j", str(sim.build_jobs), "-Mdir", "obj_dir", "-o", "odatix_sim"]
+    sim.run("compile", command + options, log="verilator")
 sim.run("simulate", [os.path.join("obj_dir", "odatix_sim")], log="simulation")
 sim.finish()

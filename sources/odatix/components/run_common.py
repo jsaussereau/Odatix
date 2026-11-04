@@ -268,6 +268,33 @@ def run_prepare_loop(instances, build_job, job_list, check_cancel=None, label="P
                 progress.update(ok=len(job_list) > jobs_before)
     finally:
         progress.finish()
+    warn_long_paths(job_list)
+
+
+#: Longest job directory Windows tools are safe with: most of them (Yosys,
+#: nextpnr, Icarus) cannot open a path of more than 260 characters, and the
+#: files of a job lie a few directories below its own.
+WINDOWS_SAFE_JOB_PATH = 200
+
+
+def warn_long_paths(job_list):
+    """
+    Say so once when a job directory is long enough for the tools of Windows to
+    fail on its files: they then report a file that exists as missing, which
+    says nothing of the cause.
+    """
+    if os.name != "nt":
+        return
+    longest = max((os.path.abspath(str(getattr(job, "directory", "") or "")) for job in job_list), key=len, default="")
+    if len(longest) <= WINDOWS_SAFE_JOB_PATH:
+        return
+    from odatix.lib import printc
+
+    printc.warning(
+        "The path of a job directory is {0} characters long ({1}): on Windows, most tools cannot open a file "
+        "whose path is longer than 260 characters, and the job will fail with a file it says is missing. "
+        "Move the workspace to a shorter path (C:\\Users\\<you>\\<workspace>).".format(len(longest), longest)
+    )
 
 
 def normalize_run_settings(overwrite, noask, exit_when_done, log_size_limit, nb_jobs, defaults):
@@ -604,6 +631,10 @@ def say_monitor_exit(monitor_exit, script_name="run"):
         (printc.warning if level == "warning" else printc.note)(text, script_name)
 
 
+#: How many lines of its log a job that wrote no summary gets printed
+SUMMARY_LESS_TAIL = 10
+
+
 def replay_summaries(parallel_jobs, state, job_ids, script_name="run"):
     """
     Print again, once the monitor is closed, the summary a job of the run
@@ -628,6 +659,16 @@ def replay_summaries(parallel_jobs, state, job_ids, script_name="run"):
             if marker in printc.strip_colors(line):
                 start = position
         if start is None:
+            # It stopped before writing its summary: the end of its log is
+            # what says why, and the monitor that showed it is closed.
+            tail = [line for line in lines if printc.strip_colors(line).strip()][-SUMMARY_LESS_TAIL:]
+            if tail:
+                print()
+                printc.note("{0} stopped before its summary. The end of its log:".format(
+                    getattr(job, "display_name", None) or "The job"), script_name)
+                for line in tail:
+                    print("  " + line + printc.colors.ENDC)
+                sys.stdout.flush()
             continue
         print()
         for line in lines[start:]:

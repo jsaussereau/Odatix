@@ -130,8 +130,10 @@ def list_directory(root, rel, show_hidden=False):
             continue
         try:
             is_dir = entry.is_dir()
-            # A link out of the workspace is not followed.
-            if entry.is_symlink() and not _inside(entry.path, root):
+            # A link out of the workspace is not followed. A directory is
+            # checked as well: a junction of Windows leads elsewhere without
+            # being a symbolic link.
+            if (entry.is_symlink() or is_dir) and not _inside(entry.path, root):
                 continue
             stat = entry.stat()
         except OSError:

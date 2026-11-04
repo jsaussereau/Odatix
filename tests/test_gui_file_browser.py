@@ -24,8 +24,23 @@ def workspace(tmp_path):
     outside = tmp_path / "secret"
     outside.mkdir()
     (outside / "key").write_text("x")
-    os.symlink(str(outside), str(root / "escape"))
+    link_out(outside, root / "escape")
     return str(root)
+
+
+def link_out(target, link):
+    """
+    A link to a directory. Windows only lets a symbolic link be created with a
+    privilege (or developer mode): a junction, which anyone can create, leads
+    out of the workspace just the same.
+    """
+    try:
+        os.symlink(str(target), str(link), target_is_directory=True)
+    except OSError:
+        if os.name != "nt":
+            raise
+        import _winapi
+        _winapi.CreateJunction(str(target), str(link))
 
 
 def test_lists_directories_first_and_hides_dot_files(workspace):

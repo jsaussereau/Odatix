@@ -20,4 +20,4 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 simulate_traffic.py
+      - '"${python}" simulate_traffic.py'

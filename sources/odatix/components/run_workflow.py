@@ -148,6 +148,9 @@ def _build_workflow_command_substitutions(workflow_instance):
         else "",
         "source_path": os.path.realpath(workflow_instance.source_path) if workflow_instance.source_path else "",
         "odatix_path": str(OdatixSettings.odatix_path),
+        # The Python running Odatix: there on every system, where "python3"
+        # is not (a virtual environment of Windows only has "python").
+        "python": sys.executable,
     }
     substitutions = {name: str(value) for name, value in substitutions.items() if value is not None}
 

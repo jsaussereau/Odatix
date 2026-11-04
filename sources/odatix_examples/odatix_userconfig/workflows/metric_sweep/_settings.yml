@@ -14,7 +14,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 simulate_ber.py --channel_gain ${channel_gain} --ebno_from 1 --ebno_to 3 --ebno_step 0.5
+      - '"${python}" simulate_ber.py --channel_gain ${channel_gain} --ebno_from 1 --ebno_to 3 --ebno_step 0.5'
 
 # One configuration per channel_gain value. Each run's results.csv holds
 # several EBNO points -- see _metrics.yml for how they get expanded into

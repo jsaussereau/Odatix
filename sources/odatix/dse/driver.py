@@ -369,11 +369,14 @@ def _slug(session):
 
 
 def _quote(text):
-    """A path as a shell will read it back."""
-    try:
-        from shlex import quote
-    except ImportError:  # pragma: no cover - Python 2 shells are not supported
-        return str(text)
+    """
+    A path as a shell will read it back: the daemon runs the command with the
+    shell of the system, and cmd.exe only knows double quotes.
+    """
+    if os.name == "nt":
+        from subprocess import list2cmdline
+        return list2cmdline([str(text)])
+    from shlex import quote
     return quote(str(text))
 
 
