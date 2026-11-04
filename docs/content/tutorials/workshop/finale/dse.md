@@ -25,6 +25,30 @@ exactly then that the question is worth asking.
 parameters. It simply stops running all of them: it evaluates a few, looks at
 what came out, and chooses what to try next from there.
 
+## The principle
+
+A **design space exploration** (DSE) answers a question with several sides at
+once — *the most accurate, the smallest and the fastest CORDIC* — when no
+design wins on all of them. There is no single best answer, but there is a
+set of designs worth keeping: the **Pareto front**, the designs that no other
+design beats on every objective at once. Everything else is dominated, and
+evaluating it was wasted work.
+
+A search finds that front without running the whole space. It loops:
+
+1. **Evaluate** a few designs — synthesize them, simulate them, run a workflow:
+   whatever the campaign says measures one design.
+2. **Learn** from the results: which parameters, in which region, gave what.
+3. **Choose** the next designs where the front is most likely to improve, and
+   go back to 1 — until the **budget**, the number of designs it may evaluate,
+   is spent.
+
+What you write is the question: what one evaluation runs, the
+**objectives** to minimize or maximize, the **constraints** a design must meet
+to count at all, and the parameters it may vary. That question is a
+**campaign**. How the designs are chosen is the **strategy**, and Odatix
+ships several of them.
+
 > [!IMPORTANT]
 > Start the exploration of step 2 at the **beginning** of this part, not at the
 > end. It improves its front while the rest of the page is explained, and that
@@ -42,21 +66,38 @@ of the workspace, one card each:
 
 {{< img src="/images/screenshots/workshop/gui-dse-campaigns.png" title="Design space exploration: the settings of the exploration, then one card per campaign" >}}
 
-1. On the card **image_codec_rate_quality**, click **Edit**, set **Strategy**
-   to `Bayesian`, **Budget** to `10` and **Batch** to `2`, then **Save** and
-   go back.
-2. Switch the card on, and **Explore**, then **Start**.
+1. On the card **image_codec_rate_quality**, click **Edit**. In the
+   **Search** section, set:
+   - **Strategy**: `Bayesian`;
+   - **Mode**: `Continuous (async)`;
+   - **Budget**: `50`, and **Batch**: `2`.
+2. **Save** and go back.
+3. Switch the card on, and **Explore**, then **Start**.
 
 {{< details title="In a terminal" >}}
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix dse -p image_codec_rate_quality --strategy bayesian -b 10 -B 2 -y
+$ odatix dse -p image_codec_rate_quality --strategy bayesian --mode async -b 50 -B 2 -y
 {{< /code >}}
 {{< /details >}}
 
-The budget is ten designs evaluated, out of 3150, two at a time. The search picks the first ones, measures their bitrate and their
-quality, and chooses the next ones from what it found — with the same
-**bayesian** search as the CORDIC campaign below, so what you watch here is what
-runs there. About a minute. This is the whole idea, running in front of you, and it is
+What these settings mean:
+
+- **Bayesian**: the search fits a statistical model of the space to the designs
+  measured so far — what it expects each untried design to give, and how sure
+  it is — and evaluates next the design where that model expects the front to
+  grow the most. It is the strategy for few, expensive evaluations, such as a
+  synthesis.
+- **Continuous (async)**: the search keeps **Batch** designs running at all
+  times, and chooses a new one the moment one finishes, instead of waiting for
+  the whole batch to finish before deciding. No slot sits idle behind the
+  slowest design.
+- **Budget** `50`: the search stops after fifty designs evaluated, out of 3150
+  — under 2 % of the space.
+
+The search picks the first designs, measures their bitrate and their quality,
+and chooses the next ones from what it found — with the same search as the
+CORDIC campaign below, so what you watch here is what runs there. A few
+minutes. This is the whole idea, running in front of you, and it is
 also the fallback for anyone whose tools are not cooperating today.
 
 > [!NOTE]
