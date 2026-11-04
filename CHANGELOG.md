@@ -15,16 +15,18 @@ Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command 
 - **Results files** use a new format (`schema: 2`, one flat record per job and step). 3.7 files are still read and upgraded on the next export. Every tool exports its worst slack as `Slack` (ns)
 - **Configuration generation**: `generate_configurations` / `generate_configurations_settings` become `variables` (at the root of `_settings.yml`) and a `configurations` block (`name`, `template`). 3.7 files are still read, and rewritten in the new form when saved from the GUI or by `odatix migrate`
 - **Design Compiler** no longer uses a Makefile
+- `force_single_thread` moves from the target files to the **run settings files** (the **Force single threading** switch of the run page): it is a setting of the run, and applies to every tool. A target file that still sets it is followed, with a warning
 
 ### Added
 
 #### EDA tools
 
-- New synthesis and implementation tools: **Cadence Genus**, **Cadence Innovus**, **Synopsys IC Compiler II**, **Design Compiler NXT** (`dc_nxt`), **LibreLane** (open-source RTL to GDSII on sky130, gf180mcu, ihp_sg13g2) and **Quartus Prime Pro** (Agilex). **Verilator** and **Yosys** are available for RTL analysis
-- `odatix pnr`: place & route from a completed synthesis, possibly made by another tool (e.g. Design Compiler or Genus, then Innovus or ICC2)
+- New synthesis and implementation tools: **Cadence Genus**, **Cadence Innovus**, **Design Compiler NXT** (`dc_nxt`), **LibreLane** (open-source RTL to GDSII on sky130, gf180mcu, ihp_sg13g2), **Quartus Prime Pro** (Agilex) and **Yosys + nextpnr** (`yosys_fpga`, open-source flow for Lattice ECP5 and iCE40). **Verilator**, **Yosys**, **GHDL** (VHDL, with its built-in synthesis) and **Questa**/ModelSim are available for RTL analysis
+- `odatix pnr`: place & route from a completed synthesis, possibly made by another tool (e.g. Design Compiler or Genus, then Innovus)
 - **Flows**: several strategies per tool, chosen with `-f/--flow`, each with its own work directory (`<tool>@<flow>`) and `parameters` passed to the scripts. Built-in flows for Vivado (`runtime`, `performance`, `area`, `power_opt`), Design Compiler (`high_effort`, `ultra`, ...), Genus and Innovus
 - **Steps**: jobs are split into resumable steps (Vivado: `synthesis`, `pnr`, `bitstream`). `-u/--until <step>` stops at a step, a later run resumes from there, `--rerun-from <step>` restarts from one. Metrics are exported per step
 - **User-defined tools**: a directory with a `tool.yml` in `odatix_userconfig/tools/` adds a tool or extends a built-in one (`extends`), and a workspace `metrics.yml` adds, overrides or removes metrics
+- `tool_install_path` (target file) works for **every tool**: its `bin` directory and the directory itself come first on the `PATH` of the tool's commands, and it wins over a tool of the same name on the `PATH` (Quartus and LibreLane included)
 - User constraint files (`.xdc`, `.sdc`, floorplans) declared under `constraints` in a target file or an architecture, per stage (`synthesis`, `pnr`)
 - Support for `filelist.f` files
 - **Windows**: Verilator, Icarus Verilog and Yosys run RTL analyses natively (no `make` nor shell needed), and Vivado runs its steps and RTL analysis as on Linux. EDA tools and simulators installed in **WSL** run there: Odatix chooses (a tool with Linux commands only, a simulator installed in WSL only), the workspace decides (`wsl`, `wsl_distribution`, `wsl_tools` and `windows_tools` in `odatix.yml`), and a run says where each one runs
@@ -42,12 +44,14 @@ Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command 
 - **Simulation templates** (`ghdl`, `verilator`, `questa`, `xsim`, `icarus`) that simulate any architecture with its `testbench`; a minimal random testbench is generated when there is none
 - Simulations accept `tasks`, export metrics (`results_simulation.yml`), can declare `invariant_domains` and list the `architectures` they run on
 - **Derived metrics** (`odatix_userconfig/derived_metrics.yml`): metrics imported from another kind of result or computed from an expression, e.g. a runtime from a simulated cycle count and a synthesized frequency
-- `odatix analyze`: RTL analysis with one or several tools (Vivado, Verilator, Genus, ...), reporting categorized findings (latches, missing modules, width mismatches, ...) with their location; expected findings can be declared in `analyze_settings.yml`
+- `odatix analyze`: RTL analysis with one or several tools (Vivado, Verilator, Icarus Verilog, GHDL, Questa, Genus, Yosys, LibreLane ...), reporting categorized findings (latches, missing modules, width mismatches, ...) with their location; expected findings can be declared in `analyze_settings.yml`
 
 #### Running jobs
 
+- `force_single_thread` keeps each job on a single thread with **every tool**: Design Compiler, Genus, Innovus, OpenLane, the simulators and the commands of your own tools and workflows (`ODATIX_SINGLE_THREAD`, `OMP_NUM_THREADS`... in their environment), as well as Vivado, Quartus and LibreLane
 - Runs are **sessions** that keep going in the background: `odatix ps`, `odatix monitor` and `odatix stop` list, reattach and stop them, also on another machine through SSH (`-R user@server`)
 - `odatix ls` lists the architectures, simulations and workflows of the workspace (`--arch`, `-s`, `-W` and name patterns to filter, `-a` for their configurations too, `-l` for one name per line)
+- Sessions are private to their owner; `session_access` in `odatix.yml` (or `--session-access`) shares them with the group of the workspace or every user. `--any-user` reaches the sessions of other users (all of them as root, e.g. `sudo odatix stop --any-workspace --any-user --all`)
 - `-a/--architecture`, `--target`, `-s/--sim` and `-W/--workflow` choose what to run from the command line; glob patterns (`*/08bits`) are accepted at every level. `default_tool` in `odatix.yml`
 - `nb_jobs: auto` (`-j auto`): number of CPUs minus one
 - Automatic pause when the machine runs out of CPU or memory, configurable in `odatix.yml`
@@ -59,6 +63,7 @@ Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command 
 - New pages: EDA tools and tool editor, Simulation editor, Workflows, Derived metrics, Design space exploration and campaign editor, Monitor, Clean, and runs of every kind (synthesis, place & route, simulation, workflow, RTL analysis)
 - Flow and step selection, constraint files, overrides and exclusions in the Architecture Editor; configuration rules are edited directly in the Configuration Editor
 - Odatix Explorer is built in (`/explorer`)
+- Path fields (design and RTL paths, top level file, testbench files, target scripts) have a file browser limited to the workspace, which also works when the browser runs on another machine than the GUI
 - Custom themes can be dropped in `odatix_userconfig/themes/gui/`
 
 #### Odatix Explorer
@@ -79,7 +84,6 @@ Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command 
 - Synthesis jobs run in their own directory (no more `.Xil` or `vivado.jou` at the workspace root)
 - Odatix Explorer: IP address retrieval on some systems, records sharing an x value drawn as one point
 - `odatix-gui` and `odatix-explorer` crashing or using 100 % CPU when started without a terminal
-- Windows: a run losing its session as soon as it started ("No session matches"), configuration names written with `\` (`MyCounter\32bits`, then not found), files read with the encoding of the console instead of UTF-8, simulators installed as batch files (`xelab.bat`) not found or given their arguments split on `=`, and the job files a tool reads (`settings.tcl`, `target.txt`...) written with `\r\n` line endings
 
 ## [3.7.3] - 2026-03-23
 
