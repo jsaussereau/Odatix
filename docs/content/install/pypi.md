@@ -134,6 +134,7 @@ $ python3 -m pip install odatix
 
 {{% tab name="Windows" %}}
 {{< code lang=bash filename="Terminal Powershell" prompt="true" >}}
+$ .\odatix_venv\Scripts\python.exe -m pip install windows-curses 
 $ .\odatix_venv\Scripts\python.exe -m pip install odatix
 {{< /code >}}
 {{% /tab %}}
