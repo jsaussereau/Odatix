@@ -307,6 +307,8 @@ class ResultStore:
           column = schema.RESERVED_META_COLUMNS.get(key, key)
           if column == schema.COL_TYPE:
             value = schema.type_display_name(value)
+          if column == schema.COL_CONFIGURATION:
+            value = schema.configuration_label(meta)
           if column == schema.COL_FREQUENCY:
             row[column] = value  # keep numeric for axis use
           else:

@@ -65,13 +65,13 @@ fi
 # The testbench needs to know the parameters Odatix wrote in the RTL file, so
 # that it can build its reference model. Odatix substitutes the value of each
 # parameter domain of the architecture in the command of _settings.yml
-# (${width} and ${iterations}), which passes them here as environment
+# (${WIDTH} and ${ITERATIONS}), which passes them here as environment
 # variables, so nothing has to be read back from the source.
 cfg_width="${CFG_WIDTH:-}"
 cfg_iterations="${CFG_ITERATIONS:-}"
 
 if [ -z "${cfg_width}" ] || [ -z "${cfg_iterations}" ]; then
-  die "CFG_WIDTH and CFG_ITERATIONS must be set (Odatix passes them from the \"width\" and \"iterations\" parameter domains)"
+  die "CFG_WIDTH and CFG_ITERATIONS must be set (Odatix passes them from the \"WIDTH\" and \"ITERATIONS\" parameter domains)"
 fi
 
 {

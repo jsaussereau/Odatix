@@ -45,7 +45,7 @@ workflows:
 
   # A bit-accurate model of the CORDIC core of Example_Cordic_sv, swept over
   # 7 widths and 11 stage counts: its accuracy, before any RTL is simulated
-  - cordic_model + width/* + iterations/*
+  - cordic_model + WIDTH/* + ITERATIONS/*
 
   # A small image codec, whose four knobs are variables of its command line.
   # 3150 configurations: worth exploring rather than running (see

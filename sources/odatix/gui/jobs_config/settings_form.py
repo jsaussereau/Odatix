@@ -80,14 +80,19 @@ def frequency_note(run_mode, override):
         return ("Off: each architecture searches between its own bounds (fmax_synthesis in its "
                 "_settings.yml), or the default ones. These are ignored.")
     if override:
-        return "Every architecture runs at these frequencies."
-    return ("Off: each architecture runs at its own frequencies (fixed_freq_synthesis in its "
-            "_settings.yml). These only apply to an architecture that sets none.")
+        return ("On: every architecture runs at these frequencies, even one that sets its own "
+                "(fixed_freq_synthesis in its _settings.yml).")
+    return ("Default frequencies: used by every architecture that sets none in its "
+            "_settings.yml (fixed_freq_synthesis). Turn on the override to impose them on all.")
 
 
-def frequency_fields_class(override):
-    """The fields are dimmed while they are not what the run uses first."""
-    return "jobs-freq-fields" + ("" if override else " inactive")
+def frequency_fields_class(run_mode, override):
+    """
+    The fields are dimmed only when the run ignores them: fixed frequencies are
+    defaults without the override, fmax bounds are not.
+    """
+    ignored = run_mode == "fmax_synthesis" and not override
+    return "jobs-freq-fields" + (" inactive" if ignored else "")
 
 
 def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_steps=None):
@@ -208,13 +213,14 @@ def job_settings_form(settings, run_mode="default", selected_tools=None, rerun_s
                         "Override frequencies",
                         id="override-arch-frequencies",
                         checked=override,
-                        tooltip="Use the values below for every architecture, instead of the "
-                                "frequencies each one sets in its own settings.",
+                        tooltip="On: the values below replace the frequencies each architecture "
+                                "sets in its own settings. Off: they are only the default for the "
+                                "architectures that set none (fixed-frequency synthesis).",
                     ),
                     className="odx-switch-stack",
                 ),
                 html.Div(frequency_note(run_mode, override), id="frequency-override-note", className="jobs-freq-note"),
-                html.Div(id="frequency-fields", className=frequency_fields_class(override), children=[
+                html.Div(id="frequency-fields", className=frequency_fields_class(run_mode, override), children=[
                 html.Div(
                     children=[
                         ui.inline_switch(

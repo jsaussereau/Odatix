@@ -36,6 +36,7 @@ Odatix also enables parallel simulations of different configurations of the same
 | Synopsys Design Compiler (and DC NXT)                            | ✔️ supported        |
 | Cadence Genus                                                    | ✔️ supported        |
 | [LibreLane](https://github.com/librelane/librelane)              | ✔️ supported        |
+| [Yosys](https://github.com/YosysHQ/yosys) + [nextpnr](https://github.com/YosysHQ/nextpnr) (ECP5, iCE40) | ✔️ supported |
 | [OpenLane 1](https://github.com/The-OpenROAD-Project/OpenLane)   | ✔️ supported        |
 
 ### Place & route

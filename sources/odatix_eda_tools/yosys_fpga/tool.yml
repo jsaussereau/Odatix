@@ -1,0 +1,100 @@
+##############################################
+# Settings for Yosys + nextpnr (FPGA)
+##############################################
+#
+# The open source FPGA flow: Yosys synthesizes the design for a Lattice ECP5 or
+# iCE40 (synth_ecp5, synth_ice40), nextpnr places and routes it and times the
+# routed design. Both come with the OSS CAD Suite
+# (https://github.com/YosysHQ/oss-cad-suite-build), for Linux, macOS and
+# Windows, without a license.
+#
+# The whole flow is tcl/fpga_flow.py, run with the Python of Odatix: it needs
+# nothing but yosys and nextpnr-<family> in the PATH, or in the
+# tool_install_path of target_yosys_fpga.yml.
+#
+
+# Display metadata (used by the GUI tool selection page)
+label: "Yosys + nextpnr"
+description: "Open source FPGA synthesis, placement and routing for Lattice ECP5 and iCE40"
+icon: "assets/icons/yosys.png"
+tags: [synthesis, pnr, fpga, open_source]
+
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: "$eda_tools_path/yosys_fpga/metrics.yml"
+
+default_flow: standard
+
+# Parameters of the default flow. Every flow starts from these and changes
+# only what it says, so the flows at the bottom of this file are strategies,
+# not scripts.
+parameters:
+  # More options for synth_ecp5 / synth_ice40 ("-abc9", "-dff", "-nowidelut")
+  synth_options: []
+  # More options for nextpnr ("--tmg-ripup", "--placer sa")
+  nextpnr_options: []
+  # Seed of the placer: another seed, another placement
+  seed: 1
+  # Placement and routing runs of an fmax search: the first one at the lower
+  # bound, each following one at the frequency the previous one reached
+  fmax_passes: 2
+
+unix:
+  # Command to check if the tool is installed
+  tool_test_command: '"$python" "$eda_tools_path/yosys_fpga/tcl/fpga_flow.py" --version'
+
+  fmax_synthesis_command:
+    - cd "$work_path" &&
+    - '"$python" scripts/fpga_flow.py fmax'
+    - --seed $seed --passes $fmax_passes
+    - --synth-options="$synth_options" --nextpnr-options="$nextpnr_options"
+
+  custom_freq_synthesis_command:
+    - cd "$work_path" &&
+    - '"$python" scripts/fpga_flow.py custom'
+    - --seed $seed
+    - --synth-options="$synth_options" --nextpnr-options="$nextpnr_options"
+
+windows:
+
+  tool_test_command: '"$python" "$eda_tools_path/yosys_fpga/tcl/fpga_flow.py" --version'
+
+  fmax_synthesis_command:
+    - cd /d "$work_path" &&
+    - '"$python" scripts/fpga_flow.py fmax'
+    - --seed $seed --passes $fmax_passes
+    - --synth-options="$synth_options" --nextpnr-options="$nextpnr_options"
+
+  custom_freq_synthesis_command:
+    - cd /d "$work_path" &&
+    - '"$python" scripts/fpga_flow.py custom'
+    - --seed $seed
+    - --synth-options="$synth_options" --nextpnr-options="$nextpnr_options"
+
+##############################################
+# Flows
+##############################################
+# A flow is a strategy. Flows of the same tool are alternatives meant to be
+# compared, so each one gets its own work directory ("yosys_fpga@abc9") and its
+# results are tagged with its name.
+
+flows:
+
+  standard:
+    label: "Standard"
+    description: "synth_<family> and nextpnr defaults"
+
+  abc9:
+    label: "ABC9"
+    description: "Timing-driven technology mapping with ABC9"
+    parameters:
+      synth_options: [-abc9]
+
+  timing:
+    label: "Timing"
+    description: "ABC9 mapping, nextpnr ripping up timing-critical routes, three placement passes"
+    parameters:
+      synth_options: [-abc9]
+      nextpnr_options: [--tmg-ripup]
+      fmax_passes: 3

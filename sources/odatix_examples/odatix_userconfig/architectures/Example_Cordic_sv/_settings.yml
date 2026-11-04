@@ -21,14 +21,14 @@ stop_delimiter: ""
 
 # Testbench, run by the simulation templates (ghdl, questa, xsim, ...). It
 # checks the outputs against a reference model, which needs the width and the
-# number of iterations of the configuration under test: ${width} and
-# ${iterations} are the values of the two parameter domains.
+# number of iterations of the configuration under test: ${WIDTH} and
+# ${ITERATIONS} are the values of the two parameter domains.
 testbench:
   top: tb_cordic
   files: [examples/cordic_tb/tb_cordic.sv]
   parameters:
-    WIDTH: ${width}
-    ITERATIONS: ${iterations}
+    WIDTH: ${WIDTH}
+    ITERATIONS: ${ITERATIONS}
 
 # Default frequencies (in MHz)
 fmax_synthesis:

@@ -1,5 +1,5 @@
 ##############################################
-# Settings for Example_Cordic_vhdl - width
+# Settings for Example_Cordic_vhdl - WIDTH
 ##############################################
 # Datapath width of the CORDIC, written in the generic clause of
 # examples/cordic_vhdl/cordic.vhdl:

@@ -1799,6 +1799,8 @@
     position: absolute;
     top: var(--space-2);
     right: var(--space-2);
+    /* Above the card, which is itself raised (z-index: 1 in style.css). */
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;

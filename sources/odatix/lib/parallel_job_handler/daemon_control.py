@@ -1588,28 +1588,53 @@ def _workspace_root_from_state_file(state_file):
     return None
 
 
-def _iter_system_daemon_candidates():
+def _iter_processes():
+    """
+    (pid, argv tokens, uid, cwd getter) of the running processes.
+
+    /proc where there is one (Linux); psutil elsewhere on POSIX (macOS has no
+    /proc). Windows is left out: sessions there are not found by scanning.
+    """
     proc_dir = "/proc"
-    if not os.path.isdir(proc_dir):
+    if os.path.isdir(proc_dir):
+        for entry in os.listdir(proc_dir):
+            if not entry.isdigit():
+                continue
+            try:
+                with open(os.path.join(proc_dir, entry, "cmdline"), "rb") as f:
+                    raw = f.read()
+            except Exception:
+                continue
+            if not raw:
+                continue
+            tokens = [part.decode("utf-8", errors="ignore") for part in raw.split(b"\0") if part]
+            try:
+                uid = os.stat(os.path.join(proc_dir, entry)).st_uid
+            except OSError:
+                uid = None
+            cwd_link = os.path.join(proc_dir, entry, "cwd")
+            yield int(entry), tokens, uid, lambda link=cwd_link: os.path.realpath(link)
         return
 
-    for entry in os.listdir(proc_dir):
-        if not entry.isdigit():
-            continue
-
-        pid = int(entry)
-        cmdline_path = os.path.join(proc_dir, entry, "cmdline")
-
+    if sys.platform == "win32":
+        return
+    try:
+        import psutil
+    except ImportError:
+        return
+    for process in psutil.process_iter():
         try:
-            with open(cmdline_path, "rb") as f:
-                raw = f.read()
+            tokens = process.cmdline()
+            uid = process.uids().real
         except Exception:
             continue
-
-        if not raw:
+        if not tokens:
             continue
+        yield process.pid, tokens, uid, lambda process=process: os.path.realpath(process.cwd())
 
-        tokens = [part.decode("utf-8", errors="ignore") for part in raw.split(b"\0") if part]
+
+def _iter_system_daemon_candidates():
+    for pid, tokens, uid, get_cwd in _iter_processes():
         if not _is_daemon_server_process(tokens):
             continue
 
@@ -1634,14 +1659,9 @@ def _iter_system_daemon_candidates():
         workspace_root = _workspace_root_from_state_file(state_file)
         if workspace_root is None:
             try:
-                workspace_root = os.path.realpath(os.path.join(proc_dir, entry, "cwd"))
+                workspace_root = get_cwd()
             except Exception:
                 workspace_root = None
-
-        try:
-            uid = os.stat(os.path.join(proc_dir, entry)).st_uid
-        except OSError:
-            uid = None
 
         yield {
             "pid": pid,

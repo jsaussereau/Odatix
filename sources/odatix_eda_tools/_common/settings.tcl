@@ -315,8 +315,9 @@ proc odatix_require_source {{signature ""}} {
 }
 
 # Source files listed in a filelist, in order. Relative paths are relative to
-# the directory of the filelist, not to the directory the tool runs from.
-# Blank lines and comments ("#" or "//") are skipped.
+# the directory of the filelist; a path that does not exist there is taken
+# relative to the directory the tool runs from (the design root), as some
+# designs write them. Blank lines and comments ("#" or "//") are skipped.
 proc read_filelist {filelist} {
     set file_list {}
     set base_dir [file dirname [file normalize $filelist]]
@@ -326,7 +327,11 @@ proc read_filelist {filelist} {
         if {$line eq "" || [string match "#*" $line] || [string match "//*" $line]} {
             continue
         }
-        lappend file_list [file normalize [file join $base_dir $line]]
+        set path [file normalize [file join $base_dir $line]]
+        if {![file exists $path] && [file exists $line]} {
+            set path [file normalize $line]
+        }
+        lappend file_list $path
     }
     close $fp
     return $file_list

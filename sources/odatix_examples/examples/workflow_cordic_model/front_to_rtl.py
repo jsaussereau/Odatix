@@ -27,7 +27,7 @@ parser.add_argument("--snr-min", type=float, default=0.0, help="lowest SNR to ke
 parser.add_argument("--snr-max", type=float, default=1000.0, help="highest SNR to keep, in dB")
 parser.add_argument("--workspace", default=".", help="the Odatix workspace")
 parser.add_argument("--architecture", default="My_Cordic_sv",
-                    help="architecture to add the configurations to (its domains must be named width and iterations)")
+                    help="architecture to add the configurations to (its domains must be named WIDTH and ITERATIONS)")
 args = parser.parse_args()
 
 archive_path = os.path.join(args.workspace, args.archive)
@@ -48,9 +48,9 @@ if not os.path.isdir(arch_dir):
 selections = []
 print("%d designs of the front between %g and %g dB:" % (len(kept), args.snr_min, args.snr_max))
 for design in kept:
-    width = int(design["parameters"]["width"])
-    iterations = int(design["parameters"]["iterations"])
-    for domain, value in (("width", width), ("iterations", iterations)):
+    width = int(design["parameters"]["WIDTH"])
+    iterations = int(design["parameters"]["ITERATIONS"])
+    for domain, value in (("WIDTH", width), ("ITERATIONS", iterations)):
         path = os.path.join(arch_dir, domain, "%d.txt" % value)
         if not os.path.isfile(path):
             with open(path, "w") as f:
@@ -58,7 +58,7 @@ for design in kept:
             print("  added %s" % os.path.relpath(path, args.workspace))
     print("  width %2d, %2d stages: %6.2f dB, %4d adder bits"
           % (width, iterations, design["metrics"]["snr"], design["metrics"]["adder_bits"]))
-    selections.append('"%s + iterations/%d + width/%d"' % (args.architecture, iterations, width))
+    selections.append('"%s + ITERATIONS/%d + WIDTH/%d"' % (args.architecture, iterations, width))
 
 print("\nSelection, for odatix sim and odatix synth:")
 print("  -a " + " ".join(selections))

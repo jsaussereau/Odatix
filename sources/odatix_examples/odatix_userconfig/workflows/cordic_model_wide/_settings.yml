@@ -19,16 +19,16 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 cordic_model.py --width ${width} --iterations ${iterations}
+      - python3 cordic_model.py --width ${WIDTH} --iterations ${ITERATIONS}
 
 variables:
-  width:
+  WIDTH:
     type: range
     settings:
       from: 4
       to: 20
 
-  iterations:
+  ITERATIONS:
     type: range
     settings:
       from: 2

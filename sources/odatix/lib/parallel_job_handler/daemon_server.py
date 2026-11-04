@@ -71,7 +71,15 @@ def _raise_file_descriptor_limit():
         if hard != resource.RLIM_INFINITY and soft >= hard:
             return
         target = hard if hard != resource.RLIM_INFINITY else 65536
-        resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+        except (ValueError, OSError):
+            # macOS reports an unlimited hard limit but refuses anything over
+            # OPEN_MAX (10240), leaving its default soft limit of 256.
+            if target <= 10240:
+                raise
+            target = 10240
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
         diagnostics.log("raised file descriptor limit", was=soft, now=target)
     except Exception as error:
         diagnostics.log("could not raise file descriptor limit", error=str(error))

@@ -6,7 +6,7 @@
 tasks:
 - name: main
   commands:
-  - CFG_WIDTH=${width} CFG_ITERATIONS=${iterations} bash scripts/sim.sh
+  - CFG_WIDTH=${WIDTH} CFG_ITERATIONS=${ITERATIONS} bash scripts/sim.sh
 
 # Where Odatix should look for progress information, and how to parse it
 progress:

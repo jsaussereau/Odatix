@@ -20,30 +20,32 @@
 *
 */
 
-document.addEventListener("DOMContentLoaded", function() {
-    document.querySelectorAll(".preview-pane").forEach(function(pre) {
-        // Get first span as it is the span of the start delimiter
-        const firstSpan = pre.querySelector("span");
-        if (firstSpan) {
-            const preRect = pre.getBoundingClientRect();
-            const spanRect = firstSpan.getBoundingClientRect();
-            const offset = spanRect.top - preRect.top + pre.scrollTop - 29;
-            pre.scrollTop = offset;
-        }
-    });
-});
+// Each pane is brought to its start delimiter once, when it is built: any
+// later mutation of the page (a dropdown opening, a tooltip, the replaced
+// section written back) must leave where the user scrolled alone.
+const scrolledPanes = new WeakSet();
 
-// Si le contenu change dynamiquement
-const previewObserver = new MutationObserver(() => {
+function scrollNewPanes() {
     document.querySelectorAll(".preview-pane").forEach(function(pre) {
-        // Get first span as it is the span of the start delimiter
-        const firstSpan = pre.querySelector("span");
-        if (firstSpan) {
-            const preRect = pre.getBoundingClientRect();
-            const spanRect = firstSpan.getBoundingClientRect();
-            const offset = spanRect.top - preRect.top + pre.scrollTop - 29;
-            pre.scrollTop = offset;
+        if (scrolledPanes.has(pre)) {
+            return;
         }
+        // A hidden pane has no layout yet: it is scrolled once it shows.
+        if (pre.clientHeight === 0) {
+            return;
+        }
+        scrolledPanes.add(pre);
+        // The start delimiter is the first highlight: the commented-out notice
+        // heads the pane, so its first span is not it.
+        const delimiter = pre.querySelector(".text-highlight.primary");
+        if (!delimiter) {
+            return;
+        }
+        const preRect = pre.getBoundingClientRect();
+        const spanRect = delimiter.getBoundingClientRect();
+        pre.scrollTop = spanRect.top - preRect.top + pre.scrollTop - 29;
     });
-});
-previewObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+document.addEventListener("DOMContentLoaded", scrollNewPanes);
+new MutationObserver(scrollNewPanes).observe(document.body, { childList: true, subtree: true });

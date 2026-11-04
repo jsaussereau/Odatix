@@ -79,6 +79,29 @@ def step_scope(meta):
     return STEP_SCOPE_LAST
   return STEP_SCOPE_LAST if meta.get(results_schema.META_LAST_STEP) else STEP_SCOPE_INTERMEDIATE
 
+def configuration_label(meta):
+  """
+  The "Configuration" of a record, as a chart shows it.
+
+  A synthesis names the configuration it ran ("base+WIDTH_8+ITERATIONS_12"),
+  but a simulation keeps the configuration of the main domain alone, the other
+  domains being keys of their own (see results_schema.make_simulation_record):
+  all its configurations would land on one x. The domains the record carries
+  are added back, in the order of the run, under the name a synthesis gives
+  them. Domains the simulation is invariant to are not carried: left out here
+  too.
+  """
+  configuration = str(meta.get(results_schema.META_CONFIGURATION, ""))
+  if str(meta.get(results_schema.META_TYPE, "")) != results_schema.TYPE_SIMULATION or "+" in configuration:
+    return configuration
+  segments = [
+    domain + "_" + str(meta[domain])
+    for domain in results_schema.parse_domain_segments(meta.get("_arch_full"))
+    if domain in meta
+  ]
+  return "+".join([configuration] + segments)
+
+
 # Result type display names ("type" meta values)
 TYPE_DISPLAY_NAMES = {
   results_schema.TYPE_FMAX: "Fmax",

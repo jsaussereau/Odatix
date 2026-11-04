@@ -30,7 +30,9 @@ if {[catch {
 
     set signature "<grey>\[elaborate_script.tcl\]<end>"
 
+    report_progress 10 $synth_statusfile
     odatix_quartus_create_project $signature 1
+    report_progress 30 $synth_statusfile
     set succeeded [odatix_quartus_run syn "--analysis_and_elaboration" $signature]
     odatix_quartus_close
 

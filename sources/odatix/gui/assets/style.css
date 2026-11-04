@@ -958,6 +958,12 @@ textarea {
 /* --- Target selection (/select_targets) --------------------------------- */
 /* The tool settings sit in a grid of the same columns as the cards below, and
    span all of them: the panel lines up with the cards whatever the width. */
+/* In the flex column of the page, margin: auto would spread the blocks over
+   its height: centered sideways only, stacked at the top. */
+.card-matrix.configs.target-settings-row,
+#target-cards-row {
+    margin: 0 auto;
+}
 .target-settings-row > .odx-panel {
     grid-column: 1 / -1;
     margin: 0 5px 5px;

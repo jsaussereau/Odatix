@@ -25,6 +25,10 @@ if {[catch {
 
     set signature "<grey>\[elaborate_script.tcl\]<end>"
 
+    # Sources read (analyze_script.tcl): the elaboration is what takes long.
+    # analyze_script.tcl reports nothing itself, as synthesis steps source it too
+    report_progress 30 $synth_statusfile
+
     synth_design -rtl -top ${top_level_module}
 
     report_progress 100 $synth_statusfile

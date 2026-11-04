@@ -1,0 +1,24 @@
+##############################################
+# Target settings for Yosys + nextpnr (FPGA)
+##############################################
+
+# Name of the file the clock constraint of a run is written to (in the job
+# directory). nextpnr is given the frequency on its command line: this file is
+# only a record of it.
+constraint_file: constraints.sdc
+
+# The directory of the OSS CAD Suite (the one holding "bin"). Leave it empty
+# when yosys and nextpnr are on your PATH.
+tool_install_path: ""
+
+script_copy_enable: No
+script_copy_source: /dev/null
+
+# Lattice part, as <family>-<device>-<package>[-<speed>]. The I/Os are placed
+# by nextpnr: the package must have enough pins for the ports of the design.
+targets:
+  - ecp5-25k-CABGA381-6       # LFE5U-25F, 24k LUT4, 197 I/Os
+  # - ecp5-45k-CABGA381-6     # LFE5U-45F, 44k LUT4
+  # - ecp5-85k-CABGA756-6     # LFE5U-85F, 84k LUT4, 365 I/Os
+  # - ice40-hx8k-CT256        # iCE40 HX8K, 7680 LC, 206 I/Os
+  # - ice40-up5k-SG48         # iCE40 UltraPlus 5K, 5280 LC, only 39 I/Os: too few for the CORDIC (52 ports)

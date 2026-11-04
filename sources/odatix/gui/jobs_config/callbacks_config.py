@@ -341,7 +341,8 @@ def toggle_auto_nb_jobs(auto_nb_jobs, nb_jobs):
 def update_frequency_note(override, search):
     """Say what the frequency fields mean with the override switch as it is."""
     enabled = _checklist_enabled(override)
-    return frequency_note(get_key_from_url(search, "type"), enabled), frequency_fields_class(enabled)
+    run_mode = get_key_from_url(search, "type")
+    return frequency_note(run_mode, enabled), frequency_fields_class(run_mode, enabled)
 
 
 @dash.callback(

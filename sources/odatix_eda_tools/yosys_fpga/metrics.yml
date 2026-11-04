@@ -1,0 +1,164 @@
+##############################################
+# Metrics for Yosys + nextpnr (FPGA)
+##############################################
+
+# tcl/fpga_flow.py writes the metrics of the routed design in
+# report/metrics.json, under the names of the other FPGA tools of Odatix: they
+# share the columns of Odatix Explorer. On an iCE40, a logic cell (LC) holds one
+# LUT4 and one flip-flop: LUT_count and Reg_count are those of the synthesized
+# netlist, LC_count and LC_percent the cells nextpnr placed. nextpnr reports no
+# power.
+
+fmax_synthesis_metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 2
+    format: "%.0f"
+    unit: MHz
+
+custom_freq_synthesis_metrics:
+  Frequency:
+    type: regex
+    settings:
+      file: frequency.txt
+      pattern: "([0-9.]+) MHz"
+      group_id: 1
+    format: "%.0f"
+    unit: MHz
+
+metrics:
+  LUT_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: LUT_count
+    format: "%.0f"
+
+  LUT_percent:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: LUT_percent
+    format: "%.2f"
+    unit: "%"
+
+  Reg_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: Reg_count
+    format: "%.0f"
+
+  Reg_percent:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: Reg_percent
+    format: "%.2f"
+    unit: "%"
+
+  LC_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: LC_count
+    format: "%.0f"
+
+  LC_percent:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: LC_percent
+    format: "%.2f"
+    unit: "%"
+
+  BRAM_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: BRAM_count
+    format: "%.0f"
+
+  BRAM_percent:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: BRAM_percent
+    format: "%.2f"
+    unit: "%"
+
+  DSP_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: DSP_count
+    format: "%.0f"
+
+  DSP_percent:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: DSP_percent
+    format: "%.2f"
+    unit: "%"
+
+  IO_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: IO_count
+    format: "%.0f"
+
+  IO_percent:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: IO_percent
+    format: "%.2f"
+    unit: "%"
+
+  Achieved_frequency:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: Achieved_frequency
+    format: "%.2f"
+    unit: "MHz"
+
+  Worst_Slack:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/metrics.json
+      key: Worst_Slack
+    format: "%.3f"
+    unit: "ns"
+
+  LUT+Reg_count:
+    type: operation
+    error_if_missing: No
+    settings:
+      op: LUT_count + Reg_count
+    format: "%.0f"
+
+  Param_Domains:
+    type: yaml
+    error_if_missing: No
+    settings:
+      file: param_domains.yml
