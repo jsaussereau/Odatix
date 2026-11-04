@@ -147,8 +147,8 @@ result already has — imported ones included. Back on **Derived metrics**:
 | `LUT_per_bit` | Operation on other metrics | `LUT_count / enob` |
 
 **Save all**, **Apply to results**. `LUT_per_bit` is now a metric like any
-other: the cost of one effective bit of output, for each design — 127 LUTs per
-bit at width 8 and 12 stages, 85 at width 12 — and the whole space can be
+other: the cost of one effective bit of output, for each design — about 400
+LUTs per bit at width 8 and 12 stages, 260 at width 12 — and the whole space can be
 ranked by it. Chart it as **Columns** against the configuration, and the chart
 ranks the design space by efficiency rather than by size: a different question,
 answered with one line and no re-run.

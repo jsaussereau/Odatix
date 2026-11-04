@@ -25,7 +25,7 @@ Some tools do not produce a result, they produce a **curve**. A BER simulation s
 tasks:
   - name: main
     commands:
-      - python3 simulate_ber.py --channel_gain ${channel_gain} --ebno_from 1 --ebno_to 3 --ebno_step 0.5
+      - '"${python}" simulate_ber.py --channel_gain ${channel_gain} --ebno_from 1 --ebno_to 3 --ebno_step 0.5'
 
 variables:
   channel_gain:

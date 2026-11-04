@@ -112,9 +112,39 @@ $ source odatix_venv/bin/activate
 
 ### Step 2: Install Odatix
 
+{{< tabs >}}
+
+{{% tab name="Ubuntu/Debian" %}}
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ python3 -m pip install odatix
 {{< /code >}}
+{{% /tab %}}
+
+{{% tab name="Fedora/AlmaLinux/RHEL" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ python3 -m pip install odatix
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="ArchLinux" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ python3 -m pip install odatix
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="macOS" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ python3 -m pip install odatix
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="Windows" %}}
+{{< code lang=bash filename="Terminal Powershell" prompt="true" >}}
+$ .\odatix_venv\Scripts\python.exe -m pip install odatix
+{{< /code >}}
+{{% /tab %}}
+
+{{< /tabs >}}
 
 
 ## Enable autocompletion *(optional)*

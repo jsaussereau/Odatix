@@ -32,7 +32,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing}
+      - '"${python}" simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing}'
 
 variables:
   max_speed:
@@ -61,7 +61,7 @@ Any `${...}` placeholder in a command is substituted from the resolved configura
 tasks:
   - name: main
     commands:
-      - python3 run_profile.py --profile "${cli_profile}" --tag "demo"   # in workflow "cli_profile"
+      - '"${python}" run_profile.py --profile "${cli_profile}" --tag "demo"'   # in workflow "cli_profile"
 {{< /code >}}
 
 ## Architectures: sweeping the generation command

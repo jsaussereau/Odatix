@@ -27,7 +27,7 @@ Odatix uses for synthesis, applied to anything that runs from a shell.
 
 ## Prerequisites
 
-The examples run Python scripts: `python3` must be in your `PATH`. No EDA tool
+The examples run Python scripts, most of them with `${python}`, the Python that runs Odatix. No EDA tool
 is needed. The `tensorflow` example also installs TensorFlow, which takes a
 while and needs a Python version TensorFlow supports.
 
@@ -179,7 +179,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing} --road_length ${road_length}
+      - '"${python}" simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing} --road_length ${road_length}'
 
 variables:
   max_speed:

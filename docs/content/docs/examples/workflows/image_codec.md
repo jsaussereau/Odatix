@@ -16,7 +16,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 encode_image.py --block_size ${block_size} --quality ${quality} --downsample ${downsample} --dead_zone ${dead_zone}
+      - '"${python}" encode_image.py --block_size ${block_size} --quality ${quality} --downsample ${downsample} --dead_zone ${dead_zone}'
 
 variables:
   quality:            # 1, 3, ... 99: 50 values

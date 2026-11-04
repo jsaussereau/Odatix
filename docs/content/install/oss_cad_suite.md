@@ -99,8 +99,23 @@ your shell reads, or it names a relative path (`.local/...` instead of
 
 ## Windows
 
-The Windows build runs natively: no WSL needed for `yosys_fpga`, `yosys`
-analyses or GHDL simulations.
+The Windows build runs natively, without WSL. It holds fewer tools than the
+Linux one, and Odatix runs each of them as follows:
+
+| Odatix tool | On Windows |
+|---|---|
+| `yosys_fpga`, `yosys` | Work as they are, for Verilog and SystemVerilog. |
+| `icarus` | Works as it is: analyses and simulations. |
+| `verilator` | Analyses work as they are. A simulation also needs a **C++ compiler** (see [Verilator simulations](#verilator-simulations-on-windows)). |
+| `ghdl` | **Not in the Windows build.** Install it on its own (see [GHDL](#ghdl-on-windows)); it is also what `yosys_fpga` reads VHDL with. |
+
+> [!IMPORTANT] Keep the workspace in a short path
+> Yosys, nextpnr and Icarus cannot open a file whose full path is longer than
+> 260 characters, and a job directory of Odatix is already deep
+> (`work\custom_freq_synthesis\yosys_fpga\<target>\<architecture>\<configuration>\...`).
+> A workspace such as `C:\Users\<you>\odatix_workshop` is fine; one buried in
+> several folders of `Documents` or `OneDrive` may not be: every job then fails
+> with *No such file or directory* on a file that exists.
 
 ### 1. Download
 
@@ -177,6 +192,35 @@ PS> nextpnr-ecp5 --version
 
 A missing DLL error means `lib` is not on the `PATH`.
 
+### Verilator simulations on Windows
+
+The suite ships the binary of Verilator, `verilator_bin.exe`, next to
+`verilator`, a Perl script Windows cannot run: Odatix runs the binary itself,
+and an RTL analysis with `verilator` needs nothing more.
+
+A simulation needs one more thing: Verilator turns the design into C++, which
+has to be compiled, and the suite has no C++ compiler on Windows. Odatix
+compiles it without `make` or Perl, with the `g++` or `clang++` it finds on the
+`PATH` (or the one `CXX` names). With [MSYS2](https://www.msys2.org/), for
+instance:
+
+{{< code lang=bash filename="MSYS2 UCRT64" prompt="true" >}}
+$ pacman -S mingw-w64-ucrt-x86_64-gcc
+{{< /code >}}
+
+then add `C:\msys64\ucrt64\bin` to the `PATH`, **after** the two directories of
+the suite. Without a compiler, a Verilator simulation fails at once and says
+so; the `icarus` template simulates the same SystemVerilog with nothing to
+install.
+
+### GHDL on Windows
+
+GHDL is not part of the Windows build of the suite. Take
+`ghdl-mcode-<version>-ucrt64.zip` from the [GHDL
+releases](https://github.com/ghdl/ghdl/releases), extract it, and add its `bin` directory to the
+`PATH`; `ghdl --version` must then answer in a new terminal. Odatix finds it
+there for analyses, simulations, and the VHDL designs of `yosys_fpga`.
+
 ## macOS
 
 Take `oss-cad-suite-darwin-arm64-<date>.tgz` (Apple silicon) or `darwin-x64`
@@ -209,5 +253,7 @@ project is as simple: keep the archive.
 | `yosys: command not found` | The `PATH` names a relative path, another directory than `bin`, or was changed after the terminal opened. |
 | `odatix` now runs another Python, or no longer starts | `environment` (or `environment.bat`) was sourced: it puts the suite's Python first. Put `bin` on the `PATH` instead. |
 | Windows: *The code execution cannot proceed because ... .dll was not found* | `lib` is missing from the `PATH`. |
+| Windows: every job fails with *No such file or directory* on a file that exists | The path of the job is longer than 260 characters: move the workspace to a shorter path. |
+| Windows: a Verilator simulation says no C++ compiler is in the `PATH` | See [Verilator simulations on Windows](#verilator-simulations-on-windows), or use the `icarus` template. |
 | `Can't load module './ghdl'` in a Yosys log | The GHDL plugin of this build does not match its Yosys. `yosys_fpga` does not use it (it runs `ghdl` itself), only scripts of your own calling `plugin -i ghdl` are affected. |
 | `yosys_fpga` reports a package with too few I/Os | nextpnr places every port of the design on a pin: take a larger package in `target_yosys_fpga.yml`. |

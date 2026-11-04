@@ -379,7 +379,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 simulate_traffic.py --max_speed ${max_speed}
+      - '"${python}" simulate_traffic.py --max_speed ${max_speed}'
 
 variables:
   max_speed:

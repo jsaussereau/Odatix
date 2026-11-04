@@ -29,15 +29,7 @@ Fifteen minutes, best done before you sit down — not in the room.
 
 ### 1. Install Odatix
 
-{{< code lang=bash filename="Terminal" prompt="true" >}}
-$ python3 -m venv odatix_venv
-$ source odatix_venv/bin/activate
-$ pip install odatix
-$ odatix -v
-{{< /code >}}
-
-Other ways to install it, offline included, are on the
-[installation pages](/install/).
+See the [installation pages](/install/).
 
 ### 2. Install OSS CAD Suite
 
@@ -54,6 +46,16 @@ $ nextpnr-ecp5 --version
 $ verilator --version
 $ ghdl --version
 {{< /code >}}
+
+> [!WARNING] On Windows
+> The Windows build of the suite holds Yosys, nextpnr, Verilator and Icarus
+> Verilog, but **not GHDL**, and it has no C++ compiler, which a Verilator
+> *simulation* needs. Check with `verilator_bin --version` and `iverilog -V`
+> instead of the last two lines: the SystemVerilog track runs as it is, with
+> **Icarus** for the simulation. For VHDL, or to simulate with Verilator, see
+> [Windows](/install/oss_cad_suite/#verilator-simulations-on-windows) on the
+> installation page. Create the workspace in a short path (`~\odatix_workshop`
+> is fine): Yosys cannot open files whose path is longer than 260 characters.
 
 ### 3. Optionally, your own synthesis tool
 

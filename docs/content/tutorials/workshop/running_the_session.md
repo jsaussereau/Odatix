@@ -48,7 +48,10 @@ bundle*, and tell them to ask you for it.
 Yosys + nextpnr: with Odatix and the [OSS CAD Suite](/install/oss_cad_suite/),
 a participant runs the common track, module A, module B, module F and the
 finale on their own laptop, Linux, macOS or Windows, without a license. Ask
-them to install both before the session.
+them to install both before the session. On Windows, the suite has neither
+GHDL nor a C++ compiler: participants there take the SystemVerilog track and
+simulate with `icarus` rather than `verilator` (see [the installation
+page](/install/oss_cad_suite/#windows)).
 
 **One virtual machine covers the rest.** Odatix, the OSS CAD Suite, Vivado and
 LibreLane in one image means every module is doable by everyone. Participants

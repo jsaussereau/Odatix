@@ -165,6 +165,7 @@ resolved configuration:
 | `${workflow_path}` | This workflow's definition directory. |
 | `${source_path}` | Directory the workflow's sources are copied from. |
 | `${odatix_path}` | Odatix installation directory. |
+| `${python}` | The Python interpreter running Odatix. Write `"${python}" script.py` rather than `python3 script.py`: it exists on every system, while a Windows virtual environment has no `python3`. |
 
 A parameter domain or a variable named like a built-in placeholder wins over it,
 so declaring one never silently changes what a command already did.
@@ -243,7 +244,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles}
+      - '"${python}" simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles}'
 
 variables:
   max_speed:

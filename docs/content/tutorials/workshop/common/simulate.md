@@ -101,6 +101,13 @@ The **template** is the simulator, ready to use: it compiles the design and the
 testbench, runs them, and reports how it went. There is no script to write.
 Other templates are `icarus`, `questa` and `xsim`.
 
+> [!TIP] On Windows
+> Verilator builds a C++ simulator, and the OSS CAD Suite for Windows has no
+> C++ compiler. Unless you installed one (see [Verilator simulations on
+> Windows](/install/oss_cad_suite/#verilator-simulations-on-windows)), start
+> from `icarus` instead: it simulates the same testbench, with the same
+> results to the last digit.
+
 `${WIDTH}` is the value of the variable `WIDTH` the configuration was made
 from: for `ITERATIONS/12 + WIDTH/8`, the testbench gets `WIDTH = 8` and
 `ITERATIONS = 12`.

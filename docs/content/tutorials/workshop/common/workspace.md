@@ -19,7 +19,7 @@ next_tutorials: ["/tutorials/workshop/common/describe"]
 Create a new directory for the session and move into it. For example:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir -p ~/odatix_workshop && cd ~/odatix_workshop
+$ mkdir -p ~/odatix_workshop; cd ~/odatix_workshop
 {{< /code >}}
 
 Create a new Odatix workspace, with the material of the workshop:

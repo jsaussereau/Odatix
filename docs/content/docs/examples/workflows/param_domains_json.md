@@ -25,7 +25,7 @@ The same traffic simulation, but the script takes no arguments at all: it reads 
 tasks:
   - name: main
     commands:
-      - python3 simulate_traffic.py
+      - '"${python}" simulate_traffic.py'
 {{< /code >}}
 
 {{< code lang=json filename="examples/workflow_param_domains_json/workflow_params.json" >}}

@@ -30,7 +30,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 run_profile.py --profile "${cli_profile}" --tag "config-placeholder-demo"
+      - '"${python}" run_profile.py --profile "${cli_profile}" --tag "config-placeholder-demo"'
 {{< /code >}}
 
 `${cli_profile}`, the name of the workflow, is filled with the content of the selected configuration file — `default.txt` holds `balanced profile`, `aggressive.txt` holds `aggressive profile` — so `cli_profile/default` and `cli_profile/aggressive` run the same script with different arguments.

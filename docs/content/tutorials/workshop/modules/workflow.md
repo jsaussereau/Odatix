@@ -63,7 +63,7 @@ use_parameters: No
 tasks:
   - name: main
     commands:
-      - python3 cordic_model.py --width ${WIDTH} --iterations ${ITERATIONS}
+      - '"${python}" cordic_model.py --width ${WIDTH} --iterations ${ITERATIONS}'
 
 variables:
   WIDTH:
@@ -76,7 +76,9 @@ variables:
 
 Each `variables` entry is a parameter domain declared inline, with no folder
 and no file per value, and each `${...}` in the command is replaced by the
-value of the configuration. `_metrics.yml`, next to it, reads `results.yml` with
+value of the configuration — `${python}` by the Python that runs Odatix, so
+the command works the same on Linux, macOS and Windows, where `python3` is
+often missing. `_metrics.yml`, next to it, reads `results.yml` with
 the **same metric names** as the simulations — `snr`, `enob`, `rms_error` —
 which is what step 4 relies on.
 
@@ -194,7 +196,7 @@ with a rule, and combinations left out before they cost anything.
 | Symptom | What to do |
 |---|---|
 | `cordic_model` is not listed | The workspace was created before the example was shipped: run `odatix init -y --cordic` in a new directory, and copy `odatix_userconfig/workflows/cordic_model` and `examples/workflow_cordic_model` from it. |
-| Every job fails | `python3` must be on the `PATH` of the terminal Odatix was started from. Run the command of step 1 by hand: it prints the error. |
+| Every job fails | Run the command of step 1 by hand: it prints the error. On Windows, type `python` instead of `python3`. |
 | The progress bar stays at 0 % | Harmless: the model writes `progress.txt` only at the end, and runs too fast for anything in between. |
 | `snr` does not appear | Re-export the metrics without running anything: `odatix results workflow`. |
 
