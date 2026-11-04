@@ -134,14 +134,6 @@ def test_the_tutorials_create_their_directory_even_if_it_exists():
         assert "$ mkdir ~/odatix_examples" not in f.read()
 
 
-def test_the_installation_pages_say_that_pypi_serves_odatix_3():
-    for page in ("_index.md", "pypi.md", "offline.md"):
-        with open(os.path.join(DOCS_DIR, "install", page), encoding="utf-8") as f:
-            assert "Odatix 4.0 is not on PyPI yet" in f.read(), page
-    with open(os.path.join(DOCS_DIR, "docs", "getting-started.md"), encoding="utf-8") as f:
-        assert "Odatix 4.0 is not on PyPI yet" in f.read()
-
-
 ######################################
 # Update check
 ######################################

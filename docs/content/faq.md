@@ -19,10 +19,6 @@ layout: "faq"
                     "answer": "No, Odatix facilitates the use of FPGA and ASIC tools, but it does not include any EDA tools. Users need to have their own licenses for the EDA tools they wish to use with Odatix."
                 },
                 {
-                    "question": "Why does pip install a version without the commands of this documentation?",
-                    "answer": "This documentation describes Odatix 4.0, which is not on PyPI yet: `pip install odatix` still installs Odatix 3.7. `odatix --version` tells which one you have. Until the release, [install Odatix from sources](/install/sources/)."
-                },
-                {
                     "question": "Can I try Odatix without an EDA licence?",
                     "answer": "Yes! Some examples rely on free and open-source tools."
                 },

@@ -14,10 +14,6 @@ next_tutorials:
 
 {{< toc >}}
 
-> [!NOTE]
-> Until Odatix 4.0 is on PyPI, this is the way to install the version this
-> documentation describes: `pip install odatix` still installs Odatix 3.7.
-
 > [!WARNING]
 > Odatix provides partial support for Windows. For a better experience, it is recommended to use Linux.
 
