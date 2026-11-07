@@ -739,6 +739,26 @@ class TestRecords:
         records = results_schema.load_results_file(str(tmp_path / "results" / "analysis" / "verilator.yml")).records
         assert len(records) == 1 and records[0]["meta"]["_status"] == "failed"
 
+    def test_configurations_told_apart_by_their_domains_are_all_kept(self, tmp_path):
+        # An architecture with several domains runs every combination under its
+        # own name as configuration: only the values of the domains tell them apart.
+        from odatix.components.export_analysis import export_analysis_results
+
+        for width in ("4", "8"):
+            result = analysis.AnalysisResult("verilator", "C", "C", flow="lint", domains={"WIDTH": width})
+            assert export_analysis_results([result], str(tmp_path))
+        results = analysis.read_results(str(tmp_path))
+        assert sorted(result.label for result in results) == ["C [WIDTH:4]", "C [WIDTH:8]"]
+        assert {result.name for result in results} == {"C"}
+
+    def test_the_domains_of_a_job_are_read(self, tmp_path):
+        job = make_job(tmp_path, "C", VERILATOR_LOG)
+        with open(os.path.join(job, hard_settings.param_domains_filename), "w") as f:
+            f.write("__main__: C\n__timestamp__: now\nWIDTH: '4'\n")
+        result = result_of("verilator", job)
+        assert result.domains == {"WIDTH": "4"}
+        assert analysis.AnalysisResult.from_record(result.to_record(results_schema)).domains == {"WIDTH": "4"}
+
 
 ######################################
 # The report

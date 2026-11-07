@@ -833,10 +833,15 @@ class AnalysisResult(object):
   """What the analysis of one design with one tool concluded."""
 
   def __init__(self, tool, architecture, configuration="", flow=None, status=STATUS_PASSED,
-               findings=None, counts=None, omitted=0, languages=None, logs=None, note=""):
+               findings=None, counts=None, omitted=0, languages=None, logs=None, note="",
+               domains=None):
     self.tool = str(tool or "")
     self.architecture = str(architecture or "")
     self.configuration = str(configuration or "")
+    #: {domain: value} of the parameter domains the design was generated from
+    #: (ITERATIONS: "12"): what tells apart the configurations of an
+    #: architecture with several domains, which share its configuration name.
+    self.domains = dict((str(key), str(value)) for key, value in (domains or {}).items())
     self.flow = flow or None
     self.status = status
     self.findings = list(findings or [])
@@ -878,6 +883,17 @@ class AnalysisResult(object):
     if not self.configuration or self.configuration == self.architecture:
       return self.architecture
     return self.architecture + "/" + self.configuration
+
+  @property
+  def label(self):
+    """
+    The name of the design, followed by the values of its parameter domains
+    when it has some: "My_Cordic [ITERATIONS:12, WIDTH:8]". What tells apart
+    designs on display; ``name`` stays what patterns and expectations match.
+    """
+    if not self.domains:
+      return self.name
+    return self.name + " [" + ", ".join(key + ":" + value for key, value in sorted(self.domains.items())) + "]"
 
   @property
   def summary(self):
@@ -931,6 +947,8 @@ class AnalysisResult(object):
       meta["_languages"] = list(self.languages)
     if self.logs:
       meta["_logs"] = list(self.logs)
+    for key, value in sorted(self.domains.items()):
+      meta.setdefault(key, value)
 
     metrics = {
       "error_count": self.count("error"),
@@ -984,10 +1002,45 @@ class AnalysisResult(object):
       languages=meta.get("_languages") or [],
       logs=logs,
       note=meta.get("_note", ""),
+      domains=record_domains(meta),
     )
 
   def __repr__(self):
     return "<AnalysisResult {0} {1}: {2}>".format(self.tool, self.name, self.status)
+
+
+def record_domains(meta):
+  """
+  {domain: value} of the parameter domains a record says its design was
+  generated from: its meta keys that are neither reserved nor informational.
+  """
+  import odatix.lib.results_schema as results_schema
+
+  if not isinstance(meta, dict):
+    return {}
+  skipped = set(results_schema.RESERVED_META_KEYS) | {results_schema.MAIN_DOMAIN_META_KEY}
+  return dict(
+    (str(key), str(value)) for key, value in meta.items()
+    if str(key) not in skipped and not str(key).startswith("_") and not isinstance(value, (dict, list))
+  )
+
+
+def job_domains(job_dir):
+  """{domain: value} of the parameter domains of a job, from its param_domains.yml."""
+  path = os.path.join(job_dir, hard_settings.param_domains_filename)
+  if not os.path.isfile(path):
+    return {}
+  try:
+    with open(path, "r", encoding="utf-8") as f:
+      data = yaml_loader.safe_load(f)
+  except Exception:
+    return {}
+  if not isinstance(data, dict):
+    return {}
+  return dict(
+    (str(key), str(value)) for key, value in data.items()
+    if not (str(key).startswith("__") and str(key).endswith("__")) and not isinstance(value, (dict, list))
+  )
 
 
 #: Result type of analysis records in a results file.
@@ -1227,4 +1280,5 @@ def analyze_job(job_dir, tool, architecture="", configuration="", flow=None, def
     languages=languages,
     logs=logs,
     note=note,
+    domains=job_domains(job_dir),
   )

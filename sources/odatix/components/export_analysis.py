@@ -104,17 +104,24 @@ def _without_records_replaced(records, tool, results):
 
   default_flow = eda_tools.get_default_flow(tool, job_type="analysis")
   replaced = {
-    (result.architecture, result.configuration)
+    (result.architecture, result.configuration, tuple(sorted(result.domains.items())))
     for result in results
     if result.flow in (None, "", default_flow)
   }
   if not replaced:
     return records
+
+  def design(meta):
+    return (
+      meta.get(results_schema.META_ARCHITECTURE),
+      meta.get(results_schema.META_CONFIGURATION),
+      tuple(sorted(analysis.record_domains(meta).items())),
+    )
+
   return [
     record for record in records
     if (record.get("meta", {}).get(results_schema.META_FLOW) not in (None, "")
-        or (record.get("meta", {}).get(results_schema.META_ARCHITECTURE),
-            record.get("meta", {}).get(results_schema.META_CONFIGURATION)) not in replaced)
+        or design(record.get("meta", {})) not in replaced)
   ]
 
 
@@ -230,7 +237,7 @@ def export_single_analysis_job(job, export_config=None):
   if not export_analysis_results([result], output_dir, quiet=True):
     return False
   printc.say(
-    'Analysis of "' + result.name + '": ' + analysis.STATUS_LABELS[result.status].lower()
+    'Analysis of "' + result.label + '": ' + analysis.STATUS_LABELS[result.status].lower()
     + (" (" + result.summary + ")" if result.summary else ""),
     script_name=script_name,
   )

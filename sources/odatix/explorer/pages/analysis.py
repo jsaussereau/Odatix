@@ -217,7 +217,7 @@ def _matrix(results):
   tools = _tool_names(results)
   status_by_name = {}
   for result in results:
-    status_by_name.setdefault(result.name, {})[result.tool] = result.status
+    status_by_name.setdefault(result.label, {})[result.tool] = result.status
   names = sorted(status_by_name, key=str.lower)
 
   header = html.Tr(
@@ -252,7 +252,7 @@ def _category_table(results, active_category):
   for result in results:
     for finding in result.attention:
       if finding.severity != "info":
-        designs.setdefault((finding.category, result.tool), set()).add(result.name)
+        designs.setdefault((finding.category, result.tool), set()).add(result.label)
   if not designs:
     return None
 
@@ -367,7 +367,7 @@ def _record_row(result, categories, editable=False):
 
   summary_children = [
     html.Span(glyph, className="xpa-row-badge xpa-" + modifier),
-    html.Span(result.name, className="xpa-row-name"),
+    html.Span(result.label, className="xpa-row-name"),
   ]
   if result.tool:
     summary_children.append(html.Span(result.tool, className="xpa-chip xpa-chip-tool"))
@@ -417,7 +417,7 @@ def _filtered(results, active_status, active_category, search):
     results = [result for result in results if _has_category(result, active_category)]
   if search:
     needle = search.strip().lower()
-    results = [result for result in results if needle in result.name.lower()]
+    results = [result for result in results if needle in result.label.lower()]
   return results
 
 
@@ -439,7 +439,7 @@ def _list_children(all_results, results, editable=False):
       className="xpa-empty",
     )
   categories = _categories()
-  results = sorted(results, key=lambda result: (STATUS_ORDER.index(result.status), result.name.lower(), result.tool))
+  results = sorted(results, key=lambda result: (STATUS_ORDER.index(result.status), result.label.lower(), result.tool))
   return [_record_row(result, categories, editable) for result in results]
 
 

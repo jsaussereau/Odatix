@@ -91,7 +91,7 @@ def _tools(results):
 
 
 def _designs(results):
-  return sorted({result.name for result in results}, key=str.lower)
+  return sorted({result.label for result in results}, key=str.lower)
 
 
 def _plural(count, word, plural=None):
@@ -132,7 +132,7 @@ def _header(results, tools):
 def _matrix(results, tools, width):
   by_design = {}
   for result in results:
-    by_design.setdefault(result.name, {})[result.tool] = result.status
+    by_design.setdefault(result.label, {})[result.tool] = result.status
   designs = _designs(results)
   column = max(9, max(len(tool) for tool in tools) + 2)
   name_width = min(max(len(name) for name in designs) + 2, max(20, width - column * len(tools) - 4))
@@ -173,7 +173,7 @@ def _category_table(results, tools, categories):
     for finding in result.attention:
       if finding.severity == "info":
         continue
-      designs.setdefault((finding.category, result.tool), set()).add(result.name)
+      designs.setdefault((finding.category, result.tool), set()).add(result.label)
   if not designs:
     return []
 
@@ -211,7 +211,7 @@ def _details(results, tools, width):
   for status in DETAILED_STATUSES:
     selected = sorted(
       [result for result in results if result.status == status],
-      key=lambda result: (result.name.lower(), result.tool),
+      key=lambda result: (result.label.lower(), result.tool),
     )
     if not selected:
       continue
@@ -219,9 +219,9 @@ def _details(results, tools, width):
     lines.append("")
     lines.append(" " + color + colors.BOLD + symbol + " " + analysis.STATUS_LABELS[status] + colors.ENDC
                  + colors.GREY + " (" + str(len(selected)) + ")" + colors.ENDC)
-    name_width = min(max(len(result.name) + (len(result.tool) + 3 if multi_tool else 0) for result in selected) + 2, 40)
+    name_width = min(max(len(result.label) + (len(result.tool) + 3 if multi_tool else 0) for result in selected) + 2, 40)
     for result in selected[:MAX_LINES_PER_STATUS]:
-      label = result.name + (colors.GREY + " · " + result.tool + colors.ENDC if multi_tool else "")
+      label = result.label + (colors.GREY + " · " + result.tool + colors.ENDC if multi_tool else "")
       text, location = _finding_text(result)
       room = max(20, width - name_width - 6 - (len(location) + 2 if location else 0))
       if visible_length(text) > room:
@@ -246,7 +246,7 @@ def _expected(results):
       key = (finding.category, finding.reason or "")
       group = groups.setdefault(key, {"count": 0, "designs": set(), "tools": set()})
       group["count"] += finding.count
-      group["designs"].add((result.name, result.tool))
+      group["designs"].add((result.label, result.tool))
       group["tools"].add(result.tool)
   if not groups:
     return []
@@ -270,7 +270,7 @@ def _unsupported(results):
   groups = {}
   for result in results:
     if result.status == analysis.STATUS_UNSUPPORTED:
-      groups.setdefault(result.summary, []).append(result.name)
+      groups.setdefault(result.summary, []).append(result.label)
   lines = []
   for note, names in sorted(groups.items()):
     if not lines:
