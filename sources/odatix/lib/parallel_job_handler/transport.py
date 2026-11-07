@@ -151,6 +151,27 @@ def socket_path_for_session(workspace_root, session_name, access=None):
     return path
 
 
+def bind_unix_socket(path, access=None, gid=None, backlog=2048):
+    """Bind and listen on ``path`` with its final owner and mode already set.
+
+    The mode is set between bind and listen: nobody can connect before it,
+    so there is no window in which the socket is more open than ``access``
+    allows (unlike letting uvicorn create it 0666 and tightening it after).
+    """
+    remove_socket(path)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.bind(str(path))
+        if normalize_access(access) == ACCESS_GROUP:
+            chown_group(path, gid)
+        os.chmod(path, access_socket_mode(access))
+        sock.listen(backlog)
+    except BaseException:
+        sock.close()
+        raise
+    return sock
+
+
 def harden_socket(path, timeout=10.0, access=None, gid=None, ready=None):
     """Make a listening socket reachable only by its owner.
 

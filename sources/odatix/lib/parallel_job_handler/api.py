@@ -445,6 +445,8 @@ def create_uvicorn_server(
     start_headless_on_startup: bool = True,
     quiet: bool = False,
     shutdown_callback=None,
+    socket_access=None,
+    socket_gid=None,
 ):
     """Build the uvicorn server for a session.
 
@@ -491,13 +493,18 @@ def create_uvicorn_server(
         log_level = "critical"
         log_config = _null_uvicorn_log_config()
 
+    unix_sock = None
     config_kwargs = {
         "log_level": str(log_level),
         "access_log": bool(access_log),
         "log_config": log_config,
     }
     if transport == TRANSPORT_UNIX:
-        config_kwargs["uds"] = str(socket_path)
+        # Bound here with its mode already set, never left to uvicorn's 0666.
+        from .transport import bind_unix_socket
+
+        unix_sock = bind_unix_socket(socket_path, access=socket_access, gid=socket_gid)
+        config_kwargs["fd"] = unix_sock.fileno()
     else:
         config_kwargs["host"] = str(host)
         config_kwargs["port"] = int(port)
@@ -505,6 +512,8 @@ def create_uvicorn_server(
     config = uvicorn.Config(app, **config_kwargs)
     server = uvicorn.Server(config)
     server.odatix_auth = auth
+    # Kept referenced: uvicorn only holds a duplicate of its descriptor.
+    server.unix_socket = unix_sock
     return server
 
 

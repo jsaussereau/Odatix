@@ -23,7 +23,6 @@
 
 import argparse
 import os
-import threading
 import time
 
 from odatix.lib.parallel_job_handler import diagnostics
@@ -45,7 +44,6 @@ from odatix.lib.parallel_job_handler.utils import machine_name
 from odatix.lib.parallel_job_handler.transport import (
     TRANSPORT_TCP,
     TRANSPORT_UNIX,
-    harden_socket,
     remove_socket,
     socket_path_for_session,
     unix_sockets_supported,
@@ -257,19 +255,15 @@ def run_daemon(
         start_headless_on_startup=True,
         quiet=True,
         shutdown_callback=_request_server_shutdown,
+        socket_access=access,
+        socket_gid=gid,
     )
     server_ref["server"] = server
 
     endpoint_fields = {"transport": transport}
     if transport == TRANSPORT_UNIX:
+        # Bound by create_uvicorn_server with its mode already set.
         endpoint_fields["socket_path"] = socket_path
-        # The socket only exists once uvicorn has bound it, and uvicorn leaves
-        # it world-writable. Tighten it once uvicorn is done with it.
-        threading.Thread(
-            target=harden_socket, args=(socket_path,),
-            kwargs={"access": access, "gid": gid, "ready": lambda: getattr(server, "started", True)},
-            daemon=True,
-        ).start()
     else:
         endpoint_fields["host"] = host
         endpoint_fields["port"] = int(port)
