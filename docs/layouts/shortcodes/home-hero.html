@@ -83,9 +83,19 @@
         {{ with $tools }}
         <div class="home-hero__tools">
             <span class="home-hero__tools-label">Drives your EDA tools</span>
-            <ul class="home-hero__tools-list">
-                {{ range split . "," }}<li>{{ trim . " " }}</li>{{ end }}
-            </ul>
+            <div class="home-hero__tools-groups">
+                {{ range $i, $group := split . ";" }}
+                {{ $parts := split $group ":" }}
+                {{ $has_name := gt (len $parts) 1 }}
+                {{ $names := cond $has_name (index $parts 1) (index $parts 0) }}
+                <div class="home-hero__tools-group home-hero__tools-group--{{ add (mod $i 4) 1 }}">
+                    {{ if $has_name }}<span class="home-hero__tools-group-name">{{ trim (index $parts 0) " " }}</span>{{ end }}
+                    <ul class="home-hero__tools-list">
+                        {{ range split $names "," }}<li>{{ trim . " " }}</li>{{ end }}
+                    </ul>
+                </div>
+                {{ end }}
+            </div>
         </div>
         {{ end }}
     </div>

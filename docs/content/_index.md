@@ -16,7 +16,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
     window_title="Odatix GUI"
     image="/images/screenshots/explorer-overview.png"
     image_caption="Odatix demo — from design configurations to interactive results"
-    tools="Vivado, Quartus, Design Compiler, Genus, Innovus, OpenLane, Verilator, GHDL"
+    tools="FPGA: Vivado, Quartus, Yosys + nextpnr; ASIC: Design Compiler, Genus, Yosys, Innovus, OpenLane, LibreLane; Simulation: Verilator, Icarus, GHDL, QuestaSim / ModelSim, XSim (Vivado)"
     arrow=true
 >}}
 
