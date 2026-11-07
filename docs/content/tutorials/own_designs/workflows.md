@@ -54,7 +54,7 @@ your sources ──copy──► run directory ──run the tasks──► read
   when it offers to add the examples):
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/my_project && cd ~/my_project
+$ mkdir ~/my_project; cd ~/my_project
 $ odatix init
 {{< /code >}}
 

@@ -41,7 +41,7 @@ $ source odatix_venv/bin/activate
 Create a new directory for the demonstration and move into it. For example:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir -p ~/odatix_examples && cd ~/odatix_examples
+$ mkdir -p ~/odatix_examples; cd ~/odatix_examples
 {{< /code >}}
 
 Create a new Odatix workspace and copy the built-in examples into it:

@@ -105,7 +105,7 @@ $ cd Odatix/
 
 {{< /tabs >}}
 
-### Step 2: Configure a [virtual environment](https://docs.python.org/3/library/venv.html) *(optional)*
+### Step 2: Configure a [virtual environment](https://docs.python.org/3/library/venv.html)
 
 If you want to use Odatix inside a virtual environment (recommended), run:
 

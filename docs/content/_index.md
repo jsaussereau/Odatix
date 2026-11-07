@@ -12,8 +12,10 @@ description: "Odatix is a free and open-source design automation toolbox for the
     primary_button_url="/docs/getting-started/"
     secondary_button_text="View on GitHub"
     secondary_button_url="https://github.com/jsaussereau/odatix"
+    video="/videos/screencasts/odatix_demo.min.mp4"
+    window_title="Odatix GUI"
     image="/images/screenshots/explorer-overview.png"
-    image_caption="Odatix Explorer — interactive comparison of implementation metrics"
+    image_caption="Odatix demo — from design configurations to interactive results"
     tools="Vivado, Quartus, Design Compiler, Genus, Innovus, OpenLane, Verilator, GHDL"
     arrow=true
 >}}

@@ -64,25 +64,6 @@ step that synthesizes has a tab for **Vivado**, **Quartus**, **Design
 Compiler**, **Genus** or **LibreLane** too. Take one of them if you have it and
 would rather see its numbers: the commands only change by `--tool`.
 
-### 4. Check what Odatix finds
-
-{{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix-gui
-{{< /code >}}
-
-The **Tools** page says, tool by tool, whether Odatix finds it and what it
-answers — the fastest way to know which modules you will be able to run. Close
-it with <kbd>Ctrl</kbd>+<kbd>C</kbd>. It is also where the common track
-starts: if it opens here, you are ready.
-
-> [!IMPORTANT]
-> A tool has to work in your terminal **before** Odatix can drive it:
-> `yosys -V`, `vivado -version`, `quartus_sh --version`, `dc_shell -version`,
-> `vsim -version`. If one of them does not answer, source the setup script of
-> your installation in that terminal (see [Install supported EDA
-> tools](/install/eda_tools/#install-vivado)), and start Odatix from there.
-
-
 ### Part 1 — The common track
 
 Everyone, together, in SystemVerilog or VHDL — your choice. In the graphical

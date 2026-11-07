@@ -9,10 +9,12 @@
 {{ $secondary_button_url := .Get "secondary_button_url" }}
 {{ $image := .Get "image" }}
 {{ $image_caption := .Get "image_caption" }}
+{{ $video := .Get "video" }}
+{{ $window_title := .Get "window_title" | default "odatix explorer" }}
 {{ $tools := .Get "tools" }}
 {{ $arrow := .Get "arrow" | default "false" }}
 
-<section class="home-hero">
+<section class="home-hero{{ if $video }} home-hero--video{{ end }}">
     <div class="home-hero__inner">
         <div class="home-hero__grid">
             <div class="home-hero__copy">
@@ -60,13 +62,17 @@
             </div>
 
             <div class="home-hero__visual">
-                {{ with $image }}
+                {{ if or $video $image }}
                 <figure class="home-hero__window">
                     <div class="home-hero__window-bar">
-                        <span class="home-hero__window-url">odatix explorer</span>
+                        <span class="home-hero__window-url">{{ $window_title }}</span>
                         <span class="home-hero__window-dots"><i></i><i></i><i></i></span>
                     </div>
-                    <img src="{{ . | relURL }}" alt="{{ $image_caption | default "Odatix Explorer" }}" loading="eager">
+                    {{ if $video }}
+                    <video src="{{ $video | relURL }}"{{ with $image }} poster="{{ . | relURL }}"{{ end }} autoplay muted loop playsinline controls preload="metadata" aria-label="{{ $image_caption | default "Odatix demo" }}"></video>
+                    {{ else }}
+                    <img src="{{ $image | relURL }}" alt="{{ $image_caption | default "Odatix Explorer" }}" loading="eager">
+                    {{ end }}
                 </figure>
                 {{ end }}
                 <div class="home-hero__glow home-hero__glow--a"></div>

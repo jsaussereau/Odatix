@@ -13,6 +13,16 @@ For longer walkthroughs, see the [tutorials](/tutorials/).
 
 {{< toc >}}
 
+{{< doc-cards cols="2" >}}
+{{< doc-card title="Run the examples" link="/tutorials/run_examples/" icon="rocket" accent="#059669" >}}
+Get results quickly on designs that ship with Odatix, already configured: run a synthesis, an Fmax search, simulations or a workflow, then chart the results.
+{{< /doc-card >}}
+
+{{< doc-card title="Hands-on workshop" link="/tutorials/workshop/" icon="tutorial" accent="#d97706" >}}
+Set everything up yourself, step by step: on a pipelined CORDIC core, you configure simulations, FPGA and ASIC implementation and the design space, then let an automated exploration find the Pareto front of accuracy, area and latency.
+{{< /doc-card >}}
+{{< /doc-cards >}}
+
 ## The core concepts
 
 Everything in Odatix is built from a few key ideas. The steps above met most of
@@ -42,14 +52,6 @@ A [**workflow**](/docs/glossary/#workflow) is a chain of tasks of your own, with
 ## The typical loop
 
 {{< img src="/images/diagrams/typical-loop.svg" shadow="false" >}}
-
-In commands (each of them can also be done from `odatix-gui`):
-
-{{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix-gui                # define architectures, configurations, targets and workflows
-$ odatix fmax --tool vivado # search the Fmax of every configuration on every target, in parallel
-$ odatix-explorer           # chart the results in your browser
-{{< /code >}}
 
 ## Keep going
 

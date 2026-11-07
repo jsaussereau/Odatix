@@ -47,7 +47,7 @@ $ source odatix_venv/bin/activate
 ### Step 1 — Initialize an example workspace
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/odatix_pnr && cd ~/odatix_pnr
+$ mkdir ~/odatix_pnr; cd ~/odatix_pnr
 $ odatix init --examples
 {{< /code >}}
 

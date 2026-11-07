@@ -85,19 +85,79 @@ $ winget install -e --id GnuWin32.Make
 
 ## Installation steps
 
-### Step 1: Configure a [virtual environment](https://docs.python.org/3/library/venv.html) *(optional)*
+### Step 1: Configure a [virtual environment](https://docs.python.org/3/library/venv.html)
 
 If you want to use Odatix inside a virtual environment (recommended), run:
 
+{{< tabs >}}
+
+{{% tab name="Ubuntu/Debian" %}}
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ python3 -m venv odatix_venv
 {{< /code >}}
+{{% /tab %}}
+
+{{% tab name="Fedora/AlmaLinux/RHEL" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ python3 -m venv odatix_venv
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="ArchLinux" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ python3 -m venv odatix_venv
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="macOS" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ python3 -m venv odatix_venv
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="Windows" %}}
+{{< code lang=bash filename="Terminal Powershell" prompt="true" >}}
+$ python -m venv odatix_venv
+{{< /code >}}
+{{% /tab %}}
+
+{{< /tabs >}}
 
 Activate the virtual environment:
 
+{{< tabs >}}
+
+{{% tab name="Ubuntu/Debian" %}}
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ source odatix_venv/bin/activate
 {{< /code >}}
+{{% /tab %}}
+
+{{% tab name="Fedora/AlmaLinux/RHEL" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ source odatix_venv/bin/activate
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="ArchLinux" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ source odatix_venv/bin/activate
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="macOS" %}}
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ source odatix_venv/bin/activate
+{{< /code >}}
+{{% /tab %}}
+
+{{% tab name="Windows" %}}
+{{< code lang=bash filename="Terminal Powershell" prompt="true" >}}
+$ .\odatix_venv\Scripts\Activate.ps1
+{{< /code >}}
+{{% /tab %}}
+
+{{< /tabs >}}
 
 > [!NOTE]
 > You have to run this command at every new shell session.  

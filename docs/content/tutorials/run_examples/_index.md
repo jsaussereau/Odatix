@@ -13,7 +13,7 @@ quarter of an hour or more for a synthesis, so each tutorial starts small.
 Every one of them starts the same way (in the same directory, if you follow several):
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir -p ~/odatix_examples && cd ~/odatix_examples
+$ mkdir -p ~/odatix_examples; cd ~/odatix_examples
 $ odatix init --examples
 {{< /code >}}
 

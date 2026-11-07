@@ -789,7 +789,8 @@
   letter-spacing: 0.02em;
 }
 
-.home-hero__window img {
+.home-hero__window img,
+.home-hero__window video {
   display: block;
   width: 100%;
   height: auto;
@@ -810,6 +811,31 @@
 .home-hero__glow--b { bottom: -7rem; left: -5rem; background: rgb(147 51 234 / 0.28); }
 
 /* Tools strip */
+/* Video variant: copy + terminal side by side on top, the demo video full
+   width below so the GUI is readable. */
+.home-hero--video .home-hero__grid { grid-template-columns: minmax(0, 1fr); gap: 3rem; }
+.home-hero--video .home-hero__eyebrow { justify-self: start; }
+@media (min-width: 1024px) {
+  .home-hero--video .home-hero__copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 3rem;
+    align-items: start;
+  }
+  .home-hero--video .home-hero__copy > * { grid-column: 1; }
+  .home-hero--video .home-hero__copy > .home-hero__terminal {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: center;
+    margin-top: 0;
+  }
+}
+.home-hero--video .home-hero__window { border-radius: 1.25rem; }
+.home-hero--video .home-hero__window-bar { padding: 0.75rem 1rem; }
+.home-hero--video .home-hero__window-url { font-size: 0.8125rem; }
+.home-hero--video .home-hero__glow--a { top: -4rem; right: -6rem; width: 30rem; height: 30rem; }
+.home-hero--video .home-hero__glow--b { bottom: -6rem; left: -6rem; width: 30rem; height: 30rem; }
+
 .home-hero__tools {
   display: flex;
   flex-wrap: wrap;

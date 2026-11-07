@@ -15,6 +15,8 @@ features:
     description: "Rule out the designs that miss a constraint, cap the number of evaluations, stop when the front no longer grows."
   - title: "Resumable campaigns"
     description: "The archive is written after every batch: an interrupted exploration picks up where it stopped, and results already measured are reused for free."
+  - title: "Follow it live"
+    description: "The Exploration page of Odatix Explorer draws the front as it grows, and shows which parameters drove each metric."
 ---
 
 ## Search instead of sweeping
@@ -31,8 +33,6 @@ until a budget is spent. What it returns is the **Pareto front**: every
 configuration that no other one beats on all the objectives at once — the
 trade-off curve you would have drawn from a full sweep, for a fraction of the
 runs.
-
-{{< img src="/images/features/dse.svg" shadow="false" >}}
 
 ## When you need it
 
@@ -69,6 +69,35 @@ The search runs as a job of the monitor, its batches underneath it. After every
 batch, `results/dse/<campaign>.yml` is rewritten with what was evaluated and
 which configurations form the front, so an interrupted exploration picks up
 where it stopped. The metrics themselves land in the usual results files.
+
+## Following an exploration
+
+The **Exploration** page of Odatix Explorer (`/explorer/dse`) follows a campaign
+while it runs, and stays the place to read its outcome once it is done:
+
+- **Where it stands** — designs on the front, designs evaluated out of the size
+  of the space, measured and failed, batches run, with the objectives and
+  constraints of the campaign recalled underneath.
+- **Trade-off curve** — the front against everything it beat, on any two or
+  three objectives, with the designs that break a constraint hidden or not.
+- **How the search progressed** — the hypervolume of the front and its size,
+  batch after batch: when both flatten, more budget will not buy much.
+- **Objectives, side by side** — every design across every objective at once,
+  the front standing out from the rest.
+
+![The Exploration page of Odatix Explorer: the Pareto front of a RISC-V core over CoreMark and LUT count, and how the front grew batch after batch](/images/screenshots/dse_asterisc.png)
+
+Below, **What drove the results** breaks every measured design down by what it
+was made of: how much of the spread of a metric each parameter domain,
+parameter or run setting accounts for, then one choice in detail — the
+distribution of the metric for each of its values, where the front designs sit,
+and a table value by value.
+
+![What drove the results: the share of the spread of Dynamic_Power each parameter accounts for, and the ALU domain value by value](/images/screenshots/dse_what_drove.png)
+
+A search does not sample its space evenly, so these figures say what the
+designs that were tried have in common — a lead to follow, not a controlled
+experiment.
 
 ## Working with the rest of Odatix
 
@@ -122,8 +151,9 @@ strategies and what comes out are on the
 ### From the GUI
 
 `odatix-gui` → **Run jobs → Design space exploration** (`/dse`) lists the
-campaigns as cards, with how much of their budget is spent and how many design points are on their front. **Edit** opens a campaign in a form — objectives, constraints, search and architectures, with the metric names of the workspace suggested — and **Explore** checks the selection before handing it to the daemon. 
-What an exploration found is on the **Exploration** page of Odatix Explorer.
+campaigns as cards, with how much of their budget is spent and how many design points are on their front. **Edit** opens a campaign in a form — objectives, constraints, search and architectures, with the metric names of the workspace suggested — and **Explore** checks the selection before handing it to the daemon. The
+exploration is then followed on the [Exploration page](#following-an-exploration)
+of Odatix Explorer.
 
 ## Where to go next
 

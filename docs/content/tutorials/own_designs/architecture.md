@@ -61,7 +61,7 @@ your sources ──copy──► work directory ──replace parameters──�
 - An Odatix workspace. Create one in the directory of your choice with:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/my_project && cd ~/my_project
+$ mkdir ~/my_project; cd ~/my_project
 $ odatix init
 {{< /code >}}
 

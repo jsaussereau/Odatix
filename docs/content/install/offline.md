@@ -124,7 +124,7 @@ $ python3 -m pip download odatix -d odatix_offline
 
 {{% tab name="Windows" %}}
 {{< code lang=bash filename="Terminal Powershell" prompt="true" >}}
-$ python -m pip download odatix -d odatix_offline
+$ python -m pip download odatix windows-curses -d odatix_offline
 {{< /code >}}
 {{% /tab %}}
 
@@ -159,6 +159,9 @@ Common values for `--platform`:
 | macOS (Apple Silicon) | `macosx_11_0_arm64` |
 | macOS (Intel) | `macosx_10_9_x86_64` |
 | Windows x86-64 | `win_amd64` |
+
+> [!WARNING]
+> If you target Windows, add `windows-curses` after `odatix` in the `pip download` command.
 
 > [!WARNING]
 > `--only-binary=:all:` makes `pip` fail if one of the dependencies is not available as a wheel for the requested target. In that case, download the packages from a machine matching the offline one.
@@ -259,7 +262,8 @@ $ python3 -m pip install --no-index --find-links=odatix_offline odatix
 
 {{% tab name="Windows" %}}
 {{< code lang=bash filename="Terminal Powershell" prompt="true" >}}
-$ python -m pip install --no-index --find-links=odatix_offline odatix
+$ .\odatix_venv\Scripts\python.exe -m pip install --no-index --find-links=odatix_offline windows-curses
+$ .\odatix_venv\Scripts\python.exe -m pip install --no-index --find-links=odatix_offline odatix
 {{< /code >}}
 {{% /tab %}}
 

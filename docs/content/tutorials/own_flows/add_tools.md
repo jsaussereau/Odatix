@@ -55,7 +55,7 @@ whether the job succeeded: it exits `0`, or it does not.
 - [Odatix installed](/install/), and a workspace with the examples:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ mkdir ~/my_project && cd ~/my_project
+$ mkdir ~/my_project; cd ~/my_project
 $ odatix init --examples
 {{< /code >}}
 
