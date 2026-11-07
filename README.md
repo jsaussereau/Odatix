@@ -1,3 +1,5 @@
+
+
 # Odatix
 
 [![GitHub](https://img.shields.io/badge/GitHub-Odatix-blue.svg?logo=github)](https://github.com/jsaussereau/Odatix)
@@ -17,6 +19,8 @@ Odatix enables designers to:
 - **Run simulation/synthesis jobs in parallel** to get results faster.
 - **Compare architectures based on multiple metrics**, such as Fmax, power consumption, and resource utilization.
 - **Visualize results interactively** in a web-based dashboard.
+
+https://github.com/user-attachments/assets/b11a4f25-d7c3-48a1-b8ce-928bf7b52f08
 
 ## 🚀 Key Features
 
