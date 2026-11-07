@@ -454,6 +454,7 @@ def path_input(
     extensions=None,
     base: str="",
     base_input: Optional[str]=None,
+    base_inside_only: bool=False,
     textarea: bool=False,
     className: str="",
     style: Optional[dict]=None,
@@ -472,6 +473,10 @@ def path_input(
         base_input: id of another field of the page holding that directory
             (the RTL path a top level file is relative to...): its value at the
             time the browser opens wins over `base`.
+        base_inside_only: only a path inside the base is written relative to
+            it, any other relative to the workspace (the testbench files of a
+            simulation, which are looked for in its directory, then in the
+            workspace).
         textarea: a multi-line field holding one path per line: a selection
             is added as a new line instead of replacing the value.
     """
@@ -485,6 +490,8 @@ def path_input(
         "data-base": base or "",
         "data-append": "1" if textarea else "",
     }
+    if base_inside_only:
+        data["data-base-inside-only"] = "1"
     if base_input:
         data["data-base-input"] = base_input
     return html.Div(

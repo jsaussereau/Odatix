@@ -599,7 +599,7 @@ def template_tiles(settings, inherited, current_sim="", warning=""):
                         ui.path_input(
                             id="sim-testbench-files", value="\n".join(testbench.get("files", [])),
                             placeholder=files_placeholder, textarea=True,
-                            base=simulation_workspace_dir(current_sim),
+                            base=simulation_workspace_dir(current_sim), base_inside_only=True,
                             extensions=ui.HDL_EXTENSIONS + (".vh", ".svh"),
                         ),
                     ],

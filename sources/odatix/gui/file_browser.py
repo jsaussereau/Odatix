@@ -95,6 +95,10 @@ def start_directory(root, base, value):
     if value:
         try:
             candidate = os.path.normpath(os.path.join(base_path, value))
+            # A value relative to the workspace (see path_input's base_inside_only).
+            workspace_candidate = os.path.normpath(os.path.join(root, value))
+            if not os.path.exists(candidate) and os.path.exists(workspace_candidate):
+                candidate = workspace_candidate
             if not _inside(candidate, root):
                 raise BrowseError()
             if os.path.exists(candidate) and not os.path.isdir(candidate):

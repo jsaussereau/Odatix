@@ -334,6 +334,8 @@
   // A workspace path as the field writes it.
   function output(path) {
     if (state.absolute) return state.root + (path ? "/" + path : "");
+    if (state.baseInsideOnly && state.base && path !== state.base
+        && (path || "").indexOf(state.base + "/") !== 0) return path || ".";
     return relativeTo(path, state.base);
   }
 
@@ -449,6 +451,7 @@
       mode: button.getAttribute("data-mode") === "dir" ? "dir" : "file",
       extensions: extensions,
       base: base,
+      baseInsideOnly: button.getAttribute("data-base-inside-only") === "1",
       append: append,
       absolute: value.charAt(0) === "/",
       showHidden: false,
