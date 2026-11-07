@@ -10,6 +10,12 @@
 
 **Odatix** is a **powerful tool** designed to facilitate **implementation** and **validation** of configurable digital designs across multiple **FPGA** and **ASIC** tools, including **Vivado**, **OpenLane**, and **Design Compiler**.
 
+<p align="center">
+  <a href="https://odatix.readthedocs.io/en/latest/">
+    <img src="https://img.shields.io/badge/Visit_the_Odatix_website-→-2563eb?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Visit the Odatix website" height="48">
+  </a>
+</p>
+
 Odatix enables designers to:
 
 - **Explore different architectural configurations** using parameter definition and generation.
