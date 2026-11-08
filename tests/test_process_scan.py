@@ -6,6 +6,7 @@ Finding the running sessions by scanning processes, with and without /proc
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -35,7 +36,15 @@ def test_a_session_process_is_found(tmp_path, scan):
     process = subprocess.Popen([sys.executable, str(script), "--state-file", str(state_file),
                                 "--session-name", "s", "--port", "1234"], cwd=str(tmp_path))
     try:
-        found = [c for c in scan() if c["pid"] == process.pid]
+        # Popen returns once exec has started, but the kernel fills the new
+        # command line a moment later: until then it reads empty and the
+        # process is (rightly) skipped. A real session has long been running.
+        deadline = time.time() + 10
+        found = []
+        while not found and time.time() < deadline:
+            found = [c for c in scan() if c["pid"] == process.pid]
+            if not found:
+                time.sleep(0.05)
     finally:
         process.kill()
         process.wait()
