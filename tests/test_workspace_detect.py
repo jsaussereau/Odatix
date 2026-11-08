@@ -111,3 +111,53 @@ def test_init_adds_its_notes_to_an_existing_guide_once(in_tmp_dir):
     assert text.count(OdatixSettings.AGENTS_BEGIN) == 1
     assert "\n## Odatix workspace: notes for AI agents\n" in text and "\n### Layout\n" in text
     assert "\n# Run, then read the results" not in text and "arch.fill_from_sources()           # take" in text
+
+
+######################################
+# Designs of tests/fixtures/rtl, with what their detection should guess
+######################################
+
+import os
+import shutil
+
+from conftest import FIXTURES_DIR
+
+RTL_FIXTURES = os.path.join(FIXTURES_DIR, "rtl")
+
+DESIGNS = [
+    # directory, file of the parameters, top level, clock, reset, parameters to sweep, derived ones
+    ("fir", "fir_filter.v", "fir_filter", "clk", "rst", ["DATA_WIDTH", "COEF_WIDTH", "TAPS"], ["ACC_WIDTH", "COEF"]),
+    ("mavg", "moving_average.vhd", "moving_average", "clock_in", "areset_n", ["WIDTH", "DEPTH_LOG2"], ["DEPTH"]),
+    # A testbench in the same directory is not the top level
+    ("scrambler", "lfsr_scrambler.sv", "lfsr_scrambler", "i_sys_clk", "i_rst_n", ["LANES", "LFSR_LEN"], []),
+    # Parameters in a package of another file
+    ("adder_tree", "tree_config_pkg.sv", "adder_tree", "clk_core", "sync_rst",
+     ["N_INPUTS", "IN_WIDTH", "REGISTER_LEVELS"], ["LEVELS", "OUT_WIDTH"]),
+]
+
+
+@pytest.mark.parametrize("directory, file, top, clock, reset, swept, derived", DESIGNS, ids=[d[0] for d in DESIGNS])
+def test_the_designs_of_the_fixtures_are_guessed(directory, file, top, clock, reset, swept, derived):
+    found = detect_sources(os.path.join(RTL_FIXTURES, directory))
+    assert (found.top.value, found.clock.value, found.reset.value) == (top, clock, reset)
+
+    params = detect_parameters(os.path.join(RTL_FIXTURES, directory, file), sort=True)
+    relevance = dict((p.name, p.relevance) for p in params)
+    assert [p.name for p in params[:len(swept)]] == swept
+    assert all(relevance[name] < min(relevance[s] for s in swept) for name in derived)
+
+
+def test_a_domain_sweeps_a_parameter_of_a_package(example_workspace):
+    shutil.copytree(os.path.join(RTL_FIXTURES, "adder_tree"), str(example_workspace / "rtl" / "adder_tree"))
+    arch = Workspace.open(str(example_workspace)).architectures.create("AdderTree")
+    arch.settings.rtl_path = "rtl/adder_tree"
+    arch.fill_from_sources()
+    arch.save()
+    assert arch.settings.top_level_file == "adder_tree.sv"
+
+    # The top level only has local copies of the parameters of the package
+    assert max(p.relevance for p in arch.detect_parameters()) < 5
+    assert arch.detect_parameters(file="tree_config_pkg.sv")[0].name == "N_INPUTS"
+    domain = arch.domains.create_from_parameter("N_INPUTS", [4, 8, 16], file="tree_config_pkg.sv")
+    assert domain.settings.param_target_file == "tree_config_pkg.sv"
+    assert domain.configuration_names() == ["4", "8", "16"]

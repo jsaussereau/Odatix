@@ -162,7 +162,7 @@ class TestShippedSettings:
         with open(shipped(root, "odatix_userconfig", "analyze_settings.yml"), encoding="utf-8") as f:
             text = f.read()
         architectures = os.listdir(shipped(root, "odatix_userconfig", "architectures"))
-        named = [line.split("-", 1)[1].strip().split("/")[0] for line in text.splitlines()
+        named = [line.split("-", 1)[1].strip().split("/")[0].split("+")[0].strip() for line in text.splitlines()
                  if line.strip().lstrip("#").strip().startswith("- Example_")]
         assert named and all(name in architectures for name in named), named
 
