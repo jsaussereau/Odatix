@@ -292,14 +292,24 @@ def source_directory(arch):
     root = arch.workspace.root
     if settings.generate_rtl:
         return os.path.join(root, settings.design_path or "", settings.generate_output or "")
-    return os.path.join(root, settings.rtl_path or "")
+    # The files found are named relative to it: searched from the workspace,
+    # they would be named by a path the jobs cannot follow.
+    if not settings.rtl_path or os.path.realpath(os.path.join(root, settings.rtl_path)) == os.path.realpath(root):
+        raise WorkspaceError(
+            "Architecture '{0}': set rtl_path to the directory of its sources (e.g. \"rtl/{0}\") "
+            "before detecting anything in them".format(arch.name))
+    return os.path.join(root, settings.rtl_path)
 
 
 def design_directory(arch):
     """The directory the files named by its domains are relative to."""
     settings = arch.settings
     path = settings.design_path if settings.generate_rtl else settings.rtl_path
-    return os.path.join(arch.workspace.root, path or "")
+    if not path:
+        raise WorkspaceError(
+            "Architecture '{0}' has no {1}: set it (then save(), before another script or another "
+            "ws.architectures[...] reads the architecture)".format(arch.name, "design_path" if settings.generate_rtl else "rtl_path"))
+    return os.path.join(arch.workspace.root, path)
 
 
 def parameter_file(arch, file=None):
@@ -307,6 +317,7 @@ def parameter_file(arch, file=None):
     settings = arch.settings
     file = file or settings.param_target_file or settings.top_level_file
     if not file:
-        raise WorkspaceError("Architecture '{0}' names no top level file: set top_level_file, or name the file".format(arch.name))
+        raise WorkspaceError("Architecture '{0}' names no top level file: set top_level_file (fill_from_sources() does, "
+            "then save() before another script reads it), or name the file".format(arch.name))
     return file if os.path.isabs(file) else os.path.join(design_directory(arch), file)
 

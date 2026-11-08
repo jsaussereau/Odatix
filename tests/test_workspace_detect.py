@@ -68,6 +68,14 @@ def test_domains_from_parameters_need_a_file(example_workspace):
         arch.domains.create_from_parameter("BITS")
 
 
+def test_detection_needs_the_rtl_path(example_workspace):
+    arch = Workspace.open(str(example_workspace)).architectures.create("NoPath")
+    for rtl_path in ("", "."):
+        arch.settings.rtl_path = rtl_path
+        with pytest.raises(WorkspaceError):
+            arch.fill_from_sources()
+
+
 def test_init_writes_the_guide_of_agents(in_tmp_dir):
     from odatix.lib.settings import OdatixSettings
 
