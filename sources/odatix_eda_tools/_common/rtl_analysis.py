@@ -107,7 +107,19 @@ def rtl_sources(top_level_file):
       path = os.path.join(directory, name).replace(os.sep, "/")
       if name.lower().endswith(VERILOG_EXTENSIONS) and path not in sources:
         sources.append(path)
-  return sources
+  # Less the testbenches kept next to the RTL
+  benches = without_testbench_files(sources[1:])
+  return sources[:1] + benches
+
+
+def without_testbench_files(paths):
+  """`paths` less those holding only testbenches (see design_info.without_benches)."""
+  try:
+    from odatix.sim.design_info import without_benches
+  except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from odatix.sim.design_info import without_benches
+  return without_benches({"sv": list(paths)}, "", ".")["sv"]
 
 
 def yosys_script(top_level_module, top_level_file):
@@ -129,15 +141,16 @@ def design_sources():
   """
   The sources of the design by language, in compilation order (see
   odatix.sim.design_info): a filelist.f of rtl/ when the design has one, an
-  order computed from the sources otherwise.
+  order computed from the sources otherwise. A testbench kept next to the RTL
+  is left out: the design is what is analyzed.
   """
   try:
-    from odatix.sim.design_info import collect_sources
+    from odatix.sim.design_info import collect_sources, without_benches
   except ImportError:
     # Run from a source tree: odatix is next to odatix_eda_tools
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from odatix.sim.design_info import collect_sources
-  return collect_sources(".")
+    from odatix.sim.design_info import collect_sources, without_benches
+  return without_benches(collect_sources("."), "", ".")
 
 
 def ghdl_analysis(path, top_level_module, log):

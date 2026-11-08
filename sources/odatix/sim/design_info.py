@@ -365,6 +365,58 @@ def _included_files(files, root):
   return included, _unique(directories)
 
 
+def without_testbench(sources, testbench_files, work_dir):
+  """
+  The sources of the design, less the copies of its testbench: a testbench
+  kept next to the RTL is copied with it, and compiled twice it would declare
+  its module twice.
+  """
+  import filecmp
+
+  testbench = [os.path.join(work_dir, path) for path in testbench_files]
+
+  def is_testbench(path):
+    full = os.path.join(work_dir, path)
+    for other in testbench:
+      if os.path.basename(other) == os.path.basename(full) and os.path.realpath(other) != os.path.realpath(full):
+        try:
+          if filecmp.cmp(other, full, shallow=False):
+            return True
+        except OSError:
+          pass
+    return False
+
+  kept = dict(sources)
+  for language in LANGUAGES:
+    kept[language] = [path for path in sources.get(language, []) if not is_testbench(path)]
+  return kept
+
+
+def without_benches(sources, top="", root="."):
+  """
+  The sources of a design, less the testbenches kept among them: files whose
+  every module (or entity) has no port, bears a testbench name, and is not the
+  top level. A synthesis reading them would stop on what only a simulator
+  accepts (delays, "$urandom", "initial" blocks).
+  """
+  try:
+    import odatix.lib.hdl_detect as hdl_detect
+  except ImportError:
+    return sources
+  top = str(top or "").lower()
+  kept = dict(sources)
+  for language in LANGUAGES:
+    files = []
+    for path in sources.get(language, []):
+      units = hdl_detect.read_file(os.path.join(root, path), path)
+      if units and all(not unit.ports and unit.name.lower() != top for unit in units) \
+          and any(hdl_detect.is_testbench(unit) for unit in units):
+        continue
+      files.append(path)
+    kept[language] = files
+  return kept
+
+
 def languages_of(sources):
   """The languages a set of sources is written in, in the order of LANGUAGES."""
   return [language for language in LANGUAGES if sources.get(language)]
@@ -598,6 +650,8 @@ def build_info(
       cores of the machine (see SimRunner.build_jobs).
   """
   sources = collect_sources(work_dir, rtl_dir)
+  testbench_info = collect_testbench(work_dir, testbench, top)
+  sources = without_testbench(sources, testbench_info.get("files", []), work_dir)
   info = {
     "simulation": str(simulation),
     "architecture": str(architecture),
@@ -613,7 +667,7 @@ def build_info(
       "rtl_generated": bool(rtl_generated),
     },
     "sources": sources,
-    "testbench": collect_testbench(work_dir, testbench, top),
+    "testbench": testbench_info,
     "param_domains": {str(name): str(value) for name, value in (param_domains or {}).items()},
   }
   if parallel_jobs:
@@ -659,6 +713,7 @@ def refresh(work_dir):
   info = read_info(work_dir)
   dut = info.setdefault("dut", {})
   sources = collect_sources(work_dir, dut.get("rtl_dir") or "rtl")
+  sources = without_testbench(sources, info.get("testbench", {}).get("files", []), work_dir)
   info["sources"] = sources
   dut["languages"] = languages_of(sources)
   write_info(work_dir, info)

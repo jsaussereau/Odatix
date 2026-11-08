@@ -121,19 +121,20 @@ def parse_target(target):
   return family, device, package, speed
 
 
-def design_sources():
+def design_sources(top=""):
   """
   The sources of the design by language, in compilation order (see
   odatix.sim.design_info): a filelist.f of rtl/ when the design has one, an
-  order computed from the sources otherwise.
+  order computed from the sources otherwise. A testbench kept next to the RTL
+  is left out: Yosys would stop on it.
   """
   try:
-    from odatix.sim.design_info import collect_sources
+    from odatix.sim.design_info import collect_sources, without_benches
   except ImportError:
     # Run from a source tree: odatix is next to odatix_eda_tools
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from odatix.sim.design_info import collect_sources
-  return collect_sources(".")
+    from odatix.sim.design_info import collect_sources, without_benches
+  return without_benches(collect_sources("."), top, ".")
 
 
 def tcl_quote(path):
@@ -205,8 +206,8 @@ def synthesize(settings, family, options):
   nextpnr, result/netlist.v for whoever wants to read it, and the statistics
   of the netlist in report/synth_stat.json.
   """
-  sources = design_sources()
   top = str(settings["top_level_module"])
+  sources = design_sources(top)
   includes = " ".join("-I" + tcl_quote(d) for d in sources.get("include_dirs", []))
   commands = []
   for language, flag in (("verilog", ""), ("sv", " -sv")):

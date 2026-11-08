@@ -266,3 +266,17 @@ class TestSimulationJobs:
 
         offered = {name for name, _ in BUILTIN_VARIABLES["simulation"] + DEPRECATED_VARIABLES["simulation"]}
         assert set(design_info.substitutions({})) <= offered
+
+
+def test_a_testbench_next_to_the_rtl_is_left_out_of_a_synthesis(tmp_path):
+    # yosys_fpga and the RTL analyses read rtl/: a testbench there would stop them
+    from odatix.sim.design_info import without_benches
+
+    (tmp_path / "rtl").mkdir()
+    (tmp_path / "rtl" / "dut.sv").write_text("module dut(input logic clk, output logic q); endmodule\n")
+    (tmp_path / "rtl" / "pkg.sv").write_text("package pkg; parameter int W = 8; endpackage\n")
+    (tmp_path / "rtl" / "tb_dut.sv").write_text("module tb_dut; logic clk; initial #5 $finish; endmodule\n")
+    sources = {"vhdl": [], "verilog": [], "sv": ["rtl/pkg.sv", "rtl/dut.sv", "rtl/tb_dut.sv"]}
+    assert without_benches(sources, "dut", str(tmp_path))["sv"] == ["rtl/pkg.sv", "rtl/dut.sv"]
+    # Unless the testbench is what is asked for
+    assert without_benches(sources, "tb_dut", str(tmp_path))["sv"] == sources["sv"]
