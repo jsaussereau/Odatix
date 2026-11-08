@@ -359,6 +359,7 @@ def match_sources(sources, selectors, report_unmatched=True):
   """
   matched = []
   seen = set()
+  unmatched_wildcards = []
 
   for selector in selectors or []:
     parsed = parse_selector(selector)
@@ -383,11 +384,16 @@ def match_sources(sources, selectors, report_unmatched=True):
 
     if not found and report_unmatched:
       # A wildcard matching nothing is a kind of synthesis that did not run
-      # (the settings file Odatix ships takes both kinds); an exact selector
-      # matching nothing is almost always a typo.
+      # (the settings file Odatix ships takes both kinds): worth a note only
+      # when no other selector found anything. An exact selector matching
+      # nothing is almost always a typo.
       if WILDCARD in str(selector):
-        printc.note('No completed synthesis matches "' + str(selector) + '"', script_name)
+        unmatched_wildcards.append(selector)
       else:
         printc.warning('No completed synthesis matches "' + str(selector) + '"', script_name)
+
+  if not matched:
+    for selector in unmatched_wildcards:
+      printc.note('No completed synthesis matches "' + str(selector) + '"', script_name)
 
   return matched
