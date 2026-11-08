@@ -50,3 +50,10 @@ def test_the_operation_itself_is_still_formatted(tmp_path):
 def test_exact_value():
     assert exact_value("12") == 12 and exact_value("1e-05") == 1e-05 and exact_value("abc") == "abc"
     assert exact_value(None) is None
+
+
+def test_an_unformatted_count_is_written_as_a_number(tmp_path):
+    # Not the text '12' in the results file: a chart or a sort would treat it as text
+    results = _extract(tmp_path, {"LUT": _regex(r"luts (\d+)"), "Word": _regex(r"(power) ")})
+    assert results["LUT"] == 12 and isinstance(results["LUT"], int)
+    assert results["Word"] == "power"

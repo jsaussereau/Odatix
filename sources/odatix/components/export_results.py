@@ -407,6 +407,9 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, type=
         value = convert_to_numeric(content["format"] % float(value))
       except ValueError:
         pass  # printc.warning(f"Failed to format value {value} for metric {metric}", script_name)
+    elif value is not None:
+      # A count a regex captured is a number, not the text "34"
+      value = convert_to_numeric(value)
 
     # Append unit if specified
     if value is not None:
