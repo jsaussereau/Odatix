@@ -894,6 +894,17 @@ class ArchitectureHandler:
                 self.plan.add(arch_display_name, Category.ERROR)
                 return None
 
+            # Every job copies the rtl path: holding the work directory, it
+            # would copy every other job into each one, until the disk is full.
+            rtl_root = os.path.realpath(rtl_path)
+            work_root = os.path.realpath(self.work_path)
+            if work_root == rtl_root or work_root.startswith(rtl_root.rstrip(os.sep) + os.sep):
+                printc.error("The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" holds the work directory \"" + self.work_path + "\": every job would copy the others", script_name)
+                printc.cyan("point rtl_path at the directory of the sources (e.g. \"rtl/my_design\"), and top_level_file at the top level file in it", script_name=script_name)
+                self.banned_arch_param.append(arch_param_dir)
+                self.plan.add(arch_display_name, Category.ERROR)
+                return None
+
             # check if top level file path exists
             if not isfile(top_level):
                 printc.error("The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)

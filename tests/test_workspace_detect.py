@@ -76,6 +76,22 @@ def test_detection_needs_the_rtl_path(example_workspace):
             arch.fill_from_sources()
 
 
+def test_a_run_refuses_an_rtl_path_holding_the_work_directory(example_workspace):
+    from odatix.run import Run
+    from odatix.run.errors import RunError
+
+    arch = Workspace.open(str(example_workspace)).architectures.create("Everything")
+    arch.update(rtl_path=".", top_level_file="examples/counter_sv/counter.sv",
+                top_level_module="counter", clock_signal="clock", reset_signal="reset")
+    run = Run(Workspace.open(str(example_workspace)), "analysis", tool="verilator",
+              architectures=["Everything"], check_eda_tool=False, quiet=True)
+    try:
+        plan = run.check()
+    except RunError:
+        return
+    assert not plan.jobs
+
+
 def test_init_writes_the_guide_of_agents(in_tmp_dir):
     from odatix.lib.settings import OdatixSettings
 
