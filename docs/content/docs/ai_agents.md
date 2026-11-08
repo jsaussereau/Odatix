@@ -16,6 +16,28 @@ the graphical interface, and its guesses about your sources (top level,
 clock, reset, parameters) are available from Python, so an agent does not
 have to read the whole RTL to get them right.
 
+## Designed to spare tokens and context
+
+Odatix is built so that an agent spends its tokens on your design, not on
+finding out how the tool works:
+
+- **One short guide in the workspace.** `AGENTS.md` (about 2,000 words)
+  holds what an agent needs to describe a design, run it and read the results.
+  For anything else, it names the one page to read, published as Markdown:
+  an agent fetches only the part it is missing.
+- **Guesses instead of reading.** The top level, the clock, the reset and the
+  parameters worth sweeping come from one call, ranked, instead of from the
+  agent reading every source file into its context.
+- **A typed API instead of YAML by hand.** Settings are checked when they are
+  set, and written with the layout and comments of the file kept: no trial
+  and error on the syntax of a configuration file.
+- **Quiet, unattended commands.** `-y -E` runs without questions and without
+  the job monitor, and ends with one summary line, plus the name and log
+  directory of each failed job: the agent reads what went wrong, not pages of
+  progress.
+- **Structured results.** One YAML file per tool, one record per job, with its
+  units: no report of an EDA tool to parse.
+
 ## What an agent reads
 
 | Where | What it holds |
@@ -23,6 +45,7 @@ have to read the whole RTL to get them right.
 | `AGENTS.md`, at the root of the workspace | Written by `odatix init`; when the project already has one, the Odatix notes are added at its end, once. The layout of the workspace, the Python API to describe a design, and how to run without a terminal. Coding agents read it on their own. |
 | [`/llms.txt`](/llms.txt) | What Odatix is, and the list of the categories of the documentation, for agents that look for it at the root of the site. |
 | `/<category>/llms.txt` | Every page of one category as Markdown, in one text file: [`/docs/reference/llms.txt`](/docs/reference/llms.txt) for the configuration files, [`/docs/python_api/llms.txt`](/docs/python_api/llms.txt) for the Python API... An agent reads only the ones it needs. |
+| `<page>/index.md` | One page alone, as Markdown: the URL of any page of this site followed by `index.md`, such as [`/docs/features/simulation/index.md`](/docs/features/simulation/index.md). `AGENTS.md` names the page of each task, so that an agent reads that one only. |
 | This page | The recommended way to work, below. |
 
 To start, open your workspace with your agent and ask it, for instance:
@@ -87,19 +110,48 @@ $ odatix fmax -t vivado -a "Counter + BITS/*" -y -E
 - `-y` never asks for confirmation; `-E` waits for the jobs, prints how many
   succeeded and failed, and exits. Without a terminal that can show it, the
   monitor is skipped.
-- `"Counter + BITS/*"` selects every configuration of the domain `BITS` (see
+- `"Counter + BITS/*"` selects every configuration of the domain `BITS`, and
+  `"Counter + BITS/* + DEPTH/*"` every combination of two domains (see
   [Commands](/docs/commands/)).
+- Pass `-t` unless `default_tool` in `odatix.yml` names a tool that is
+  installed. For the RTL check of VHDL, use `ghdl` rather than `verilator`.
 - Start with `odatix analyze`: it elaborates every configuration in seconds and
   catches errors before a long synthesis.
 - A job whose work directory exists is skipped: `-o` runs it again.
+- With `-E`, the command ends by listing each failed job and its log directory.
+  The `log/status.log` file of a job only says how far it went.
+- An Fmax search is a binary search: about ten syntheses per configuration
+  between the default bounds (1 to 1000 MHz). Run one configuration first, then
+  set `fmax_synthesis` around what it gave. A design faster than the upper
+  bound gets no Fmax: its job fails, and asks for a higher bound.
 - From Python, [`odatix.run`](/docs/python_api/run/) does the same, and its
   `Run.check()` says what a run would do without running anything.
 
 ## Read the results
 
 Results are YAML files under `results/` (see the [format](/docs/results/format/)),
-one record per job, which an agent reads directly. To show them to you,
-`odatix-explorer` opens them in the browser.
+one record per job, which an agent reads directly: `results/results_<tool>.yml`
+holds the list of records under its `results` key, each with its `meta`
+(architecture, `configuration` such as `Counter+BITS_16`, target, the value of
+each domain) and its `metrics` (`Fmax`, `LUT_count`...), and their `units`.
+To show them to you, `odatix-explorer` opens them in the browser.
+
+To compare configurations on a ratio, declare it once as a
+[derived metric](/docs/results/derived_metrics/) rather than computing it in a
+script: it is then added to every record, and plotted by Explorer like any
+other metric.
+
+{{< code lang=python filename="add_metric.py" >}}
+from odatix.workspace import Workspace
+
+ws = Workspace.open()
+ws.derived_metrics.set("Fmax_per_LUT", {"type": "operation", "op": "Fmax / LUT_count", "unit": "MHz/LUT"})
+ws.derived_metrics.save()   # odatix_userconfig/derived_metrics.yml
+{{< /code >}}
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix results derived
+{{< /code >}}
 
 When a job fails, its log is in `work/<...>/<job>/log/`. When Odatix itself
 crashes, the details are in `odatix_error.log`, in the directory it was run

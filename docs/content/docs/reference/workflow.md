@@ -206,7 +206,7 @@ empty run directory, or from the one it left with `-r/--resume`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `use_parameters` | bool | `true` | Replace a delimited block of a source file with the configuration's parameter file. |
+| `use_parameters` | bool | `true` when `param_target_file` is set, else `false` | Replace a delimited block of a source file with the configuration's parameter file. |
 | `param_target_file` | path | — | File the replacement is applied to. Required when `use_parameters` is true. |
 | `start_delimiter` / `stop_delimiter` | string | — | Markers of the replaced block. Required when `use_parameters` is true. |
 
@@ -217,8 +217,8 @@ start_delimiter:   'AWESOME_STRING = "'
 stop_delimiter:    '"'
 {{< /code >}}
 
-Set `use_parameters: No` when parameters are passed on the command line instead
-— then use variables, below.
+When parameters are passed on the command line instead, leave out
+`param_target_file` (or set `use_parameters: No`), and use variables, below.
 
 ## `variables` — inline variables
 

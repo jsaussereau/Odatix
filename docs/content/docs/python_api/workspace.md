@@ -304,7 +304,7 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `get(name, default=None)` | The entry, or `default` when there is no such entry. |
 | `entry(name)` | The entry of that name, whether or not it exists yet. Its settings are then the defaults, and saving it is what creates it: this is what an editor works on while a new entry is being filled in. |
 | `exists(name)` |  |
-| `create(name, **kwargs)` | Create an entry and return it. Raises if it already exists, so a creation never silently lands on someone else's directory. |
+| `create(name, **kwargs)` | Create an entry and return it. Raises if it already exists, so a creation never silently lands on someone else's directory. An empty directory holds nothing to lose: that of an entry created by a script that stopped before saving it is taken again. |
 | `delete(name)` | Delete an entry. Deleting one that is already gone does nothing. |
 | `rename(name, new_name)` | Rename an entry, and return it. |
 | `duplicate(name, new_name)` | Copy an entry under another name, and return the copy. |
@@ -1242,8 +1242,8 @@ what the overlay says, `builtin_settings` what Odatix ships, and
 | `builtin_settings` *(property)* | The tool.yml Odatix ships for this tool, or empty settings. |
 | `resolved_document` *(property)* | What actually runs, the tool it extends included ("extends" in its tool.yml): that tool's resolved document, with this one's merged on top, the way Odatix resolves it at run time (see odatix.lib.eda_tools.load_tool_settings). Unlike `effective_document`, this is not what to edit: what a tool inherits belongs to the tool it extends. |
 | `effective_settings` *(property)* | What actually runs (see `resolved_document`). |
-| `metrics` *(property)* | The metrics this tool reads from its reports. |
-| `targets` *(property)* | The synthesis targets this tool runs on. |
+| `metrics` *(property)* | The metrics this tool reads from its reports. Every access gives back the same object, so that `tool.metrics.set(...)` then `tool.metrics.save()` saves what was set. |
+| `targets` *(property)* | The synthesis targets this tool runs on (the same object at every access). |
 
 | Method | What it does |
 |---|---|
@@ -1252,6 +1252,7 @@ what the overlay says, `builtin_settings` what Odatix ships, and
 | `save_overlay(overrides, flows)` | Write the workspace overlay of a built-in tool from what it overrides and the flows it adds, without going through `settings`. |
 | `update(values=None, **kwargs)` | Change some settings and write them back, in one call. |
 | `delete()` | Delete the workspace directory of this tool (a built-in tool stays available). |
+| `rename(new_name)` | Rename this entry. The object keeps pointing at it under its new name. |
 
 ### `ToolCollection`
 

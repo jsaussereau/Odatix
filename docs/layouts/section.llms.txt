@@ -1,13 +1,24 @@
 {{- /* /<section>/llms.txt: every page of one category of the documentation as
        Markdown, for AI agents. A top section (docs, tutorials) holds its own
-       pages only: each of its subsections has a file of its own. */ -}}
+       pages only: each of its subsections has a file of its own. The list at
+       the top links each page alone (<page>/index.md), for an agent that
+       needs one of them only. */ -}}
 # Odatix documentation: {{ .Title }}
 
 > {{ with .Description }}{{ . }}{{ end }}
 
 Index of every category: {{ site.Home.Permalink }}llms.txt
-{{ $pages := cond (eq .Parent.Kind "home") .RegularPages .RegularPagesRecursive -}}
+{{ $pages := cond (eq .Parent.Kind "home") .RegularPages .RegularPagesRecursive }}
+Each page of this file alone, as Markdown:
+{{ range $page := $pages.ByWeight }}
+{{- if not .Params.noSearch }}
+{{- with .OutputFormats.Get "markdown" }}
+- [{{ $page.Title | safeHTML }}]({{ .Permalink }}){{ with $page.Description }}: {{ . | safeHTML }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- with .RawContent }}
+
 {{ partial "llms-page.txt" $ }}
 {{- end }}
 {{- range $pages.ByWeight }}

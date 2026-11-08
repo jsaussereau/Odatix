@@ -13,7 +13,7 @@ EDA tools and their licences are not part of Odatix. A workspace is a directory 
 {{ end -}}
 {{ with site.GetPage "/docs/python_api" }}- [Python API, as Markdown]({{ (.OutputFormats.Get "llms").Permalink }}): odatix.workspace and odatix.run, every public name
 {{ end }}
-Each category below links to its pages as Markdown, all in one text file.
+Each category below is one text file holding all its pages as Markdown. It starts with the list of its pages, each also published alone as Markdown (the URL of the page followed by `index.md`): fetch only the page you need.
 {{ range $top := slice "install" "docs" "tutorials" }}
 {{- with site.GetPage $top }}
 {{- $section := . }}

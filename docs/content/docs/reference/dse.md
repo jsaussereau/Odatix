@@ -367,6 +367,18 @@ it is judged at, with `Worst_Slack` constrained to be positive, lands closer to
 the Pareto front than the fastest clock one run of an fmax search happened to
 meet.
 
+The value of a parameter domain is not one of those numbers: a record holds it
+as the name of a configuration (`LANES: '8'`). To make it an objective — the
+throughput of a design, its number of lanes — declare a derived metric that
+reads it, then name that metric:
+
+{{< code lang=yaml filename="derived_metrics.yml" >}}
+derived_metrics:
+  Lanes:
+    type: operation
+    op: "meta.LANES"
+{{< /code >}}
+
 **Nothing says how the objectives compare to each other**, and nothing has to. A
 smaller design that runs slower is not worse than a bigger one that runs faster;
 it is another trade-off. So what an exploration returns is not one design but

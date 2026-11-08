@@ -135,6 +135,7 @@ Commands are expanded before being run:
 | `$tool_install_path` | The `tool_install_path` of the target file; empty when the tool is on your `PATH`. |
 | `$clock_signal` | Clock signal name of the design. |
 | `$top_level_module` | Top level module name. |
+| `$top_level_file` | The file of the top level, in `$rtl_path` (absolute). `$rtl_path` is a copy of the whole RTL directory, testbenches included: compile from this file (and the files it needs) rather than from every file there. |
 | `$lib_name` | Library name of the job. |
 | `$architecture` | The design and its configuration, `Counter/08bits`. |
 | `$target` | The target the job runs on. |

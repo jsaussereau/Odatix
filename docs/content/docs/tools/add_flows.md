@@ -157,8 +157,16 @@ The built-in tools list what their scripts read at the top of their `tool.yml`:
 | Tool | Parameters |
 |------|------------|
 | Design Compiler | `compile`, `compile_options`, `max_area`, `leakage_optimization`, `dynamic_optimization`, `gate_clock`, `incremental`, `incremental_options`, `post_compile_passes`, `shell` |
+| Genus | `effort`, `generic_effort`, `map_effort`, `opt_effort`, `auto_ungroup`, `area_mode`, `tns_opto`, `ultra_optimization`, `retime`, `clock_gating`, `power_effort`, `leakage_power_effort`, `attributes`, `incremental`, `post_opt_passes` |
+| Innovus | `flow_effort`, `power_effort`, `utilization`, `aspect_ratio`, `core_margin`, `design_options`, `place_options`, `opt_options`, `route_options`, `fix_hold` |
+| LibreLane | `flow`, `extra_args`, and any LibreLane variable in capitals (`SYNTH_STRATEGY`, `FP_CORE_UTIL`, `PL_TARGET_DENSITY_PCT`...) |
 | Quartus | `optimization_mode`, `seed`, `allow_register_retiming`, `final_placement_optimization`, `virtual_pins`, `power_analysis`, `assignments` |
 | Vivado | `synth_options`, `opt_passes`, `power_opt`, `place_options`, `phys_opt_passes`, `route_options`, `post_route_passes` |
+| Yosys + nextpnr (`yosys_fpga`) | `synth_options` (added to `synth_ecp5` / `synth_ice40`: `-abc9`, `-retime`...), `nextpnr_options`, `seed`, `fmax_passes` |
+
+From Python, `ws.tools["<tool>"].settings.flow_names()` lists the flows of a
+tool, built-in ones included, and `.flow("standard").parameters` gives every
+parameter with its default value.
 
 Every iteration of an fmax search and every step of a synthesis go through the
 same procedures (`odatix_dc_compile`, `odatix_vivado_synthesize`,

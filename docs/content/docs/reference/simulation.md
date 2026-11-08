@@ -659,7 +659,7 @@ Every template writes `sim_report.yml` in the job's work directory, which its
 
 | Metric | Value |
 |--------|-------|
-| `sim_status` | `passed`, or `failed` when a command failed or printed an error. A failed simulation is exported too. |
+| `sim_status` | `passed`, or `failed` when a command failed or printed an error: a line starting with `Error:` / `ERROR:` / `Fatal:` (what `$error` and `$fatal` print), `%Error` (Verilator), `** Error` (Questa), `error:` after a file name, or a VHDL `assert` / `report` of severity `error` or `failure`. A testbench that finds a mismatch reports it this way, not with a plain `$display("FAIL")`. A failed simulation is exported too. |
 | `sim_errors`, `sim_warnings` | Errors and warnings the simulator printed. |
 | `compile_time`, `elaboration_time`, `simulation_time` | Time spent in each stage, in seconds. A stage the run did not reach has no value. Verilator and Icarus elaborate while they compile: their templates report no `elaboration_time`, and `compile_time` includes it. |
 | `simulated_cycles` | Cycles the testbench simulated, when it prints `odatix_cycles: <n>`. |

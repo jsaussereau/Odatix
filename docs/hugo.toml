@@ -51,6 +51,7 @@ pagination.path = "page"
 # Outputs: the home page also emits /index.json, the client-side search index
 [outputs]
   home = ["HTML", "RSS", "JSON", "llms"]
+  page = ["HTML", "markdown"]
 
 # /llms.txt and /<section>/llms.txt: the documentation as Markdown, one file
 # per category, for AI agents (layouts/home.llms.txt, layouts/section.llms.txt).
@@ -58,6 +59,14 @@ pagination.path = "page"
 [outputFormats.llms]
   mediaType = "text/plain"
   baseName = "llms"
+  isPlainText = true
+  notAlternative = true
+
+# <page>/index.md: one page of the documentation as Markdown, for an AI agent
+# that needs that page only (layouts/page.markdown.md)
+[outputFormats.markdown]
+  mediaType = "text/markdown"
+  baseName = "index"
   isPlainText = true
   notAlternative = true
 
