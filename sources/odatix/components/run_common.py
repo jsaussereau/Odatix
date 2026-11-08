@@ -712,6 +712,26 @@ def _run_counts(session, job_ids):
     return count_jobs([job for job in session.jobs() if job["id"] in wanted])
 
 
+def _failed_jobs(session, job_ids):
+    """The jobs of the run that failed, were killed or canceled."""
+    from odatix.run.session import count_jobs
+
+    wanted = None if job_ids is None else set(int(job_id) for job_id in job_ids)
+    return [
+        job for job in session.jobs()
+        if (wanted is None or job["id"] in wanted) and count_jobs([job])["failed"]
+    ]
+
+
+def _job_log_dir(tmp_dir):
+    """The log directory of a job, relative to the current directory when it is under it."""
+    if not tmp_dir:
+        return "(no work directory)"
+    path = os.path.join(tmp_dir, "log")
+    relative = os.path.relpath(path)
+    return path if relative.startswith("..") else relative
+
+
 def wait_for_session(state, script_name="run", poll_interval=5.0, job_ids=None):
     """
     What "-E" does when the terminal cannot show the job monitor (a run started
@@ -834,6 +854,7 @@ def close_finished_session(state, script_name="run", job_ids=None, settle_timeou
             time.sleep(0.5)
             counts = _run_counts(session, job_ids)
         everything = counts if job_ids is None else session.counts()
+        failed_jobs = _failed_jobs(session, job_ids) if counts["failed"] and not analyses else []
     except SessionError as error:
         printc.warning(str(error), script_name)
         return None
@@ -853,7 +874,11 @@ def close_finished_session(state, script_name="run", job_ids=None, settle_timeou
         return counts
 
     if counts["failed"] and not analyses:
-        printc.warning(summary, script_name)
+        printc.warning(summary + (":" if failed_jobs else ""), script_name)
+        # Which ones, and where to look: the status files of a failed job only
+        # say how far it went.
+        for job in failed_jobs:
+            print("  " + job["name"] + " (" + job["status"] + "): " + _job_log_dir(job["tmp_dir"]))
     else:
         printc.note(summary + (": the report below says what they found" if analyses else ""), script_name)
 

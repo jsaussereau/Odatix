@@ -307,6 +307,10 @@ class TestExitWhenDone:
         assert stopped == [1]
         assert "3/4 jobs succeeded, 1 failed" in out
         assert "Session 7.s closed" in out
+        # The status files of a failed job only say how far it went: which one
+        # failed, and where its log is, is said here
+        failed = [line for line in out.splitlines() if line.startswith("  old/a (failed): ")]
+        assert len(failed) == 1 and failed[0].endswith("log")
 
     def test_a_session_with_jobs_left_stays(self, fake_session, monkeypatch, capsys):
         counts, stopped = self._close(fake_session, monkeypatch)
