@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Graphical user interface (GUI)"
 description: "The daemon, the Job Monitor, Odatix Explorer, and how to run them on a remote server."
 weight: 3

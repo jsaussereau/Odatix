@@ -1000,6 +1000,69 @@
   color: var(--step-accent, #425ad6);
 }
 
+/* --- Home: AI agents ---------------------------------------------------- */
+
+.home-ai {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 2rem;
+  border-radius: 1.25rem;
+  background: #fff;
+  border: 1px solid rgb(229 231 235);
+}
+
+@media (min-width: 768px) {
+  .home-ai { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 2.5rem; gap: 2.5rem; }
+}
+
+.home-ai__eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0d9488;
+}
+
+.home-ai__title {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: rgb(15 23 42);
+}
+
+.home-ai__text {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: rgb(100 116 139);
+}
+
+.home-ai__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.home-ai__links a { color: #0d9488; }
+.home-ai__links a:hover { text-decoration: underline; }
+
+.home-ai__code {
+  margin: 0;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  background: rgb(15 23 42);
+  color: rgb(226 232 240);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.home-ai__code .c { color: rgb(148 163 184); }
+
 /* --- Feature blocks ------------------------------------------------------ */
 
 .badge {

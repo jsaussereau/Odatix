@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Results & export"
 description: "How Odatix collects metrics into result files, how to export them manually, and how to link results from different job types together."
 weight: 10

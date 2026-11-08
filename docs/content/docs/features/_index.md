@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Features"
 description: "Everything Odatix can do, from architecture exploration to interactive results analysis."
 weight: 1

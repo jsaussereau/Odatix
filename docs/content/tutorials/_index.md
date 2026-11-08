@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Tutorials"
 description: "Short, practical, shareable guides to get things done with Odatix."
 ---

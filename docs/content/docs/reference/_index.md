@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Configuration file reference"
 description: "Every configuration file Odatix reads, and every key it accepts."
 weight: 90

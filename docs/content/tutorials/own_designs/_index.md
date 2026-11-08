@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Run Odatix on your own designs"
 weight: 2
 description: "Bring an existing RTL design, testbench or arbitrary script into an Odatix workspace."

@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Hands-on workshop"
 weight: 4
 description: "A one-and-a-half to three-hour guided session taking a signal processing design from RTL to a Pareto front, with the tools each participant actually has."

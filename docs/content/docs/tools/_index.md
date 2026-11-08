@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Tools and flows"
 description: "Tools and flows in Odatix, and how to add your own."
 weight: 11

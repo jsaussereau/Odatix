@@ -1,0 +1,13 @@
+{{- /* One page of the documentation as Markdown, for AI agents (llms.txt files):
+       its source, with the shortcodes turned into plain Markdown. */ -}}
+{{- $text := .RawContent -}}
+{{- $text = replaceRE `\{\{<\s*code\s+lang=["']?([A-Za-z0-9_+-]*)["']?[^>]*>\}\}` "```$1" $text -}}
+{{- $text = replaceRE `\{\{<\s*/code\s*>\}\}` "```" $text -}}
+{{- $text = replaceRE `\{\{<\s*toc\s*>\}\}\s*` "" $text -}}
+{{- $text = replaceRE `\{\{<\s*relref\s+"([^"]+)"\s*>\}\}` "$1" $text -}}
+================================================================================
+# {{ .Title | safeHTML }}
+URL: {{ .Permalink }}
+{{ with .Description }}{{ . | safeHTML }}
+{{ end }}
+{{ $text | safeHTML }}

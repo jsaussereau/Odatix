@@ -470,6 +470,9 @@ and `arch.configs` are the configurations of that main domain.
 | `reload()` | Forget the settings held in memory and read them from file again. |
 | `save(regenerate=False)` | Write the settings of this architecture back to its file. |
 | `update(values=None, **kwargs)` | Change some settings and write them back, in one call. |
+| `detect_sources()` | Guess the top level module, the clock and the reset of this architecture from its HDL sources (its RTL path, or the output of its generation), as the "auto detect" buttons of the GUI do. A top level module already set is kept, and its signals are the ones looked for. *Returns:* `SourceDetection` — the candidates, best first (see `odatix.workspace.detect`). |
+| `fill_from_sources(overwrite=False)` | Set the top level file and module, the clock and the reset of this architecture to the best guesses of `detect_sources()`, without saving. Settings already set are kept, unless `overwrite`. *Returns:* `dict` — the settings that were set. |
+| `detect_parameters(file=None, sort=True)` | The parameters of a source file of this architecture (its parameter target file, or its top level file, by default), the most relevant first unless `sort` is False. *Returns:* `list` — DetectedParameter objects (see `odatix.workspace.detect`). |
 | `exclusions(applied=None)` | The combinations of its parameter domains this architecture does not have (see `odatix.workspace.exclusions`). *Args:* `applied` *(list)* — which kinds to apply -- `illegal` and `duplicate` when nothing says otherwise, a campaign being the one entitled to ask for `dominated` too. *Returns:* `ExclusionSet` — the rules, empty when the architecture declares none. |
 | `parameter_domains()` | The configurations of every domain that actually uses parameters, as a `{domain: [configuration, ...]}` mapping. Domains that substitute nothing, and domains without configurations, are left out: they add no axis to the sweep. |
 | `variable_combinations()` | The combinations of the variables this architecture substitutes into its commands (the variables of a file without a configuration template), each a list of `"variable/value"` selectors. Paired variables are zipped, the others crossed, as a run does. Empty without such variables. |
@@ -667,6 +670,7 @@ Supports `len(x)`, `"name" in x`, `x["name"]`, iteration.
 | `entry(name)` | The domain of that name, whether or not it exists yet. |
 | `exists(name)` |  |
 | `create(name, **settings)` | Create a named parameter domain, and return it. |
+| `create_from_parameter(parameter, values=None, name=None, file=None)` | Create a named parameter domain sweeping one parameter of a source file of an architecture, as the "Detect" panel of the GUI does: delimiters isolating its value are found in the file, and the domain declares one variable, named after the parameter, listing `values`. *Args:* `parameter` *(str or DetectedParameter)* — the parameter.; `values` *(list)* — the values to sweep (default: its current value).; `name` *(str)* — the name of the domain (default: the parameter's).; `file` *(str)* — the file, relative to the design directory (default: the parameter target file of the architecture, or its top level file). *Returns:* `ParameterDomain` — the domain created. |
 | `delete(name)` | Delete a domain. Deleting one that is already gone does nothing. |
 | `rename(name, new_name)` |  |
 | `duplicate(name, new_name, instance=None)` |  |
@@ -798,6 +802,105 @@ after the architecture itself).
 
 How many configurations the given `{domain: [configuration, ...]}` mapping
 amounts to, i.e. the size of the cross product of its domains.
+
+## What the sources say
+
+### `detect_sources(directory, top_level_module='', top_level_file='', hints=())`
+
+Guess the top level module, the clock and the reset of the HDL sources
+(Verilog, SystemVerilog, VHDL) under `directory`.
+
+**Args:**
+
+- `directory` *(str)* — directory holding the sources.
+- `top_level_module` *(str)* — the top level module, when it is already known: the clock and reset are then those of this module.
+- `top_level_file` *(str)* — the file holding the top level, when it is known, relative to `directory`.
+- `hints` *(list)* — names the top level is likely to bear (the architecture name...).
+
+**Returns:**
+
+- SourceDetection
+
+**Raises:**
+
+- `NotFoundError` — the directory does not exist, or holds no HDL unit.
+
+### `detect_parameters(path, sort=False)`
+
+The parameters declared in a source file: HDL (Verilog, SystemVerilog,
+VHDL), C/C++ (HLS), Scala (Chisel), Python, or a configuration file.
+
+**Args:**
+
+- `path` *(str)* — the file.
+- `sort` *(bool)* — the most relevant first, instead of in file order.
+
+**Returns:**
+
+- `list` — DetectedParameter objects.
+
+### `parameter_domain_settings(path, parameter, values=None, target_file='')`
+
+The settings of a parameter domain sweeping one parameter of a source
+file: delimiters isolating its value in the file, and a single variable,
+named after the parameter, listing `values`.
+
+**Args:**
+
+- `path` *(str)* — the file declaring the parameter.
+- `parameter` *(str or DetectedParameter)* — the parameter.
+- `values` *(list)* — the values to sweep (default: its current value).
+- `target_file` *(str)* — the file as the domain names it, relative to the design directory (default: the base name of `path`).
+
+**Returns:**
+
+- `dict` — settings for `ParameterDomainCollection.create`.
+
+**Raises:**
+
+- `NotFoundError` — no such parameter in the file.
+- `WorkspaceError` — no delimiters isolate its value.
+
+### `SourceDetection`
+
+`SourceDetection(directory, units, tops, top, clocks, resets)`
+
+What the HDL sources of a directory say about their design.
+
+`tops`, `clocks` and `resets` are lists of `Candidate`
+(`value`, `score`, `detail`, `file`), best first; `top`,
+`clock` and `reset` the best one of each, or None. The clock and reset
+candidates are those of the top level module chosen (the one asked for,
+or the best candidate).
+
+| Attribute | What it is |
+|---|---|
+| `clock` *(property)* |  |
+| `reset` *(property)* |  |
+
+| Method | What it does |
+|---|---|
+| `settings()` | The settings of an architecture these guesses fill: `top_level_file`, `top_level_module`, `clock_signal` and `reset_signal`, for those that were found. |
+| `to_dict()` | Everything found, as plain data (for JSON). |
+
+### `DetectedParameter`
+
+`DetectedParameter(path, param, text, parameters)`
+
+A parameter found in a source file: `name`, `value` (as written),
+`kind` ("parameter", "localparam", "generic", "constant", "define",
+"variable", "argument"), `line`, and `relevance`, from 0 to 10: how
+likely it is to be worth exploring (what the design expects to be set
+from outside, with a plain value, scores highest; what is derived from
+other parameters, lowest).
+
+| Method | What it does |
+|---|---|
+| `to_dict()` |  |
+
+### `Candidate`
+
+`Candidate(value, score, detail='', file='')`
 
 ## What a design space does not hold
 

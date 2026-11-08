@@ -59,6 +59,32 @@ description: "Odatix is a free and open-source design automation toolbox for the
     </div>
 {{< /section-container >}}
 
+{{< section-container class="pb-20 bg-gray-50" >}}
+    <div class="max-w-6xl mx-auto">
+        <div class="home-ai">
+            <div>
+                <span class="home-ai__eyebrow">Works with AI agents</span>
+                <h2 class="home-ai__title">Let your coding agent drive Odatix</h2>
+                <p class="home-ai__text">Claude Code, Codex, Cursor or Copilot can describe your designs, run every job and read the results for you. Odatix detects the top level, clock, reset and parameters of your sources from its Python API, runs unattended, and writes plain YAML results. Each new workspace comes with an <code>AGENTS.md</code> that tells agents how.</p>
+                <div class="home-ai__links">
+                    <a href="{{< relref "docs/ai_agents" >}}">Guide for AI agents →</a>
+                    <a href="{{< relref "docs/python_api" >}}">Python API</a>
+                    <a href="llms.txt">llms.txt</a>
+                </div>
+            </div>
+<pre class="home-ai__code"><span class="c"># Describe a design from its sources</span>
+arch = ws.architectures.create("Counter")
+arch.settings.rtl_path = "rtl/counter"
+arch.fill_from_sources()     <span class="c"># top, clock, reset</span>
+arch.save()
+arch.domains.create_from_parameter("BITS", [8, 16, 32])
+
+<span class="c"># Run it, without anyone at the terminal</span>
+$ odatix fmax -a "Counter + BITS/*" -y -E</pre>
+        </div>
+    </div>
+{{< /section-container >}}
+
 <!-- 
 {{< section-container class="py-20 bg-gray-50" >}}
     <div class="max-w-6xl mx-auto">

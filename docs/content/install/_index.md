@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Install Odatix"
 description: "Odatix is a Python package: one command in most cases. The only real question is where the package comes from."
 quick_command: "pip install odatix"

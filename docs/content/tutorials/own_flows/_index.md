@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Run Odatix on your own tools and scripts"
 weight: 3
 description: "Add a flow of your own to a tool Odatix ships, or wrap a tool it has never heard of."

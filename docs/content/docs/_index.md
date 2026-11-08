@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Documentation"
 description: "The complete reference for Odatix — concepts, configuration, commands and the graphical tools."
 toc: false

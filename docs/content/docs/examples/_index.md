@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Examples"
 description: "The designs and workflows shipped with Odatix, each isolating one mechanism — read them as worked examples, or copy them as starting points."
 weight: 15

@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Design configurations (variants)"
 description: "Define parametrizable designs, organize parameters into domains, and generate configurations automatically."
 weight: 4

@@ -50,7 +50,16 @@ pagination.path = "page"
 
 # Outputs: the home page also emits /index.json, the client-side search index
 [outputs]
-  home = ["HTML", "RSS", "JSON"]
+  home = ["HTML", "RSS", "JSON", "llms"]
+
+# /llms.txt and /<section>/llms.txt: the documentation as Markdown, one file
+# per category, for AI agents (layouts/home.llms.txt, layouts/section.llms.txt).
+# A section is a category when its front matter adds "llms" to its outputs.
+[outputFormats.llms]
+  mediaType = "text/plain"
+  baseName = "llms"
+  isPlainText = true
+  notAlternative = true
 
 # Taxonomies
 [taxonomies]

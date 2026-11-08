@@ -1,0 +1,36 @@
+{{- /* /llms.txt: what Odatix is, and where each category of its documentation
+       is as Markdown (/<section>/llms.txt), for AI agents. The categories are
+       the sections whose front matter adds the "llms" output. */ -}}
+# Odatix
+
+> Odatix is a free and open-source design automation toolbox (Python, `pip install odatix`) for the implementation, validation and design space exploration of configurable digital designs. It generates every configuration of a parametrizable design (VHDL, Verilog, SystemVerilog, Chisel, HLS...), runs RTL analysis, synthesis, Fmax search, place & route and simulation jobs in parallel on the user's own EDA tools (Vivado, Quartus, Design Compiler, Genus, Innovus, Yosys + nextpnr, OpenLane, LibreLane, Verilator, GHDL, QuestaSim...), and gathers every metric in YAML result files shown by an interactive dashboard (Odatix Explorer).
+
+EDA tools and their licences are not part of Odatix. A workspace is a directory initialized with `odatix init` (add `--examples` for ready-to-run example designs). AI agents should start with the guide for agents: it shows how to describe a design with the Python API (top level, clock, reset and parameters are detected from the sources) and how to run commands without a terminal (`-y -E`).
+
+## For AI agents
+
+{{ with site.GetPage "/docs/ai_agents" }}- [{{ .Title }}]({{ .Permalink }}): {{ .Description }}
+{{ end -}}
+{{ with site.GetPage "/docs/python_api" }}- [Python API, as Markdown]({{ (.OutputFormats.Get "llms").Permalink }}): odatix.workspace and odatix.run, every public name
+{{ end }}
+Each category below links to its pages as Markdown, all in one text file.
+{{ range $top := slice "install" "docs" "tutorials" }}
+{{- with site.GetPage $top }}
+{{- $section := . }}
+
+## {{ $section.Title }}
+
+{{ with $section.OutputFormats.Get "llms" }}- [{{ $section.Title }}: overview pages]({{ .Permalink }})
+{{ end -}}
+{{ range $sub := $section.Sections.ByWeight }}
+{{- with $sub.OutputFormats.Get "llms" }}- [{{ $sub.Title }}]({{ .Permalink }}){{ with $sub.Description }}: {{ . }}{{ end }}
+{{ end -}}
+{{- end }}
+{{- end }}
+{{- end }}
+
+## Optional
+
+{{ with site.GetPage "/faq" }}- [{{ .Title }}]({{ .Permalink }})
+{{ end -}}
+- [Source code](https://github.com/jsaussereau/Odatix)

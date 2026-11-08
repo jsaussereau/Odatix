@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Python API"
 description: "odatix.workspace and odatix.run — reading and writing the configuration of a workspace, and running what it describes, from Python instead of by hand."
 weight: 20

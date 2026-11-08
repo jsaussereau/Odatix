@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Sessions & job monitor"
 description: "Track parallel synthesis, simulation and workflow jobs in real time, and manage detached daemon sessions."
 weight: 8

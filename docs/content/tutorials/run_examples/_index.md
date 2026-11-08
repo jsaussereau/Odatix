@@ -1,4 +1,5 @@
 ---
+outputs: ["HTML", "RSS", "llms"]
 title: "Run the examples"
 weight: 1
 description: "Try Odatix end to end on its built-in example designs, before bringing in your own."
