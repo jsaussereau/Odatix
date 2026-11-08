@@ -149,6 +149,21 @@ def apply_derived_metrics(result_path, derived_metrics_file, announce_unchanged=
   pooled_units = {}
   changed_indices = derived_metrics_lib.apply_derived_metrics(config, records, pooled_units)
 
+  # A metric whose records are all of another type than it applies to (a
+  # workflow metric left at the default, synthesis) derives nothing, silently
+  # otherwise
+  present_types = set(
+    str((record.get("meta") or {}).get(results_schema.META_TYPE, "")) for record in records if isinstance(record, dict)
+  )
+  for metric in config.metrics:
+    types = getattr(metric, "apply_to_types", None)
+    if types and not (set(types) & present_types):
+      printc.warning(
+        'Derived metric "' + metric.name + '" applies to ' + ", ".join(sorted(types)) + " records, and there are none: "
+        'set its "apply_to" (workflow, simulation, any...)',
+        script_name,
+      )
+
   if len(changed_indices) == 0:
     if config and announce_unchanged:
       printc.note("No derived metric to update", script_name)
