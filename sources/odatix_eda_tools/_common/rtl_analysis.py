@@ -122,6 +122,25 @@ def without_testbench_files(paths):
   return without_benches({"sv": list(paths)}, "", ".")["sv"]
 
 
+# A file declaring a SystemVerilog package: the library search of Icarus and
+# Verilator ("-y rtl") finds modules by their file name, never a package, so
+# these files are given to them explicitly, before the top level file.
+PACKAGE_DECLARATION = re.compile(r"^\s*package\s+[A-Za-z_][A-Za-z0-9_]*\s*;", re.M)
+
+
+def package_sources(top_level_file):
+  """The sources of rtl/ (but the top level file) that declare a package."""
+  found = []
+  for path in rtl_sources(top_level_file)[1:]:
+    try:
+      with open(path, encoding="utf-8", errors="replace") as f:
+        if PACKAGE_DECLARATION.search(f.read()):
+          found.append(path)
+    except OSError:
+      pass
+  return sorted(found)
+
+
 def yosys_script(top_level_module, top_level_file):
   """
   What yosys runs: it reads the design, elaborates it from its top level
@@ -210,8 +229,9 @@ def command(tool, top_level_module, top_level_file):
     return ["-q", "-p", yosys_script(top_level_module, top_level_file)]
   if tool == "icarus":
     return ["-g2012", "-Wall", "-t", "null", "-I", "rtl", "-y", "rtl", "-Y", ".sv", "-Y", ".svh",
-            "-s", top_level_module, source]
-  return ["--lint-only", "-Wall", "-Wno-fatal", "-Irtl", "-y", "rtl", "--top-module", top_level_module, source]
+            "-s", top_level_module] + package_sources(top_level_file) + [source]
+  return (["--lint-only", "-Wall", "-Wno-fatal", "-Irtl", "-y", "rtl", "--top-module", top_level_module]
+          + package_sources(top_level_file) + [source])
 
 
 def run(args, log, quiet=False, prefix=None, once=None):
