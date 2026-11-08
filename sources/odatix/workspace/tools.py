@@ -1086,6 +1086,8 @@ class Tool(Entry):
     def __init__(self, workspace, root, name):
         super(Tool, self).__init__(workspace, root, name)
         self._settings = None
+        self._metrics = None
+        self._targets = None
 
     ######################################
     # Location
@@ -1187,6 +1189,8 @@ class Tool(Entry):
 
     def reload(self):
         self._settings = None
+        self._metrics = None
+        self._targets = None
         return self
 
     @property
@@ -1238,15 +1242,23 @@ class Tool(Entry):
 
     @property
     def metrics(self):
-        """The metrics this tool reads from its reports."""
-        return ToolMetrics(self.metrics_path)
+        """
+        The metrics this tool reads from its reports. Every access gives back
+        the same object, so that ``tool.metrics.set(...)`` then
+        ``tool.metrics.save()`` saves what was set.
+        """
+        if self._metrics is None:
+            self._metrics = ToolMetrics(self.metrics_path)
+        return self._metrics
 
     @property
     def targets(self):
-        """The synthesis targets this tool runs on."""
+        """The synthesis targets this tool runs on (the same object at every access)."""
         from odatix.workspace.targets import TargetFile
 
-        return TargetFile(self.workspace, self.name)
+        if self._targets is None:
+            self._targets = TargetFile(self.workspace, self.name)
+        return self._targets
 
     ######################################
     # Writing
@@ -1376,7 +1388,12 @@ class Tool(Entry):
 
         if os.path.isdir(self.path):
             shutil.rmtree(self.path)
-        return self
+        return self.reload()
+
+    def rename(self, new_name):
+        # Its metrics and targets are read from files named after it
+        super(Tool, self).rename(new_name)
+        return self.reload()
 
 
 class ToolCollection(Collection):

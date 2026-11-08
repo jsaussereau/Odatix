@@ -277,6 +277,13 @@ class TestBuiltinCopies(object):
         assert "LUT_count" in str(copy.metrics.sections)
         assert "$eda_tools_path/vivado/" not in open(copy.settings_path, encoding="utf-8").read()
 
+    def test_metrics_set_through_the_tool_are_saved(self, workspace):
+        # The obvious chain, without keeping the metrics in a variable
+        tool = workspace.tools["yosys_fpga"]
+        tool.metrics.set("Carry_LUT_count", {"type": "regex", "settings": {"file": "log/nextpnr.log", "pattern": "carry LUTs: *([0-9]+)", "group_id": 1}})
+        tool.metrics.save()
+        assert "Carry_LUT_count" in workspace.tools["yosys_fpga"].metrics.sections["metrics"]
+
     def test_the_copy_gets_the_targets(self, workspace):
         workspace.tools.import_builtin("vivado", "vivado_mine")
         assert workspace.targets["vivado_mine"].names() == workspace.targets["vivado"].names()
