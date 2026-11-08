@@ -13,6 +13,69 @@
     "variable_values": {},
     "variants": []
   },
+  "sources/odatix_examples/odatix_userconfig/architectures/Example_Adder_Tree_sv": {
+    "configurations": {},
+    "generation_enabled": false,
+    "generation_valid": false,
+    "variable_values": {},
+    "variants": []
+  },
+  "sources/odatix_examples/odatix_userconfig/architectures/Example_Adder_Tree_sv/N_INPUTS": {
+    "configurations": {},
+    "generation_enabled": false,
+    "generation_valid": false,
+    "variable_values": {},
+    "variants": [
+      {
+        "requested_param_domains": [
+          "N_INPUTS/4"
+        ],
+        "substitutions": {
+          "N_INPUTS": "4"
+        }
+      },
+      {
+        "requested_param_domains": [
+          "N_INPUTS/8"
+        ],
+        "substitutions": {
+          "N_INPUTS": "8"
+        }
+      },
+      {
+        "requested_param_domains": [
+          "N_INPUTS/16"
+        ],
+        "substitutions": {
+          "N_INPUTS": "16"
+        }
+      }
+    ]
+  },
+  "sources/odatix_examples/odatix_userconfig/architectures/Example_Adder_Tree_sv/REGISTER_LEVELS": {
+    "configurations": {},
+    "generation_enabled": false,
+    "generation_valid": false,
+    "variable_values": {},
+    "variants": [
+      {
+        "requested_param_domains": [
+          "REGISTER_LEVELS/0"
+        ],
+        "substitutions": {
+          "REGISTER_LEVELS": "0"
+        }
+      },
+      {
+        "requested_param_domains": [
+          "REGISTER_LEVELS/1"
+        ],
+        "substitutions": {
+          "REGISTER_LEVELS": "1"
+        }
+      }
+    ]
+  },
   "sources/odatix_examples/odatix_userconfig/architectures/Example_Config_Generation": {
     "configurations": {},
     "generation_enabled": false,
