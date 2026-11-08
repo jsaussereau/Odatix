@@ -107,9 +107,15 @@ class TestCollections:
             architectures.duplicate("a", "b")
 
     def test_create_existing_raises(self, architectures):
-        architectures.create("a")
+        architectures.create("a").save()
         with pytest.raises(AlreadyExistsError):
             architectures.create("a")
+
+    def test_create_takes_again_an_entry_never_saved(self, architectures):
+        # A script that stopped between create() and save() left an empty directory
+        architectures.create("a")
+        architectures.create("a").save()
+        assert architectures.names() == ["a"]
 
     def test_invalid_name_is_refused(self, architectures):
         with pytest.raises(InvalidNameError):

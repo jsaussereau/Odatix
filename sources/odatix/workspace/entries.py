@@ -235,11 +235,13 @@ class Collection(object):
     def create(self, name, **kwargs):
         """
         Create an entry and return it. Raises if it already exists, so a
-        creation never silently lands on someone else's directory.
+        creation never silently lands on someone else's directory. An empty
+        directory holds nothing to lose: that of an entry created by a script
+        that stopped before saving it is taken again.
         """
         name = check_name(name, self.kind)
         entry = self._make(name)
-        if entry.exists:
+        if entry.exists and os.listdir(entry.path):
             raise AlreadyExistsError("A {0} named '{1}' already exists.".format(self.kind, name))
         entry.create()
         self._initialize(entry, **kwargs)
