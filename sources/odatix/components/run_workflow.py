@@ -511,8 +511,10 @@ def check_settings(
             if source_blacklist is False:
                 source_blacklist = None
 
-            # Check if use_parameters is explicitly set to False
-            use_parameters = workflow_settings.get("use_parameters", True)
+            # Without "use_parameters", a workflow replaces parameters in its
+            # sources when it names the file to replace them in: one that only
+            # sweeps variables in its commands has nothing to replace.
+            use_parameters = workflow_settings.get("use_parameters", "param_target_file" in workflow_settings)
 
             if use_parameters:
                 param_target_file = read_from_list("param_target_file", workflow_settings, workflow_settings_file, script_name=script_name)

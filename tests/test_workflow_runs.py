@@ -250,6 +250,14 @@ class TestSelection:
         assert [instance.workflow_display_name for instance in result[0]] == ["two"]
         assert result[-1].counts()[Category.DAEMON] == 1
 
+    def test_a_workflow_naming_no_target_file_replaces_nothing(self, workflows):
+        # Without "use_parameters", nothing asks for a param_target_file
+        settings = workflows / "workflows" / "one" / "_settings.yml"
+        settings.write_text(settings.read_text().replace("use_parameters: No\n", ""))
+        instances = _check(workflows)[0]
+        assert [instance.workflow_display_name for instance in instances] == ["one"]
+        assert instances[0].use_parameters is False
+
     def test_an_unresolved_placeholder_is_reported(self, workflows, capsys):
         _check(workflows)
         assert '"${missing}"' in capsys.readouterr().out
