@@ -513,6 +513,36 @@ class ParameterDomainCollection(object):
             domain.update(settings)
         return domain
 
+    def create_from_parameter(self, parameter, values=None, name=None, file=None):
+        """
+        Create a named parameter domain sweeping one parameter of a source file
+        of an architecture, as the "Detect" panel of the GUI does: delimiters
+        isolating its value are found in the file, and the domain declares one
+        variable, named after the parameter, listing ``values``.
+
+        Args:
+            parameter (str or DetectedParameter): the parameter.
+            values (list): the values to sweep (default: its current value).
+            name (str): the name of the domain (default: the parameter's).
+            file (str): the file, relative to the design directory (default:
+                the parameter target file of the architecture, or its top
+                level file).
+
+        Returns:
+            ParameterDomain: the domain created.
+        """
+        import odatix.workspace.detect as detect
+        from odatix.workspace.errors import WorkspaceError
+
+        if not hasattr(self.instance, "detect_parameters"):
+            raise WorkspaceError("Only the domains of an architecture are created from a parameter of its sources.")
+        path = detect.parameter_file(self.instance, file)
+        target = os.path.relpath(path, detect.design_directory(self.instance)).replace(os.sep, "/")
+        settings = detect.parameter_domain_settings(path, parameter, values, target_file=target)
+        if name is None:
+            name = parameter.name if isinstance(parameter, detect.DetectedParameter) else str(parameter)
+        return self.create(name, **settings)
+
     def delete(self, name):
         """Delete a domain. Deleting one that is already gone does nothing."""
         return self._make(name).delete()

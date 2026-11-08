@@ -809,6 +809,59 @@ class Architecture(Entry):
         return self.save()
 
     ######################################
+    # What the sources say
+    ######################################
+
+    def detect_sources(self):
+        """
+        Guess the top level module, the clock and the reset of this
+        architecture from its HDL sources (its RTL path, or the output of its
+        generation), as the "auto detect" buttons of the GUI do. A top level
+        module already set is kept, and its signals are the ones looked for.
+
+        Returns:
+            SourceDetection: the candidates, best first (see
+            :mod:`odatix.workspace.detect`).
+        """
+        import odatix.workspace.detect as detect
+        settings = self.settings
+        return detect.detect_sources(
+            detect.source_directory(self),
+            top_level_module=settings.top_level_module or "",
+            top_level_file=settings.top_level_file or "",
+            hints=[self.name],
+        )
+
+    def fill_from_sources(self, overwrite=False):
+        """
+        Set the top level file and module, the clock and the reset of this
+        architecture to the best guesses of :meth:`detect_sources`, without
+        saving. Settings already set are kept, unless ``overwrite``.
+
+        Returns:
+            dict: the settings that were set.
+        """
+        found = self.detect_sources().settings()
+        changed = {}
+        for key, value in found.items():
+            if overwrite or not getattr(self.settings, key):
+                setattr(self.settings, key, value)
+                changed[key] = value
+        return changed
+
+    def detect_parameters(self, file=None, sort=True):
+        """
+        The parameters of a source file of this architecture (its parameter
+        target file, or its top level file, by default), the most relevant
+        first unless ``sort`` is False.
+
+        Returns:
+            list: DetectedParameter objects (see :mod:`odatix.workspace.detect`).
+        """
+        import odatix.workspace.detect as detect
+        return detect.detect_parameters(detect.parameter_file(self, file), sort=sort)
+
+    ######################################
     # Domains and configurations
     ######################################
 

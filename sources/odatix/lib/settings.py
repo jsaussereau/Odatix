@@ -169,6 +169,8 @@ class OdatixSettings:
     # simulators run in WSL on Windows (see odatix.lib.wsl). The defaults until then.
     wsl_settings = wsl.DEFAULTS
     odatix_init_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_init"))
+    #: Guide of AI coding agents, written at the root of a new workspace.
+    AGENTS_FILE = "AGENTS.md"
     odatix_examples_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_examples"))
 
     def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE, silent=False, verbose=False):
@@ -501,6 +503,44 @@ class OdatixSettings:
             printc.say("The solution is in " + names + ": compare it with your own description", script_name=script_name)
         printc.say("New to Odatix? Follow " + printc.colors.BLUE + GETTING_STARTED_URL + printc.colors.ENDC, script_name=script_name)
 
+    #: Markers of the Odatix section added to an AGENTS.md the project already has.
+    AGENTS_BEGIN = "<!-- odatix:begin -->"
+    AGENTS_END = "<!-- odatix:end -->"
+
+    @staticmethod
+    def write_agents_file(src_file, dst_path):
+        """
+        Write the guide of AI coding agents at the root of a workspace. An
+        AGENTS.md the project already has is kept: the Odatix notes are added
+        at its end, between markers, once.
+
+        Returns:
+            str: "created", "appended" or "kept".
+        """
+        agents_file = os.path.join(dst_path, OdatixSettings.AGENTS_FILE)
+        if not os.path.exists(agents_file):
+            shutil.copy2(src_file, agents_file)
+            return "created"
+        with open(agents_file, "r", encoding="utf-8", errors="replace") as f:
+            existing = f.read()
+        if OdatixSettings.AGENTS_BEGIN in existing:
+            return "kept"
+        with open(src_file, "r", encoding="utf-8") as f:
+            notes = f.read().strip()
+        # One level down: the notes become a section of the existing guide.
+        lines, in_code = [], False
+        for line in notes.splitlines():
+            if line.startswith("```"):
+                in_code = not in_code
+            lines.append("#" + line if line.startswith("#") and not in_code else line)
+        notes = "\n".join(lines)
+        with open(agents_file, "a", encoding="utf-8") as f:
+            if existing and not existing.endswith("\n"):
+                f.write("\n")
+            f.write("\n" + OdatixSettings.AGENTS_BEGIN + "\n" + notes + "\n" + OdatixSettings.AGENTS_END + "\n")
+        printc.note("Odatix notes for AI agents added at the end of the existing " + OdatixSettings.AGENTS_FILE, script_name=script_name)
+        return "appended"
+
     @staticmethod
     def init_path():
         """
@@ -512,7 +552,8 @@ class OdatixSettings:
         try:
             src_path = OdatixSettings.odatix_init_path
             dst_path = os.getcwd()
-            copytree(src_path, dst_path, dirs_exist_ok=True)
+            copytree(src_path, dst_path, dirs_exist_ok=True, blacklist=[OdatixSettings.AGENTS_FILE])
+            OdatixSettings.write_agents_file(os.path.join(src_path, OdatixSettings.AGENTS_FILE), dst_path)
             # Where the designs, simulations and workflows of the user go: there
             # from the start, so that a new workspace shows where to add them.
             for path in (OdatixSettings.DEFAULT_ARCH_PATH, OdatixSettings.DEFAULT_SIM_PATH, OdatixSettings.DEFAULT_WORKFLOW_PATH):

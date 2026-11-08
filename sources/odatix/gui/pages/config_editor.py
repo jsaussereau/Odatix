@@ -38,6 +38,8 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree_keeps, native_path
 import odatix.components.replace_params as replace_params
 import odatix.lib.hdl_detect as hdl_detect
+import odatix.workspace.detect as detect
+from odatix.workspace.errors import WorkspaceError
 import odatix.workspace.sim_architectures as sim_architectures
 from odatix.workspace.domains import ParameterDomain
 from odatix.workspace.space import ORIGIN_BLACKLISTED, ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_MANUAL
@@ -3090,41 +3092,29 @@ def detected_domains(store, selected, target_file, taken):
     """
     {name: settings} of the parameter domains the checked parameters make: one
     per parameter, writing its value into the same target file between
-    delimiters found around it. A parameter no delimiter isolates is left out.
+    delimiters found around it (see odatix.workspace.detect). A parameter no
+    delimiter isolates is left out.
     """
     if not store or not store.get("path") or not os.path.isfile(store["path"]):
         return {}, []
-    text = replace_params.read_file(store["path"])
     domains, skipped = {}, []
     for param in store["params"]:
         if param["name"] not in selected:
             continue
-        found = hdl_detect.auto_delimiters(text, param["file_start"], param["file_end"], param["name"])
-        if found is None:
+        try:
+            settings = detect.parameter_domain_settings(
+                store["path"], param["name"], [param["value"]], target_file=target_file or "",
+            )
+        except WorkspaceError:
             skipped.append(param["name"])
             continue
+        settings["param_target_file"] = target_file or ""
         name, suffix = param["name"], 1
         while name in taken or name in domains or name == hard_settings.main_parameter_domain:
             suffix += 1
             name = "{0}_{1}".format(param["name"], suffix)
-        value = param["value"]
-        domains[name] = {
-            "use_parameters": True,
-            "param_target_file": target_file or "",
-            "start_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(found[0])),
-            "stop_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(found[1])),
-            "variables": {param["name"]: {"type": "list", "settings": {"list": [_number(value)]}}},
-        }
+        domains[name] = settings
     return domains, skipped
-
-def _number(value):
-    """A value as a settings file holds it: a number when it is one."""
-    for kind in (int, float):
-        try:
-            return kind(value)
-        except ValueError:
-            pass
-    return value
 
 @page_callback(PAGE_SCOPE,
     Output({"type": "cfg-detect-panel", "domain_uuid": dash.ALL}, "style"),

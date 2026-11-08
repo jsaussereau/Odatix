@@ -86,6 +86,14 @@ from odatix.workspace.clean import (
 )
 from odatix.workspace.core import Workspace, WorkspacePaths, WorkspaceSettings
 from odatix.workspace.derived import DerivedMetricsFile
+from odatix.workspace.detect import (
+    Candidate,
+    DetectedParameter,
+    SourceDetection,
+    detect_parameters,
+    detect_sources,
+    parameter_domain_settings,
+)
 from odatix.workspace.domains import (
     MAIN_DOMAIN,
     DomainSettings,
@@ -195,6 +203,13 @@ __all__ = [
     "ConfigGeneration",
     "combinations",
     "count_combinations",
+    # What the sources say
+    "detect_sources",
+    "detect_parameters",
+    "parameter_domain_settings",
+    "SourceDetection",
+    "DetectedParameter",
+    "Candidate",
     # What a design space does not hold
     "Attributes",
     "parse_attributes",
