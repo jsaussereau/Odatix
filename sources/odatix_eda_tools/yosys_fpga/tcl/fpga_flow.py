@@ -356,12 +356,25 @@ def fmax(settings, target, args):
     frequency = next_frequency
 
   if best is None:
-    raise FlowError("nextpnr reached no frequency (is the design clocked by its clock signal?)")
+    if report is None:
+      raise FlowError("nextpnr could not place and route the design (see the nextpnr log: "
+                      "a design with more I/Os than the part has pins fails this way)")
+    raise FlowError("nextpnr reached no frequency: the design has no register-to-register path "
+                    "timed by its clock signal (is the clock signal right? are the inputs or "
+                    "outputs only connected to registers through logic?)")
   achieved, _, report, index = best
+  if achieved > upper:
+    # As the binary search of the other tools: an Fmax above the bounds of the
+    # search is not measured, and the upper bound is not an Fmax
+    with open(FREQUENCY_SEARCH, "a", encoding="utf-8") as f:
+      f.write("\nNo timing violated! Try raising the upper bound ({:g} MHz)\n".format(upper))
+    raise FlowError("No timing violated! Try raising the upper bound ({:g} MHz): the design reached "
+                    "{:.2f} MHz (\"upper_bound\" of \"fmax_synthesis\" in the architecture settings, "
+                    "or --to)".format(upper, achieved))
   # The reports and the log of the best run are the job's
   shutil.copyfile(os.path.join(REPORT_DIR, "nextpnr_" + str(index) + ".json"), os.path.join(REPORT_DIR, "nextpnr.json"))
   shutil.copyfile(os.path.join(LOG_DIR, "nextpnr_" + str(index) + ".log"), os.path.join(LOG_DIR, "nextpnr.log"))
-  found = int(math.floor(min(achieved, upper)))
+  found = int(math.floor(achieved))
   # The slack is that of the frequency found, as for the other tools
   metrics = write_metrics(settings, target[0], report, found)
   with open(FREQUENCY_SEARCH, "a", encoding="utf-8") as f:

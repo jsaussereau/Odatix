@@ -168,10 +168,14 @@ class TestFmax:
     with open("log/status.log", encoding="utf-8") as f:
       assert "Done: 100%" in f.read()
 
-  def test_the_frequency_found_is_kept_within_the_upper_bound(self, flow, job_dir, monkeypatch):
-    asked, log = self.run_fmax(flow, monkeypatch, lambda f: 500.0)
-    assert asked == [50, 400]
-    assert "met: 400 MHz" in log
+  def test_a_design_faster_than_the_upper_bound_has_no_fmax(self, flow, job_dir, monkeypatch):
+    # As with the binary search of the other tools: the upper bound is not
+    # recorded as the Fmax of a design that is faster
+    with pytest.raises(flow.FlowError, match="raising the upper bound"):
+      self.run_fmax(flow, monkeypatch, lambda f: 500.0)
+    with open("log/frequency_search.log", encoding="utf-8") as f:
+      assert "No timing violated! Try raising the upper bound (400 MHz)" in f.read()
+    assert not os.path.exists("report/frequency.rep")
 
   def test_a_failed_pass_keeps_the_best_one_before(self, flow, job_dir, monkeypatch):
     asked, log = self.run_fmax(flow, monkeypatch, lambda f: 150.0 if f == 50 else None)
