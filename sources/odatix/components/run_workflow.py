@@ -825,6 +825,9 @@ def check_settings(
             progress_pattern=workflow_instance.progress_regex,
         )
 
+        # What its commands print, kept on disk: a failed job is read there
+        running_workflow.console_log = os.path.join(workflow_instance.tmp_dir, hard_settings.work_log_path, hard_settings.console_log_filename)
+
         job_list.append(running_workflow)
 
     return workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs, plan
