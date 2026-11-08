@@ -64,6 +64,7 @@ BUILTIN_VARIABLES = {
         ("tool", "Name of this tool."),
         ("clock_signal", "Clock signal of the design being run."),
         ("top_level_module", "Top level module of the design being run."),
+        ("top_level_file", "File of the top level, in the job's RTL directory."),
         ("lib_name", "Library name used by the flow."),
         ("source_work_path", "Place & route jobs only: work directory of the synthesis it starts from."),
         ("source_tool", "Place & route jobs only: tool the synthesis it starts from ran with."),

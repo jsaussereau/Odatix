@@ -453,6 +453,10 @@ def build_job_variables(arch_instance, tool, **extra):
         result_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_result_path)),
         clock_signal=arch_instance.clock_signal,
         top_level_module=arch_instance.top_level_module,
+        # The file of the top level in the job: its rtl/ is a copy of the whole
+        # RTL directory, testbenches included, which a "rtl/*" would compile
+        top_level_file=os.path.realpath(os.path.join(
+            arch_instance.tmp_dir, hard_settings.work_rtl_path, str(getattr(arch_instance, "top_level_filename", "") or ""))),
         lib_name=arch_instance.lib_name,
         # The design and its configuration ("Counter/08bits"), one shell word:
         # the display name adds " @ 100 MHz" for a custom frequency synthesis.

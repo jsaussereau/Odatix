@@ -40,6 +40,7 @@ class Variables:
     result_path = None,
     clock_signal = None,
     top_level_module = None,
+    top_level_file = None,
     lib_name = None,
     architecture = None,
     target = None,
@@ -63,6 +64,7 @@ class Variables:
     self.tool = tool
     self.clock_signal = clock_signal
     self.top_level_module = top_level_module
+    self.top_level_file = top_level_file
     self.lib_name = lib_name
     # Place & route jobs only: the synthesis job this one starts from.
     # $work_path is already taken and means *this* job's directory.
@@ -75,7 +77,7 @@ class Variables:
 #: The variables holding a path, given as WSL sees it to a command run in WSL
 _PATH_VARIABLES = (
   "$odatix_path", "$eda_tools_path", "$tool_path", "$work_path", "$tool_install_path", "$script_path",
-  "$log_path", "$rtl_path", "$report_path", "$result_path", "$source_work_path",
+  "$log_path", "$rtl_path", "$report_path", "$result_path", "$source_work_path", "$top_level_file",
 )
 
 
@@ -97,6 +99,7 @@ def replace_variables(command, variables):
       "$result_path": variables.result_path,
       "$clock_signal": variables.clock_signal,
       "$top_level_module": variables.top_level_module,
+      "$top_level_file": getattr(variables, "top_level_file", None),
       "$lib_name": variables.lib_name,
       "$architecture": variables.architecture,
       "$target": variables.target,
