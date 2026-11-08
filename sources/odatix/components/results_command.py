@@ -133,7 +133,9 @@ def _export_workflow(args, on_exception=None):
   """
   work_root = args.work_path
   if work_root is None:
-    settings = OdatixSettings(args.config, silent=True)
+    settings = OdatixSettings(args.config)
+    if not settings.valid:
+      return False
     work_root = os.path.join(str(settings.work_path), str(settings.workflow_work_path))
   if not os.path.isdir(str(work_root)):
     printc.error('No workflow work directory "' + str(work_root) + '": nothing written', script_name)
@@ -152,6 +154,8 @@ def export_all(args, on_exception=None):
   not been run, and is skipped.
   """
   settings = OdatixSettings(args.config)
+  if not settings.valid:
+    return False  # not a workspace: what is wrong is said already
   work_root = args.work_path if args.work_path is not None else settings.work_path
   success = True
 
