@@ -1354,6 +1354,13 @@ class Exploration(object):
             printc.say("  {0}  ({1}){2}".format(
                 evaluation.label, numbers, " -- misses {0}".format(", ".join(unmet)) if unmet else ""
             ), script_name)
+        # What was spent for nothing, and why: a part of the space that always
+        # fails is worth excluding before the next campaign
+        unmeasured = [e for e in archive.evaluations if not e.measured and not getattr(e, "reused", False)]
+        if unmeasured:
+            printc.say("  Unmeasured:", script_name)
+            for evaluation in unmeasured:
+                printc.say("  {0}{1}".format(evaluation.label, ": " + evaluation.note if evaluation.note else ""), script_name)
         printc.note("Written to \"{0}\".".format(archive.path), script_name)
 
     def __repr__(self):

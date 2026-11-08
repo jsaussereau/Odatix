@@ -1535,7 +1535,7 @@ class Evaluator(object):
         new = [record for record in current if _record_meta(record) not in previous]
         if not new:
             if not current or getattr(self.settings, "overwrite", False):
-                return Evaluation(design, note="the run produced no result for this design")
+                return Evaluation(design, note="its job failed or wrote no result: see the log of its job, under the work directory")
             new = current
 
         return self.evaluation_of(design, new)
