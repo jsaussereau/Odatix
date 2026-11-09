@@ -124,17 +124,18 @@ def parse_target(target):
 def design_sources(top=""):
   """
   The sources of the design by language, in compilation order (see
-  odatix.sim.design_info): a filelist.f of rtl/ when the design has one, an
-  order computed from the sources otherwise. A testbench kept next to the RTL
-  is left out: Yosys would stop on it.
+  odatix.sim.design_info): the file list of the design when it has one
+  ("filelist" in its settings, or filelist.f in rtl/), with its include
+  directories and macros, an order computed from the sources otherwise. A
+  testbench kept next to the RTL is left out: Yosys would stop on it.
   """
   try:
-    from odatix.sim.design_info import collect_sources, without_benches
+    from odatix.sim.design_info import job_sources, without_benches
   except ImportError:
     # Run from a source tree: odatix is next to odatix_eda_tools
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from odatix.sim.design_info import collect_sources, without_benches
-  return without_benches(collect_sources("."), top, ".")
+    from odatix.sim.design_info import job_sources, without_benches
+  return without_benches(job_sources("."), top, ".")
 
 
 def tcl_quote(path):
@@ -208,7 +209,8 @@ def synthesize(settings, family, options):
   """
   top = str(settings["top_level_module"])
   sources = design_sources(top)
-  includes = " ".join("-I" + tcl_quote(d) for d in sources.get("include_dirs", []))
+  includes = " ".join(["-I" + tcl_quote(d) for d in sources.get("include_dirs", [])]
+                      + ["-D" + tcl_quote(macro) for macro in sources.get("defines", [])])
   commands = []
   for language, flag in (("verilog", ""), ("sv", " -sv")):
     if sources.get(language):

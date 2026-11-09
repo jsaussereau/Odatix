@@ -53,21 +53,41 @@ if {[catch {
 
     set read_error 0
 
-    # Read from filelist (the file must be named filelist.f)
-    if {[file exists "$rtl_path/filelist.f"]} {
+    # The file list of the design, when it has one ("filelist" in its
+    # settings, or filelist.f at the root of its RTL): its order, include
+    # directories and macros are kept. Consecutive files of a same language
+    # are analyzed together, as a compiler given the list would.
+    set design_sources [odatix_design_sources $signature]
+    set define_list [dict get $design_sources defines]
+    set define_option [expr {[llength $define_list] ? [list -define $define_list] : {}}]
+    if {[llength [dict get $design_sources incdirs]]} {
+        set search_path [concat [dict get $design_sources incdirs] $search_path]
+    }
+    if {[dict get $design_sources filelist] ne ""} {
 
-        puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
-        foreach line [read_filelist "$rtl_path/filelist.f"] {
-            if {[string match "*.v" $line]} {
-                set format verilog
-            } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
-                set format sverilog
-            } elseif {[string match "*.vhd" $line] || [string match "*.vhdl" $line]} {
-                set format vhdl
-            } else {
+        puts "$signature <cyan>Using filelist: [dict get $design_sources filelist]<end>"
+        set batches [list]
+        set batch_format ""
+        set batch_files [list]
+        foreach line [dict get $design_sources files] {
+            set format [odatix_hdl_format $line]
+            if {$format eq "" || [string match "*.svh" $line] || [string match "*.vh" $line]} {
                 continue
             }
-            if {![analyze -library $lib_name -f $format $line]} {
+            if {$format ne $batch_format && [llength $batch_files]} {
+                lappend batches [list $batch_format $batch_files]
+                set batch_files [list]
+            }
+            set batch_format $format
+            lappend batch_files $line
+        }
+        if {[llength $batch_files]} {
+            lappend batches [list $batch_format $batch_files]
+        }
+        foreach batch $batches {
+            lassign $batch format files
+            if {[catch {analyze -library $lib_name -f $format {*}$define_option $files} result] || !$result} {
+                puts "$signature <bold><red>error: failed reading the $format files of the file list<end>"
                 set read_error 1
             }
         }
@@ -90,7 +110,7 @@ if {[catch {
             foreach file $filenames {
                 puts "  <cyan>- $file<end>"
             }
-            if {[catch {analyze -library $lib_name -f $format $filenames} result] || !$result} {
+            if {[catch {analyze -library $lib_name -f $format {*}$define_option $filenames} result] || !$result} {
                 puts "$signature <bold><red>error: failed reading $label source files<end>"
                 set read_error 1
             }

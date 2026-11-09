@@ -121,8 +121,15 @@ def edit_config_file(arch, config_file, flow_parameters=None, tool=None):
     quoted = ['"$tmp_path/' + destination + '"' for destination in destinations]
     return "[list " + " ".join(quoted) + "]"
 
+  filelist_variables = []
+  for name, value in (getattr(arch, "filelist_variables", None) or {}).items():
+    filelist_variables.extend([name, value])
+
   # Replace rules definition
   replacements = {
+    r"(set filelist\s+).*":           lambda m: f"{m.group(1)}{tcl_word(getattr(arch, 'filelist', '') or '')}",
+    r"(set filelist_variables\s+).*": lambda m: f"{m.group(1)}{tcl_word(filelist_variables)}",
+    r"(set verilog_defines\s+).*":    lambda m: f"{m.group(1)}{tcl_word(list(getattr(arch, 'defines', None) or []))}",
     r"(set top_level_module\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.top_level_module)}",
     r"(set top_level_file\s+).*":     lambda m: f"{m.group(1)}{safe_replace(arch.top_level_filename)}",
     r"(set clock_signal\s+).*":       lambda m: f"{m.group(1)}{safe_replace(arch.clock_signal)}",

@@ -25,6 +25,16 @@ if {[catch {
 
     set signature "<grey>\[analyze_script.tcl\]<end>"
 
+    # The options of synth_design for the include directories and the macros
+    # of the design: "-verilog_define VIVADO" and those of its file list.
+    proc ::odatix_vivado_hdl_options {} {
+        set options [list -verilog_define [concat [list VIVADO] [expr {[info exists ::odatix_verilog_defines] ? $::odatix_verilog_defines : {}}]]]
+        if {[info exists ::odatix_include_dirs] && [llength $::odatix_include_dirs]} {
+            lappend options -include_dirs $::odatix_include_dirs
+        }
+        return $options
+    }
+
     ######################################
     # Read source files
     ######################################
@@ -42,11 +52,18 @@ if {[catch {
         set ::odatix_sources_read 1
 
 
-        if {[file exists "$rtl_path/filelist.f"]} {
+        # The file list of the design ("filelist" in its settings, or
+        # filelist.f): its include directories and macros go to synth_design
+        # (see odatix_vivado_hdl_options)
+        set design_sources [odatix_design_sources $signature]
+        set ::odatix_include_dirs [dict get $design_sources incdirs]
+        set ::odatix_verilog_defines [dict get $design_sources defines]
 
-            puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
+        if {[dict get $design_sources filelist] ne ""} {
 
-            foreach line [read_filelist "$rtl_path/filelist.f"] {
+            puts "$signature <cyan>Using filelist: [dict get $design_sources filelist]<end>"
+
+            foreach line [dict get $design_sources files] {
                 if {[string match "*.v" $line]} {
                     read_verilog $line
                 } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {

@@ -86,6 +86,7 @@ BUILTIN_VARIABLES = {
         ("verilog_files", "Verilog sources of the design under test, in compilation order."),
         ("sv_files", "SystemVerilog sources of the design under test, in compilation order."),
         ("include_dirs", "Directories holding its Verilog headers."),
+        ("defines", "Macros of the design (NAME or NAME=VALUE): its file list's and its settings'."),
         ("tb_top", "Top of the testbench."),
         ("tb_files", "Sources of the testbench, in compilation order."),
         ("python", "The Python interpreter running Odatix."),

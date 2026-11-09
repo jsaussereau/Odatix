@@ -272,7 +272,7 @@ proc odatix_vivado_synthesize {target signature {progressfile ""} {from 0} {to 1
         set power_opt 1
     }
 
-    set command [list synth_design -part $target -top $top_level_module -verilog_define VIVADO {*}$synth_options]
+    set command [list synth_design -part $target -top $top_level_module {*}[odatix_vivado_hdl_options] {*}$synth_options]
     if {![odatix_vivado_run $command 1 $signature]} {
         return 0
     }

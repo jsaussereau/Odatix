@@ -141,7 +141,7 @@ def package_sources(top_level_file):
   return sorted(found)
 
 
-def yosys_script(top_level_module, top_level_file):
+def yosys_script(top_level_module, top_level_file, macros=()):
   """
   What yosys runs: it reads the design, elaborates it from its top level
   ("hierarchy -check" says what is missing), turns its processes into logic and
@@ -149,7 +149,7 @@ def yosys_script(top_level_module, top_level_file):
   """
   sources = " ".join('"' + path + '"' for path in rtl_sources(top_level_file))
   return "; ".join([
-    "read_verilog -sv -defer -Irtl " + sources,
+    "read_verilog -sv -defer -Irtl " + "".join(macro + " " for macro in macros) + sources,
     "hierarchy -check -top " + top_level_module,
     "proc",
     "check",
@@ -159,17 +159,18 @@ def yosys_script(top_level_module, top_level_file):
 def design_sources():
   """
   The sources of the design by language, in compilation order (see
-  odatix.sim.design_info): a filelist.f of rtl/ when the design has one, an
-  order computed from the sources otherwise. A testbench kept next to the RTL
-  is left out: the design is what is analyzed.
+  odatix.sim.design_info): the file list of the design when it has one
+  ("filelist" in its settings, or filelist.f in rtl/), with its include
+  directories and macros, an order computed from the sources otherwise. A
+  testbench kept next to the RTL is left out: the design is what is analyzed.
   """
   try:
-    from odatix.sim.design_info import collect_sources, without_benches
+    from odatix.sim.design_info import job_sources, without_benches
   except ImportError:
     # Run from a source tree: odatix is next to odatix_eda_tools
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from odatix.sim.design_info import collect_sources, without_benches
-  return without_benches(collect_sources("."), "", ".")
+    from odatix.sim.design_info import job_sources, without_benches
+  return without_benches(job_sources("."), "", ".")
 
 
 def ghdl_analysis(path, top_level_module, log):
@@ -222,16 +223,43 @@ def questa_analysis(path, top_level_module, log):
   return run([path, "-c", "-quiet", "-lib", QUESTA_LIBRARY, "-do", "quit -f", top_level_module], log, prefix="# ")
 
 
+def filelist_command(tool, top_level_module, sources):
+  """
+  The command line of a linter given the file list of the design: its files in
+  order, its include directories and its macros, and nothing found by search.
+  """
+  files = sources.get("verilog", []) + sources.get("sv", [])
+  includes = sources.get("include_dirs", [])
+  defines = sources.get("defines", [])
+  if tool == "yosys":
+    return ["-q", "-p", "; ".join([
+      "read_verilog -sv -defer " + " ".join(["-I" + d for d in includes] + ['-D' + m for m in defines])
+      + " " + " ".join('"' + path + '"' for path in files),
+      "hierarchy -check -top " + top_level_module,
+      "proc",
+      "check",
+    ])]
+  if tool == "icarus":
+    return (["-g2012", "-Wall", "-t", "null", "-s", top_level_module]
+            + ["-I" + d for d in includes] + ["-D" + m for m in defines] + files)
+  return (["--lint-only", "-Wall", "-Wno-fatal", "--top-module", top_level_module]
+          + ["-I" + d for d in includes] + ["-D" + m for m in defines] + files)
+
+
 def command(tool, top_level_module, top_level_file):
   # "/" whatever the system: a finding is located the way the log names it
   source = "rtl/" + top_level_file
+  sources = design_sources()
+  if sources.get("order") == "filelist":
+    return filelist_command(tool, top_level_module, sources)
+  macros = ["-D" + macro for macro in sources.get("defines", [])]
   if tool == "yosys":
-    return ["-q", "-p", yosys_script(top_level_module, top_level_file)]
+    return ["-q", "-p", yosys_script(top_level_module, top_level_file, macros)]
   if tool == "icarus":
     return ["-g2012", "-Wall", "-t", "null", "-I", "rtl", "-y", "rtl", "-Y", ".sv", "-Y", ".svh",
-            "-s", top_level_module] + package_sources(top_level_file) + [source]
+            "-s", top_level_module] + macros + package_sources(top_level_file) + [source]
   return (["--lint-only", "-Wall", "-Wno-fatal", "-Irtl", "-y", "rtl", "--top-module", top_level_module]
-          + package_sources(top_level_file) + [source])
+          + macros + package_sources(top_level_file) + [source])
 
 
 def run(args, log, quiet=False, prefix=None, once=None):

@@ -51,6 +51,14 @@ arch.domains.create_from_parameter("DEPTH", [2, 4])
   `top_level_file` and the files named by the domains are relative to it.
   Keep testbenches in another directory (`tb/`): every file of `rtl_path` is
   copied into each job, and a synthesis tool may read them all.
+- A design in a repository of its own with a file list (`Flist`, `.f`: CVA6,
+  OpenTitan IPs...): set `rtl_path` to the root of the repository as cloned,
+  `filelist` to its list (relative to `rtl_path`), `filelist_variables` to
+  the values of its `${VARIABLE}`s (`.` for the root of the repository; a
+  variable of the architecture such as `${CONFIG}` picks a configuration, one
+  job per value) and `defines` to the macros a synthesis needs. Every tool
+  then reads the list, its `+incdir+` and its `+define+`: do not flatten or
+  copy the sources. Page: `docs/reference/architecture/` (File list).
 - Sweep the parameters with a high `relevance`; those computed from other
   parameters (localparam, constants) rank low and should not be swept.
 - Parameters declared in another file than the top level (a SystemVerilog
@@ -87,6 +95,9 @@ odatix synth   -t design_compiler -a "Counter + BITS/16" --at 50 --at 100 -y -E 
   are needed without a human at the terminal. A run of more than a few
   minutes (an Fmax search, an ASIC synthesis) is best started in the
   background of your shell (`... -y -E > run.log 2>&1 &`), then read.
+  Every 10 minutes, `-E` prints each running job, how long it has run, and
+  how long its logs have been silent. `--timeout <minutes>` stops a job that
+  runs longer (a tool that hangs) and counts it failed.
 - `"Counter + BITS/* + DEPTH/*"` selects every combination of the values of
   both domains (6 configurations here); `"Counter + BITS/16"` a single value.
   Each configuration is named `Counter+BITS_16+DEPTH_4` (job directories,
@@ -191,8 +202,8 @@ for one; the configuration is the name of the job directory, listed by
 `ls work/custom_freq_synthesis/<tool>/<target>/<arch>/`), narrowed by `--from-tool`, `--from-type`, `--target`
 (no option picks a frequency: the `@<MHz>MHz` of `sources` does); `-t` names the
 place & route tool, whose results go to `results/results_<tool>.yml`. A
-place & route job takes minutes, even for a small design: run it in the
-background. Each flow (`-f`) has its own work directory, so two flows run
+place & route job takes minutes for a small design and hours for a CPU
+(150k cells: 2 h of placement on one thread): run it in the background. Each flow (`-f`) has its own work directory, so two flows run
 side by side. The
 metrics of the synthesis record are those before place & route. Results: `Cell_Area` (µm²),
 `Total_Power` (mW), `Worst_Slack` (ns). Page: `docs/features/pnr/`.

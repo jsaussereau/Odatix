@@ -59,7 +59,7 @@ if {[catch {
     # Elaborate
     ######################################
     if {[catch {
-        synth_design -rtl -part ${target} -top ${top_level_module} -verilog_define VIVADO
+        synth_design -rtl -part ${target} -top ${top_level_module} {*}[odatix_vivado_hdl_options]
     } errmsg]} {
         puts "$signature <bold><red>error: failed design elaboration<end>"
         puts -nonewline "$signature tool says -> $errmsg"

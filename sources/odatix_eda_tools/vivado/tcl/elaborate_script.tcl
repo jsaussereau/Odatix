@@ -29,7 +29,7 @@ if {[catch {
     # analyze_script.tcl reports nothing itself, as synthesis steps source it too
     report_progress 30 $synth_statusfile
 
-    synth_design -rtl -top ${top_level_module}
+    synth_design -rtl -top ${top_level_module} {*}[odatix_vivado_hdl_options]
 
     report_progress 100 $synth_statusfile
 

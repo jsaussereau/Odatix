@@ -45,6 +45,56 @@ clock_signal: "i_clk"
 reset_signal: "i_rst"
 {{< /code >}}
 
+## File list, include directories and macros
+
+A design kept in a repository of its own is often described by a **file
+list**: its sources in compilation order, the directories its `` `include ``s
+look in, the macros it needs, through variables (CVA6's `core/Flist.cva6`).
+Odatix reads it as it is, for every tool: synthesis, place & route sources,
+RTL analysis and simulation.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `filelist` | path | `filelist.f` when there is one | The file list, relative to `rtl_path` (or to the generation output). |
+| `filelist_variables` | mapping | — | Values of the `${VARIABLE}`s of the file list. A value may name a [variable](/docs/configurations/virtual_param_domains/) or a parameter domain of the architecture (`${CONFIG}`), or another file list variable. A relative path is relative to `rtl_path`. A variable left unset is taken from the environment. |
+| `defines` | list or mapping | — | Macros every tool defines: `["NAME", "NAME=VALUE"]`, or `{NAME: VALUE}`. A value may name a variable (`${CONFIG}`). |
+
+What a file list may hold: source files (one or more per line), `+incdir+a+b`,
+`+define+A=1+B` (or `-DA=1`), `-f`/`-F` another file list, and comments
+(`//`, `#`). Other options are skipped. A relative path is relative to the file
+list naming it, or else to `rtl_path`.
+
+`rtl_path` is the root of the repository, copied into each job: a file list
+writes its paths from there, and nothing in the repository has to change. A
+variable picks a configuration, one job per value:
+
+{{< code lang=yaml filename="architectures/CVA6/_settings.yml" >}}
+rtl_path:         cva6                # the repository, as cloned
+top_level_file:   core/cva6.sv
+top_level_module: cva6
+clock_signal:     clk_i
+reset_signal:     rst_ni
+
+filelist: core/Flist.cva6
+filelist_variables:
+  CVA6_REPO_DIR: .                    # the root of the repository
+  TARGET_CFG:    ${CONFIG}            # core/include/<TARGET_CFG>_config_pkg.sv
+  HPDCACHE_DIR:  ${CVA6_REPO_DIR}/core/cache_subsystem/hpdcache
+defines:
+  - HPDCACHE_ASSERT_OFF               # assertions a synthesis tool does not read
+
+variables:                            # one job per configuration package
+  CONFIG:
+    type: list
+    settings:
+      list: [cv32a60x, cv32a65x, cv32a6_imac_sv32]
+{{< /code >}}
+
+`odatix synth -a "CVA6 + CONFIG/*"` then runs the three configurations, and
+their results carry `meta.CONFIG`. Without a file list, every source under
+`rtl_path` is read, in an order Odatix computes, and only the macros of
+`defines` apply.
+
 ## Parameter replacement
 
 Odatix produces a configuration by replacing the text **between two delimiters**

@@ -534,6 +534,9 @@ Declared settings:
 | `rtl_path` | `str` |  | Directory holding the RTL of the design. |
 | `top_level_file` | `str` |  | File holding the top level module. |
 | `top_level_module` | `str` |  | Name of the top level module. |
+| `filelist` | `str` |  | File list giving the sources in compilation order, relative to the RTL directory ("filelist.f" there when empty and present). It may hold "+incdir+", "+define+", "-f"/"-F" and ${VARIABLE}s. |
+| `filelist_variables` | `dict` |  | Values of the ${VARIABLE}s of the file list. A value may name a parameter domain or a variable of the architecture ("${CONFIG}"); a path is relative to the RTL directory. |
+| `defines` | `any` |  | Macros defined for every tool: a list of "NAME" or "NAME=VALUE", or a mapping. A value may name a parameter domain or a variable ("${CONFIG}"). |
 | **Signals** | | | |
 | `clock_signal` | `str` |  | Name of the clock signal of the top level. |
 | `reset_signal` | `str` |  | Name of the reset signal of the top level. |

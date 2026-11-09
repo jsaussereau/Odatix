@@ -23,7 +23,7 @@ LIBRARY = "work"
 
 sim = SimRunner("questa", languages=["vhdl", "verilog", "sv"])
 top = sim.tb_top
-incdirs = ["+incdir+" + directory for directory in sim.include_dirs]
+incdirs = ["+incdir+" + directory for directory in sim.include_dirs] + ["+define+" + macro for macro in sim.defines]
 
 if os.path.isdir(LIBRARY):
     shutil.rmtree(LIBRARY)

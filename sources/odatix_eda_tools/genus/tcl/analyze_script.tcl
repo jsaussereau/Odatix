@@ -59,17 +59,34 @@ if {[catch {
     #suppress_messages LBR-9
 
 
-    if {[file exists "$rtl_path/filelist.f"]} {
+    # The file list of the design ("filelist" in its settings, or filelist.f),
+    # with its include directories and macros (see odatix_design_sources)
+    set design_sources [odatix_design_sources $signature]
+    set define_options [list]
+    foreach macro [dict get $design_sources defines] {
+        lappend define_options -define $macro
+    }
+    if {[llength [dict get $design_sources incdirs]]} {
+        set_db init_hdl_search_path [concat [dict get $design_sources incdirs] [get_db init_hdl_search_path]]
+    }
 
-        puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
+    if {[dict get $design_sources filelist] ne ""} {
 
-        foreach line [read_filelist "$rtl_path/filelist.f"] {
-            if {[string match "*.v" $line]} {
-                read_hdl -language v2001 $line
-            } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
-                read_hdl -language sv $line
-            } elseif {[string match "*.vhd" $line] || [string match "*.vhdl" $line]} {
-                read_hdl -language vhdl $line
+        puts "$signature <cyan>Using filelist: [dict get $design_sources filelist]<end>"
+
+        foreach line [dict get $design_sources files] {
+            set language ""
+            switch -- [odatix_hdl_format $line] {
+                verilog  {set language v2001}
+                sverilog {set language sv}
+                vhdl     {set language vhdl}
+            }
+            if {$language eq "" || [string match "*.svh" $line] || [string match "*.vh" $line]} {
+                continue
+            }
+            if {[catch {read_hdl -language $language {*}$define_options $line} errmsg]} {
+                puts "$signature <bold><red>error: could not read $line<end>"
+                exit -1
             }
         }
 
@@ -88,7 +105,7 @@ if {[catch {
                 puts "  <cyan>- $file<end>"
             }
             if {[catch {
-                read_hdl -language v2001 $verilog_filenames
+                read_hdl -language v2001 {*}$define_options $verilog_filenames
             } errmsg ]} {
                 puts "Error: for more info, please check the <bold><cyan>.log<end> file avaible in: $log_path/analyze_script.tcl.log"
                 exit -1
@@ -110,7 +127,7 @@ if {[catch {
                 puts "  <cyan>- $file<end>"
             }
             if {[catch {
-                read_hdl -language sv $sverilog_filenames
+                read_hdl -language sv {*}$define_options $sverilog_filenames
             } errmsg ]} {
                 exit -1
             }

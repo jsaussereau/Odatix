@@ -49,9 +49,18 @@ if {[catch {
         return ""
     }
 
-    if {[file exists "$rtl_path/filelist.f"]} {
-        puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
-        set source_files [read_filelist "$rtl_path/filelist.f"]
+    # The file list of the design ("filelist" in its settings, or filelist.f),
+    # with its include directories and macros (see odatix_design_sources)
+    set design_sources [odatix_design_sources $signature]
+    set ::odatix_quartus_macros [dict get $design_sources defines]
+    foreach dir [dict get $design_sources incdirs] {
+        if {[lsearch -exact $::odatix_quartus_search_path $dir] < 0} {
+            lappend ::odatix_quartus_search_path $dir
+        }
+    }
+    if {[dict get $design_sources filelist] ne ""} {
+        puts "$signature <cyan>Using filelist: [dict get $design_sources filelist]<end>"
+        set source_files [dict get $design_sources files]
     } else {
         set source_files [get_files_recursive [file normalize $rtl_path] {*.v *.sv *.vh *.svh *.vhd *.vhdl}]
     }

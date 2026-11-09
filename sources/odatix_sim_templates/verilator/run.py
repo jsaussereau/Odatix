@@ -25,6 +25,7 @@ if sim.waves:
     # "$dumpvars" in the testbench only records something when traced
     options += ["--trace"]
 options += ["+incdir+" + directory for directory in sim.include_dirs]
+options += ["+define+" + macro for macro in sim.defines]
 options += parameter_args(sim.tb_parameters, "-G{name}={value}")
 options += sim.files("verilog", "sv")
 

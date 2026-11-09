@@ -186,6 +186,22 @@ class ArchitectureSettings(WithVariables, Settings):
     )
     top_level_file = Setting("", type="str", doc="File holding the top level module.")
     top_level_module = Setting("", type="str", doc="Name of the top level module.")
+    filelist = Setting(
+        "", type="str", skip_if_empty=True,
+        doc="File list giving the sources in compilation order, relative to the RTL directory "
+            "(\"filelist.f\" there when empty and present). It may hold \"+incdir+\", \"+define+\", "
+            "\"-f\"/\"-F\" and ${VARIABLE}s.",
+    )
+    filelist_variables = Setting(
+        factory=dict, type="dict", skip_if_empty=True,
+        doc="Values of the ${VARIABLE}s of the file list. A value may name a parameter domain or a "
+            "variable of the architecture (\"${CONFIG}\"); a path is relative to the RTL directory.",
+    )
+    defines = Setting(
+        factory=list, type="any", skip_if_empty=True,
+        doc="Macros defined for every tool: a list of \"NAME\" or \"NAME=VALUE\", or a mapping. "
+            "A value may name a parameter domain or a variable (\"${CONFIG}\").",
+    )
 
     # Signals
     clock_signal = Setting("", type="str", section="Signals", doc="Name of the clock signal of the top level.")

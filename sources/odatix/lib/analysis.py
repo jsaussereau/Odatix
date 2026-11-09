@@ -774,19 +774,42 @@ class LogReader(object):
 LANGUAGE_LABELS = {"verilog": "Verilog", "systemverilog": "SystemVerilog", "vhdl": "VHDL"}
 
 
-def detect_languages(rtl_dir, definition):
-  """The languages the sources of a design are written in."""
+def detect_languages(rtl_dir, definition, files=None):
+  """
+  The languages the sources of a design are written in: those of `files` (what
+  its file list names) when given, of every file under its RTL directory
+  otherwise.
+  """
   extensions = {}
   for language, language_extensions in definition.language_extensions.items():
     for extension in language_extensions:
       extensions[extension] = language
+  if files is None:
+    files = [filename for _root, _dirs, filenames in os.walk(rtl_dir) for filename in filenames]
   languages = set()
-  for root, _dirs, files in os.walk(rtl_dir):
-    for filename in files:
-      language = extensions.get(os.path.splitext(filename)[1].lower())
-      if language is not None:
-        languages.add(language)
+  for filename in files:
+    language = extensions.get(os.path.splitext(filename)[1].lower())
+    if language is not None:
+      languages.add(language)
   return sorted(languages)
+
+
+def _filelist_files(job_dir):
+  """
+  The files the file list of a job names, None when it has none: a repository
+  given whole as the RTL (CVA6) holds files of other languages it never reads.
+  """
+  from odatix.sim import design_info
+
+  settings = _job_settings(job_dir)
+  name = settings.get("filelist") or design_info.USER_FILELIST_FILENAME
+  if not os.path.isfile(os.path.join(job_dir, hard_settings.work_rtl_path, name)):
+    return None
+  try:
+    sources = design_info.job_sources(job_dir, hard_settings.work_rtl_path)
+  except Exception:
+    return None
+  return [path for language in design_info.LANGUAGES for path in sources.get(language, [])]
 
 
 def _job_settings(job_dir):
@@ -1248,7 +1271,7 @@ def analyze_job(job_dir, tool, architecture="", configuration="", flow=None, def
   omitted = max(0, len(findings) - MAX_FINDINGS)
   findings = findings[:MAX_FINDINGS]
 
-  languages = detect_languages(os.path.join(job_dir, hard_settings.work_rtl_path), definition)
+  languages = detect_languages(os.path.join(job_dir, hard_settings.work_rtl_path), definition, _filelist_files(job_dir))
   unsupported = []
   if definition.languages is not None:
     unsupported = [language for language in languages if language not in definition.languages]

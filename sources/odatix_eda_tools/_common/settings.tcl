@@ -47,6 +47,15 @@ set work_path          $tmp_path/$local_work_path
 set source_rtl_path    ../../../rtl
 set source_arch_path   architectures
 
+# The file list of the design ("filelist" in its settings), relative to
+# $rtl_path: "filelist.f" there when this is empty. Its ${VARIABLE}s take their
+# values from filelist_variables (a name/value list), then from the
+# environment. verilog_defines are the macros the design asks every tool to
+# define ("NAME" or "NAME=VALUE"). See odatix_design_sources.
+set filelist           ""
+set filelist_variables [list]
+set verilog_defines    [list]
+
 # Handoff a synthesis flow writes for "odatix pnr" to pick up. A flow that wants
 # its results to be placeable & routable by another tool writes its netlist, its
 # constraints and its delays under these exact names, whatever the tool calls
@@ -314,27 +323,170 @@ proc odatix_require_source {{signature ""}} {
     puts "$signature place & route of the netlist synthesized by <cyan>$source_tool<end>"
 }
 
-# Source files listed in a filelist, in order. Relative paths are relative to
-# the directory of the filelist; a path that does not exist there is taken
-# relative to the directory the tool runs from (the design root), as some
-# designs write them. Blank lines and comments ("#" or "//") are skipped.
-proc read_filelist {filelist} {
-    set file_list {}
-    set base_dir [file dirname [file normalize $filelist]]
-    set fp [open $filelist r]
+# $text with its ${NAME}, $(NAME) and $NAME taken from $variables (a
+# name/value list), then from the environment; a name known by neither is left
+# as it is. A value may name another variable.
+proc odatix_expand_variables {text variables} {
+    for {set round 0} {$round < 10} {incr round} {
+        set result ""
+        set rest $text
+        while {[regexp -indices {\$\{(\w+)\}|\$\((\w+)\)|\$(\w+)} $rest match g1 g2 g3]} {
+            set name ""
+            foreach group [list $g1 $g2 $g3] {
+                if {[lindex $group 0] >= 0} {
+                    set name [string range $rest [lindex $group 0] [lindex $group 1]]
+                    break
+                }
+            }
+            set start [lindex $match 0]
+            set end [lindex $match 1]
+            append result [string range $rest 0 [expr {$start - 1}]]
+            if {[dict exists $variables $name]} {
+                append result [dict get $variables $name]
+            } elseif {[info exists ::env($name)]} {
+                append result $::env($name)
+            } else {
+                append result [string range $rest $start $end]
+            }
+            set rest [string range $rest [expr {$end + 1}] end]
+        }
+        append result $rest
+        if {$result eq $text} {
+            break
+        }
+        set text $result
+    }
+    return $text
+}
+
+# What a file list names, in its order, as a dict: "files" (absolute paths),
+# "incdirs" (absolute) and "defines" ("NAME" or "NAME=VALUE"). One or more
+# entries per line; "//" and "#" start a comment. "+incdir+a+b" adds include
+# directories, "+define+A=1+B" (or "-DA=1") macros, "-f"/"-F" another file
+# list; other options are skipped. A relative path is relative to the directory
+# of the file list naming it, or else to the first of $search_dirs, then the
+# directory the tool runs from, where it exists.
+proc odatix_read_filelist {filelist {variables {}} {search_dirs {}}} {
+    set ::odatix_filelist_seen [list]
+    return [odatix_read_filelist_into [dict create files {} incdirs {} defines {}] $filelist $variables $search_dirs]
+}
+
+proc odatix_resolve_filelist_path {entry base variables search_dirs} {
+    set entry [odatix_expand_variables $entry $variables]
+    if {[file pathtype $entry] eq "absolute"} {
+        return [file normalize $entry]
+    }
+    foreach directory [concat [list $base] $search_dirs [list [pwd]]] {
+        set candidate [file join $directory $entry]
+        if {[file exists $candidate]} {
+            return [file normalize $candidate]
+        }
+    }
+    return [file normalize [file join $base $entry]]
+}
+
+proc odatix_read_filelist_into {result list_file variables search_dirs} {
+    set list_file [file normalize $list_file]
+    lappend ::odatix_filelist_seen $list_file
+    set base [file dirname $list_file]
+    set fp [open $list_file r]
+    set tokens [list]
     while {[gets $fp line] >= 0} {
-        set line [string trim $line]
-        if {$line eq "" || [string match "#*" $line] || [string match "//*" $line]} {
-            continue
+        regsub {(//|#).*$} $line "" line
+        foreach token [regexp -all -inline {\S+} $line] {
+            lappend tokens $token
         }
-        set path [file normalize [file join $base_dir $line]]
-        if {![file exists $path] && [file exists $line]} {
-            set path [file normalize $line]
-        }
-        lappend file_list $path
     }
     close $fp
-    return $file_list
+
+    set count [llength $tokens]
+    for {set index 0} {$index < $count} {incr index} {
+        set token [lindex $tokens $index]
+        if {[string match "+incdir+*" $token]} {
+            foreach directory [split [string range $token 8 end] "+"] {
+                if {$directory ne ""} {
+                    dict lappend result incdirs [odatix_resolve_filelist_path $directory $base $variables $search_dirs]
+                }
+            }
+        } elseif {[string match "+define+*" $token]} {
+            foreach macro [split [string range $token 8 end] "+"] {
+                if {$macro ne ""} {
+                    dict lappend result defines [odatix_expand_variables $macro $variables]
+                }
+            }
+        } elseif {[string match "-D?*" $token]} {
+            dict lappend result defines [odatix_expand_variables [string range $token 2 end] $variables]
+        } elseif {$token eq "-f" || $token eq "-F"} {
+            incr index
+            if {$index < $count} {
+                set nested [odatix_resolve_filelist_path [lindex $tokens $index] $base $variables $search_dirs]
+                if {[lsearch -exact $::odatix_filelist_seen $nested] < 0 && [file isfile $nested]} {
+                    set result [odatix_read_filelist_into $result $nested $variables $search_dirs]
+                }
+            }
+        } elseif {[lsearch -exact {-y -v -L -work -top} $token] >= 0} {
+            incr index
+        } elseif {[string match "-*" $token] || [string match "+*" $token]} {
+            continue
+        } else {
+            set path [odatix_resolve_filelist_path $token $base $variables $search_dirs]
+            if {[lsearch -exact [dict get $result files] $path] < 0} {
+                dict lappend result files $path
+            }
+        }
+    }
+    return $result
+}
+
+# Source files listed in a file list, in order (see odatix_read_filelist): the
+# ${VARIABLE}s of the design apply.
+proc read_filelist {filelist} {
+    set variables [expr {[info exists ::filelist_variables] ? $::filelist_variables : {}}]
+    set search_dirs [expr {[info exists ::rtl_path] ? [list $::rtl_path] : {}}]
+    return [dict get [odatix_read_filelist $filelist $variables $search_dirs] files]
+}
+
+# The sources of the design, as a dict: "filelist" (the file list read, empty
+# when there is none: then "files" is empty, and the tool reads the RTL
+# directory itself), "files", "incdirs" and "defines" -- the macros of the
+# file list, and those of the design's settings (verilog_defines).
+proc odatix_design_sources {{signature ""}} {
+    global rtl_path
+    set name [expr {[info exists ::filelist] ? $::filelist : ""}]
+    set variables [expr {[info exists ::filelist_variables] ? $::filelist_variables : {}}]
+    set defines [expr {[info exists ::verilog_defines] ? $::verilog_defines : {}}]
+    set path ""
+    if {$name ne ""} {
+        set path [file join $rtl_path $name]
+        if {![file isfile $path]} {
+            puts "$signature <bold><red>error: the file list \"$name\" of the design is not in its RTL directory ($path)<end>"
+            puts "$signature <cyan>note: \"filelist\" in the settings of the architecture is relative to its rtl_path<end>"
+            exit -1
+        }
+    } elseif {[file isfile [file join $rtl_path filelist.f]]} {
+        set path [file join $rtl_path filelist.f]
+    }
+    if {$path eq ""} {
+        return [dict create filelist "" files {} incdirs {} defines $defines]
+    }
+    set sources [odatix_read_filelist $path $variables [list $rtl_path]]
+    dict set sources filelist $path
+    dict set sources defines [concat [dict get $sources defines] $defines]
+    return $sources
+}
+
+# The HDL format of a source file for the tools that name it ("verilog",
+# "sverilog", "vhdl"), "" for anything else.
+proc odatix_hdl_format {path} {
+    switch -glob -- [string tolower $path] {
+        *.v    {return verilog}
+        *.vh   {return verilog}
+        *.sv   {return sverilog}
+        *.svh  {return sverilog}
+        *.vhd  {return vhdl}
+        *.vhdl {return vhdl}
+    }
+    return ""
 }
 
 proc get_files_recursive {path patterns} {

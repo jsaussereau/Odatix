@@ -100,15 +100,18 @@ proc odatix_json_list {items} {
 }
 
 proc odatix_librelane_sources {signature} {
-    # The HDL sources of the design, as {verilog_files vhdl_files include_dirs}.
-    # A filelist ("filelist.f" at the root of the RTL directory) gives them in
-    # order; otherwise every source file under the RTL directory is taken.
+    # The HDL sources of the design, as {verilog_files vhdl_files include_dirs
+    # defines}. A file list ("filelist" in the settings of the design, or
+    # "filelist.f" at the root of the RTL directory) gives them in order, with
+    # include directories and macros; otherwise every source file under the RTL
+    # directory is taken.
     global rtl_path
     set root [file normalize $rtl_path]
 
-    if {[file exists "$root/filelist.f"]} {
-        puts "$signature <cyan>Using filelist: $root/filelist.f<end>"
-        set files [read_filelist "$root/filelist.f"]
+    set design_sources [odatix_design_sources $signature]
+    if {[dict get $design_sources filelist] ne ""} {
+        puts "$signature <cyan>Using filelist: [dict get $design_sources filelist]<end>"
+        set files [dict get $design_sources files]
     } else {
         set files [get_files_recursive $root {*.v *.sv *.vhd *.vhdl}]
     }
@@ -122,15 +125,16 @@ proc odatix_librelane_sources {signature} {
         }
     }
 
-    # Every directory holding a source or a header, for `include
-    set include_dirs [list $root]
+    # The include directories of the file list, then every directory holding
+    # a source or a header, for `include
+    set include_dirs [concat [dict get $design_sources incdirs] [list $root]]
     foreach file [get_files_recursive $root {*.v *.sv *.vh *.svh}] {
         set dir [file normalize [file dirname $file]]
         if {[lsearch -exact $include_dirs $dir] < 0} {
             lappend include_dirs $dir
         }
     }
-    return [list $verilog $vhdl $include_dirs]
+    return [list $verilog $vhdl $include_dirs [dict get $design_sources defines]]
 }
 
 proc odatix_librelane_write_config {signature} {
@@ -141,7 +145,7 @@ proc odatix_librelane_write_config {signature} {
     global librelane_config_file top_level_module clock_signal
     global librelane_flow
 
-    lassign [odatix_librelane_sources $signature] verilog vhdl include_dirs
+    lassign [odatix_librelane_sources $signature] verilog vhdl include_dirs defines
 
     if {[llength $verilog] == 0 && [llength $vhdl] == 0} {
         puts "$signature <bold><red>error: no Verilog, SystemVerilog or VHDL source found in the RTL directory<end>"
@@ -165,6 +169,9 @@ proc odatix_librelane_write_config {signature} {
         foreach file $verilog { puts "  <cyan>- $file<end>" }
         lappend entries "\"VERILOG_FILES\": [odatix_json_list $verilog]"
         lappend entries "\"VERILOG_INCLUDE_DIRS\": [odatix_json_list $include_dirs]"
+        if {[llength $defines]} {
+            lappend entries "\"VERILOG_DEFINES\": [odatix_json_list $defines]"
+        }
     }
     set librelane_flow $flow
 

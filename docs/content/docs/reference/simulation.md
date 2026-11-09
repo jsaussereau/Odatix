@@ -78,6 +78,7 @@ directory, or in its existing one with `-r`.
 | `${verilog_files}` | Verilog sources of the design, in compilation order. |
 | `${sv_files}` | SystemVerilog sources of the design, in compilation order. |
 | `${include_dirs}` | Directories holding its Verilog headers (`.vh`, `.svh`). |
+| `${defines}` | Macros of the design (`NAME` or `NAME=VALUE`): those of its file list and of its `defines`. |
 | `${tb_top}` | Top of the [testbench](#testbench). |
 | `${tb_files}` | Sources of the testbench, in compilation order. |
 | `${python}` | The Python interpreter running Odatix. |
@@ -236,9 +237,10 @@ the generation command.
 VHDL needs a package compiled before the units using it, and SystemVerilog a
 package before the files importing it. Odatix orders the sources as follows:
 
-1. a **`filelist.f`** at the root of the design's RTL: its order is kept as
-   written. It holds one file per line, relative to its own directory, and may
-   use `+incdir+`, `-f` and environment variables;
+1. the **file list** of the design (`filelist` in the settings of its
+   architecture, or a `filelist.f` at the root of its RTL): its order is kept
+   as written. It may use `+incdir+`, `+define+`, `-f` and `${VARIABLE}`s (see
+   [File list](/docs/reference/architecture/#file-list-include-directories-and-macros));
 2. otherwise, an order **computed from the sources**: what each file defines
    (entities, packages, contexts, configurations; SystemVerilog packages) and
    what it uses (`use work.pkg`, `entity work.x`, the entity of an architecture,

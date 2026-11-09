@@ -262,6 +262,11 @@ class SimRunner(object):
     return {str(name): str(value) for name, value in parameters.items()}
 
   @property
+  def defines(self):
+    """Macros of the design ("NAME" or "NAME=VALUE"): those of its file list and of its settings."""
+    return list(self.info.get("sources", {}).get("defines", []))
+
+  @property
   def include_dirs(self):
     """Include directories of the design, then of the testbench."""
     directories = list(self.info.get("sources", {}).get("include_dirs", []))

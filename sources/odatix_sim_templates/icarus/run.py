@@ -29,6 +29,7 @@ top = sim.tb_top
 
 command = ["iverilog", "-g2012", "-o", "odatix_sim.vvp", "-s", top]
 command += ["-I" + directory for directory in sim.include_dirs]
+command += ["-D" + macro for macro in sim.defines]
 command += ["-P" + top + "." + name + "=" + value for name, value in sim.tb_parameters.items()]
 command += sim.files("verilog", "sv")
 

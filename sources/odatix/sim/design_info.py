@@ -128,17 +128,68 @@ def scan_directory(directory, root):
   return files, include_dirs
 
 
-def read_filelist(path, root, _seen=None):
+_VARIABLE = re.compile(r"\$\{(\w+)\}|\$(\w+)|\$\((\w+)\)")
+
+
+def expand_variables(text, variables=None):
+  """
+  `text` with its ${NAME}, $(NAME) and $NAME taken from `variables`, then from
+  the environment; a name known by neither is left as it is. A value may
+  itself name another variable (HPDCACHE_DIR = ${CVA6_REPO_DIR}/core/...).
+  """
+  variables = variables or {}
+
+  def value_of(match):
+    name = match.group(1) or match.group(2) or match.group(3)
+    if name in variables:
+      return str(variables[name])
+    if name in os.environ:
+      return os.environ[name]
+    return match.group(0)
+
+  text = str(text)
+  for _ in range(10):
+    expanded = _VARIABLE.sub(value_of, text)
+    if expanded == text:
+      break
+    text = expanded
+  return text
+
+
+def normalize_defines(defines):
+  """
+  Macro definitions as a list of "NAME" and "NAME=VALUE", from what a settings
+  file may hold: a list of them, a mapping (a None or empty value defines the
+  name alone), or one string.
+  """
+  if not defines:
+    return []
+  if isinstance(defines, dict):
+    items = []
+    for name, value in defines.items():
+      items.append(str(name) if value is None or str(value) == "" else "{}={}".format(name, value))
+    return items
+  if isinstance(defines, str):
+    defines = defines.split()
+  return [str(item).strip() for item in defines if str(item).strip()]
+
+
+def read_filelist(path, root, _seen=None, variables=None, defines=None, search_dirs=()):
   """
   The HDL files and include directories a filelist names, in its order,
   relative to `root`.
 
   One or more entries per line; "//" and "#" start a comment. "+incdir+a+b"
-  adds include directories, "-f"/"-F" another filelist; other options are
-  ignored, as are files that are not HDL sources. Relative paths are relative
-  to the directory of the filelist naming them (or to `root` when they do not
-  exist there, as some designs write them), and environment variables are
-  expanded.
+  adds include directories, "+define+A=1+B" (or "-DA=1") macros, "-f"/"-F"
+  another filelist; other options are ignored, as are files that are not HDL
+  sources. ${VARIABLE}s are taken from `variables`, then from the environment.
+  Relative paths are relative to the directory of the filelist naming them,
+  or else to the first of `search_dirs`, then `root`, where they exist (some
+  designs write them from their own root).
+
+  Args:
+    defines (list): where the macros the filelist defines are appended, when
+      given.
 
   Returns:
     (files, include_dirs)
@@ -147,14 +198,17 @@ def read_filelist(path, root, _seen=None):
   path = os.path.realpath(path)
   seen.add(path)
   base = os.path.dirname(path)
+  bases = [base] + [os.path.join(root, d) if not os.path.isabs(d) else d for d in search_dirs] + [root]
 
   def resolve(entry):
-    entry = os.path.expandvars(entry)
-    if not os.path.isabs(entry):
-      local = os.path.join(base, entry)
-      from_root = os.path.join(root, entry)
-      entry = from_root if not os.path.exists(local) and os.path.exists(from_root) else local
-    return entry
+    entry = expand_variables(entry, variables)
+    if os.path.isabs(entry):
+      return entry
+    for directory in bases:
+      candidate = os.path.join(directory, entry)
+      if os.path.exists(candidate):
+        return candidate
+    return os.path.join(base, entry)
 
   tokens = []
   with open(path, "r", encoding="utf-8") as f:
@@ -173,20 +227,28 @@ def read_filelist(path, root, _seen=None):
       for directory in token[len("+incdir+"):].split("+"):
         if directory:
           include_dirs.append(_relative(resolve(directory), root))
+    elif token.startswith("+define+"):
+      if defines is not None:
+        defines.extend(expand_variables(item, variables) for item in token[len("+define+"):].split("+") if item)
+    elif token.startswith("-D") and len(token) > 2:
+      if defines is not None:
+        defines.append(expand_variables(token[2:], variables))
     elif token in ("-f", "-F"):
       index += 1
       if index < len(tokens):
         nested = os.path.realpath(resolve(tokens[index]))
         if nested not in seen and os.path.isfile(nested):
-          nested_files, nested_dirs = read_filelist(nested, root, seen)
+          nested_files, nested_dirs = read_filelist(nested, root, seen, variables, defines, search_dirs)
           files.extend(nested_files)
           include_dirs.extend(nested_dirs)
     elif token in options_with_argument:
       index += 1
     elif token.startswith(("-", "+")):
       pass
-    elif language_of(token) is not None:
-      files.append(_relative(resolve(token), root))
+    else:
+      resolved = resolve(token)
+      if language_of(resolved) is not None:
+        files.append(_relative(resolved, root))
     index += 1
   return _unique(files), _unique(include_dirs)
 
@@ -301,21 +363,30 @@ def order_by_dependencies(files, root="."):
   return [files[index] for index in ordered]
 
 
-def collect_sources(work_dir, rtl_dir="rtl"):
+def collect_sources(work_dir, rtl_dir="rtl", filelist=None, variables=None, defines=None):
   """
   The sources of the design under test, by language and in compilation order,
   relative to the work directory.
 
+  Args:
+    filelist (str): the file list of the design, relative to the RTL directory
+      ("filelist" of the architecture); "filelist.f" there when it is empty and
+      that file exists.
+    variables (dict): values of the ${VARIABLE}s of the file list.
+    defines: macros the architecture defines (see normalize_defines).
+
   Returns:
     dict: {"vhdl": [...], "verilog": [...], "sv": [...], "include_dirs": [...],
-    "order": "filelist" or "dependencies"}
+    "defines": [...], "order": "filelist" or "dependencies"}
   """
-  filelist = os.path.join(work_dir, rtl_dir, USER_FILELIST_FILENAME)
+  macros = normalize_defines(defines)
+  rtl_root = os.path.join(work_dir, rtl_dir)
+  filelist = os.path.join(rtl_root, filelist or USER_FILELIST_FILENAME)
   if os.path.isfile(filelist):
-    files, include_dirs = read_filelist(filelist, work_dir)
+    files, include_dirs = read_filelist(filelist, work_dir, variables=variables, defines=macros, search_dirs=(rtl_dir,))
     order = "filelist"
   else:
-    files, include_dirs = scan_directory(os.path.join(work_dir, rtl_dir), work_dir)
+    files, include_dirs = scan_directory(rtl_root, work_dir)
     order = "dependencies"
 
   if order == "dependencies":
@@ -334,8 +405,29 @@ def collect_sources(work_dir, rtl_dir="rtl"):
     sources["verilog"] = [path for path in ordered if language_of(path) == "verilog"]
     sources["sv"] = [path for path in ordered if language_of(path) == "sv"]
   sources["include_dirs"] = include_dirs
+  sources["defines"] = _unique(macros)
   sources["order"] = order
   return sources
+
+
+def job_sources(work_dir=".", rtl_dir="rtl"):
+  """
+  collect_sources for a synthesis or analysis job: the file list, its
+  variables and the macros of the design are those Odatix wrote in the
+  settings.yml of the job (see Architecture.write_yaml).
+  """
+  settings = {}
+  try:
+    with open(os.path.join(work_dir, "settings.yml"), "r", encoding="utf-8") as f:
+      settings = yaml.safe_load(f) or {}
+  except (IOError, OSError, yaml.YAMLError):
+    pass
+  return collect_sources(
+    work_dir, rtl_dir,
+    filelist=settings.get("filelist") or None,
+    variables=settings.get("filelist_variables") or None,
+    defines=settings.get("defines") or None,
+  )
 
 
 _INCLUDE = re.compile(r'`include\s+"([^"]+)"')
@@ -634,6 +726,9 @@ def build_info(
   rtl_dir="rtl",
   reset_active_low=None,
   parallel_jobs=None,
+  filelist=None,
+  filelist_variables=None,
+  defines=None,
 ):
   """
   Everything a simulation is told about the design under test (the content of
@@ -649,7 +744,7 @@ def build_info(
     parallel_jobs (int): how many jobs Odatix runs at once, which share the
       cores of the machine (see SimRunner.build_jobs).
   """
-  sources = collect_sources(work_dir, rtl_dir)
+  sources = collect_sources(work_dir, rtl_dir, filelist=filelist, variables=filelist_variables, defines=defines)
   testbench_info = collect_testbench(work_dir, testbench, top)
   sources = without_testbench(sources, testbench_info.get("files", []), work_dir)
   info = {
@@ -665,6 +760,10 @@ def build_info(
       "languages": languages_of(sources),
       "rtl_dir": rtl_dir,
       "rtl_generated": bool(rtl_generated),
+      # How the sources are read again once a generated RTL exists (refresh)
+      "filelist": str(filelist or ""),
+      "filelist_variables": {str(name): str(value) for name, value in (filelist_variables or {}).items()},
+      "defines": normalize_defines(defines),
     },
     "sources": sources,
     "testbench": testbench_info,
@@ -680,6 +779,7 @@ def filelist_lines(info):
   sources = info.get("sources", {})
   lines = ["// Written by Odatix: the design under test, then its testbench, in compilation order"]
   lines.extend("+incdir+" + directory for directory in sources.get("include_dirs", []))
+  lines.extend("+define+" + macro for macro in sources.get("defines", []))
   for language in LANGUAGES:
     lines.extend(sources.get(language, []))
   lines.extend(info.get("testbench", {}).get("files", []))
@@ -712,7 +812,10 @@ def refresh(work_dir):
   """
   info = read_info(work_dir)
   dut = info.setdefault("dut", {})
-  sources = collect_sources(work_dir, dut.get("rtl_dir") or "rtl")
+  sources = collect_sources(
+    work_dir, dut.get("rtl_dir") or "rtl",
+    filelist=dut.get("filelist") or None, variables=dut.get("filelist_variables") or None, defines=dut.get("defines") or None,
+  )
   sources = without_testbench(sources, info.get("testbench", {}).get("files", []), work_dir)
   info["sources"] = sources
   dut["languages"] = languages_of(sources)
@@ -738,6 +841,7 @@ def substitutions(info):
     "verilog_files": " ".join(sources.get("verilog", [])),
     "sv_files": " ".join(sources.get("sv", [])),
     "include_dirs": " ".join(sources.get("include_dirs", [])),
+    "defines": " ".join(sources.get("defines", [])),
     "languages": " ".join(dut.get("languages", [])),
     "reset_signal": str(dut.get("reset", "")),
     "tb_top": str(testbench.get("top", "")),

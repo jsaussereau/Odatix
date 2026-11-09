@@ -39,6 +39,7 @@ from odatix.lib.run_report import JobPlan, Category, step_details
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
 import odatix.lib.virtual_param_domain as virtual_param_domain
+import odatix.sim.design_info as design_info
 import odatix.lib.constraint_files as constraints_lib
 from odatix.lib.constraint_files import ConstraintFileError
 import odatix.lib.overrides as overrides_lib
@@ -172,6 +173,10 @@ class Architecture:
             'param_target_filename': arch.param_target_filename,
             'generate_rtl': arch.generate_rtl,
             'generate_command': arch.generate_command,
+            # How the tools read the sources (see odatix.sim.design_info.collect_sources)
+            'filelist': getattr(arch, 'filelist', "") or "",
+            'filelist_variables': dict(getattr(arch, 'filelist_variables', None) or {}),
+            'defines': list(getattr(arch, 'defines', None) or []),
             'constraint_filename': arch.constraint_filename,
             'constraint_files': arch.constraint_files,
             # "tool_install_path", as targets and command variables call it;
@@ -673,7 +678,12 @@ class ArchitectureHandler:
         )
 
         generate_command = settings_data.get("generate_command", "") if settings_data.get("generate_rtl", False) else ""
-        referenced_variables = virtual_param_domain.referenced_variable_names(generate_command) & virtual_domain_names
+        # What consumes the variables: the generation command, and the values
+        # of the file list variables and of the macros of the design.
+        consumers = [generate_command]
+        consumers.extend(str(value) for value in (settings_data.get("filelist_variables") or {}).values())
+        consumers.extend(design_info.normalize_defines(settings_data.get("defines")))
+        referenced_variables = virtual_param_domain.referenced_variable_names(*consumers) & virtual_domain_names
 
         # Without an explicit selector, only expand when the generation command
         # actually uses the variables.
@@ -984,7 +994,12 @@ class ArchitectureHandler:
         # selected configuration and of each physical parameter domain. The user's
         # own names come last on purpose: a parameter domain named like a built-in
         # one is what the user wrote, so it is what wins.
-        if generate_rtl and generate_command:
+        # The file list and the macros of the design take the same values:
+        # a variable picks the configuration package of a core (CVA6's
+        # TARGET_CFG = ${CONFIG}).
+        filelist_variables = {str(name): "" if value is None else str(value) for name, value in (settings.filelist_variables or {}).items()}
+        defines = design_info.normalize_defines(settings.defines)
+        if (generate_rtl and generate_command) or filelist_variables or defines:
             substitutions = self.generation_command_substitutions(
                 arch_param_dir=arch_param_dir,
                 arch_config=arch_config,
@@ -1011,7 +1026,13 @@ class ArchitectureHandler:
                 if domain_value is not None:
                     substitutions[param_domain.domain] = domain_value
 
-            generate_command = virtual_param_domain.replace_command_vars(generate_command, substitutions)
+            if generate_rtl and generate_command:
+                generate_command = virtual_param_domain.replace_command_vars(generate_command, substitutions)
+            filelist_variables = {
+                name: virtual_param_domain.replace_command_vars(value, substitutions)
+                for name, value in filelist_variables.items()
+            }
+            defines = [virtual_param_domain.replace_command_vars(macro, substitutions) for macro in defines]
 
         # optional settings
         formatted_bound = ""
@@ -1264,6 +1285,9 @@ class ArchitectureHandler:
         )
         arch_instance.testbench = settings.testbench.to_dict()
         arch_instance.reset_active_low = settings.reset_active_low
+        arch_instance.filelist = settings.filelist or ""
+        arch_instance.filelist_variables = filelist_variables
+        arch_instance.defines = defines
 
         return arch_instance
 

@@ -144,6 +144,12 @@ proc odatix_quartus_create_project {signature {any_device 0}} {
     set_global_assignment -name DEVICE $target
     set_global_assignment -name TOP_LEVEL_ENTITY $top_level_module
     set_global_assignment -name VERILOG_MACRO "QUARTUS=1"
+    if {[info exists ::odatix_quartus_macros]} {
+        foreach macro $::odatix_quartus_macros {
+            # A macro without a value is defined to 1, as a compiler's -D does
+            set_global_assignment -name VERILOG_MACRO [expr {[string first "=" $macro] < 0 ? "$macro=1" : $macro}]
+        }
+    }
 
     foreach {source_file kind} $::odatix_quartus_sources {
         set_global_assignment -name $kind $source_file

@@ -28,9 +28,11 @@ unix:
     - -V
 
   # RTL Analysis
+  # The same script as on Windows: it follows the file list of the design
+  # (include directories, macros) when it has one
   analysis_command:
-    - cd $work_path;
-    - make -f $eda_tools_path/icarus/makefile.mk analyze
+    - cd "$work_path" &&
+    - '"$python" "$eda_tools_path/_common/rtl_analysis.py" icarus'
 
 # Windows has neither make nor a POSIX shell: a script does what the makefile
 # does. It needs Icarus Verilog (iverilog) in the PATH.

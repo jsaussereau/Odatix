@@ -26,6 +26,8 @@ top = sim.tb_top
 incdirs = []
 for directory in sim.include_dirs:
     incdirs += ["-i", directory]
+for macro in sim.defines:
+    incdirs += ["-d", macro]
 
 compilers = {
     "vhdl": lambda files: ["xvhdl", "--2008", "-work", LIBRARY] + files,
