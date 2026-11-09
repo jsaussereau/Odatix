@@ -34,6 +34,7 @@ Each path is a default and can be changed in
 | `nb_jobs` | int or `auto` | **required** | `-j`, `--jobs` | Maximum jobs running at once. `auto` means available CPUs − 1. |
 | `exit_when_done` | bool | `No` | `-E`, `--exit` | Close the Job Monitor when the last job finishes. |
 | `log_size_limit` | int | `300` | `--logsize` | Lines of log history kept per job in the monitor. |
+| `job_timeout` | number | none | `--timeout` | Minutes of running time after which a job is stopped (with what it started) and counted failed, its log saying why. A tool that hangs otherwise holds its slot, and `-E`, forever. |
 | `force_single_thread` | bool | `No` | — | Run each job on a single thread, whatever its tool (see [Single threading](#single-threading)). Jobs still run in parallel (`nb_jobs`). |
 
 The first three keys must be in the file, even when a command-line option

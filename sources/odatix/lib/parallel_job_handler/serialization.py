@@ -167,12 +167,22 @@ def job_to_payload(job):
         "status_pattern": getattr(status_pattern, "pattern", None),
         "post_run_export": post_run_export,
         "console_log": str(getattr(job, "console_log", "") or ""),
+        "timeout": _timeout(getattr(job, "timeout", None)),
         # Step pipeline bookkeeping (see odatix.lib.job_steps); absent for jobs
         # that are not split into steps.
         "step_tracking": step_tracking,
         "step_names": [str(name) for name in (getattr(job, "step_names", None) or [])],
         "resume_step_index": int(getattr(job, "resume_step_index", 0) or 0),
     }
+
+
+def _timeout(value):
+    """A job timeout in seconds, None when there is none (unset, zero or not a number)."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
 
 
 def payload_to_job(payload, default_log_size_limit=200):
@@ -210,6 +220,8 @@ def payload_to_job(payload, default_log_size_limit=200):
 
     if payload.get("console_log"):
         job.console_log = str(payload["console_log"])
+
+    job.timeout = _timeout(payload.get("timeout"))
 
     step_tracking = payload.get("step_tracking")
     if isinstance(step_tracking, dict):

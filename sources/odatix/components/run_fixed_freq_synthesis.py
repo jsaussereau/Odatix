@@ -60,7 +60,7 @@ def add_arguments(parser):
     parser.add_argument("--to", dest="to_freq", type=int, help="highest frequency of the range, in MHz")
     parser.add_argument("--step", dest="step_freq", type=int, help="step of the range, in MHz")
     parser.add_argument("--at", dest="at_freq", action='append', type=int, help="run the synthesis at this frequency, in MHz (repeatable)")
-    add_options(parser, "keep", "log_size_limit", "export_options", "config", keep={"help": "store synthesis batch with a timestamp in the configuration name"})
+    add_options(parser, "keep", "log_size_limit", "job_timeout", "export_options", "config", keep={"help": "store synthesis batch with a timestamp in the configuration name"})
 
 
 def parse_arguments():

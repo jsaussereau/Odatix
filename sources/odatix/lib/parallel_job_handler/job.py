@@ -94,6 +94,10 @@ class ParallelJob:
         # Whether the process heads its own process group, which is what decides
         # what a signal sent to the job reaches (see process_control).
         self.own_group = False
+        # Seconds of running time after which the scheduler stops the job and
+        # counts it failed (None: no limit). A tool that hangs otherwise holds
+        # its slot, and whoever waits for the run, forever.
+        self.timeout = None
         self.kind = str(kind or JOB_KIND)
         self.progress_pattern = _compiled(progress_pattern)
         self.status_pattern = _compiled(status_pattern)

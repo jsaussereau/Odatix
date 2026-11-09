@@ -96,6 +96,11 @@ class RunOptions(Settings):
     nb_jobs = Setting(None, type="any", doc="How many jobs run at once. The settings file's own value when unset.")
     log_size_limit = Setting(None, type="optional_int", doc="How many log lines the monitor keeps per job.")
     force_single_thread = Setting(False, type="bool", doc="Ask each job to use a single thread.")
+    job_timeout = Setting(
+        None, type="any",
+        doc="Minutes of running time after which a job is stopped and counted failed. "
+            "The settings file's \"job_timeout\" when unset; none when neither says.",
+    )
 
     ######################################
     # How it talks, and to whom

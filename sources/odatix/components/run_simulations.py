@@ -72,7 +72,7 @@ def add_arguments(parser):
     add_options(
         parser, "simulations", "architectures",
         "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "sim_path", "work_path",
-        "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "debug", "export_options", "config",
+        "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "job_timeout", "debug", "export_options", "config",
         architectures={"help": 'architectures to simulate, written as the architectures of a simulation in the run settings file, '
                                'e.g. "MyCPU/*" (several values, repeatable; replaces those of every simulation run)'},
         work_path={"help": "simulation work directory"},
@@ -260,6 +260,9 @@ def write_design_info(sim_instance, parallel_jobs=None):
             rtl_dir=hard_settings.work_rtl_path,
             reset_active_low=reset_active_low(architecture),
             parallel_jobs=parallel_jobs,
+            filelist=getattr(architecture, "filelist", "") or None,
+            filelist_variables=getattr(architecture, "filelist_variables", None),
+            defines=getattr(architecture, "defines", None),
         )
         design_info.write_info(sim_instance.tmp_dir, info)
     except Exception as e:

@@ -71,7 +71,7 @@ script_name = os.path.basename(__file__)
 def add_arguments(parser):
   add_options(
     parser, "tool", "architectures", "flow", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path",
-    "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "keep", "log_size_limit", "export_options", "config",
+    "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "keep", "log_size_limit", "job_timeout", "export_options", "config",
     tool={"nargs": "+", "default": None, "help": "tool(s) to run (default: \"tools\" of the analysis settings file, else \"default_tool\" of odatix.yml)"},
     flow={"nargs": "+", "help": "flow(s) to run, as \"flow\" (applied to every tool that has it) or \"tool:flow\" (default: each tool's default flow)"},
   )

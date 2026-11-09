@@ -351,7 +351,7 @@ def _warn_unresolved_placeholders(workflow_instance, workflow_path, warned):
 def add_arguments(parser):
     add_options(
         parser, "workflows", "overwrite", "noask", "daemon_options", "settings_file", "workflow_path", "work_path",
-        "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "debug", "export_options", "config",
+        "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "job_timeout", "debug", "export_options", "config",
         work_path={"help": "workflow work directory"},
         keep={"help": "store workflow batch with a timestamp in the configuration name"},
     )

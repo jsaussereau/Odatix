@@ -732,7 +732,53 @@ def _job_log_dir(tmp_dir):
     return path if relative.startswith("..") else relative
 
 
-def wait_for_session(state, script_name="run", poll_interval=5.0, job_ids=None):
+#: How often a run waited for without a monitor ("-E") says how its running
+#: jobs are going, in seconds.
+RUNNING_REPORT_INTERVAL = 600.0
+#: A job whose logs did not change for this long is said to be silent, in
+#: seconds: a tool that hangs looks like this, and so does a long step.
+SILENT_JOB_DELAY = 900.0
+
+
+def _last_log_activity(tmp_dir):
+    """When something under the log directory of a job last changed (None when nothing is there)."""
+    latest = None
+    directory = os.path.join(tmp_dir, "log") if tmp_dir else None
+    if not directory or not os.path.isdir(directory):
+        return None
+    for name in os.listdir(directory):
+        try:
+            mtime = os.path.getmtime(os.path.join(directory, name))
+        except OSError:
+            continue
+        latest = mtime if latest is None else max(latest, mtime)
+    return latest
+
+
+def _say_running_jobs(session, job_ids, now, script_name):
+    """
+    One line per running job of the run: how long it has run, and how long its
+    logs have been silent when they have been for a while -- without a
+    monitor, nothing else tells a job that works for hours from one that hangs.
+    """
+    from odatix.lib import printc
+
+    wanted = None if job_ids is None else set(int(job_id) for job_id in job_ids)
+    running = [
+        job for job in session.jobs()
+        if (wanted is None or job["id"] in wanted) and str(job.get("status", "")).lower() == "running"
+    ]
+    for job in running:
+        line = "  {}: running for {}".format(job["name"], job.get("elapsed") or "?")
+        activity = _last_log_activity(job.get("tmp_dir"))
+        if activity is not None and now - activity >= SILENT_JOB_DELAY:
+            line += ", nothing written to {} for {} min (a long step, or a tool that hangs; "\
+                    "--timeout stops a job after a time)".format(_job_log_dir(job.get("tmp_dir")), int((now - activity) // 60))
+        print(line)
+    sys.stdout.flush()
+
+
+def wait_for_session(state, script_name="run", poll_interval=5.0, job_ids=None, report_interval=RUNNING_REPORT_INTERVAL):
     """
     What "-E" does when the terminal cannot show the job monitor (a run started
     by a script, under nohup, in a CI job): wait for the jobs of the run to be
@@ -760,6 +806,7 @@ def wait_for_session(state, script_name="run", poll_interval=5.0, job_ids=None):
     )
     said = None
     guard_said = False
+    last_report = time.time()
     try:
         while True:
             counts = _run_counts(session, job_ids)
@@ -775,6 +822,10 @@ def wait_for_session(state, script_name="run", poll_interval=5.0, job_ids=None):
                 said = line
             if counts["running"] == 0 and counts["queued"] == 0:
                 return True
+            now = time.time()
+            if now - last_report >= report_interval:
+                last_report = now
+                _say_running_jobs(session, job_ids, now, script_name)
             time.sleep(poll_interval)
     except KeyboardInterrupt:
         printc.note(

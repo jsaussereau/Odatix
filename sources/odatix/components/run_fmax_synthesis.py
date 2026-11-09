@@ -59,7 +59,7 @@ def add_arguments(parser):
     add_options(parser, "check_eda_tool", "debug")
     parser.add_argument("--from", dest="lower_bound", type=int, help="lowest frequency of the Fmax search, in MHz (default: \"lower_bound\" of \"fmax_synthesis\" in the architecture settings)")
     parser.add_argument("--to", dest="upper_bound", type=int, help="highest frequency of the Fmax search, in MHz (default: \"upper_bound\" of \"fmax_synthesis\" in the architecture settings)")
-    add_options(parser, "keep", "log_size_limit", "export_options", "config", keep={"help": "store synthesis batch with a timestamp in the configuration name"})
+    add_options(parser, "keep", "log_size_limit", "job_timeout", "export_options", "config", keep={"help": "store synthesis batch with a timestamp in the configuration name"})
 
 
 def parse_arguments():

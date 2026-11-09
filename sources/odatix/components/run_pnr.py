@@ -94,7 +94,7 @@ def add_arguments(parser):
         "dest": "source_work_root",
         "help": "work directory the synthesis jobs are read from, the place & route jobs going to its pnr sub-directory (default: \"work_path\" of odatix.yml)",
     })
-    add_options(parser, "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "log_size_limit", "export_options", "config")
+    add_options(parser, "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "log_size_limit", "job_timeout", "export_options", "config")
 
 
 def parse_arguments():

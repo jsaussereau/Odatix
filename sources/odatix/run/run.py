@@ -254,7 +254,7 @@ class Run(object):
         """
         checked = self.checked()
         self._parallel_jobs = self._step(
-            "prepare", lambda: self._with_single_thread(self._with_workspace_guard(self.flow.prepare(self, checked)))
+            "prepare", lambda: self._with_timeout(self._with_single_thread(self._with_workspace_guard(self.flow.prepare(self, checked))))
         )
         return self._parallel_jobs
 
@@ -276,6 +276,37 @@ class Run(object):
             from odatix.lib import single_thread
 
             single_thread.apply_to_jobs(getattr(parallel_jobs, "job_list", None))
+        return parallel_jobs
+
+    @property
+    def job_timeout(self):
+        """
+        Minutes of running time after which a job is stopped and counted
+        failed: ``options.job_timeout``, or "job_timeout" in the run settings
+        file. None when neither gives one (or gives 0).
+        """
+        value = self.options.job_timeout
+        if value is None:
+            from odatix.workspace.yaml_io import read_mapping
+
+            try:
+                value = read_mapping(os.path.join(self.workspace.root, self.settings_file)).get("job_timeout")
+            except Exception:
+                value = None
+        if value is None or str(value).strip().lower() in ("", "none", "no", "false"):
+            return None
+        try:
+            minutes = float(value)
+        except (TypeError, ValueError):
+            raise RunError('"job_timeout" (--timeout) is a number of minutes, not "{}"'.format(value))
+        return minutes if minutes > 0 else None
+
+    def _with_timeout(self, parallel_jobs):
+        """Give every job the timeout of the run, when it has one."""
+        minutes = self.job_timeout
+        if minutes is not None:
+            for job in getattr(parallel_jobs, "job_list", None) or []:
+                job.timeout = minutes * 60.0
         return parallel_jobs
 
     def _with_workspace_guard(self, parallel_jobs):

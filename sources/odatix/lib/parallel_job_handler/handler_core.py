@@ -129,6 +129,14 @@ CONSOLE_CARRY_MAX = 16
 _resource_guard_unavailable = []  # [reason], computed once per process
 
 
+def _duration(seconds):
+    """"90 min", "45 s": a duration as a person reads it."""
+    seconds = float(seconds)
+    if seconds >= 60:
+        return "{:g} min".format(round(seconds / 60.0, 1))
+    return "{:g} s".format(round(seconds, 1))
+
+
 def resource_guard_unavailable_reason():
     """Why the resource guard cannot run here, or None when it can.
 
@@ -1614,6 +1622,8 @@ class ParallelJobHandler:
                 job.progress = 0
             else:
                 job.progress = job.get_progress()
+                if self._stop_if_timed_out(job):
+                    continue
                 if job.process.poll() is not None:
                     # Drain remaining buffered output before state transition/retire.
                     self._drain_process_pipes(job)
@@ -1667,6 +1677,32 @@ class ParallelJobHandler:
                         selected_job.log_changed = True
                         if callable(on_selected_retired):
                             on_selected_retired()
+
+    def _stop_if_timed_out(self, job):
+        """
+        Stop a running job that has run longer than its timeout (paused time
+        left out), and count it failed: a tool that hangs would otherwise hold
+        its slot, and whoever waits for the run, forever. Returns whether it
+        was stopped. Called with the handler lock held.
+        """
+        timeout = getattr(job, "timeout", None)
+        if not timeout or job.status != "running" or job.start_time is None:
+            return False
+        if time.time() - job.start_time < timeout or job.process.poll() is not None:
+            return False
+        message = "error: job stopped after its timeout of {} (job_timeout, or --timeout)".format(_duration(timeout))
+        process_control.request_stop(job)
+        self._stopping_jobs.append(job)
+        self._drain_process_pipes(job)
+        self._flush_job_log_buffer(job)
+        job.log_history.append(printc.colors.RED + message + printc.colors.ENDC)
+        self._write_console_log(job, message + "\n")
+        job.status = "failed"
+        self._clear_task_pipeline(job)
+        self.retire_job(job, getattr(job, "progress", 0) or 0)
+        self._fill_running_slots_from_queue_unlocked()
+        self._run_post_batch_action_if_drained()
+        return True
 
     #: A tick that takes longer than this is worth knowing about: the handler
     #: lock is held throughout, so nothing answers while it runs.

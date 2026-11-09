@@ -137,6 +137,7 @@ OPTIONS = {
   "exit_when_done": (("-E", "--exit"), dict(dest="exit_when_done", action="store_true", help='return once the jobs of this run are over: close the monitor (or wait, without a terminal), print how many succeeded, close the session (default: "exit_when_done" ' + FROM_RUN_SETTINGS + ')')),
   "nb_jobs": (("-j", "--jobs"), dict(dest="nb_jobs", help='maximum number of parallel jobs, "auto" for the number of CPUs minus one (default: "nb_jobs" ' + FROM_RUN_SETTINGS + ')')),
   "log_size_limit": (("--logsize",), dict(dest="log_size_limit", help='size of the log history per job in the monitor (default: "log_size_limit" ' + FROM_RUN_SETTINGS + ')')),
+  "job_timeout": (("--timeout",), dict(dest="job_timeout", metavar="MINUTES", help='stop a job that runs longer than this and count it failed (default: "job_timeout" ' + FROM_RUN_SETTINGS + ', none when unset)')),
   "check_eda_tool": (("-T", "--trust"), dict(dest="check_eda_tool", action="store_false", help="do not check the tool before running jobs (saves time)")),
   "debug": (("-D", "--debug"), dict(action="store_true", help="enable debug mode to help troubleshoot settings files")),
   "keep": (("-k", "--keep"), dict(action="store_true", help="store the batch with a timestamp in the configuration name")),
@@ -168,7 +169,7 @@ GROUPS = {
   # Which daemon a session command talks to.
   "endpoint_options": ("host", "port", "token", "remote"),
   # What every run command accepts about how it runs.
-  "run_options": ("overwrite", "noask", "exit_when_done", "nb_jobs", "log_size_limit", "debug"),
+  "run_options": ("overwrite", "noask", "exit_when_done", "nb_jobs", "log_size_limit", "job_timeout", "debug"),
   # Where a run reads its settings and does its work.
   "path_options": ("settings_file", "work_path"),
   # What a run does with its results.

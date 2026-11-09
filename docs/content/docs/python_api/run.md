@@ -112,6 +112,7 @@ failed = [job["name"] for job in jobs if job["status"] != "success"]
 | `plan` *(property)* | What the run would do (see `check()`). |
 | `jobs` *(property)* | The jobs this run would run, as the objects its flow builds. |
 | `single_thread` *(property)* | Whether each job runs on a single thread: `options.force_single_thread`, or "force_single_thread" in the run settings file. |
+| `job_timeout` *(property)* | Minutes of running time after which a job is stopped and counted failed: `options.job_timeout`, or "job_timeout" in the run settings file. None when neither gives one (or gives 0). |
 | `session` *(property)* | The `Session` running the jobs, once `start()` handed them over. None before. |
 | `followed` *(property)* | Whether `start()` followed the jobs until they were over: in the job monitor until it closed, or, when the terminal could not show it, by waiting for them ("exit_when_done"). False when the run was detached, or could not show the monitor and was not told to wait: the jobs may then still be running. |
 | `tool_check_sink` | Eda tool checks handed over instead of being waited for. Left None so that the flows wait for them, which is what a run without a screen showing their progress wants. |
@@ -186,6 +187,7 @@ Declared settings:
 | `nb_jobs` | `any` |  | How many jobs run at once. The settings file's own value when unset. |
 | `log_size_limit` | `optional_int` |  | How many log lines the monitor keeps per job. |
 | `force_single_thread` | `bool` | `False` | Ask each job to use a single thread. |
+| `job_timeout` | `any` |  | Minutes of running time after which a job is stopped and counted failed. The settings file's "job_timeout" when unset; none when neither says. |
 | `noask` | `bool` | `True` | Do not stop for the 'Continue?' confirmation. |
 | `exit_when_done` | `bool` | `False` | Close the monitor once every job is done. |
 | `detach` | `bool` | `True` | Hand the jobs over to the daemon without attaching a monitor. |

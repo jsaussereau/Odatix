@@ -220,3 +220,30 @@ def test_stopping_sends_term_before_cont(monkeypatch, tmp_path):
     process_control.request_stop(job)
 
     assert sent == [signal.SIGTERM, signal.SIGCONT]
+
+
+def test_a_job_running_past_its_timeout_is_stopped_and_failed(tmp_path):
+    # A tool that hangs (a Verilator stuck in elaboration) held its slot, and a
+    # run waited for with -E, forever.
+    job = _job(tmp_path, "sleep 30 & echo $! > tool.pid; wait")
+    job.timeout = 0.3
+    job.console_log = str(tmp_path / "log" / "console.log")
+    handler = _handler(job)
+    handler.start_job(job)
+    tool_pid = int(_wait_for_file(str(tmp_path / "tool.pid")))
+
+    assert _tick_until(handler, lambda: job.status == "failed")
+    assert job in handler._retired_jobs
+    assert _tick_until(handler, lambda: job.process.returncode is not None)
+    # The whole group goes, what the tool started included
+    assert _tick_until(handler, lambda: not _alive(tool_pid))
+    assert any("timeout of 0.3 s" in line for line in job.log_history)
+    assert "job stopped after its timeout" in (tmp_path / "log" / "console.log").read_text()
+
+
+def test_a_job_within_its_timeout_runs_to_its_end(tmp_path):
+    job = _job(tmp_path, "sleep 0.2")
+    job.timeout = 30
+    handler = _handler(job)
+    handler.start_job(job)
+    assert _tick_until(handler, lambda: job.status == "success")
