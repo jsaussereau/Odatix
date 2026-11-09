@@ -179,10 +179,10 @@ tool_install_path: "/opt/altera/altera_pro/26.1.1"
 
 ## Synopsys and Cadence tools
 
-Design Compiler (and Design Compiler NXT), Genus and Innovus
+Design Compiler (and Design Compiler NXT), Fusion Compiler, Genus and Innovus
 come from their vendors, with a license server, and are usually set up by your
 CAD team. Odatix needs nothing more than a terminal where they already work:
-their executables (`dc_shell`, `dcnxt_shell`, `genus`, `innovus`)
+their executables (`dc_shell`, `dcnxt_shell`, `fc_shell`, `genus`, `innovus`)
 on the `PATH`, and the license variables of your site set. Check it with:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}

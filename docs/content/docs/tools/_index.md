@@ -40,6 +40,7 @@ that command.
 | **Quartus** | Altera | FPGA | Fmax search, Synthesis, RTL analysis | `standard`, `balanced`, `runtime`, `performance`, `area`, `power_opt` | Validated | Commercial |
 | **Design Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `ultra`, `ultra_keep_hierarchy`, `ultra_timing`, `ultra_area`, `ultra_power` | Validated | Commercial |
 | **DC NXT** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | Those of Design Compiler, run by `dcnxt_shell` | Validated | Commercial |
+| **Fusion Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `keep_hierarchy`, `timing`, `area`, `power`; each goes as far as synthesis or as place & route (`--until pnr`) | WIP | Commercial |
 | **Genus** | Cadence | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `medium_effort`, `extreme`, `timing`, `area`, `power` | Validated | Commercial |
 | **GHDL** | GHDL | Any | RTL analysis | `lint` | Validated | Open source |
 | **Icarus Verilog** | Icarus | Any | RTL analysis | `lint` | Validated | Open source |
@@ -54,10 +55,10 @@ that command.
 
 | Job type | Command | What it does | Tools |
 |----------|---------|--------------|-------|
-| **Fmax search** | `odatix fmax` | Binary search of the highest frequency the design closes timing at | Vivado, Quartus, Design Compiler, Genus, LibreLane, OpenLane |
-| **Synthesis** | `odatix synth` | Synthesis (and, on FPGA, place & route and bitstream; with LibreLane, the whole RTL to GDSII flow) at the frequencies you give | Vivado, Quartus, Design Compiler, Genus, LibreLane |
+| **Fmax search** | `odatix fmax` | Binary search of the highest frequency the design closes timing at | Vivado, Quartus, Design Compiler, Fusion Compiler, Genus, LibreLane, OpenLane |
+| **Synthesis** | `odatix synth` | Synthesis (and, on FPGA, place & route and bitstream; with LibreLane, the whole RTL to GDSII flow) at the frequencies you give | Vivado, Quartus, Design Compiler, Fusion Compiler, Genus, LibreLane |
 | **Place & route** | `odatix pnr` | Places & routes a netlist a *previous* synthesis job produced, possibly with another tool (`--from-tool`) | Innovus |
-| **RTL analysis** | `odatix analyze` | Elaborates the RTL without synthesizing it: lint, elaboration errors, early estimates | Vivado, Quartus, Design Compiler, Genus, LibreLane, Verilator, Icarus Verilog, Yosys, GHDL, Questa |
+| **RTL analysis** | `odatix analyze` | Elaborates the RTL without synthesizing it: lint, elaboration errors, early estimates | Vivado, Quartus, Design Compiler, Fusion Compiler, Genus, LibreLane, Verilator, Icarus Verilog, Yosys, GHDL, Questa |
 
 Because place & route is a job type of its own, an ASIC chain is two commands
 rather than one monolithic flow — and the two halves need not come from the same
