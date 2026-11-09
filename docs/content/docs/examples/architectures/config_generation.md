@@ -313,4 +313,4 @@ And when the design already accepts the parameter on its command line, neither i
 - [Configuration generation](/docs/configurations/config_generation/) — how those variables become parameter files.
 - [Sine ROM](/docs/examples/architectures/rom/) — generation used for real, inside two parameter domains, with a `format` variable for readable names.
 - [Parameter domains](/docs/configurations/param_domains/) — how generated configurations combine across dimensions.
-- [All architecture examples](/docs/examples/architectures/) — the seven designs and what each one adds.
+- [All architecture examples](/docs/examples/architectures/) — the eight designs and what each one adds.

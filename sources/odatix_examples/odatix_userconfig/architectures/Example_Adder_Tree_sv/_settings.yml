@@ -1,0 +1,29 @@
+##############################################
+# Settings for Example_Adder_Tree_sv
+##############################################
+# Pipelined adder tree, configured by a SystemVerilog package.
+# The domains replace the parameters of the package (tree_config_pkg.sv), not
+# of the top level, and REGISTER_LEVELS switches the structure of the tree:
+# registered at every level, or combinational between the input and output
+# registers.
+
+# Source files
+rtl_path: examples/adder_tree_sv
+top_level_file: adder_tree.sv
+top_level_module: adder_tree
+
+# Signals
+clock_signal: clock
+reset_signal: reset
+
+# Delimiters for parameter files (the domains have their own)
+use_parameters: No
+start_delimiter: ''
+stop_delimiter: ''
+
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 800
+fixed_freq_synthesis:
+  list: [50, 100, 200]

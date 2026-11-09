@@ -242,4 +242,4 @@ Then open the [Explorer](/docs/features/explorer/) and plot fmax and area agains
 - [ALU](/docs/examples/architectures/alu/) — the third curve of the comparison, and where the `#(` delimiter needs more care.
 - [Counter](/docs/examples/architectures/counter/) — the reference sweep, in four languages.
 - [Explorer](/docs/features/explorer/) — where these curves are meant to end up.
-- [All architecture examples](/docs/examples/architectures/) — the seven designs and what each one adds.
+- [All architecture examples](/docs/examples/architectures/) — the eight designs and what each one adds.

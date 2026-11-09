@@ -82,4 +82,7 @@ architectures:
 
   # - Example_Mult/*
 
+  # Parameters in a SystemVerilog package: every combination of the two domains
+  # - Example_Adder_Tree_sv + N_INPUTS/* + REGISTER_LEVELS/*
+
 ...

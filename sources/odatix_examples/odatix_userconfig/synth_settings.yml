@@ -123,6 +123,9 @@ architectures:
   # - Example_Mult/48bits
   # - Example_Mult/64bits
 
+  # Parameters in a SystemVerilog package: every combination of the two domains
+  # - Example_Adder_Tree_sv + N_INPUTS/* + REGISTER_LEVELS/*
+
 # Requires Vitis HLS (in addition to the synthesis tool)
 
   # A FIR filter written in C++ and turned into RTL by Vitis HLS. "taps", "ii"
