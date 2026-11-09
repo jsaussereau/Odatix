@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 
 import pytest
 
@@ -39,6 +40,17 @@ class TestCopytree:
         copytree(str(source_tree), str(dst))
         assert (dst / "a.txt").read_text(encoding="utf-8") == "a"
         assert (dst / "sub" / "c.txt").read_text(encoding="utf-8") == "c"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="symbolic links")
+    def test_a_link_to_nothing_is_left_out(self, source_tree, tmp_path):
+        # CVA6 holds links to files only its build writes: copying its
+        # repository as an rtl path stopped on them
+        os.symlink("../missing.h", str(source_tree / "sub" / "info.h"))
+        os.symlink("a.txt", str(source_tree / "alias.txt"))
+        dst = tmp_path / "dst"
+        copytree(str(source_tree), str(dst))
+        assert not os.path.lexists(str(dst / "sub" / "info.h"))
+        assert (dst / "alias.txt").read_text(encoding="utf-8") == "a"
 
     def test_existing_destination_raises(self, source_tree, tmp_path):
         dst = tmp_path / "dst"
@@ -132,10 +144,14 @@ class TestCopytree:
         import odatix.lib.utils as utils
         for i in range(10):
             (source_tree / ("f%d.v" % i)).write_text(str(i), encoding="utf-8")
-        try:
-            os.symlink(str(source_tree / "missing"), str(source_tree / "zz_broken"))
-        except OSError:
-            pytest.skip("symbolic links need a privilege on Windows")
+        copy_file = utils._copy_file
+
+        def failing_copy(src, dst):
+            if src.endswith("f9.v"):
+                raise OSError("cannot read " + src)
+            copy_file(src, dst)
+
+        monkeypatch.setattr(utils, "_copy_file", failing_copy)
         monkeypatch.setattr(utils, "COPYTREE_SLOW_FILE_SECONDS", -1)
         monkeypatch.setattr(utils, "COPYTREE_PROBE_FILES", 1)
         with pytest.raises(OSError):

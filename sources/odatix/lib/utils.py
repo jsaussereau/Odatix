@@ -267,6 +267,11 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
                 continue
             if black and matches(rel_file, black):
                 continue
+            src_file = os.path.join(root, file)
+            if os.path.islink(src_file) and not os.path.exists(src_file):
+                # A link to nothing (a file a repository only builds, such as a
+                # header of a boot ROM): there is nothing to copy.
+                continue
             if not dst_root_created:
                 os.makedirs(dst_root, exist_ok=True)
                 dst_root_created = True
