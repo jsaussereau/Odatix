@@ -1,139 +1,78 @@
-################################################################################
-# Fusion Compiler
-################################################################################
+# ********************************************************************** #
+#                                Odatix                                  #
+# ********************************************************************** #
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Odatix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+#
 
-source scripts/settings.tcl
-source scripts/fc_setup.tcl
 
-set signature "<grey>\[synth_script.tcl\]<end>"
+# One iteration of an fmax search (sourced by find_fmax.tcl at each frequency it
+# tries). The first one elaborates the design analyze_script.tcl read; every
+# iteration then synthesizes a copy of it, or places and routes it when the
+# search goes that far (::odatix_synth_depth, see step_fmax_*.tcl). The
+# iteration meeting timing exports the netlist "odatix pnr" starts from.
 
-report_progress 5 $synth_statusfile
+if {[catch {
 
-################################################################################
-# Read constraints
-################################################################################
+    set signature "<grey>\[synth_script.tcl\]<end>"
 
-if {[llength [get_modes functional -quiet]] == 0} {
-    create_mode functional
+    source scripts/settings.tcl
+    source scripts/step_common.tcl
+
+    if {![info exists ::odatix_synth_depth]} {
+        set ::odatix_synth_depth "synthesis"
+    }
+
+    report_progress 2 $synth_statusfile
+
+    if {![info exists ::odatix_fc_elaborated]} {
+        odatix_fc_elaborate $signature
+        set ::odatix_fc_elaborated 1
+    }
+
+    report_progress 10 $synth_statusfile
+
+    if {$::odatix_synth_depth eq "pnr"} {
+        set frequency [odatix_fc_place_route $signature]
+    } else {
+        odatix_fc_start_from_elab $signature
+        set frequency [odatix_fc_constrain $signature]
+        odatix_fc_synthesize $signature
+    }
+
+    report_progress 90 $synth_statusfile
+
+    odatix_fc_reports $frequency $::odatix_synth_depth $signature
+
+    report_progress 95 $synth_statusfile
+
+    if {[is_slack_met $report_path $timing_rep]} {
+        odatix_fc_netlist $signature
+    }
+
+    report_progress 100 $synth_statusfile
+
+} gblerrmsg ]} {
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    catch {
+        puts "$signature <cyan>tcl error detail:<red>"
+        puts "$gblerrmsg"
+    }
+    puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
+    exit -1
 }
-
-if {[sizeof_collection [get_corners default]] == 0} {
-    create_corner default
-}
-
-if {[llength [get_scenarios functional_default -quiet]] == 0} {
-    create_scenario \
-        -name functional_default \
-        -mode functional \
-        -corner default
-}
-
-current_scenario functional_default
-
-read_sdc $constraints_file
-
-report_progress 25 $synth_statusfile
-
-################################################################################
-# Synthesis
-################################################################################
-
-puts ""
-puts "----------------------------------------"
-puts "<bold><cyan> SYNTHESIS <end>"
-puts "----------------------------------------"
-
-if {[info exists synthesis_mode] && $synthesis_mode eq "physical"} {
-    puts "<bold><yellow>Mode: Physical synthesis<end>"
-
-    ########################################################################
-    # TLU+ files
-    ########################################################################
-
-    read_parasitic_tech \
-        -tlup $TLUP_MAX \
-        -layermap $TLUP_MAP \
-        -name RCMAX
-
-    read_parasitic_tech \
-        -tlup $TLUP_MIN \
-        -layermap $TLUP_MAP \
-        -name RCMIN
-
-    set_parasitic_parameters \
-        -late_spec RCMAX \
-        -early_spec RCMIN
-
-    ########################################################################
-    # Extraction
-    ########################################################################
-
-    set_extraction_options \
-        -reference_direction horizontal
-
-    ########################################################################
-    # Physical synthesis
-    ########################################################################
-
-    compile_fusion
-
-    puts ""
-    puts "========================================"
-    puts "Initializing Floorplan"
-    puts "========================================"
-    initialize_floorplan \
-        -site_def unit \
-        -core_utilization 0.7 \
-        -core_offset 2
-
-    place_pins -self
-
-    place_opt   
-} else {
-    puts "<bold><yellow>Mode: Logical synthesis<end>"
-
-    ########################################################################
-    # Logical synthesis
-    ########################################################################
-
-    #set_non_physical_mode
-
-    compile_logical
-}
-
-report_progress 80 $synth_statusfile
-
-################################################################################
-# Reports
-################################################################################
-
-if {[info exists synthesis_mode] && $synthesis_mode == "physical"} {
-    report_utilization > $area_rep
-} else {
-    report_area   > $area_rep
-}
-report_power  > $power_rep
-report_timing > $timing_rep
-
-puts ""
-puts "----------------------------------------"
-puts "<bold><cyan> WRITING REPORTS <end>"
-puts "----------------------------------------"
-puts ""
-
-report_power
-report_area
-report_timing
-
-report_progress 90 $synth_statusfile
-
-################################################################################
-# Export
-################################################################################
-
-write_verilog $result_path/${top_level_module}_netlist.v
-write_sdf $result_path/${top_level_module}_sdf.sdf
-write_sdc -output $result_path/${top_level_module}_sdc.sdc
-#save_block -as $result_path/${top_level_module}
-
-report_progress 100 $synth_statusfile

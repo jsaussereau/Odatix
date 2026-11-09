@@ -2,19 +2,52 @@
 # Settings for Fusion Compiler
 ##############################################
 
-process_group: True
+# Display metadata (used by the GUI tool selection page)
+label: "Fusion Compiler"
+description: "Synopsys® Fusion Compiler™"
+icon: "pictogram:synthesis:FC"
+tags: [synthesis, asic]
 
-# Synthesis mode: logical or physical
-synthesis_mode: logical
+process_group: True
 
 # Default metrics file for this tool
 default_metrics_file: $eda_tools_path/fusion_compiler/metrics.yml
 
-unix:
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: standard
 
+# Parameters of the default flow: the binary it runs and the strategy the
+# scripts follow (see tcl/step_common.tcl). Every flow starts from these and
+# changes only what it says, so the flows at the bottom of this file are
+# strategies, not scripts: each one goes as far as synthesis or as place and
+# route, as the steps below say.
+#
+#   app_options              "<name> <value>" items, Fusion Compiler app options
+#                            set before synthesizing (set_app_options); one the
+#                            installed version does not know is skipped
+#   compile_logical_options  options of compile_logical ("synthesis" step)
+#   post_compile_passes      commands run after it, in order
+#   core_utilization         floorplan ("pnr" step): utilization of the core
+#   core_offset              floorplan: margin around the core, in um
+#   compile_fusion_options   options of compile_fusion ("pnr" step): physical
+#                            synthesis and placement on the floorplan
+#   pnr_passes               "pnr" step: commands building the clock tree and
+#                            routing the design, in order
+parameters:
+  shell: fc_shell
+  app_options: []
+  compile_logical_options: []
+  post_compile_passes: []
+  core_utilization: 0.7
+  core_offset: 2
+  compile_fusion_options: []
+  pnr_passes: [clock_opt, route_auto, route_opt]
+
+unix:
   # Optional constants (anchors) for reuse
   constants:
-    - &fc_unix fc_shell
+    - &fc_unix $shell
     - &fc_args -x
 
   # Command to check if the tool is installed
@@ -22,6 +55,69 @@ unix:
     - *fc_unix
     - *fc_args
     - "exit"
+
+  ##############################################
+  # Steps
+  ##############################################
+  # Synthesis jobs are split into ordered steps, as with Vivado: a run can stop
+  # after synthesis or go on to place and route ("--until"), and a later run
+  # picks up where it left off. Each step runs as its own fc_shell process and
+  # hands its design over through a block saved in the design library of the
+  # job (work/<lib>.nlib). The reports of each step are kept apart
+  # (report/synthesis/, report/pnr/): the metrics are read for each step.
+  #
+  # "synthesis" is a logical synthesis (compile_logical): fast, no physical
+  # data needed. "pnr" synthesizes the elaborated design again on a floorplan
+  # (compile_fusion), as a logical synthesis cannot be placed, then builds the
+  # clock tree and routes it. It needs the TLU+ files of the technology (see
+  # technology/*/fc_setup.tcl).
+
+  # Steps of an fmax search. Each one is a search of its own, going as far as
+  # its name says: "synthesis" converges on post-synthesis timing (fast and
+  # optimistic), "pnr" on post-route timing (what the design really reaches).
+  fmax_synthesis_steps:
+    - name: synthesis
+      default: true
+      command:
+        - cd $work_path;
+        - *fc_unix
+        - "-output_log_file log/fmax.log"
+        - *fc_args
+        - "'source scripts/step_fmax_synthesis.tcl; quit'"
+    - name: pnr
+      command:
+        - cd $work_path;
+        - *fc_unix
+        - "-output_log_file log/fmax_pnr.log"
+        - *fc_args
+        - "'source scripts/step_fmax_pnr.tcl; quit'"
+
+  # Steps of a custom frequency synthesis. "synthesis" and "pnr" both start
+  # from the block "elaborate" saved; the last one run exports the netlist
+  # "odatix pnr" starts from.
+  custom_freq_synthesis_steps:
+    - name: elaborate
+      command:
+        - cd $work_path;
+        - *fc_unix
+        - "-output_log_file log/elaborate.log"
+        - *fc_args
+        - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/step_elaborate.tcl; quit'"
+    - name: synthesis
+      default: true
+      command:
+        - cd $work_path;
+        - *fc_unix
+        - "-output_log_file log/custom_freq.log"
+        - *fc_args
+        - "'source scripts/step_synthesis.tcl; quit'"
+    - name: pnr
+      command:
+        - cd $work_path;
+        - *fc_unix
+        - "-output_log_file log/pnr.log"
+        - *fc_args
+        - "'source scripts/step_pnr.tcl; quit'"
 
   # Command for RTL analysis
   analysis_command:
@@ -31,21 +127,62 @@ unix:
     - *fc_args
     - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
 
-  # Command for fmax synthesis
-  fmax_synthesis_command:
-    - cd $work_path;
-    - *fc_unix
-    - "-output_log_file log/fmax.log"
-    - *fc_args
-    - "'set synthesis_mode logical; source scripts/init_script.tcl; source scripts/find_fmax.tcl; quit'"
+##############################################
+# Flows
+##############################################
+# A flow is a synthesis strategy: each one gets its own work directory
+# ("fusion_compiler@timing") and its results are tagged with its name.
 
-  # Command for custom frequency synthesis
-  custom_freq_synthesis_command:
-    - cd $work_path;
-    - *fc_unix
-    - "-output_log_file log/custom_freq.log"
-    - *fc_args
-    - "'set synthesis_mode logical; source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
+flows:
+
+  standard:
+    label: "Standard"
+    description: "Default settings of Fusion Compiler"
+
+  high_effort:
+    label: "High effort"
+    description: "High timing and area optimization effort, high placement effort"
+    parameters:
+      app_options:
+        - opt.timing.effort high
+        - opt.area.effort high
+        - compile.final_place.effort high
+
+  keep_hierarchy:
+    label: "Keep hierarchy"
+    description: "Auto-ungrouping and boundary optimization disabled, every hierarchy is preserved"
+    parameters:
+      app_options:
+        - compile.flow.autoungroup false
+        - compile.flow.boundary_optimization false
+
+  timing:
+    label: "Timing"
+    description: "High effort timing optimization, with concurrent clock and data optimization when routing"
+    parameters:
+      app_options:
+        - compile.flow.high_effort_timing 1
+        - opt.timing.effort high
+        - route_opt.flow.enable_ccd true
+
+  area:
+    label: "Area"
+    description: "High effort area optimization and area resynthesis"
+    parameters:
+      app_options:
+        - compile.flow.high_effort_area true
+        - compile.flow.areaResynthesis true
+        - opt.area.effort high
+
+  power:
+    label: "Power"
+    description: "Leakage and dynamic power optimization, with self-gating of the registers"
+    parameters:
+      app_options:
+        - compile.flow.enable_power true
+        - opt.power.mode total
+        - opt.power.effort high
+        - compile.clockgate.self_gating true
 
 # Log formatting
 format:

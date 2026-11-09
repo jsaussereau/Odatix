@@ -1,0 +1,53 @@
+##################################################
+# RTL analysis: how Fusion Compiler reports
+##################################################
+
+# Fusion Compiler reports as Design Compiler does ("Error: <file>:<line>:
+# <message> (<ID>)"), with the same HDL front end: the message ids of its
+# reader are those of Design Compiler. Not checked against Fusion Compiler logs
+# yet: a message whose id is not listed is still reported, by the "message" rule
+# below, under "other".
+
+logs:
+  - log/analysis.log
+
+# Lines that are no finding of their own.
+ignore:
+  # check_netlist runs on the elaborated design, which is not mapped to the
+  # technology yet: every cell of it is "unmapped".
+  - "\\(DCHK-039\\)\\s*$"
+
+severities:
+  Error: error
+  Fatal: error
+  Warning: warning
+
+codes:
+  VER-41: missing_file
+  VER-294: syntax
+  VER-956: undeclared
+  LBR-0: missing_top
+  LBR-1: {category: missing_module, severity: error}
+  LINK-5: {category: missing_module, severity: critical, secondary: true}
+  LINK-1: port_mismatch
+  ELAB-366: multiple_drivers
+  ELAB-405: {category: multiple_drivers, secondary: true}
+
+messages:
+
+  # No license, or a feature the installation lacks
+  license:
+    pattern: "^(?P<severity>Fatal|Error): (?P<message>.*(?:is not enabled|license).*?)\\s*\\((?P<code>[A-Z]+-\\d+)\\)\\s*$"
+    severity: error
+    category: tool_setup
+
+  # "Error:  rtl/top.sv:3: Syntax error at or near token 'x'. (VER-294)"
+  message:
+    pattern: "^(?P<severity>Error|Fatal|Warning):\\s+(?:(?P<file>[^:\\s]*):(?P<line>\\d+): )?(?P<message>.*?)\\s*\\((?P<code>[A-Z]+-\\d+)\\)\\s*$"
+    severity: warning
+    subject:
+      - "port '([^']+)'"
+      - "design '([^']+)'"
+      - "reference '([^']+)'"
+      - "(?<![A-Za-z])'([^']+)'"
+    fallback: true

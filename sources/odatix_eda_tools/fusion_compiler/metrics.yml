@@ -1,7 +1,10 @@
+##############################################
+# Metrics for Fusion Compiler
+##############################################
 
-##############################################
-# Metrics for Design Compiler
-##############################################
+# Read once per step of the flow: "$step" in a file name is the step the record
+# being written is for (report/synthesis/, report/pnr/), so post-synthesis and
+# post-route area are the same metric measured at two steps.
 
 fmax_synthesis_metrics:
   Fmax:
@@ -27,7 +30,7 @@ metrics:
   Cell_Area:
     type: regex
     settings:
-      file: report/area.rep
+      file: report/$step/area.rep
       pattern: "Total cell area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
@@ -36,7 +39,7 @@ metrics:
   Comb_Area:
     type: regex
     settings:
-      file: report/area.rep
+      file: report/$step/area.rep
       pattern: "Combinational area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
@@ -45,7 +48,7 @@ metrics:
   Noncomb_Area:
     type: regex
     settings:
-      file: report/area.rep
+      file: report/$step/area.rep
       pattern: "Noncombinational area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
@@ -54,7 +57,7 @@ metrics:
   Buf_Inv_Area:
     type: regex
     settings:
-      file: report/area.rep
+      file: report/$step/area.rep
       pattern: "Buf/Inv area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
@@ -63,77 +66,83 @@ metrics:
   Macro_Area:
     type: regex
     settings:
-      file: report/area.rep
+      file: report/$step/area.rep
       pattern: "Macro/Black Box area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
     unit: um^2
 
-#  Net_Area:
-#    type: regex
-#    settings:
-#      file: report/area.rep
-#      pattern: "Net Interconnect area:(\\s*)([0-9,.]+)(.*)"
-#      group_id: 2
-#    format: "%.3f"
-#    unit: um^2
-
   Cell_count:
     type: regex
     settings:
-      file: report/area.rep
+      file: report/$step/area.rep
       pattern: "Number of cells:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.0f"
 
+  # Physical mode and place and route only (report_utilization)
+  Utilization:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "Utilization Ratio:(\\s*)([0-9.]+)"
+      group_id: 2
+    format: "%.4f"
+
+  # Timing
+  #
+  # Worst slack of the design, read from the first path of the timing report —
+  # "report_timing" reports the worst path first.
+
+  Worst_Slack:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/timing.rep
+      pattern: "[Ss]lack \\(\\w+\\)\\s+(-?[0-9.]+)"
+      group_id: 1
+    format: "%.3f"
+    unit: ns
+
+  # Power, summed in mW by the scripts whatever the units of the libraries
+  # (see odatix_fc_power_summary in tcl/step_common.tcl)
+
   Internal_Power:
     type: regex
     settings:
-      file: report/power.rep
-      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      file: report/$step/power.rep
+      pattern: "Odatix power \\(mW\\): internal (\\S+) switching (\\S+) leakage (\\S+) total (\\S+)"
       group_id: 1
-    format: "%.5f"
+    format: "%.6f"
     unit: mW
 
   Switching_Power:
     type: regex
     settings:
-      file: report/power.rep
-      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      file: report/$step/power.rep
+      pattern: "Odatix power \\(mW\\): internal (\\S+) switching (\\S+) leakage (\\S+) total (\\S+)"
       group_id: 2
-    format: "%.5f"
+    format: "%.6f"
     unit: mW
 
   Leakage_Power:
     type: regex
     settings:
-      file: report/power.rep
-      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      file: report/$step/power.rep
+      pattern: "Odatix power \\(mW\\): internal (\\S+) switching (\\S+) leakage (\\S+) total (\\S+)"
       group_id: 3
-    format: "%.5f"
-    unit: pW
+    format: "%.6f"
+    unit: mW
 
   Total_Power:
     type: regex
     settings:
-      file: report/power.rep
-      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      file: report/$step/power.rep
+      pattern: "Odatix power \\(mW\\): internal (\\S+) switching (\\S+) leakage (\\S+) total (\\S+)"
       group_id: 4
-    format: "%.5f"
+    format: "%.6f"
     unit: mW
-
-  DMIPS_per_MHz:
-    type: benchmark
-    settings:
-      key: DMIPS_per_MHz
-    format: "%.3f"
-
-  DMIPS:
-    type: operation
-    benchmark_only: True
-    settings:
-      op: DMIPS_per_MHz * Fmax
-    format: "%.0f"
 
   Param_Domains:
     type: yaml
