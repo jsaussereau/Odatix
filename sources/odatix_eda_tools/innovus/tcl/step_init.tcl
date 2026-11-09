@@ -45,6 +45,10 @@ if {[catch {
     set init_verilog $source_netlist
     set init_design_netlisttype "Verilog"
     set init_top_cell $top_level_module
+    # A module instantiated several times (an SRAM wrapper of a cache) leaves
+    # the netlist non-unique, and clock tree synthesis refuses it (IMPCCOPT-4255)
+    # once placement is done: every instance gets its own module here instead.
+    set init_design_uniquify 1
     init_design
 
     # A technology script with an MMMC setup reads the synthesis constraints
