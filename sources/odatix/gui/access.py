@@ -30,8 +30,11 @@ browses their files, so every request must prove it comes from them.
 
 - A token is drawn at each start (or taken from ``ODATIX_GUI_TOKEN``) and
   printed in the URL the GUI announces. The first visit with ``?token=`` trades
-  it for a cookie (``HttpOnly``, ``SameSite=Strict``) and is redirected to the
-  same URL without it, so that it does not stay in the address bar.
+  it for a cookie (``HttpOnly``, ``SameSite=Strict``) and goes on to the same
+  URL without it, so that it does not stay in the address bar. It goes on from
+  a page, not with an HTTP redirect: a visit started elsewhere (the launch file
+  below, a link) is cross-site all along a redirect, so the browser would not
+  send the Strict cookie it was just given.
 - Every request must then carry the cookie. A cookie is not scoped by port: its
   name holds the port, so that two GUIs of one machine do not log each other out.
 - The ``Host`` header must name this machine (a loopback name, its hostname, the
@@ -65,7 +68,7 @@ SECURITY_HEADERS = {
 #: How long the redirect file of `launch_url` is kept, in seconds.
 LAUNCH_FILE_LIFETIME = 120
 
-_LAUNCH_PAGE = """<!doctype html>
+_REDIRECT_PAGE = """<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={url}">
 <title>Odatix</title></head>
 <body><script>window.location.replace({url_js});</script>
@@ -77,6 +80,14 @@ _DENIED_PAGE = """<!doctype html>
 <style>body{font-family:sans-serif;max-width:40em;margin:4em auto;padding:0 1em;line-height:1.5}</style>
 </head><body><h1>Access denied</h1><p>{message}</p></body></html>
 """
+
+
+def _redirect_page(url):
+    """A page sending the browser on to `url`."""
+    import html
+    import json
+    url_js = json.dumps(url).replace("<", "\\u003c")
+    return _REDIRECT_PAGE.replace("{url_js}", url_js).replace("{url}", html.escape(url, quote=True))
 
 
 def generate_token():
@@ -150,7 +161,7 @@ class AccessGuard:
 
     def install(self, server):
         """Check every request of `server` (a Flask app) before it is served."""
-        from flask import request, redirect, make_response
+        from flask import request, make_response
 
         guard = self
 
@@ -175,7 +186,9 @@ class AccessGuard:
                 if args:
                     from urllib.parse import urlencode
                     location += "?" + urlencode(args)
-                response = redirect(location, code=302)
+                response = make_response(_redirect_page(location), 200)
+                response.headers["Content-Type"] = "text/html; charset=utf-8"
+                response.headers["Cache-Control"] = "no-store"
                 response.set_cookie(
                     guard.cookie_name, guard.token,
                     httponly=True, samesite="Strict", path="/",
@@ -202,12 +215,10 @@ def launch_url(url):
     command lines of the machine. The file is removed after a while. `url`
     itself when the file cannot be written.
     """
-    import html
-    import json
     try:
         fd, path = tempfile.mkstemp(prefix="odatix-gui-", suffix=".html")  # mode 0600
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(_LAUNCH_PAGE.replace("{url_js}", json.dumps(url).replace("<", "\\u003c")).replace("{url}", html.escape(url, quote=True)))
+            f.write(_redirect_page(url))
     except OSError:
         return url
 

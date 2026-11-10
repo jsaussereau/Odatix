@@ -25,8 +25,10 @@ def test_without_token_nothing_is_served(client):
 
 def test_the_token_is_traded_for_a_cookie(client):
     response = client.get("/page?token=secret&x=1", headers={"Host": "localhost:8050"})
-    assert response.status_code == 302
-    assert response.headers["Location"].endswith("/page?x=1")
+    # Not an HTTP redirect: a cross-site visit would not send the Strict cookie
+    # along it. The page goes on to the address without the token.
+    assert response.status_code == 200
+    assert b'location.replace("/page?x=1")' in response.data
     cookie = response.headers["Set-Cookie"]
     assert "odatix_gui_8050=secret" in cookie and "HttpOnly" in cookie and "SameSite=Strict" in cookie
     assert client.get("/page", headers={"Host": "localhost:8050"}).data == b"content"
