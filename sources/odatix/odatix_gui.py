@@ -189,6 +189,7 @@ def add_arguments(parser, suppress_defaults=False, skip_flags=()):
     add(['-N', '--normal-term-mode'], dest='normal_term_mode', action='store_true', default=default(False), help='leave the terminal mode alone (then "q" needs Enter)')
     add(['--safe-mode'], dest='safe_mode', action='store_true', default=default(False), help='keep running on an internal error')
     add(['-B', '--nobrowser'], action='store_true', default=default(False), help='do not open a browser')
+    add(['--unsafe-no-token'], dest='unsafe_no_token', action='store_true', default=default(False), help='UNSAFE: no access token, anyone who reaches the port uses the GUI as you')
     add(['-T', '--theme'], default=default(None), metavar='THEME', help=theme_help())
     add(["-c", "--config"], default=default(OdatixSettings.DEFAULT_SETTINGS_FILE), help="workspace settings file (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
     if '--normal_term_mode' not in skip_flags:
@@ -251,7 +252,7 @@ def close_server(old_settings):
         term_mode.restore_mode(old_settings)
     os._exit(0)
 
-def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None, page="/"):
+def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None, page="/", unsafe_no_token=False):
 
     global ip_address
     global port
@@ -279,7 +280,7 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
             printc.note("port " + str(start_port) + " is in use, using port " + str(port), script_name=script_name)
 
     # Every request must carry the token of this start (see odatix.gui.access).
-    access_guard = AccessGuard(port=port, allowed_hosts=None)
+    access_guard = AccessGuard(port=port, allowed_hosts=None, require_token=not unsafe_no_token)
     if network:
         access_guard.allowed_hosts.add(str(ip_address).lower())
 
@@ -289,6 +290,8 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
     else:
         print(" (localhost only)")
 
+    if unsafe_no_token:
+        printc.warning("--unsafe-no-token: no access token, anyone who can reach this port " + ("on the network " if network else "(every user of this machine) ") + "can use it as you", script_name=script_name)
     printc.say(term_mode.quit_hint(normal_term_mode), script_name=script_name)
     # Under nohup or a service manager stdout is a file, fully buffered: the
     # address (and the port actually taken) must reach it now, not at exit.
@@ -354,7 +357,7 @@ def main(args=None):
     config_file = args.config
     port = args.port
 
-    start_odatix_app(network, port, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme, get_landing_page(args))
+    start_odatix_app(network, port, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme, get_landing_page(args), getattr(args, "unsafe_no_token", False))
 
 if __name__ == "__main__":
     main()

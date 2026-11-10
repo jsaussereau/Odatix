@@ -108,6 +108,7 @@ $ odatix-gui --theme odatix_dark
 | `-n`, `--network` | Expose the server on the local network. |
 | `-p`, `--port` | HTTP port. A port given with `-p` must be free: if it is taken, the GUI stops with an error instead of moving elsewhere. Without `-p`, it takes 8052, or the next free port, and prints the address it took. |
 | `-B`, `--nobrowser` | Do not open the browser automatically. |
+| `--unsafe-no-token` | No access token: anyone who reaches the port uses the GUI as you (see [Access](#access)). |
 | `-T`, `--theme` | Default theme for browsers without a saved choice; a theme picked in the GUI is kept by that browser. |
 | `-N`, `--normal_term_mode` | Do not switch terminal mode. |
 | `--safe_mode` | Keep running on internal errors. |
@@ -159,6 +160,12 @@ can reach one too.
   for any).
 
 The same applies to `odatix-explorer`.
+
+`--unsafe-no-token` turns the token off, for a machine only you can reach
+(a personal workstation, a container): anyone who reaches the port then uses
+the GUI as you, runs commands and browses your files. Never combine it with
+`--network` outside a network you control entirely. The check of the address
+stays.
 
 ### Folders the file browser opens
 

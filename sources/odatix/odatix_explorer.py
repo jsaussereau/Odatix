@@ -95,6 +95,7 @@ def add_arguments(parser):
     parser.add_argument('--safe-mode', dest='safe_mode', action='store_true', help='keep running on an internal error')
     parser.add_argument('-B', '--nobrowser', action='store_true', help='do not open a browser')
     parser.add_argument('-T', '--theme', default=None, metavar='THEME', help=theme_help())
+    parser.add_argument('--unsafe-no-token', dest='unsafe_no_token', action='store_true', help='UNSAFE: no access token, anyone who reaches the port uses Explorer')
     parser.add_argument('--read-only', dest='read_only', action='store_true', help='do not let visitors save views on the server (recommended with --network)')
     deprecated_option(parser, '--normal_term_mode', '-N/--normal-term-mode', action='store_true', dest='normal_term_mode')
     deprecated_option(parser, '--safe_mode', '--safe-mode', action='store_true', dest='safe_mode')
@@ -127,7 +128,7 @@ def close_server(old_settings):
         term_mode.restore_mode(old_settings)
     os._exit(0)
 
-def start_result_explorer(input, network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, theme=None, read_only=False, page=default_page):
+def start_result_explorer(input, network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, theme=None, read_only=False, page=default_page, unsafe_no_token=False):
 
     global ip_address
     global port
@@ -158,7 +159,7 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
         printc.warning('Result directory "' + input + '" does not exist (yet). Results will appear as soon as they are written.', script_name=script_name)
 
     # Every request must carry the token of this start (see odatix.gui.access).
-    access_guard = AccessGuard(port=port, allowed_hosts=None)
+    access_guard = AccessGuard(port=port, allowed_hosts=None, require_token=not unsafe_no_token)
     if network:
         access_guard.allowed_hosts.add(str(ip_address).lower())
 
@@ -170,6 +171,8 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     if read_only:
         printc.say("read-only: saving views is disabled", script_name=script_name)
 
+    if unsafe_no_token:
+        printc.warning("--unsafe-no-token: no access token, anyone who can reach this port " + ("on the network " if network else "(every user of this machine) ") + "can use it as you", script_name=script_name)
     printc.say(term_mode.quit_hint(normal_term_mode), script_name=script_name)
     # Under nohup or a service manager stdout is a file, fully buffered: the
     # address (and the port actually taken) must reach it now, not at exit.
@@ -243,7 +246,7 @@ def main(args=None):
     do_not_open_browser = args.nobrowser
     port = args.port
 
-    start_result_explorer(input, network, port, normal_term_mode, safe_mode, do_not_open_browser, args.theme, getattr(args, "read_only", False), getattr(args, "page", None) or default_page)
+    start_result_explorer(input, network, port, normal_term_mode, safe_mode, do_not_open_browser, args.theme, getattr(args, "read_only", False), getattr(args, "page", None) or default_page, getattr(args, "unsafe_no_token", False))
 
 if __name__ == "__main__":
     main()

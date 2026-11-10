@@ -86,3 +86,13 @@ def test_a_name_starting_like_a_loopback_address_is_not_one():
     guard = AccessGuard(token="t", port=1, allowed_hosts=set())
     assert guard.host_allowed("127.0.0.2:8050") and guard.host_allowed("[::1]:8050")
     assert not guard.host_allowed("127.evil.example:8050")
+
+
+def test_unsafe_mode_needs_no_token_but_still_checks_the_host():
+    app = flask.Flask(__name__)
+    app.add_url_rule("/page", "page", lambda: "content")
+    guard = AccessGuard(token="secret", port=1, allowed_hosts={"localhost"}, require_token=False).install(app)
+    client = app.test_client()
+    assert client.get("/page", headers={"Host": "localhost:1"}).data == b"content"
+    assert client.get("/page", headers={"Host": "evil.example:1"}).status_code == 403
+    assert guard.url_suffix("/") == "/"

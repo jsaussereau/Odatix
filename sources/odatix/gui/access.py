@@ -39,6 +39,8 @@ browses their files, so every request must prove it comes from them.
   name holds the port, so that two GUIs of one machine do not log each other out.
 - The ``Host`` header must name this machine (a loopback name, its hostname, the
   address it listens on, or one of ``ODATIX_GUI_ALLOWED_HOSTS``, ``*`` for any).
+- ``--unsafe-no-token`` turns the token off: anyone who reaches the port uses
+  the GUI as its owner. The Host check and the headers stay.
 - Every answer forbids being framed by another site, sniffing its type, and
   sending its address (with a token) to the sites it links to.
 - The browser opened at start is given a local file redirecting to the address
@@ -140,13 +142,16 @@ def default_allowed_hosts(extra=()):
 class AccessGuard:
     """Checks every request of a Flask server against a token and the Host header."""
 
-    def __init__(self, token=None, port=None, allowed_hosts=None):
+    def __init__(self, token=None, port=None, allowed_hosts=None, require_token=True):
+        self.require_token = bool(require_token)
         self.token = str(token or os.environ.get(TOKEN_ENV_VAR) or generate_token())
         self.cookie_name = "odatix_gui_" + str(port) if port is not None else "odatix_gui"
         self.allowed_hosts = set(allowed_hosts) if allowed_hosts is not None else default_allowed_hosts()
 
     def url_suffix(self, path="/"):
-        """`path` with the token query a first visit needs."""
+        """`path` with the token query a first visit needs (`path` alone without a token)."""
+        if not self.require_token:
+            return path
         separator = "&" if "?" in path else "?"
         return path + separator + TOKEN_PARAM + "=" + self.token
 
@@ -176,6 +181,8 @@ class AccessGuard:
             if not guard.host_allowed(request.headers.get("Host")):
                 return denied(403, "This address is not one of this machine's. To reach the GUI under another "
                                    "name, add it to " + ALLOWED_HOSTS_ENV_VAR + ".")
+            if not guard.require_token:
+                return None
             query_token = request.args.get(TOKEN_PARAM)
             if query_token is not None:
                 if not guard.token_valid(query_token):
