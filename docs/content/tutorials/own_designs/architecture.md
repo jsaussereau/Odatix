@@ -105,7 +105,7 @@ $ odatix-gui
 {{< /code >}}
 
 Open **RTL architectures** from the home page, then click the
-**Create new architecture** card. You land on the **Architecture editor**, the
+**Create new architecture manually** card. You land on the **Architecture editor**, the
 page the next steps fill in, on an architecture called `New_Architecture1`:
 rename it `MyCounter` in the title field at the top — this name is how the
 design is selected in every run afterwards. Nothing is written to disk until

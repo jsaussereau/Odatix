@@ -2592,7 +2592,7 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
 
 .import-card-icon .icon { width: 30px; height: 30px; margin-bottom: 4px; }
 .import-card-hint { font-size: .82em; opacity: .65; max-width: 280px; }
-.popup-odatix.import-popup {
+.overlay-odatix .popup-odatix.import-popup {
     width: min(920px, 92vw);
     max-height: 88vh;
     overflow-y: auto;
@@ -2940,3 +2940,49 @@ input.odx-import-values:focus {
 input.odx-import-values.invalid { border-color: var(--theme-error-color, #fa5252); }
 .odx-import-values-count { font-size: .76em; opacity: .6; white-space: nowrap; min-width: 70px; text-align: right; }
 .odx-import-values-count.invalid { color: var(--theme-error-color, #fa5252); opacity: 1; }
+
+/* Welcome of the import popup: what it does, before anything is detected */
+.import-hero { display: flex; gap: 14px; align-items: flex-start; padding-right: 36px; margin-bottom: var(--space-4, 16px); }
+.import-hero h3 { margin: 0 0 4px; }
+.import-hero-icon {
+    flex-shrink: 0;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--theme-primary-color, #5c6bf2), color-mix(in srgb, var(--theme-primary-color, #5c6bf2) 55%, #b06cf2));
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--theme-primary-color, #5c6bf2) 30%, transparent);
+}
+.import-hero-icon .icon { width: 22px; height: 22px; filter: brightness(0) invert(1); }
+.import-hero-text { margin: 0; opacity: .72; line-height: 1.45; }
+.import-steps {
+    list-style: none; margin: 0 0 var(--space-3, 12px); padding: 0;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+}
+.import-step {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 12px;
+    border-radius: var(--theme-small-border-radius, 8px);
+    background: rgba(128, 128, 128, .07);
+}
+.import-step-number {
+    flex-shrink: 0;
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8em; font-weight: 700;
+    color: var(--theme-primary-color, #5c6bf2);
+    background: color-mix(in srgb, var(--theme-primary-color, #5c6bf2) 14%, transparent);
+}
+.import-step-title { font-weight: 600; font-size: .95em; }
+.import-step-text { font-size: .82em; opacity: .68; line-height: 1.4; margin-top: 2px; }
+.import-sources { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: var(--space-4, 16px); }
+.import-sources-label { font-size: .8em; opacity: .6; margin-right: 4px; }
+.import-source {
+    font-size: .78em; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid rgba(128, 128, 128, .22);
+}
+.import-promise { margin: 10px 0 0; font-size: .8em; opacity: .6; }
+.import-promise code { font-size: .95em; }
+/* once a project is detected, the report takes the place of the welcome */
+.import-popup:has(.import-report:not(:empty)) .import-welcome,
+.import-popup:has(.import-report:not(:empty)) .import-promise { display: none; }
+@media (max-width: 700px) { .import-steps { grid-template-columns: 1fr; } }

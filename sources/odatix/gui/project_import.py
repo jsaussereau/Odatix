@@ -56,13 +56,13 @@ CONFIDENCE_COLORS = {"declared": "success", "given": "success", "inferred": "pri
 
 
 def import_card():
-    """The card opening the import popup, next to "Create new architecture"."""
+    """The card opening the import popup, next to "Create new architecture manually"."""
     return html.Div(
         html.Div(
             [
                 html.Div(icon("folder_open", className="icon"), className="import-card-icon"),
-                html.Div("Import existing project", style={"fontWeight": "bold", "fontSize": "1.05em"}),
-                html.Div("File lists, Bender, FuseSoC, Vivado, Quartus, LibreLane... or plain RTL",
+                html.Div("Create architecture automatically", style={"fontWeight": "bold", "fontSize": "1.05em"}),
+                html.Div("From your HDL project: file lists, Bender, FuseSoC, Vivado, Quartus... or plain RTL",
                          className="import-card-hint"),
             ],
             id="import-project-card",
@@ -75,6 +75,17 @@ def import_card():
     )
 
 
+#: What the detection reads, as the welcome of the popup lists it.
+SUPPORTED_SOURCES = ("File lists (.f)", "Bender", "FuseSoC", "Vivado", "Quartus", "LibreLane", "Makefiles",
+                     "Synthesis scripts", "Chisel", "SpinalHDL", "Amaranth", "Plain RTL")
+
+
+def _step(number, title, text):
+    return html.Li([html.Span(number, className="import-step-number"),
+                    html.Div([html.Div(title, className="import-step-title"), html.Div(text, className="import-step-text")])],
+                   className="import-step")
+
+
 def popup():
     return html.Div(
         id="import-popup",
@@ -82,14 +93,32 @@ def popup():
         children=[
             html.Div(
                 [
-                    html.H3("Import an existing project"),
+                    html.Div(
+                        [
+                            html.Div(icon("search", className="icon"), className="import-hero-icon"),
+                            html.Div([
+                                html.H3("Create an architecture automatically"),
+                                html.P("Point Odatix at an HDL project: it finds its sources, top level, clock, reset "
+                                       "and parameters, and checks that the design elaborates.",
+                                       className="import-hero-text"),
+                            ]),
+                        ],
+                        className="import-hero",
+                    ),
                     html.Button("×", id="import-cancel-btn", n_clicks=0, className="close"),
-                    html.P(
-                        "Odatix reads how the project declares its sources, or infers them from the RTL, "
-                        "or runs the generator of its RTL (Chisel, SpinalHDL, Amaranth...), then checks them by elaborating "
-                        "the design. The project is never changed, except for a file list, odatix_filelist.f, written at "
-                        "the root of its RTL directory when the RTL is written by hand.",
-                        className="import-intro",
+                    html.Div(
+                        [
+                            html.Ol([_step("1", "Detect", "reads how the project declares its sources, or infers them from the RTL"),
+                                     _step("2", "Check", "elaborates the design and fixes what is missing"),
+                                     _step("3", "Create", "the architecture, with the parameters you choose to explore")],
+                                    className="import-steps"),
+                            html.Div(
+                                [html.Span("Understands", className="import-sources-label")]
+                                + [html.Span(name, className="import-source") for name in SUPPORTED_SOURCES],
+                                className="import-sources",
+                            ),
+                        ],
+                        className="import-welcome",
                     ),
                     html.Div(
                         [
@@ -109,6 +138,9 @@ def popup():
                         ],
                         className="import-row",
                     ),
+                    html.P(["Your project is left as it is. Only a file list, ", html.Code("odatix_filelist.f"),
+                            ", is written at the root of its RTL directory when the RTL is written by hand."],
+                           className="import-promise"),
                     ui.feedback("import-feedback"),
                     html.Div(
                         id="import-generation",

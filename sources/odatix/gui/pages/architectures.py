@@ -168,7 +168,7 @@ def update_cards(_, odatix_settings):
     simulations = ws.simulations.names()
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
-    arch_cards.append(add_card("Create new architecture", "arch"))
+    arch_cards.append(add_card("Create new architecture manually", "arch"))
     arch_cards.append(project_import.import_card())
     sim_cards = [normal_card(name, "sim") for name in simulations]
     sim_cards.append(add_card("Create new simulation", "sim"))
@@ -223,7 +223,7 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     architectures = ws.architectures.names()
     simulations = ws.simulations.names()
     arch_cards = [normal_card(n, "arch") for n in architectures]
-    arch_cards.append(add_card("Create new architecture", "arch"))
+    arch_cards.append(add_card("Create new architecture manually", "arch"))
     arch_cards.append(project_import.import_card())
     sim_cards = [normal_card(n, "sim") for n in simulations]
     sim_cards.append(add_card("Create new simulation", "sim"))
@@ -287,7 +287,7 @@ def do_delete(n_clicks, info, odatix_settings):
     architectures = ws.architectures.names()
     simulations = ws.simulations.names()
     arch_cards = [normal_card(name, "arch") for name in architectures]
-    arch_cards.append(add_card("Create new architecture", "arch"))
+    arch_cards.append(add_card("Create new architecture manually", "arch"))
     arch_cards.append(project_import.import_card())
     sim_cards = [normal_card(name, "sim") for name in simulations]
     sim_cards.append(add_card("Create new simulation", "sim"))

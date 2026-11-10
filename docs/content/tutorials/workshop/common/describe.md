@@ -108,7 +108,7 @@ terminal for anything else.
 
 ## Step 3 — Create the architecture
 
-Click **Create new architecture**, and fill in the form.  
+Click **Create new architecture manually**, and fill in the form.  
 
 The folder button of a path field browses the workspace, and the **magic wand** next to the module, the clock and the reset reads them from the sources: click the three wands, and check that they found what step 1 says.
 

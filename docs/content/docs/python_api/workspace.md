@@ -195,7 +195,7 @@ Declared settings:
 | `cpu_limit` | `any` |  | CPU usage (%) above which jobs are paused. |
 | `mem_limit` | `any` |  | Memory usage (%) above which jobs are paused. |
 | **GUI** | | | |
-| `gui_browse_roots` | `str_list` |  | Folders the file browser of the GUI may open besides the workspace (relative to it, or absolute, "~" for the home directory). The home directory when empty; "." keeps the browser in the workspace. |
+| `gui_browse_roots` | `str_list` |  | Folders the file browser of the GUI may open besides the workspace (relative to it, or absolute, "~" for the home directory). The whole file system when empty; "." keeps the browser in the workspace. |
 | **Sessions** | | | |
 | `session_access` | `str` |  | Who may use the sessions started in this workspace besides their owner: "user" (nobody, the default), "group" (the group of the workspace directory) or "other" (every user). Using a session is running commands as its owner. |
 | **WSL (Windows)** | | | |
