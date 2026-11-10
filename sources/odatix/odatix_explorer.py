@@ -26,6 +26,8 @@ import logging
 import argparse
 from waitress import serve
 
+from odatix.gui.access import AccessGuard, launch_url
+
 # Add parent dir to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
@@ -118,7 +120,7 @@ def parse_arguments():
 
 def open_browser(host_address):
     """Open the explorer page, once the server is up and accepting connections."""
-    open_browser_when_ready("http://" + ip_address + ':' + str(port) + landing_page, host_address, port, script_name=script_name)
+    open_browser_when_ready(launch_url("http://" + ip_address + ':' + str(port) + access_guard.url_suffix(landing_page)), host_address, port, script_name=script_name)
 
 def close_server(old_settings):
     if old_settings is not None:
@@ -130,6 +132,7 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     global ip_address
     global port
     global landing_page
+    global access_guard
 
     landing_page = explorer_pages.get(page, explorer_pages[default_page])
 
@@ -154,7 +157,12 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     if not os.path.isdir(input):
         printc.warning('Result directory "' + input + '" does not exist (yet). Results will appear as soon as they are written.', script_name=script_name)
 
-    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="", script_name=script_name)
+    # Every request must carry the token of this start (see odatix.gui.access).
+    access_guard = AccessGuard(port=port, allowed_hosts=None)
+    if network:
+        access_guard.allowed_hosts.add(str(ip_address).lower())
+
+    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + access_guard.url_suffix('/') + printc.colors.ENDC, end="", script_name=script_name)
     if network:
         print(" (network-accessible)")
     else:
@@ -179,6 +187,8 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
         theme=theme,
         read_only=read_only,
     )
+
+    access_guard.install(result_explorer.app.server)
 
     # Start the server
     serve_thread = Thread(target=serve, args=(result_explorer.app.server,), kwargs={'host': host_address, 'port': port})

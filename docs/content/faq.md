@@ -84,7 +84,7 @@ layout: "faq"
                 },
                 {
                     "question": "How do I open Odatix Explorer running on a remote server?",
-                    "answer": "On the server, run `odatix-explorer --nobrowser --port 8052` (inside `tmux` to keep it running). On your workstation, open a tunnel with `ssh -N -L 8052:127.0.0.1:8052 user@server`, then browse to `http://127.0.0.1:8052`. On a trusted local network where the port is open, you can skip the tunnel: run `odatix-explorer -nB --port 8052` (`-nB` =  `--network --nobrowser`) and browse to `http://<server-address>:8052`. Anyone who reaches that port can read your results, so add `--read-only` to keep visitors from changing anything. See the [SSH tutorial](/tutorials/ssh/)."
+                    "answer": "On the server, run `odatix-explorer --nobrowser --port 8052` (inside `tmux` to keep it running). On your workstation, open a tunnel with `ssh -N -L 8052:127.0.0.1:8052 user@server`, then open the address Explorer printed (`http://127.0.0.1:8052/?token=...`). On a trusted local network where the port is open, you can skip the tunnel: run `odatix-explorer -nB --port 8052` (`-nB` =  `--network --nobrowser`) and browse to the address it printed, with `<server-address>` and its token. Anyone who can watch the network can read that token, then your results, so add `--read-only` to keep visitors from changing anything. See the [SSH tutorial](/tutorials/ssh/)."
                 }
             ]
         },

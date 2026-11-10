@@ -44,7 +44,7 @@ $ odatix-explorer --nobrowser --port 8052
 $ ssh -N -L 8052:localhost:8052 user@server
 {{< /code >}}
 
-Then open `http://localhost:8052` in your local browser. For a step-by-step guide, see the [SSH tutorial](/tutorials/ssh/).
+Then open the address Explorer printed (`http://127.0.0.1:8052/?token=...`, see [Access](/docs/gui/app/#access)) in your local browser. For a step-by-step guide, see the [SSH tutorial](/tutorials/ssh/).
 
 A port given with `--port` is the port Explorer listens on, or nothing: if
 another program (another user's Explorer, on a shared server) already holds it,
@@ -61,10 +61,10 @@ If the server and your workstation share a trusted network, bind Explorer to the
 $ odatix-explorer --network --port 8052
 {{< /code >}}
 
-Then browse to `http://<server-address>:8052` from your workstation.
+Then browse to the address Explorer printed (`http://<server-address>:8052/?token=...`) from your workstation.
 
 > [!WARNING]
-> `--network` exposes Explorer to every machine that can reach the server on that port, with no authentication. Anyone who reaches it can read every result of the result directory, and save or replace [saved views](/docs/gui/explorer/#saved-views) in it. Only use it on a trusted network, prefer the SSH tunnel otherwise, and add `--read-only` so that visitors cannot write anything:
+> `--network` sends the token unencrypted over HTTP: anyone who can watch the network can read it, then read every result of the result directory, and save or replace [saved views](/docs/gui/explorer/#saved-views) in it. Only use it on a trusted network, prefer the SSH tunnel otherwise, and add `--read-only` so that a visitor cannot write anything:
 >
 > `odatix-explorer --network --read-only --port 8052`
 
@@ -76,7 +76,7 @@ address as soon as they start, so the log tells which address to use:
 {{< code lang=bash filename="Terminal (on the server)" prompt="true" >}}
 $ nohup odatix-explorer --nobrowser > explorer.log 2>&1 < /dev/null &
 $ cat explorer.log
-[odatix-explorer] Server running on http://127.0.0.1:8052/ (localhost only)
+[odatix-explorer] Server running on http://127.0.0.1:8052/?token=Xq3v... (localhost only)
 [odatix-explorer] not started from a terminal: end the process (Ctrl+C, kill) to stop the server
 {{< /code >}}
 

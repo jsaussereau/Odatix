@@ -93,7 +93,9 @@ In a separate local terminal, forward a local port to Explorer on the server:
 $ ssh -N -L 8052:127.0.0.1:8052 user@server.example.org
 {{< /code >}}
 
-Open `http://127.0.0.1:8052` in the workstation browser. Traffic stays inside
+Open the address Explorer printed on the server (`http://127.0.0.1:8052/?token=...`)
+in the workstation browser: without its token, Explorer answers "Access
+denied". Traffic stays inside
 the encrypted SSH connection; the server does not need an open firewall port.
 
 Press `Ctrl-C` in the tunnel terminal when you no longer need the dashboard.

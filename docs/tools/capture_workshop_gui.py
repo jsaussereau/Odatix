@@ -4,6 +4,7 @@ synthesize it", by doing what a participant does in odatix-gui.
 In an empty directory:
 
     odatix init -y --cordic
+    export ODATIX_GUI_TOKEN=capture
     odatix-gui -B -N -p 8071 -T odatix
 
 then, from the repository root:
@@ -18,7 +19,8 @@ the workspace:
   running after the script is done.
 - "simulate": the synthesis is over, and there is no TB_My_Cordic_sv yet.
 - "accuracy": the simulation has run, and there is no derived metric yet.
-  Odatix Explorer has to be running too: odatix-explorer -B -N -p 8074.
+  Odatix Explorer has to be running too: odatix-explorer -B -N -p 8074 (with
+  the same ODATIX_GUI_TOKEN).
 - "dse": the derived metric exists, and the campaign of the finale is in
   odatix_userconfig/dse_campaigns. It runs the exploration to its end
   (DSE_WAIT seconds after the monitor).
@@ -32,6 +34,8 @@ EXPLORER = "http://127.0.0.1:%s" % os.environ.get("EXPLORER_PORT", "8074")
 # START_SYNTHESIS=0 captures the synthesis pages without starting it.
 START_SYNTHESIS = os.environ.get("START_SYNTHESIS", "1") != "0"
 ARCH = "My_Cordic_sv"
+# The token both servers were started with (see odatix.gui.access).
+TOKEN = os.environ.get("ODATIX_GUI_TOKEN", "capture")
 
 
 def go(pg, path, wait=8):
@@ -314,6 +318,10 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch()
         pg = browser.new_page(viewport={"width": 1600, "height": 900}, device_scale_factor=1.5)
+        # First visits trade the token for the session cookie of each server.
+        pg.goto(GUI + "/?token=" + TOKEN, wait_until="load", timeout=60000)
+        if part == "accuracy":
+            pg.goto(EXPLORER + "/?token=" + TOKEN, wait_until="load", timeout=60000)
         {"describe": describe, "simulate": simulate, "accuracy": accuracy, "dse": dse}[part](pg)
         browser.close()
 

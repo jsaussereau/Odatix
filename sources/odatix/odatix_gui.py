@@ -27,6 +27,8 @@ import logging
 import argparse
 from waitress import serve
 
+from odatix.gui.access import AccessGuard, launch_url
+
 try:
     from urllib.parse import urlencode
 except ImportError:  # Python 2 fallback, kept for safety
@@ -242,7 +244,7 @@ def get_landing_page(args):
 
 def open_browser(host_address):
     """Open the landing page, once the server is up and accepting connections."""
-    open_browser_when_ready("http://" + ip_address + ':' + str(port) + landing_page, host_address, port, script_name=script_name)
+    open_browser_when_ready(launch_url("http://" + ip_address + ':' + str(port) + access_guard.url_suffix(landing_page)), host_address, port, script_name=script_name)
 
 def close_server(old_settings):
     if old_settings is not None:
@@ -254,6 +256,7 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
     global ip_address
     global port
     global landing_page
+    global access_guard
 
     landing_page = page if page.startswith("/") else "/" + page
 
@@ -275,7 +278,12 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
         if port != start_port:
             printc.note("port " + str(start_port) + " is in use, using port " + str(port), script_name=script_name)
 
-    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + landing_page + printc.colors.ENDC, end="", script_name=script_name)
+    # Every request must carry the token of this start (see odatix.gui.access).
+    access_guard = AccessGuard(port=port, allowed_hosts=None)
+    if network:
+        access_guard.allowed_hosts.add(str(ip_address).lower())
+
+    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + access_guard.url_suffix(landing_page) + printc.colors.ENDC, end="", script_name=script_name)
     if network:
         print(" (network-accessible)")
     else:
@@ -297,6 +305,8 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
         config_file=config_file,
         theme=theme,
     )
+
+    access_guard.install(odatix_app.app.server)
 
     # Start the server
     # More worker threads than the waitress default (4): monitor callbacks issue
