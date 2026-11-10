@@ -857,6 +857,7 @@ def _readers(command):
     import odatix.components.export_simulation_results as exp_sim_res
     import odatix.components.export_workflow_results as exp_workflow_res
     import odatix.components.generate_configs as gen_configs
+    import odatix.components.init_detect as init_detect
     import odatix.components.migrate as migrate_cmd
     import odatix.components.replace_params as replace_params
     import odatix.components.run_analysis as run_analysis
@@ -868,7 +869,7 @@ def _readers(command):
     import odatix.components.run_workflow as run_workflow
 
     readers = {
-        "init": [odatix_main.init_directory],
+        "init": [odatix_main.init_directory, init_detect.run],
         "migrate": [migrate_cmd.main],
         "generate": [gen_configs.main],
         "replace": [replace_params.main],

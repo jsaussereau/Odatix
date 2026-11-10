@@ -234,3 +234,15 @@ def test_auto_delimiters_name_the_parameter_when_they_can():
 
 def test_vhdl_aggregates_are_not_parameters():
     assert _params("architecture a of e is begin q <= (others => '0'); end;", "e.vhd") == []
+
+
+def test_interface_clock_is_not_the_design_clock():
+    # a SPI clock sampled by a submodule must not win over the clock of the design
+    units = _verilog("""
+        module top(input wire i_xclk, input wire i_sck, input wire i_rst, output q);
+          spi u_spi (.i_sck(i_sck), .q(q));
+        endmodule
+        module spi(input wire i_sck, output reg q);
+          always @(posedge i_sck) q <= ~q;
+        endmodule""")
+    assert _clock(units[0], units)[0] == "i_xclk"

@@ -212,6 +212,59 @@ $ odatix init -y --cordic-solution   # same, with its description as My_Cordic_*
 The `odatix.yml` it writes sets `default_tool: vivado`, the tool the run
 commands use when `-t/--tool` names none.
 
+#### Describe an existing project
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix init --detect ../my_core             # describe the project as an architecture
+$ odatix init --detect ../my_core --dry-run   # only report what is found
+$ odatix init --detect ../my_core --top my_core --name core -y
+$ odatix init --detect ../my_core --parameters   # plus one parameter domain per parameter of the top level
+$ odatix init --detect ../my_core --parameters WIDTH,DEPTH   # only for these ones
+$ odatix init --detect ../my_core --parameters "fifo=WIDTH+DEPTH,MODE"   # WIDTH and DEPTH in one domain, fifo
+$ odatix init --detect ../my_core --json --dry-run   # the findings as JSON, for a script or an agent
+{{< /code >}}
+
+`odatix init --detect` reads the sources of an HDL project the way the project
+declares them: file lists (`.f`, `.vc`), `Bender.yml` (through `bender` when it
+is installed), FuseSoC cores, LibreLane configurations, Vivado projects and
+scripts, Quartus settings, cocotb makefiles, Design Compiler and Genus scripts.
+Without any of them, it infers the sources from the RTL: the hierarchy under
+the most likely top level, the packages it imports and the files it includes,
+in compilation order, testbenches left out.
+
+It then elaborates the result with slang, Verilator, Yosys or GHDL (whichever
+is installed) and fixes what the project can answer: a module, a package or an
+include file it holds elsewhere. When a package is defined by several files (one
+per variant of the design), it keeps the first that elaborates.
+
+Each finding says where it comes from; a guess is shown in yellow, and asked
+about when there is a terminal and no `-y`. What it writes:
+
+- the workspace, when the current directory holds none;
+- `odatix_filelist.f` at the root of the RTL directory of the design: its
+  sources, include directories and macros, read by every tool. The RTL itself
+  is neither copied nor changed;
+- the architecture (named after the top level, unless `--name` gives one).
+
+Run it from a directory next to the project rather than inside it: the RTL
+directory is copied into every work directory, so it cannot hold the workspace.
+
+When the RTL is generated (Chisel, SpinalHDL, Amaranth, Migen/LiteX, Vitis HLS)
+and no hand-written RTL elaborates, `odatix init --detect` runs the generator,
+in a temporary copy of the project made the way each job makes it, and
+describes what it writes: the architecture then generates its RTL
+(`generate_rtl`), each job running the same command. The command is the main
+object the README tells to run, or the one emitting HDL; when the program hands
+its own arguments to the compiler, an output directory is added
+(`-o=generated_rtl`). `--generate "COMMAND"` runs another one, `--no-generate`
+none. In the graphical interface, the same happens with the **Generate** button
+of the import window, whose command can be edited.
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix init --detect ../my_chisel_core                       # generates if needed
+$ odatix init --detect ../VexRiscv --generate "sbt 'runMain vexriscv.demo.GenSmallest'"
+{{< /code >}}
+
 ### Configuration
 
 There is no command to edit the configuration: the settings files are plain

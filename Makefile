@@ -78,6 +78,11 @@ docs-check:
 ########################################################
 
 .PHONY: test
+# Bench of "odatix init --detect" on real projects pinned to a commit (clones them
+# into ~/.cache/odatix/detect_bench, or $ODATIX_BENCH_CACHE). LIGHT=1 leaves out the heavy ones.
+detect-bench: $(VENV_PYTHON)
+	$(VENV_PYTHON) tests/bench/run_detect_bench.py $(if $(LIGHT),--light,)
+
 test:
 	python -m pytest
 

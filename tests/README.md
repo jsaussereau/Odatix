@@ -60,3 +60,23 @@ python -m pytest tests/test_config_generator.py -k power_of_two   # one area
 - Les tests qui documentent un bug corrigé (ex. bornes de `power_of_two`,
   collision de préfixes `$WIDTH`/`$WIDTH_OUT`) portent un commentaire — ne pas
   les « simplifier ».
+
+## Banc de détection sur des projets réels
+
+`tests/bench/` mesure `odatix init --detect` sur une trentaine de projets HDL
+open source connus (cœurs RISC-V, bibliothèques, VHDL, LibreLane, RTL généré),
+chacun figé à un commit dans `detect_projects.yml`.
+
+- `make detect-bench` (ou `LIGHT=1` sans les projets lourds comme CVA6) clone les
+  projets une fois dans `~/.cache/odatix/detect_bench` (`$ODATIX_BENCH_CACHE`),
+  lance la détection et compare à ce qui est attendu. Code de sortie 1 si une
+  attente non connue échoue.
+- `ODATIX_DETECT_BENCH=1` (ou `light`) l'exécute aussi sous pytest (marqueur
+  `bench`) ; sans la variable, seul le fichier des projets est vérifié.
+- Les attentes viennent de ce que le projet documente (son vrai top...), pas de
+  ce que la détection trouve. Ce qui échoue aujourd'hui pour une raison connue va
+  dans `known`, avec cette raison : un `FIXED` dans le rapport dit qu'on peut
+  l'en retirer.
+- Les générateurs (sbt, Python...) ne sont jamais lancés : ce serait exécuter le
+  code des projets. Un projet au RTL généré est vérifié sur la génération trouvée.
+- `--record fichier.yml` écrit ce qui est trouvé, pour ajouter un projet.

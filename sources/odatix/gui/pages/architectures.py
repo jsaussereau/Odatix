@@ -31,6 +31,7 @@ import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.gui.utils import get_workspace
 from odatix.gui.page_scope import page_callback, scoped
+import odatix.gui.project_import as project_import
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -168,6 +169,7 @@ def update_cards(_, odatix_settings):
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create new architecture", "arch"))
+    arch_cards.append(project_import.import_card())
     sim_cards = [normal_card(name, "sim") for name in simulations]
     sim_cards.append(add_card("Create new simulation", "sim"))
     return arch_cards, sim_cards
@@ -222,6 +224,7 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     simulations = ws.simulations.names()
     arch_cards = [normal_card(n, "arch") for n in architectures]
     arch_cards.append(add_card("Create new architecture", "arch"))
+    arch_cards.append(project_import.import_card())
     sim_cards = [normal_card(n, "sim") for n in simulations]
     sim_cards.append(add_card("Create new simulation", "sim"))
     return arch_cards, sim_cards, ""
@@ -285,6 +288,7 @@ def do_delete(n_clicks, info, odatix_settings):
     simulations = ws.simulations.names()
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create new architecture", "arch"))
+    arch_cards.append(project_import.import_card())
     sim_cards = [normal_card(name, "sim") for name in simulations]
     sim_cards.append(add_card("Create new simulation", "sim"))
     return "overlay-odatix", "", arch_cards, sim_cards
@@ -375,6 +379,7 @@ layout = html.Div(
                 ], className="popup-odatix")
             ]
         ),
+        project_import.popup(),
         dcc.Store(id="delete-info"),
         html.Div(
             id="delete-popup",
@@ -425,6 +430,8 @@ dash.clientside_callback(
     Output("scroll-to-hash-dummy", "data"),
     Input("url", "href"),
 )
+
+project_import.register(page_path)
 
 # Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
 layout = scoped(PAGE_SCOPE, layout)

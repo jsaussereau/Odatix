@@ -580,6 +580,18 @@ def _merge_evidence(units):
     return total
 
 
+#: Clocks of a serial interface (SPI, JTAG, I2C, MDIO, I2S...): an input of the
+#: design, rarely the clock it is timed by.
+_INTERFACE_CLOCKS = {"sck", "sclk", "spiclk", "tck", "jtck", "scl", "mdc", "bclk", "lrclk", "mck", "qspi"}
+
+
+def _interface_clock(name):
+    words = split_words(name)
+    joined = "".join(w for w in words if w not in ("i", "o", "in", "pad", "n", "p"))
+    return bool(_INTERFACE_CLOCKS.intersection(words)) or joined in _INTERFACE_CLOCKS \
+        or ("spi" in words or "jtag" in words or "i2c" in words) and ("clk" in words or "clock" in words)
+
+
 def _signal_candidates(unit, units, kind):
     """`kind`: "clock" or "reset"."""
     own = _edge_evidence(unit)
@@ -604,6 +616,9 @@ def _signal_candidates(unit, units, kind):
                 notes.append("clock edge in a submodule")
             score -= reset_name * 0.8
             score -= 6 * bool(mine["async_reset"])
+            if _interface_clock(port.name):
+                score -= 4
+                notes.append("clock of a serial interface")
         else:
             score = reset_name
             if mine["async_reset"]:

@@ -46,6 +46,7 @@ Nothing here runs a tool: the sources are only read.
 """
 
 import os
+import re
 
 import odatix.lib.hdl_detect as hdl_detect
 from odatix.lib.hdl_detect import Candidate
@@ -233,6 +234,52 @@ def _number(value):
     return value
 
 
+_RANGE = re.compile(r"^(-?\d+)\s*\.\.\s*(-?\d+)(?:\s*(?:step|:|/)\s*(\d+)|\s+(pow2|power_of_two|x2))?$", re.I)
+
+
+def values_variable(values, current=None):
+    """
+    The variable of a parameter domain listing the values of a parameter,
+    from what a user types:
+
+        ""                  its current value (``current``)
+        "8, 16, 32"         those values (also separated by spaces or ";")
+        "8..32" "8..32 step 8"   a range (bounds included)
+        "8..64 pow2"        the powers of two from 8 to 64
+
+    A list is taken as the values, a dict with a "type" as the variable itself.
+
+    Raises:
+        ValueError: a range whose bounds or step do not make one.
+    """
+    if isinstance(values, dict) and "type" in values:
+        return values
+    if isinstance(values, (list, tuple)):
+        items = list(values)
+    else:
+        text = str(values if values is not None else "").strip()
+        if not text:
+            items = [] if current is None else [current]
+        else:
+            match = _RANGE.match(text)
+            if match:
+                low, high, step, pow2 = int(match.group(1)), int(match.group(2)), match.group(3), match.group(4)
+                if low > high:
+                    raise ValueError("{0}: the first bound is above the second".format(text))
+                if pow2:
+                    if low <= 0:
+                        raise ValueError("{0}: powers of two need positive bounds".format(text))
+                    return {"type": "power_of_two", "settings": {"from": low, "to": high}}
+                step = int(step) if step else 1
+                if step == 0:
+                    raise ValueError("{0}: the step must not be 0".format(text))
+                return {"type": "range", "settings": {"from": low, "to": high, "step": step}}
+            if ".." in text:
+                raise ValueError('{0}: write a range as "8..32", "8..32 step 8" or "8..64 pow2"'.format(text))
+            items = [v for v in re.split(r"[,;\s]+", text) if v]
+    return {"type": "list", "settings": {"list": [_number(str(v).strip()) for v in items]}}
+
+
 def parameter_domain_settings(path, parameter, values=None, target_file=""):
     """
     The settings of a parameter domain sweeping one parameter of a source
@@ -266,16 +313,88 @@ def parameter_domain_settings(path, parameter, values=None, target_file=""):
     if delimiters is None:
         raise WorkspaceError(
             "No delimiters isolate the value of '{0}' in {1}: set start_delimiter and stop_delimiter by hand".format(name, path))
-    if values is None:
-        values = [param.value.strip()]
-    if not isinstance(values, (list, tuple)):
+    if values is not None and not isinstance(values, (list, tuple, dict, str)):
         values = [values]
+    variable = values_variable(values, param.value.strip())
     return {
         "use_parameters": True,
         "param_target_file": target_file or os.path.basename(path),
         "start_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(delimiters[0])),
         "stop_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(delimiters[1])),
-        "variables": {name: {"type": "list", "settings": {"list": [_number(v) for v in values]}}},
+        "variables": {name: variable},
+    }
+
+
+def section_delimiters(text, start, end, max_length=400):
+    """
+    Delimiters making a run replace exactly text[start:end]: the start one is
+    the shortest text ending at `start` whose first occurrence in the file ends
+    there; the stop one, the shortest text starting at `end` whose first
+    occurrence after `start` is there. None when there are none.
+    """
+    def word(c):
+        return c.isalnum() or c == "_"
+
+    begin = None
+    for length in range(1, min(start, max_length) + 1):
+        first = start - length
+        # never begin in the middle of a word: a delimiter reads as text of the file
+        if first > 0 and word(text[first - 1]) and word(text[first]):
+            continue
+        candidate = text[start - length:start]
+        if candidate.strip() and text.find(candidate) + length == start:
+            begin = candidate
+            break
+    if begin is None:
+        return None
+    for length in range(1, min(len(text) - end, max_length) + 1):
+        last = end + length
+        if last < len(text) and word(text[last - 1]) and word(text[last]):
+            continue
+        candidate = text[end:last]
+        if candidate.strip() and text.find(candidate, start) == end:
+            return begin, candidate
+    return None
+
+
+def parameter_group_settings(path, names, target_file="", values=None):
+    """
+    The settings of one parameter domain sweeping several parameters of a
+    source file together: the lines from the first of them to the last are
+    replaced by a template where the value of each is ${name} (the other
+    parameters of those lines keep theirs), each name being a variable listing
+    its current value, or ``values[name]`` (see values_variable). Best for
+    parameters declared next to each other.
+
+    Raises:
+        NotFoundError: one of the names is not a parameter of the file.
+        WorkspaceError: no delimiters isolate their lines.
+    """
+    import odatix.components.replace_params as replace_params
+
+    text = _read(path)
+    params = hdl_detect.detect_parameters(text, path)
+    by_name = dict((p.name, p) for p in params)
+    missing = [n for n in names if n not in by_name]
+    if missing:
+        raise NotFoundError("No parameter {0} in {1}".format(", ".join(missing), path))
+    chosen = sorted((by_name[n] for n in names), key=lambda p: p.start)
+    start = text.rfind("\n", 0, chosen[0].start) + 1
+    end = text.find("\n", chosen[-1].end)
+    end = len(text) if end < 0 else end
+    delimiters = section_delimiters(text, start, end)
+    if delimiters is None:
+        raise WorkspaceError("No delimiters isolate the lines of {0} in {1}".format(", ".join(names), path))
+    return {
+        "use_parameters": True,
+        "param_target_file": target_file or os.path.basename(path),
+        "start_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(delimiters[0])),
+        "stop_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(delimiters[1])),
+        "configurations": {
+            "name": "_".join("${{{0}}}".format(p.name) for p in chosen),
+            "template": hdl_detect.parameter_template(text, (start, end), chosen),
+        },
+        "variables": dict((p.name, values_variable((values or {}).get(p.name), p.value.strip())) for p in chosen),
     }
 
 

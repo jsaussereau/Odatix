@@ -291,6 +291,16 @@ class ArgParser:
     deprecated_option(ArgParser.init_parser, "-e", "--examples", action="store_true", dest="examples")
     ArgParser.init_parser.add_argument("--cordic", action="store_true", help="copy the sources of the CORDIC of the workshop (RTL and testbenches) and the material of its modules, without its description, to describe it yourself")
     ArgParser.init_parser.add_argument("--cordic-solution", dest="cordic_solution", action="store_true", help="with the sources of the CORDIC, the architectures and simulations that describe it, named \"..._solution\" to stay apart from yours")
+    detect = ArgParser.init_parser.add_argument_group("existing project")
+    detect.add_argument("--detect", nargs="?", const=".", metavar="PATH", help="describe the HDL project in PATH (the current directory by default) as an architecture: sources in compilation order, include directories, macros, top level, clock and reset, read from its file lists, Bender, FuseSoC, LibreLane, Vivado, Quartus or makefiles, or inferred from the RTL, then checked by elaborating it")
+    detect.add_argument("--top", help="with --detect: the top level module, instead of guessing it")
+    detect.add_argument("--name", help="with --detect: the name of the architecture (default: the top level)")
+    detect.add_argument("--parameters", nargs="?", const="*", metavar="NAMES", help="with --detect: also create a parameter domain for each parameter of the top level, or for those named (comma separated: --parameters WIDTH,DEPTH); \"NAME=A+B\" puts A and B in one domain named NAME")
+    detect.add_argument("--dry-run", dest="dry_run", action="store_true", help="with --detect: report what is found, write nothing")
+    detect.add_argument("--generate", nargs="?", const="", metavar="COMMAND", help="with --detect: run the generator of the RTL (Chisel, SpinalHDL, Amaranth...), in a temporary copy of the project, and describe what it writes; COMMAND instead of the one found. Done anyway when no hand-written RTL elaborates")
+    detect.add_argument("--no-generate", dest="no_generate", action="store_true", help="with --detect: never run the generator of the RTL")
+    detect.add_argument("--no-check", dest="no_check", action="store_true", help="with --detect: do not elaborate the sources to check them")
+    detect.add_argument("--json", action="store_true", help="with --detect: print what is found as JSON")
     ArgParser.add_nobanner(ArgParser.init_parser)
 
     ArgParser.gen_configs_parser = add("generate", "generate configurations")
@@ -632,6 +642,13 @@ def init_directory(args):
   "odatix init": asks before writing, unless told not to (-y) or there is no
   one to ask (no terminal, as in a script).
   """
+  if args.detect is not None:
+    import odatix.components.init_detect as init_detect
+    return init_detect.run(args)
+  for option in ("top", "name", "parameters", "dry_run", "no_check", "json", "generate", "no_generate"):
+    if getattr(args, option) not in (None, False):
+      printc.error("--" + option.replace("_", "-") + " goes with --detect", "odatix")
+      return False
   if args.noask or not sys.stdin.isatty():
     return OdatixSettings.init_directory_nodialog(bool(args.examples), prog, cordic=args.cordic, cordic_solution=args.cordic_solution)
   return OdatixSettings.init_directory_dialog(include_examples=args.examples, prog=prog, cordic=args.cordic, cordic_solution=args.cordic_solution)
