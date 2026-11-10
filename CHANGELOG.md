@@ -3,7 +3,60 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## [4.0.0] - Unreleased
+## [4.1.0] - Unreleased
+
+### Added
+
+#### Tools
+
+- **Fusion Compiler** (`fusion_compiler`, contributed by Mathias Michelotti): fmax search, synthesis and RTL analysis, on a GlobalFoundries 22FDX+ setup to adapt to your installation. As with Vivado, a job stops after synthesis (logical) or goes on to place and route (`--until pnr`), whatever its flow, and the reports of each step are kept apart. Flows `standard`, `high_effort`, `keep_hierarchy`, `timing`, `area` and `power` are synthesis and place and route strategies
+
+#### Running jobs
+
+- With `-E`, a run ends by listing each failed job and its log directory
+- Simulation and workflow jobs keep what their commands print in `log/console.log`, as synthesis jobs do
+- `odatix dse` lists the designs it could not measure, and why, at the end of a campaign
+- `job_timeout` in a run settings file (`--timeout`): a job running longer is stopped, with what it started, and counted failed
+- Without a monitor, `-E` says every 10 minutes how long each running job has run, and how long its logs have been silent
+- **File lists**: `filelist`, `filelist_variables` and `defines` in the settings of an architecture. Every tool (Design Compiler, Genus, Vivado, Quartus, LibreLane, yosys_fpga, the RTL analyses, the simulation templates) reads the file list of a design as it is, with its `+incdir+`, `+define+`, `-f`/`-F` and `${VARIABLE}`s, whose values may come from a variable of the architecture (one job per configuration package, as CVA6 picks them)
+
+#### Existing projects
+
+- `odatix init --detect [PATH]` describes an existing HDL project as an architecture: sources in compilation order, include directories, macros, top level, clock, reset and parameters, read from its file lists, Bender, FuseSoC, LibreLane, Vivado, Quartus, cocotb makefiles or synthesis scripts, or inferred from the RTL; then checked by elaborating it with slang, Verilator, Yosys or GHDL, fixing missing modules, packages and include directories, and choosing among the variants of a configuration package. `--dry-run`, `--json`, `--top`, `--name`, `--parameters [NAMES]`, `--no-check`. A group of parameters (`--parameters "fifo=WIDTH+DEPTH"`, or parameters dragged onto the same domain in the GUI) shares one parameter domain, replacing the lines from the first to the last. In the GUI, the values each parameter takes are typed next to it: `8, 16, 32`, `8..64 step 8` or `8..64 pow2` (`workspace.detect.values_variable`)
+- Generated RTL (Chisel, SpinalHDL, Amaranth, Migen/LiteX, Vitis HLS): `odatix init --detect` runs the generator in a temporary copy of the project, as a job would, finds the output directory from the files it writes, and describes the generated RTL as an architecture with `generate_rtl`. `--generate [COMMAND]`, `--no-generate`
+- The architectures page of the GUI imports an existing project ("Import existing project"): detection report with the origin of each finding, top, clock and reset to choose, generation of the RTL with an editable command, then the architecture editor
+
+#### AI agents
+
+- The guesses of the GUI's auto detect buttons are in the Python API: `Architecture.detect_sources()` / `fill_from_sources()` (top level, clock, reset), `Architecture.detect_parameters()` (ranked by relevance) and `ParameterDomainCollection.create_from_parameter()` (one parameter domain per swept parameter, delimiters found automatically), plus `detect_sources`, `detect_parameters` and `parameter_domain_settings` for any directory or file
+- `odatix init` writes an `AGENTS.md` guide for AI coding agents at the root of the workspace; an existing one is kept, with the Odatix notes added at its end, once
+- New `Example_Adder_Tree_sv` example: parameters in a SystemVerilog package, swept by domains naming it in `param_target_file`
+- Every page of the documentation is also published alone as Markdown (`<page>/index.md`), listed at the top of each `/<category>/llms.txt`
+- The documentation has a [Use Odatix with AI agents](https://odatix.readthedocs.io/en/latest/docs/ai_agents/) page, and publishes `/llms.txt`, an index linking every category of the documentation as Markdown (`/<category>/llms.txt`, regenerated with the site)
+
+#### Odatix GUI
+
+- **Access token**: `odatix-gui` and `odatix-explorer` only answer the browser opened with the address they print (`?token=...`, traded for a cookie), and only under a name of the machine. Listening on 127.0.0.1 did not keep out the other users of a shared server, nor web pages reaching a loopback port. `ODATIX_GUI_TOKEN` sets the token, `ODATIX_GUI_ALLOWED_HOSTS` adds names
+- The file browser of path fields still opens on the workspace, but goes anywhere from there; `gui_browse_roots` (**Browsable folders** on the workspace settings page) limits it to some folders (`.`: the workspace only). A path out of the workspace is written absolute
+- Browse buttons on the path fields that had none: project directory of **Import an existing project**, paths and settings files of the workspace settings page, source path and parameter target file of the workflow editor
+
+### Fixed
+
+- Innovus: clock tree synthesis no longer stops on a netlist instantiating a module several times (`IMPCCOPT-4255`): the netlist is made unique when it is read
+- A repository holding links to nothing (files only its build writes) can be the RTL path of a design: the copy left them out instead of stopping
+- The RTL analysis of a design with a file list only looks at the languages of the files it names
+- Yosys + nextpnr: a design faster than the upper bound of the Fmax search was given the upper bound as its Fmax; its job now fails, asking for a higher bound, as with the other tools
+- Verilator and Icarus RTL analysis: a SystemVerilog package in another file than the top level was not found
+- A run whose `rtl_path` holds its own work directory (`rtl_path: .`) is refused, instead of copying the workspace into every job
+- `odatix results` outside a workspace: internal error instead of the message saying so
+- Python API: `create()` refused the name of an entry left empty by a script that stopped before `save()`
+- Python API: `tool.metrics.set(...)` then `tool.metrics.save()` saved nothing (each access gave a new object)
+- Icarus simulation template: a testbench kept in the RTL directory was compiled twice, and iverilog's "sorry: ... not fully supported" notes failed the simulation
+- A workflow that names no `param_target_file` no longer needs `use_parameters: No`
+- A synthesis metric read by a `regex` without `format` is written as a number, not as text
+- `odatix pnr` no longer notes that a wildcard source matches nothing when another source matched
+
+## [4.0.0] - 2026-11-04
 
 Odatix 4.0 is a major release. Most 3.7 workspaces keep working: former command names, settings file names and keys are still accepted for a few versions, with a warning saying what to write instead, and `odatix migrate` rewrites a workspace to the new format. Read **Breaking changes** before upgrading.
 
