@@ -38,6 +38,7 @@ import textwrap
 import pytest
 
 import odatix.lib.eda_tools as eda_tools
+import odatix.lib.job_steps as job_steps
 from odatix.lib.settings import OdatixSettings
 
 
@@ -99,6 +100,24 @@ class TestBuiltinFlows:
             assert eda_tools.get_flow_steps("design_compiler", flow, "custom_freq_synthesis") == standard, flow
         assert eda_tools.get_flow_parameters("design_compiler")["compile"] == "compile"
         assert eda_tools.get_flow_parameters("design_compiler", "ultra_timing")["compile"] == "compile_ultra"
+
+    def test_fusion_compiler_flows_are_strategies_going_to_synthesis_or_pnr(self, user_tools_dir):
+        # As with Vivado, "--until" chooses how far a job goes, whatever the
+        # strategy: synthesis, or place and route. Synthesis is where a run
+        # stops by default.
+        flows = eda_tools.get_flow_names("fusion_compiler", "custom_freq_synthesis")
+        assert flows == ["standard", "high_effort", "keep_hierarchy", "timing", "area", "power"]
+        for job_type, names in (
+            ("fmax_synthesis", ["synthesis", "pnr"]),
+            ("custom_freq_synthesis", ["elaborate", "synthesis", "pnr"]),
+        ):
+            for flow in flows:
+                steps = eda_tools.get_flow_steps("fusion_compiler", flow, job_type)
+                assert [step["name"] for step in steps] == names, (job_type, flow)
+                assert job_steps.default_step(steps) == "synthesis", (job_type, flow)
+        assert eda_tools.get_default_flow("fusion_compiler") == "standard"
+        assert eda_tools.get_flow_parameters("fusion_compiler")["app_options"] == []
+        assert "opt.power.mode total" in eda_tools.get_flow_parameters("fusion_compiler", "power")["app_options"]
 
     def test_innovus_declares_its_strategies(self, user_tools_dir):
         assert eda_tools.get_flow_names("innovus", "pnr") == INNOVUS_FLOWS

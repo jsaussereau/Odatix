@@ -659,7 +659,7 @@ class TestExpectations:
 ######################################
 
 class TestDefinitions:
-    @pytest.mark.parametrize("tool", ["verilator", "icarus", "yosys", "ghdl", "questa", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "librelane"])
+    @pytest.mark.parametrize("tool", ["verilator", "icarus", "yosys", "ghdl", "questa", "vivado", "quartus", "design_compiler", "genus", "dc_nxt", "fusion_compiler", "librelane"])
     def test_every_category_a_definition_names_exists(self, tool):
         definition = analysis.load_definition(tool)
         assert definition.rules

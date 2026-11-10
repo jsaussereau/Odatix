@@ -40,7 +40,7 @@ that command.
 | **Quartus** | Altera | FPGA | Fmax search, Synthesis, RTL analysis | `standard`, `balanced`, `runtime`, `performance`, `area`, `power_opt` | Validated | Commercial |
 | **Design Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `ultra`, `ultra_keep_hierarchy`, `ultra_timing`, `ultra_area`, `ultra_power` | Validated | Commercial |
 | **DC NXT** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | Those of Design Compiler, run by `dcnxt_shell` | Validated | Commercial |
-| **Fusion Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `keep_hierarchy`, `timing`, `area`, `power`; each goes as far as synthesis or as place & route (`--until pnr`) | WIP | Commercial |
+| **Fusion Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `keep_hierarchy`, `timing`, `area`, `power`; each goes as far as synthesis or as place & route (`--until pnr`) | Validated | Commercial |
 | **Genus** | Cadence | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `medium_effort`, `extreme`, `timing`, `area`, `power` | Validated | Commercial |
 | **GHDL** | GHDL | Any | RTL analysis | `lint` | Validated | Open source |
 | **Icarus Verilog** | Icarus | Any | RTL analysis | `lint` | Validated | Open source |
