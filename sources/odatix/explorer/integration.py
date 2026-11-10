@@ -33,8 +33,13 @@ import os
 
 from odatix.explorer.core.store import STORE
 
+#: Where the back arrow of the Explorer home leads when the tab has no previous
+#: page (see gui/assets/back_navigation.js); None: no arrow, the Explorer is
+#: the app itself (standalone).
+HOST_HOME = None
 
-def register_explorer(app=None, settings=None):
+
+def register_explorer(app=None, settings=None, host_home=None):
   """
   Register the explorer pages and callbacks into the current Dash app, and
   optionally point the result store at the workspace result path.
@@ -45,7 +50,11 @@ def register_explorer(app=None, settings=None):
       settings: an OdatixSettings instance or a settings dict, used for the
           initial result path (the odatix-settings store keeps it up to date
           afterwards).
+      host_home: the host's own home page, which the Explorer home gets a
+          back arrow to (None in the standalone Explorer).
   """
+  global HOST_HOME
+  HOST_HOME = host_home
   import odatix.explorer.pages  # noqa: F401 — importing registers the pages
   from odatix.explorer.callbacks import register_callbacks
   register_callbacks()

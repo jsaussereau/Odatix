@@ -247,6 +247,21 @@ def tooltip_icon(tooltip: str="", tooltip_options: str="secondary") -> Component
 # and the /run_jobs page. The matching css lives in assets/odatix-ui.css.
 ######################################
 
+def back_arrow(href: str, id: Optional[Union[str, dict]] = None, size: str = "28px") -> Component:
+    """
+    Back arrow to sit in a header row. Like every back arrow, a click goes back
+    to the previous page of the tab (assets/back_navigation.js); ``href`` is
+    where it leads when there is none.
+    """
+    link_kwargs = {"id": id} if id is not None else {}
+    return dcc.Link(
+        icon("back", className="icon back-button", width=size, height=size),
+        href=href,
+        className="odx-back",
+        **link_kwargs,
+    )
+
+
 def page_bar(
     title,
     actions=None,
@@ -263,15 +278,7 @@ def page_bar(
     """
     left = []
     if back_link is not None or back_id is not None:
-        link_kwargs = {"id": back_id} if back_id is not None else {}
-        left.append(
-            dcc.Link(
-                icon("back", className="icon back-button", width="28px", height="28px"),
-                href=back_link if back_link is not None else "/",
-                className="odx-back",
-                **link_kwargs,
-            )
-        )
+        left.append(back_arrow(back_link if back_link is not None else "/", id=back_id))
     if isinstance(title, str):
         title_kwargs = {"id": title_id} if title_id is not None else {}
         left.append(html.H1(title, className="odx-title", **title_kwargs))

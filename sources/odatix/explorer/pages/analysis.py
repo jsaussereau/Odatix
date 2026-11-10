@@ -665,12 +665,18 @@ def layout(**kwargs):
             [
               html.Div(
                 [
-                  html.H1("RTL analysis", className="xpa-title"),
-                  html.P(
-                    "What every analysis found, design by design: what needs attention first, what is expected apart.",
-                    className="xpa-subtitle",
+                  ui.back_arrow("/explorer"),
+                  html.Div(
+                    [
+                      html.H1("RTL analysis", className="xpa-title"),
+                      html.P(
+                        "What every analysis found, design by design: what needs attention first, what is expected apart.",
+                        className="xpa-subtitle",
+                      ),
+                    ],
                   ),
                 ],
+                className="xp-report-heading",
               ),
               html.Div(
                 [

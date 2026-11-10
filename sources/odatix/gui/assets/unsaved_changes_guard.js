@@ -178,6 +178,15 @@
     }
   }
 
+  // Read by back_navigation.js, which leaves a dirty page's back arrow to this
+  // guard, acts on the click replayed once the user confirmed, and does not
+  // count the URL a save rewrites as a page to go back to.
+  window.__odatixUnsavedGuard = {
+    isDirty: isDirty,
+    bypassing: function () { return bypass; },
+    inSaveGrace: inSaveGrace,
+  };
+
   function start() {
     // Capture phase: run before Dash/React's own click handling so we can
     // cancel the navigation entirely when the page is dirty.

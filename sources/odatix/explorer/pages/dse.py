@@ -51,6 +51,7 @@ import odatix.explorer.core.dse_factors as dse_factors
 from odatix.explorer.core.dse import CAMPAIGNS
 from odatix.explorer.core.store import STORE
 import odatix.explorer.ui.components as components
+import odatix.gui.ui_components as ui
 
 POLL_INTERVAL_MS = 3000
 
@@ -128,13 +129,19 @@ def layout(campaign=None, **kwargs):
         [
           html.Div(
             [
-              html.H1("Design space exploration", className="xp-dse-title"),
+              ui.back_arrow("/explorer"),
               html.Div(
-                "What the search evaluated, and which designs are the answer.",
-                className="xp-dse-subtitle",
+                [
+                  html.H1("Design space exploration", className="xp-dse-title"),
+                  html.Div(
+                    "What the search evaluated, and which designs are the answer.",
+                    className="xp-dse-subtitle",
+                  ),
+                ],
+                className="xp-dse-heading",
               ),
             ],
-            className="xp-dse-heading",
+            className="xp-report-heading",
           ),
           html.Div(
             dcc.Dropdown(id="xp-dse-campaign", options=[], value=campaign or None, clearable=False,

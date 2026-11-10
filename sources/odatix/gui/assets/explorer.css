@@ -2650,3 +2650,25 @@ button.xpa-stat-card:hover {
     background: var(--theme-primary-color);
     border-color: var(--theme-primary-color);
 }
+
+/* Back arrow beside the title of a report page (DSE, RTL analysis). */
+.xp-report-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Back arrow of the Explorer home, when it runs inside the GUI: on the left of
+   the centered header, like the page headers of the GUI. */
+.xp-home-heading {
+  position: relative;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.xp-home-heading > .odx-back {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 40px;
+}

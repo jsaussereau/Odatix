@@ -29,6 +29,8 @@ from dash_svg import Svg, Path, Ellipse
 
 from odatix.components import home_shared
 from odatix.explorer.core.store import STORE
+import odatix.explorer.integration as integration
+import odatix.gui.ui_components as ui
 import odatix.explorer.core.views as views
 import odatix.explorer.callbacks.views as views_callbacks
 from odatix.explorer.ui.insights import insights_section
@@ -159,7 +161,13 @@ def layout(**kwargs):
       # What the sections below were last built from: the poll only rebuilds
       # a section when it changed, instead of every 3 seconds.
       dcc.Store(id="xp-home-signature", data={}),
-      home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
+      html.Div(
+        [
+          ui.back_arrow(integration.HOST_HOME, size="30px") if integration.HOST_HOME else None,
+          home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
+        ],
+        className="xp-home-heading",
+      ),
       # The chart and report kinds first, then the data (what was loaded, or
       # why nothing was), the suggestions and the saved views.
       section_header("Charts"),

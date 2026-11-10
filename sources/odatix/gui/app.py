@@ -75,7 +75,7 @@ class OdatixApp:
 
         self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 
-        register_explorer(self.app, settings=self.odatix_settings)
+        register_explorer(self.app, settings=self.odatix_settings, host_home="/")
 
         self.setup_layout()
         self.setup_callbacks()
