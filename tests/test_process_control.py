@@ -44,11 +44,17 @@ def _tick_until(handler, condition, timeout=5.0):
 
 
 def _alive(pid):
+    # A killed orphan stays a zombie where PID 1 does not reap (the CI
+    # container): signal 0 still reaches it, though it is dead.
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    return True
+    try:
+        with open("/proc/{}/stat".format(pid), encoding="utf-8") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        return True
 
 
 def _wait_for_file(path, timeout=5.0):
