@@ -144,6 +144,15 @@ class WorkspaceSettings(Settings):
     cpu_limit = Setting("", type="any", skip_if_empty=True, doc="CPU usage (%) above which jobs are paused.")
     mem_limit = Setting("", type="any", skip_if_empty=True, doc="Memory usage (%) above which jobs are paused.")
 
+    gui_browse_roots = Setting(
+        "", type="str_list", skip_if_empty=True, section="GUI",
+        doc=(
+            "Folders the file browser of the GUI may open besides the workspace (relative to it, or "
+            "absolute, \"~\" for the home directory). The whole file system when empty; \".\" keeps the "
+            "browser in the workspace."
+        ),
+    )
+
     session_access = Setting(
         "", type="str", skip_if_empty=True, section="Sessions",
         doc=(

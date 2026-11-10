@@ -5,7 +5,7 @@
 // File browser of the path fields (ui.path_input). The browser of the user
 // may run on another machine than the GUI, and a path field holds a path of
 // the server: the listing is asked to the server (gui/file_browser.py), one
-// directory at a time, and never goes out of the workspace.
+// directory at a time, and never goes out of the folders it may open.
 //
 // A click on a ".odx-path-browse" button opens the modal on the directory of
 // the field's value. The selection is written back with
@@ -92,10 +92,19 @@
     foot.appendChild(el.result);
     foot.appendChild(buttons);
 
+    // Side panel of places, then the entries of the current folder.
+    var body = make("div", "odx-fb-body");
+    el.places = make("nav", "odx-fb-places");
+    el.places.setAttribute("aria-label", "Places");
+    var main = make("div", "odx-fb-main");
+    main.appendChild(el.list);
+    main.appendChild(el.note);
+    body.appendChild(el.places);
+    body.appendChild(main);
+
     dialog.appendChild(head);
     dialog.appendChild(bar);
-    dialog.appendChild(el.list);
-    dialog.appendChild(el.note);
+    dialog.appendChild(body);
     dialog.appendChild(foot);
 
     el.overlay.addEventListener("mousedown", function (e) {
@@ -109,12 +118,13 @@
   // --- paths ------------------------------------------------------------- //
 
   function join(dir, name) {
-    return dir ? dir + "/" + name : name;
+    if (!dir) return name;
+    return dir.charAt(dir.length - 1) === "/" ? dir + name : dir + "/" + name;
   }
 
-  function parentOf(path) {
-    var i = path.lastIndexOf("/");
-    return i < 0 ? "" : path.slice(0, i);
+  // A path out of the workspace travels absolute (see file_browser.py).
+  function isAbsolute(path) {
+    return /^(\/|[A-Za-z]:[\/\\])/.test(path || "");
   }
 
   // `target` (relative to the workspace) as written relative to `base`.
@@ -162,6 +172,10 @@
         }
         session.error = "";
         session.path = data.path;
+        session.parent = data.parent;
+        session.crumbs = data.crumbs || [];
+        session.roots = data.roots || [];
+        session.places = data.places || session.places;
         session.root = data.root;
         session.rootName = data.root_name;
         session.entries = data.entries;
@@ -208,7 +222,7 @@
   function visibleEntries() {
     var filter = (el.filter.value || "").toLowerCase();
     var list = [];
-    if (state.path && !filter) list.push({ name: "..", dir: true, parent: true });
+    if (state.parent !== null && state.parent !== undefined && !filter) list.push({ name: "..", dir: true, parent: true });
     (state.entries || []).forEach(function (entry) {
       if (!filter || entry.name.toLowerCase().indexOf(filter) >= 0) list.push(entry);
     });
@@ -238,28 +252,75 @@
     return icon(CODE_EXT.indexOf(extensionOf(entry.name)) >= 0 ? "file_code" : "file");
   }
 
+  // The place holding `path`: the deepest one, a folder of the workspace
+  // before the workspace itself.
+  function placeOf(path) {
+    var best = null;
+    var all = state.places ? (state.places.system || []).concat(state.places.workspace || []) : [];
+    all.forEach(function (p) {
+      if (!p.available || p.path === null) return;
+      if (isAbsolute(p.path) !== isAbsolute(path)) return;
+      var inside = p.path === path || p.path === "" || p.path === "/"
+        || (path || "").indexOf(p.path.replace(/\/$/, "") + "/") === 0;
+      if (inside && (!best || p.path.length > best.path.length)) best = p;
+    });
+    return best;
+  }
+
+  function renderPlaces() {
+    el.places.textContent = "";
+    if (!state.places) return;
+    var active = placeOf(state.path);
+    [["System", state.places.system], ["Workspace", state.places.workspace]].forEach(function (group) {
+      if (!group[1] || !group[1].length) return;
+      el.places.appendChild(make("div", "odx-fb-places-title", group[0]));
+      group[1].forEach(function (p) {
+        var button = make("button", "odx-fb-place");
+        button.type = "button";
+        button.appendChild(icon(p.icon || "folder", 16));
+        button.appendChild(make("span", "", p.name));
+        if (!p.available) {
+          button.disabled = true;
+          button.title = (p.title ? p.title + " — " : "") + "not available";
+        } else {
+          button.title = p.title || p.name;
+          button.addEventListener("click", function () { load(p.path); el.filter.focus(); });
+        }
+        if (p === active) button.classList.add("active");
+        el.places.appendChild(button);
+      });
+    });
+  }
+
   function renderCrumbs() {
     el.crumbs.textContent = "";
-    var home = make("button", "odx-fb-crumb root");
-    home.type = "button";
-    home.title = "Workspace root (" + state.root + ")";
-    home.appendChild(icon("home", 16));
-    home.appendChild(make("span", "", state.rootName || "Workspace"));
-    home.addEventListener("click", function () { load(""); el.filter.focus(); });
-    el.crumbs.appendChild(home);
-    var parts = state.path ? state.path.split("/") : [];
-    parts.forEach(function (part, i) {
-      el.crumbs.appendChild(make("span", "odx-fb-sep", "/"));
-      var target = parts.slice(0, i + 1).join("/");
-      var crumb = make("button", "odx-fb-crumb" + (i === parts.length - 1 ? " current" : ""), part);
+    var crumbs = state.crumbs || [];
+    var inWorkspace = !(crumbs.length && isAbsolute(state.path));
+    var trail = make("span", "odx-fb-path");
+    var previous = "";
+    crumbs.forEach(function (c, i) {
+      // The root crumb: the workspace by its name, any other root by its
+      // full path ("/", "~/projects").
+      var name = i === 0 && !inWorkspace ? (c.display || c.name) : c.name;
+      if (i > 0 && previous.slice(-1) !== "/") trail.appendChild(make("span", "odx-fb-sep", "/"));
+      previous = name;
+      var crumb = make("button", "odx-fb-crumb" + (i === crumbs.length - 1 ? " current" : ""));
       crumb.type = "button";
-      crumb.addEventListener("click", function () { load(target); el.filter.focus(); });
-      el.crumbs.appendChild(crumb);
+      if (i === 0 && inWorkspace) {
+        crumb.classList.add("root");
+        crumb.appendChild(icon("workspace", 14));
+      }
+      crumb.appendChild(make("span", "", name));
+      crumb.title = c.path || state.root;
+      crumb.addEventListener("click", function () { load(c.path); el.filter.focus(); });
+      trail.appendChild(crumb);
     });
+    el.crumbs.appendChild(trail);
     el.crumbs.scrollLeft = el.crumbs.scrollWidth;
   }
 
   function render() {
+    renderPlaces();
     renderCrumbs();
     el.list.textContent = "";
     if (state.error) {
@@ -308,7 +369,9 @@
     el.note.style.display = notes.length ? "" : "none";
 
     var chosen = chosenPath();
-    el.result.textContent = chosen === null ? "Nothing selected" : output(chosen);
+    // The result is cut on its left (direction: rtl): the marks keep the
+    // slashes of the path where they are.
+    el.result.textContent = chosen === null ? "Nothing selected" : "\u200E" + output(chosen) + "\u200E";
     el.result.classList.toggle("empty", chosen === null);
     el.select.disabled = chosen === null;
     el.select.textContent = state.mode === "dir" && !selectable(currentEntry()) ? "Select this folder" : "Select";
@@ -333,7 +396,8 @@
 
   // A workspace path as the field writes it.
   function output(path) {
-    if (state.absolute) return state.root + (path ? "/" + path : "");
+    if (isAbsolute(path)) return path;
+    if (state.absolute || isAbsolute(state.base)) return state.root + (path ? "/" + path : "");
     if (state.baseInsideOnly && state.base && path !== state.base
         && (path || "").indexOf(state.base + "/") !== 0) return path || ".";
     return relativeTo(path, state.base);
@@ -344,8 +408,9 @@
   function activate(entry) {
     if (!entry) return;
     if (entry.parent) {
+      if (state.parent === null || state.parent === undefined) return;
       var from = state.path.split("/").pop();
-      load(parentOf(state.path), from);
+      load(state.parent, from);
     } else if (entry.dir) {
       load(join(state.path, entry.name));
     } else if (selectable(entry)) {
@@ -376,7 +441,7 @@
       if ((e.ctrlKey || e.metaKey) && chosenPath() !== null) confirm();
       else if (entry) activate(entry);
       else if (state.mode === "dir" && !el.filter.value) confirm();
-    } else if (e.key === "Backspace" && document.activeElement === el.filter && !el.filter.value && state.path) {
+    } else if (e.key === "Backspace" && document.activeElement === el.filter && !el.filter.value && state.parent !== null && state.parent !== undefined) {
       e.preventDefault();
       activate({ parent: true });
     } else if (e.key === "Tab") {
@@ -456,6 +521,10 @@
       absolute: value.charAt(0) === "/",
       showHidden: false,
       path: "",
+      parent: null,
+      crumbs: [],
+      roots: [],
+      places: null,
       entries: [],
       cursor: -1,
       error: "",

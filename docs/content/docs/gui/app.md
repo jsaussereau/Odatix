@@ -134,6 +134,47 @@ name.
 
 Running it on a remote machine — a build server, a licence server — works the same way, see [Hosting on a server](/docs/gui/host_server/).
 
+## Access
+
+The GUI runs commands as you and browses your files, so it only answers the
+browser it was opened for. Each start draws a token, which the address the GUI
+prints carries:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix-gui -B
+[odatix-gui] Server running on http://127.0.0.1:8052/?token=Xq3v... (localhost only)
+{{< /code >}}
+
+The first visit trades the token for a cookie of that browser and drops it from
+the address bar. Without it, the GUI answers "Access denied": open the address
+it printed again. Listening on `127.0.0.1` alone would not be enough. Every
+user of a shared server can reach a loopback port, and a web page you visit
+can reach one too.
+
+- `ODATIX_GUI_TOKEN` sets the token instead of drawing one, to keep the same
+  address across restarts (a script, a bookmark).
+- The address must name this machine (`localhost`, `127.0.0.1`, its hostname,
+  or its address with `--network`). To reach the GUI under another name (a
+  reverse proxy), list it in `ODATIX_GUI_ALLOWED_HOSTS` (comma-separated, `*`
+  for any).
+
+The same applies to `odatix-explorer`.
+
+### Folders the file browser opens
+
+The browse button of path fields opens on the workspace, and can go anywhere
+from there (`..` above its root). The **Browsable folders** setting of the
+workspace settings page (`gui_browse_roots` in `odatix.yml`) limits it to the
+folders it lists besides the workspace: your home directory (`~`), a PDK, a
+shared IP directory. Set it to `.` to keep the browser in the workspace. A path
+inside the workspace is written relative to it, any other one absolute.
+
+{{< code lang=yaml filename="odatix.yml" >}}
+gui_browse_roots:
+  - ~
+  - /opt/pdk
+{{< /code >}}
+
 ## See also
 
 - [Job Monitor & sessions](/docs/sessions/) — following jobs, from the GUI or the terminal.

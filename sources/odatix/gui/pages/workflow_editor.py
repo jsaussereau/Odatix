@@ -334,12 +334,18 @@ def workflow_form_field(
     tooltip="",
     placeholder="",
     tooltip_options="secondary",
+    browse=None,
 ):
+    """`browse`: the options of ui.path_input, for a field holding a path."""
+    if browse is not None:
+        control = ui.path_input(id=id, value=value, placeholder=placeholder, **browse)
+    else:
+        control = dcc.Input(id=id, value=value, type="text", placeholder=placeholder, style={"width": "100%"})
     return html.Div(
         children=[
             html.Label(label),
             ui.tooltip_icon(tooltip, tooltip_options),
-            dcc.Input(id=id, value=value, type="text", placeholder=placeholder, style={"width": "100%"}),
+            control,
         ],
         style={"marginBottom": "12px"},
     )
@@ -360,6 +366,7 @@ def workflow_form(settings):
                         id="wf-source-path",
                         value=sources.get("path", ""),
                         tooltip="Directory copied in each workflow work directory before running tasks.",
+                        browse={"mode": "dir"},
                     ),
                     workflow_form_field(
                         label="Source whitelist",
@@ -401,6 +408,7 @@ def workflow_form(settings):
                                 id="wf-param-target-file",
                                 value=defval("param_target_file", ""),
                                 tooltip="File in the copied sources where replacements are applied.",
+                                browse={"mode": "file", "base_input": "wf-source-path"},
                             ),
                             workflow_form_field(
                                 label="Start delimiter",

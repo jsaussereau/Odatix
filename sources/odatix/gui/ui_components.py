@@ -424,8 +424,16 @@ def form_field(
     disabled: bool=False,
     className: str="",
     type=None,
+    browse: Optional[dict]=None,
 ) -> Component:
-    """Labelled text/number input."""
+    """
+    Labelled text/number input. `browse`: the options of `path_input`, for a
+    field holding a path (a button opens the file browser).
+    """
+    if browse is not None:
+        control = path_input(id=id, value=value, placeholder=placeholder, disabled=disabled, **browse)
+    else:
+        control = dcc.Input(id=id, value=value, type=type, placeholder=placeholder, disabled=disabled)
     return html.Div(
         children=[
             html.Div(
@@ -435,7 +443,7 @@ def form_field(
                 ],
                 className="odx-field-label",
             ),
-            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, disabled=disabled),
+            control,
         ],
         className=f"odx-field {className}".strip(),
         style=style or {},
@@ -500,7 +508,7 @@ def path_input(
             html.Button(
                 icon("folder_open", width="18px", height="18px"),
                 className="odx-input-button odx-path-browse",
-                title="Browse the workspace",
+                title="Browse",
                 type="button",
                 disabled=disabled,
                 **data

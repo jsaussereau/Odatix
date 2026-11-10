@@ -114,6 +114,14 @@ default_tool: vivado  # overridden by -t / --tool
 # mem_limit: 98
 
 #--------------------------------------------#
+# GUI
+#--------------------------------------------#
+
+# folders the file browser of the GUI may open besides the workspace
+# (everywhere when not set, "." for the workspace only)
+# gui_browse_roots: [~]
+
+#--------------------------------------------#
 # Sessions
 #--------------------------------------------#
 

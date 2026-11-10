@@ -80,6 +80,9 @@ def test_endpoint(workspace, monkeypatch):
     client = app.server.test_client()
     data = client.get(fb.LIST_URL + "?open=1&base=rtl&value=top.v").get_json()
     assert data["path"] == "rtl" and data["selected"] == "top.v"
+    # Anywhere by default, from the workspace; "." keeps the browser in it.
+    assert client.get(fb.LIST_URL + "?path=..").status_code == 200
+    monkeypatch.setattr(fb, "browse_roots", lambda root: [])
     assert client.get(fb.LIST_URL + "?path=..").status_code == 400
 
 
@@ -90,3 +93,64 @@ def test_path_input_carries_its_options():
     props = button.to_plotly_json()["props"]
     assert props["data-mode"] == "dir" and props["data-base-input"] == "other"
     assert props["data-append"] == "1"
+
+
+def test_other_roots_are_opened_with_absolute_paths(workspace, tmp_path):
+    secret = str(tmp_path / "secret")
+    roots = fb.browse_roots(workspace, [secret])
+    assert roots == [os.path.realpath(secret)]
+    result = fb.list_directory(workspace, secret, roots=roots)
+    assert result["path"] == secret.replace(os.sep, "/")
+    assert [e["name"] for e in result["entries"]] == ["key"]
+    # The top of a root has no parent; the crumbs start at it.
+    assert result["parent"] is None
+    assert result["crumbs"][0]["root"] and result["crumbs"][0]["name"] == "secret"
+    # The link of the workspace to it is followed now.
+    names = [e["name"] for e in fb.list_directory(workspace, "", roots=roots)["entries"]]
+    assert "escape" in names
+    # Still nothing above it, nor besides it.
+    with pytest.raises(fb.BrowseError):
+        fb.list_directory(workspace, str(tmp_path), roots=roots)
+    assert fb.start_directory(workspace, "", secret + "/key", roots) == ("", secret.replace(os.sep, "/"), "key")
+
+
+def test_dot_keeps_the_browser_in_the_workspace(workspace):
+    assert fb.browse_roots(workspace, ["."]) == []
+    assert fb.browse_roots(workspace, ["missing"]) == []
+
+
+def test_by_default_it_goes_anywhere_from_the_workspace(workspace, tmp_path, monkeypatch):
+    monkeypatch.setattr(fb.Workspace, "open", classmethod(lambda cls, *a, **k: (_ for _ in ()).throw(RuntimeError())))
+    roots = fb.browse_roots(workspace)
+    assert roots == [os.path.abspath(os.sep)]
+    # It opens on the workspace, whose parent is reachable.
+    assert fb.start_directory(workspace, "", "", roots) == ("", "", "")
+    top = fb.list_directory(workspace, "", roots=roots)
+    assert top["parent"] == str(tmp_path).replace(os.sep, "/")
+    assert top["crumbs"][0]["name"] == "ws"
+
+
+def test_parent_inside_the_workspace(workspace):
+    assert fb.list_directory(workspace, "rtl/sub")["parent"] == "rtl"
+    assert fb.list_directory(workspace, "rtl")["parent"] == ""
+    assert fb.list_directory(workspace, "")["parent"] is None
+
+
+def test_places_list_the_system_then_the_workspace_folders(workspace, tmp_path):
+    settings = {"arch_path": "rtl", "result_path": "missing", "sim_path": "rtl"}
+    secret = str(tmp_path / "secret")
+    # Only one other root: "/" and the home directory are listed, greyed.
+    result = fb.places(workspace, [os.path.realpath(secret)], settings)
+    system = {p["name"]: p for p in result["system"]}
+    assert not system["Computer"]["available"]
+    assert system["secret"]["available"] and system["secret"]["path"] == secret.replace(os.sep, "/")
+    ws = result["workspace"]
+    assert ws[0]["path"] == "" and ws[0]["available"]
+    names = [p["name"] for p in ws]
+    # A folder shared by two settings is listed once.
+    assert names == ["ws", "Architectures", "Results"]
+    assert ws[1]["path"] == "rtl" and ws[1]["available"]
+    assert not ws[2]["available"]
+    # The whole file system opened: "/" is available.
+    opened = fb.places(workspace, [os.path.abspath(os.sep)], settings)
+    assert opened["system"][0]["available"] and opened["system"][0]["path"] == os.path.abspath(os.sep).replace(os.sep, "/")

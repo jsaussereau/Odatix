@@ -147,6 +147,12 @@ _icons = {
     ], width, height, className, id),
 
     # Check mark
+    # Magnifying glass: detect, search
+    "search": lambda color, width, height, className, offset, id: _line_icon([
+        Circle(cx="11", cy="11", r="7"),
+        Line(x1="21", y1="21", x2="16.65", y2="16.65"),
+    ], width, height, className, id),
+
     "check": lambda color, width, height, className, offset, id: _line_icon([
         Polyline(points="20 6 9 17 4 12"),
     ], width, height, className, id),
@@ -260,6 +266,20 @@ _icons = {
     "home": lambda color, width, height, className, offset, id: _line_icon([
         Path(d="M3 10.5 L12 3 l9 7.5"),
         Path(d="M5.5 9 V20 a1 1 0 0 0 1 1 H10 v-6 h4 v6 h3.5 a1 1 0 0 0 1-1 V9"),
+    ], width, height, className, id),
+
+    # Screen: root of the file system (file browser)
+    "computer": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M4 5 h16 a1 1 0 0 1 1 1 v10 a1 1 0 0 1-1 1 H4 a1 1 0 0 1-1-1 V6 a1 1 0 0 1 1-1 Z"),
+        Path(d="M9 21 h6"),
+        Path(d="M12 17 v4"),
+    ], width, height, className, id),
+
+    # Stacked layers: workspace root (file browser)
+    "workspace": lambda color, width, height, className, offset, id: _line_icon([
+        Polyline(points="12 3 21 8 12 13 3 8 12 3"),
+        Polyline(points="3 12.5 12 17.5 21 12.5"),
+        Polyline(points="3 17 12 22 21 17"),
     ], width, height, className, id),
 
     # Arrow up: parent directory (file browser)

@@ -207,6 +207,13 @@ FIELDS = {
         "kind": "tools",
         "tooltip": "Tools and simulations always run on Windows, never in WSL.",
     },
+    "gui_browse_roots": {
+        "label": "Browsable folders",
+        "kind": "lines",
+        "tooltip": "Folders the file browser of the GUI may open besides the workspace, one per line: relative "
+                   "to the workspace, absolute, or starting with ~ (~ alone: the home directory). The whole file "
+                   "system when empty; \".\" keeps the browser in the workspace. It always opens on the workspace.",
+    },
     "session_access": {
         "label": "Shared with",
         "kind": "access",
@@ -280,6 +287,8 @@ def field_placeholder(key):
         return WSL_OPTIONS[0]["label"]
     if key == "wsl_distribution":
         return "The default one"
+    if key == "gui_browse_roots":
+        return "/ (everywhere)"
     return ""
 
 
@@ -302,12 +311,29 @@ def read_settings(path=None):
     """
     data = read_yaml(path or Workspace.SETTINGS_FILENAME, default={})
     settings = WorkspaceSettings.from_dict(data if isinstance(data, dict) else {}).normalize()
-    return dict((key, comparable(settings[key])) for key in setting_keys())
+    return dict((key, comparable(_as_field(key, settings[key]))) for key in setting_keys())
+
+
+def _as_field(key, value):
+    """A setting as its field holds it: a list of "lines" field is one item per line."""
+    if field_kind(key) == "lines" and isinstance(value, (list, tuple)):
+        return "\n".join(str(item) for item in value)
+    return value
+
+
+def _as_setting(key, value):
+    """A field value as the setting holds it (see `_as_field`)."""
+    if field_kind(key) == "lines" and isinstance(value, str):
+        return [line.strip() for line in value.splitlines() if line.strip()]
+    return value
 
 
 def values_to_save(values):
     """The field values as save_workspace_settings takes them: empty means "use the default"."""
-    return dict((key, None if comparable(value) == "" else comparable(value)) for key, value in values.items())
+    return dict(
+        (key, None if comparable(value) == "" else _as_setting(key, comparable(value)))
+        for key, value in values.items()
+    )
 
 
 ######################################
@@ -362,7 +388,21 @@ def setting_field(key, value):
         return ui.form_dropdown(options=tool_and_simulation_options(value), value=list(value or []), multi=True, **common)
     if kind == "number":
         return ui.form_field(type="number", value=value, **common)
-    return ui.form_field(value=value, **common)
+    if kind == "lines":
+        return ui.form_area(value=value, **common)
+    return ui.form_field(value=value, browse=browse_options(key), **common)
+
+
+def browse_options(key):
+    """
+    The file browser of a path setting, None for the other ones and for the
+    sub-directories of the work path (relative to it, not to the workspace).
+    """
+    if key not in _PATH_DEFAULTS or (key.endswith("_work_path") and key != "work_path"):
+        return None
+    if key.endswith("_file"):
+        return {"mode": "file", "extensions": [".yml", ".yaml"]}
+    return {"mode": "dir"}
 
 
 def workspace_form(settings):

@@ -85,7 +85,7 @@ def save(page, monkeypatch, values, initial, saving=False):
 class TestEveryKeyHasAField:
     def test_every_setting_of_odatix_yml_is_listed(self, page):
         expected = set(name for name, _default in PATH_SETTINGS) | {
-            "default_tool", "resource_guard", "cpu_limit", "mem_limit", "session_access",
+            "default_tool", "resource_guard", "cpu_limit", "mem_limit", "session_access", "gui_browse_roots",
             "wsl", "wsl_distribution", "wsl_tools", "windows_tools",
         }
         assert set(page.setting_keys()) == expected
@@ -175,6 +175,25 @@ class TestSaving:
     def test_reset_needs_a_click(self, page):
         with pytest.raises(PreventUpdate):
             page.reset_to_defaults(None, [])
+
+
+class TestBrowsableFolders:
+    def test_one_folder_per_line(self, page, workspace):
+        assert page.values_to_save({"gui_browse_roots": " ~\n\n/opt/pdk \n"}) == {"gui_browse_roots": ["~", "/opt/pdk"]}
+        assert page.values_to_save({"gui_browse_roots": ""}) == {"gui_browse_roots": None}
+        from odatix.workspace.core import save_workspace_settings
+        save_workspace_settings("odatix.yml", {"gui_browse_roots": ["~", "/opt/pdk"]})
+        assert page.read_settings()["gui_browse_roots"] == "~\n/opt/pdk"
+
+
+class TestBrowseButtons:
+    def test_paths_and_settings_files_have_one(self, page):
+        assert page.browse_options("arch_path") == {"mode": "dir"}
+        assert page.browse_options("work_path") == {"mode": "dir"}
+        assert page.browse_options("synth_settings_file")["mode"] == "file"
+        # Relative to the work path, not to the workspace.
+        assert page.browse_options("pnr_work_path") is None
+        assert page.browse_options("default_tool") is None
 
 
 class TestCleanPatterns:
