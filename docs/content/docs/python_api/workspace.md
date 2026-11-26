@@ -541,7 +541,7 @@ Declared settings:
 | `defines` | `any` |  | Macros defined for every tool: a list of "NAME" or "NAME=VALUE", or a mapping. A value may name a parameter domain or a variable ("${CONFIG}"). |
 | **Signals** | | | |
 | `clock_signal` | `str` |  | Name of the clock signal of the top level. |
-| `reset_signal` | `str` |  | Name of the reset signal of the top level. |
+| `reset_signal` | `str` |  | Name of the reset signal of the top level, empty for a design without reset. |
 | `reset_active_low` | `any` |  | Whether the reset is active low. Guessed from its name when empty (rst_n, resetn, nreset). |
 | **Delimiters for parameter files** | | | |
 | `use_parameters` | `bool` | `False` | Whether the configurations of the main domain are substituted into a file. |
