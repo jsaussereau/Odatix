@@ -28,6 +28,24 @@ Set everything up yourself, step by step: on a pipelined CORDIC core, you config
 Everything in Odatix is built from a few key ideas. The steps above met most of
 them; here they are in more detail.
 
+### Workspace
+
+The **workspace** is the directory you run Odatix from: `odatix` commands and `odatix-gui` both work on the current directory. It holds `odatix.yml`, the `odatix_userconfig/` directory, and everything Odatix produces (jobs, sessions, results).
+
+Make it the **root of your project**, with your sources in a subdirectory, for example `rtl/`:
+
+```
+my_project/              <- workspace: run odatix and odatix-gui here
+├── odatix.yml
+├── odatix_userconfig/
+│   ├── architectures/
+│   └── targets/
+└── rtl/                 <- your sources
+    └── my_design.v
+```
+
+The paths in your settings, such as an architecture's `rtl_path: "rtl"`, are then short and relative to the project, and the whole project, sources and Odatix setup together, can be versioned and moved as one. Avoid running Odatix from inside `rtl/` or from a directory above the project.
+
 ### Architecture
 
 An [**architecture**](/docs/glossary/#architecture) is a parametrizable RTL (or generated) design. It lives in `odatix_userconfig/architectures/<name>/`, described by a `_settings.yml` that points to your sources, the top-level file and module, the clock/reset signals, and the delimiters that mark the parameter section of the top level. See [Add your own design](/tutorials/own_designs/architecture/).
