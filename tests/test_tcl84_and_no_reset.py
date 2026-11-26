@@ -23,7 +23,7 @@ needs_tclsh = pytest.mark.skipif(TCLSH is None, reason="tclsh is not installed")
 def _tcl(script, tmp_path):
     path = tmp_path / "script.tcl"
     path.write_text(script, encoding="utf-8")
-    result = subprocess.run([TCLSH, str(path)], capture_output=True, text=True, timeout=60)
+    result = subprocess.run([TCLSH, str(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
     return result.stdout
 
@@ -89,7 +89,7 @@ class TestTcl84Compatibility:
     def _run(self, tmp_path, mode):
         path = tmp_path / ("script_" + mode + ".tcl")
         path.write_text(self.SCRIPT % os.path.abspath(SETTINGS_TCL), encoding="utf-8")
-        result = subprocess.run([TCLSH, str(path), mode], capture_output=True, text=True, timeout=60)
+        result = subprocess.run([TCLSH, str(path), mode], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
 
@@ -105,7 +105,7 @@ class TestTcl84Compatibility:
             % os.path.abspath(SETTINGS_TCL),
             encoding="utf-8",
         )
-        result = subprocess.run([TCLSH, str(path)], capture_output=True, text=True, timeout=60)
+        result = subprocess.run([TCLSH, str(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
         assert result.stdout.strip() == "0 0"
 
     def test_design_compiler_scripts_avoid_tcl_85_syntax(self):
