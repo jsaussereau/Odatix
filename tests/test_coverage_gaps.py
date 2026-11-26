@@ -32,7 +32,8 @@ def test_edit_config_file_replaces_all_synthesis_settings(tmp_path):
 
     content = config.read_text(encoding="utf-8")
     assert "set top_level_module top" in content
-    assert "set reset_signal \n" in content
+    # an empty word: "set reset_signal" alone would read the variable
+    assert "set reset_signal {}\n" in content
     assert "set target_frequency 250" in content
     assert "set continue_on_error 1" in content
     assert "set single_thread 0" in content
