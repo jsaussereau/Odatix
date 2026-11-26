@@ -164,13 +164,18 @@ proc odatix_dc_constrain {signature} {
     set_wire_load_mode segmented
     set_clock_uncertainty -hold $clock_skew $clock_signal
     set_clock_uncertainty -setup $clock_skew $clock_signal
-    set_max_transition 0.5 $reset_signal
+    # A design without reset has an empty reset_signal
+    set control_ports [list $clock_signal]
+    if {$reset_signal ne ""} {
+        set_max_transition 0.5 $reset_signal
+        lappend control_ports $reset_signal
+    }
 
     # Input and output delays, so that the paths between the ports and the
     # registers are timed too. Without them those paths are unconstrained: a
     # strategy that moves registers (retiming) can then push logic onto them and
     # report a frequency the design does not reach.
-    set data_inputs [remove_from_collection [all_inputs] [get_ports [list $clock_signal $reset_signal]]]
+    set data_inputs [remove_from_collection [all_inputs] [get_ports $control_ports]]
     if {[sizeof_collection $data_inputs] > 0} {
         set_input_delay $input_delay -clock $clock_signal $data_inputs
     }

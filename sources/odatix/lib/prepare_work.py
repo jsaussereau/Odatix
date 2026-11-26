@@ -133,7 +133,8 @@ def edit_config_file(arch, config_file, flow_parameters=None, tool=None):
     r"(set top_level_module\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.top_level_module)}",
     r"(set top_level_file\s+).*":     lambda m: f"{m.group(1)}{safe_replace(arch.top_level_filename)}",
     r"(set clock_signal\s+).*":       lambda m: f"{m.group(1)}{safe_replace(arch.clock_signal)}",
-    r"(set reset_signal\s+).*":       lambda m: f"{m.group(1)}{safe_replace(arch.reset_signal)}",
+    # "set reset_signal" alone would read the variable: a design without reset gets an empty word
+    r"(set reset_signal\s+).*":       lambda m: f"{m.group(1)}{safe_replace(arch.reset_signal) or '{}'}",
     r"(set local_rtl_path\s+).*":     lambda m: f"{m.group(1)}{safe_replace(arch.local_rtl_path)}",
     r"(set tmp_path\s+).*":           lambda m: f"{m.group(1)}{safe_replace(tmp_path)}",
     r"(set source_rtl_path\s+).*":    lambda m: f"{m.group(1)}{safe_replace(arch.rtl_path)}",

@@ -105,13 +105,22 @@ class TestRunErrors:
     def test_an_empty_required_key_is_called_empty(self):
         from odatix.workspace.architectures import validate
 
+        data = {"top_level_file": "a.v", "top_level_module": "a", "clock_signal": "",
+                "reset_signal": "rst", "rtl_path": "rtl"}
+        errors = [message.text for message in validate(data, "s.yml")]
+        assert errors == ['Key "clock_signal" is empty in "s.yml": a value is required.']
+        del data["clock_signal"]
+        errors = [message.text for message in validate(data, "s.yml")]
+        assert errors == ['Cannot find key "clock_signal" in "s.yml".']
+
+    def test_a_design_without_reset_is_valid(self):
+        from odatix.workspace.architectures import validate
+
         data = {"top_level_file": "a.v", "top_level_module": "a", "clock_signal": "clk",
                 "reset_signal": "", "rtl_path": "rtl"}
-        errors = [message.text for message in validate(data, "s.yml")]
-        assert errors == ['Key "reset_signal" is empty in "s.yml": a value is required.']
+        assert [message.text for message in validate(data, "s.yml")] == []
         del data["reset_signal"]
-        errors = [message.text for message in validate(data, "s.yml")]
-        assert errors == ['Cannot find key "reset_signal" in "s.yml".']
+        assert [message.text for message in validate(data, "s.yml")] == []
 
 
 ######################################

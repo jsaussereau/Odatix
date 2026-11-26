@@ -205,7 +205,7 @@ class ArchitectureSettings(WithVariables, Settings):
 
     # Signals
     clock_signal = Setting("", type="str", section="Signals", doc="Name of the clock signal of the top level.")
-    reset_signal = Setting("", type="str", doc="Name of the reset signal of the top level.")
+    reset_signal = Setting("", type="str", doc="Name of the reset signal of the top level, empty for a design without reset.")
     reset_active_low = Setting(
         None, type="any", style="yesno", skip_if_empty=True,
         doc="Whether the reset is active low. Guessed from its name when empty (rst_n, resetn, nreset).",
@@ -455,7 +455,8 @@ def carry_over_fixed_freq_key(settings):
 
 #: What an architecture has to say before a run can build a job from it,
 #: whatever that run does with it.
-REQUIRED_SETTINGS = ("top_level_file", "top_level_module", "clock_signal", "reset_signal")
+#: A design without reset leaves "reset_signal" empty.
+REQUIRED_SETTINGS = ("top_level_file", "top_level_module", "clock_signal")
 
 
 def validate(settings, path=""):

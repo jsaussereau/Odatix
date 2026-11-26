@@ -32,7 +32,7 @@ odatix_userconfig/architectures/Example_ALU_sv/
 | `top_level_file` | path | Yes | Top-level source file, relative to `rtl_path` (or to `generate_output` in a generation flow). |
 | `top_level_module` | string | Yes | Name of the top-level module or entity. |
 | `clock_signal` | string | Yes | Name of the main clock signal, used to write the timing constraint. |
-| `reset_signal` | string | Yes | Name of the main reset signal. |
+| `reset_signal` | string | No | Name of the main reset signal. Leave it empty for a design without reset. |
 | `reset_active_low` | bool | No | Whether the reset is active low. Guessed from its name when absent (`rst_n`, `resetn`, `nreset`). Read by the [generated testbench](/docs/reference/simulation/#generated-testbench). |
 
 {{< code lang=yaml filename="architectures/Example_ALU_sv/_settings.yml" >}}

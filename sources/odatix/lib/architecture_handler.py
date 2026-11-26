@@ -252,7 +252,7 @@ class Architecture:
                 local_rtl_path           = get_from_dict("rtl_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 arch_path                = get_from_dict("arch_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 clock_signal             = get_from_dict("clock_signal", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                reset_signal             = get_from_dict("reset_signal", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
+                reset_signal             = get_from_dict("reset_signal", yaml_data, config_file, behavior=Key.OPTIONAL, silent=True, default_value="", script_name=script_name)[0] or "",   
                 top_level_module         = get_from_dict("top_level_module", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 top_level_filename       = get_from_dict("top_level_file", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 use_parameters           = get_from_dict("use_parameters", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -923,7 +923,7 @@ class ArchitectureHandler:
                 return None
 
             # check that the top level module, clock and reset names occur in the
-            # top level file, at least
+            # top level file, at least (a design without reset has none)
             with open(top_level, "r", encoding="utf-8") as f:
                 top_level_content = f.read()
             for kind, name in (
@@ -931,7 +931,7 @@ class ArchitectureHandler:
                 ("clock signal name", clock_signal),
                 ("reset signal name", reset_signal),
             ):
-                if name not in top_level_content:
+                if name and name not in top_level_content:
                     printc.error("There is no occurence of " + kind + " \"" + name + "\" in top level file \"" + top_level + "\"", script_name)
                     self.banned_arch_param.append(arch_param_dir)
                     self.plan.add(arch_display_name, Category.ERROR)
