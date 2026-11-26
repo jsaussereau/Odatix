@@ -139,8 +139,9 @@ class TestEndpoints:
         assert transport.socket_path_for_session("/ws", "session") is None
 
     @pytest.mark.skipif(not transport.unix_sockets_supported(), reason="no unix sockets")
-    def test_each_session_gets_its_own_socket(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(transport, "socket_dir", lambda: str(tmp_path))
+    def test_each_session_gets_its_own_socket(self, monkeypatch):
+        # A short directory: macOS temporary paths alone overflow sun_path
+        monkeypatch.setattr(transport, "socket_dir", lambda: "/tmp/odatix")
         first = transport.socket_path_for_session("/ws", "one")
         second = transport.socket_path_for_session("/ws", "two")
         assert first != second

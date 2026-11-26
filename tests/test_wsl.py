@@ -158,7 +158,7 @@ architectures:
 test_command: [python3, --version]
 tasks:
   - name: main
-    platforms: [linux]
+    platforms: [linux, darwin]
     commands:
       - '"${python}" sim.py ${work_path}'
   - name: main
