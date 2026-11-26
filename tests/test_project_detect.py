@@ -431,6 +431,116 @@ class TestGeneratedRtl:
         assert "ws" in settings["design_path_blacklist"] and settings["design_path"] == ".."
 
 
+
+SCALA_DESIGN = {
+    "build.sbt": 'libraryDependencies += "org.chipsalliance" %% "chisel" % "5.1.0"\n',
+    "src/main/scala/counter.scala": (
+        "package synthetix\n"
+        "class Counter(BITS: Int, STEP: Int = 1, val name: String = \"c\", cfg: Seq[Int] = Seq()) extends Module {\n"
+        "  override val desiredName = s\"counter\"\n"
+        "}\n"
+        "object Counter extends App {\n"
+        "  ChiselStage.emitSystemVerilog(new Counter(8), args)\n"
+        "}\n"),
+    "src/main/scala/rom.scala": (
+        "package synthetix\n"
+        "case class RomParams(\n"
+        "  // sizes\n"
+        "  depth: Int = 256,\n"
+        "  registered: Boolean = true,\n"
+        "  init: Seq[Int] = Seq(0)\n"
+        ")\n"
+        "class Rom(DATA_BITS: Int, p: RomParams = RomParams()) extends Module { }\n"
+        "object Rom extends App {\n"
+        "  val data_bits = 12 // width\n"
+        "  ChiselStage.emitSystemVerilog(new Rom(data_bits, RomParams(registered = false)))\n"
+        "}\n"),
+    "src/main/old/top.scala": "package synthetix\nobject Top extends App { ChiselStage.emitSystemVerilog(new Counter(4)) }\n",
+}
+
+#: Writes what "runMain synthetix.<Main>" would: both modules, as a Chisel run of the whole design could.
+SCALA_GENERATOR = (
+    "mkdir -p gen && printf 'module rom(input clock, input reset, output q);\\n  assign q = 1'\"'\"'b0;\\nendmodule\\n' > gen/rom.sv"
+    " && printf 'module counter(input clock, input reset, output q);\\n  reg r; always @(posedge clock) r <= reset ? 1'\"'\"'b0 : ~r;"
+    " assign q = r;\\nendmodule\\n' > gen/counter.sv && true runMain synthetix.{0}"
+)
+
+
+class TestScalaDesigns:
+    def test_only_compiled_sources_are_run(self, tmp_path):
+        _write(tmp_path, SCALA_DESIGN)
+        g = rtl_generation.detect(str(tmp_path))
+        assert all("Top" not in c for c in g.commands())
+
+    def test_each_command_knows_the_module_it_generates(self, tmp_path):
+        _write(tmp_path, SCALA_DESIGN)
+        g = rtl_generation.detect(str(tmp_path))
+        counter = g.command_for("counter")
+        assert "synthetix.Counter" in counter and g.target(counter)["class"] == "Counter"
+        assert g.command_for("Rom") and not g.command_for("nothing")
+        assert g.prefer("rom") and "synthetix.Rom" in g.command and counter in g.entries
+
+    def test_parameters_where_they_are_written(self, tmp_path):
+        _write(tmp_path, SCALA_DESIGN)
+        g = rtl_generation.detect(str(tmp_path))
+        counter = rtl_generation.entry_parameters(str(tmp_path), g.target(g.command_for("counter")))
+        # given by the main, then defaults of the class; a Seq is no plain value
+        assert [(p.name, p.value) for p in counter] == [("BITS", "8"), ("STEP", "1"), ("name", '"c"')]
+        assert counter[0].path.endswith("counter.scala")
+        rom = rtl_generation.entry_parameters(str(tmp_path), g.target(g.command_for("rom")))
+        # a value of the main object, then the fields of a configuration class
+        assert [(p.name, p.value) for p in rom] == [("DATA_BITS", "12"), ("depth", "256"), ("registered", "false")]
+        text = open(rom[0].path).read()
+        assert text[rom[0].start:rom[0].end] == "12" and "val data_bits = " in text[:rom[0].start]
+
+    def test_the_command_follows_the_top_level(self, tmp_path):
+        _write(tmp_path, dict(SCALA_DESIGN, **{"rtl/rom.sv": "module rom(input clock, output q);\nendmodule\n"}))
+        d = pd.detect_project(str(tmp_path), check=False)
+        assert d.top.value == "rom" and "synthetix.Rom" in d.generator.command
+        d = pd.detect_project(str(tmp_path), top="counter", check=False)
+        assert "synthetix.Counter" in d.generator.command
+
+    def _generated(self, tmp_path, main):
+        root = tmp_path / "proj"
+        _write(root, SCALA_DESIGN)
+        d = pd.detect_project(str(root), check=False)
+        assert pd.detect_generated(d, command=SCALA_GENERATOR.format(main)), d.generator.error
+        return d
+
+    def test_the_top_level_follows_the_command(self, tmp_path):
+        for main, top in (("Counter", "counter"), ("Rom", "rom")):
+            d = self._generated(tmp_path / main, main)
+            try:
+                assert d.top.value == top
+                assert pd.parameters_of(d, top) == d.parameters and d.parameters
+                assert pd.parameters_of(d, "rom" if top == "counter" else "counter") == []
+            finally:
+                rtl_generation.cleanup(d.generator)
+
+    def test_domains_in_the_generator_sources(self, tmp_path, monkeypatch):
+        d = self._generated(tmp_path, "Rom")
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        monkeypatch.chdir(str(workspace))
+        try:
+            from odatix.lib.settings import OdatixSettings
+            assert OdatixSettings.init_directory_nodialog(False, silent=True)
+            import odatix.workspace as api
+            ws = api.open_workspace(str(workspace), required=True)
+            result = init_detect.describe(d, ws, "rom", parameters=[
+                {"group": "DATA_BITS", "names": ["DATA_BITS"], "values": {"DATA_BITS": "8..16 step 4"}},
+                {"group": "cfg", "names": ["depth", "registered"], "values": {"registered": "true, false"}}])
+        finally:
+            rtl_generation.cleanup(d.generator)
+        assert result["skipped"] == [] and result["domains"] == ["DATA_BITS", "cfg"]
+        arch = ws.architectures["rom"]
+        data_bits = arch.domains["DATA_BITS"].settings
+        assert data_bits.get("param_target_file") == "src/main/scala/rom.scala"
+        assert data_bits.get("variables")["DATA_BITS"]["type"] == "range"
+        cfg = arch.domains["cfg"].settings
+        assert "${depth}" in cfg.get("configurations")["template"] and "${registered}" in cfg.get("configurations")["template"]
+
+
 import odatix.workspace.detect as workspace_detect
 
 GROUPED = (

@@ -384,9 +384,10 @@ def initial_domains(detection):
     The parameter domains proposed at first: one per parameter when the top
     level has few of them, none otherwise (the user picks).
     """
-    if detection.generated_dir or len(detection.parameters) > PRESELECTED_PARAMETERS:
+    params = project_detect.parameters_of(detection, detection.top.value) if detection.top is not None else []
+    if len(params) > PRESELECTED_PARAMETERS:
         return {"domains": []}
-    return {"domains": [{"name": p.name, "names": [p.name], "auto": True} for p in detection.parameters]}
+    return {"domains": [{"name": p.name, "names": [p.name], "auto": True} for p in params]}
 
 
 def domains_spec(state):
@@ -448,11 +449,6 @@ def parameters_panel_of(detection, top=None):
     params = project_detect.parameters_of(detection, top)
     if not params:
         return []
-    if detection.generated_dir:
-        # the generated RTL is rewritten by each job: its parameters are set in the generator
-        body = html.Ul([html.Li([html.Code(p.name), " = ", html.Code(p.value.strip())], title=p.value.strip())
-                        for p in params], className="import-parameter-list")
-        return ui.panel("Parameters of {0} ({1})".format(top, len(params)), body=body, className="import-wide")
     pool = html.Div(
         [
             html.Div(
@@ -738,7 +734,7 @@ def register(page_path):
     )
     def render_domains(state, token, top):
         detection = DETECTIONS.get(token or "")
-        if detection is None or detection.generated_dir or not project_detect.parameters_of(detection, top or detection.top.value):
+        if detection is None or not project_detect.parameters_of(detection, top or detection.top.value):
             return (dash.no_update,) * 5
         return render_domains_of(detection, state, top)
 
@@ -765,6 +761,7 @@ def register(page_path):
         Output("import-reset", "value", allow_duplicate=True),
         Output("import-domains-panel", "children", allow_duplicate=True),
         Output("import-domains", "data", allow_duplicate=True),
+        Output("import-command", "value", allow_duplicate=True),
         Input("import-top", "value"),
         State("import-token", "data"),
         prevent_initial_call=True,
@@ -773,9 +770,13 @@ def register(page_path):
         """Another top level: its own inputs, and the best clock and reset among them."""
         detection = DETECTIONS.get(token or "")
         if detection is None or not top:
-            return (dash.no_update,) * 6
+            return (dash.no_update,) * 7
+        # before the generation, the command proposed is the one generating it, when one does
+        command = dash.no_update
+        if detection.generator is not None and not detection.generated_dir and detection.generator.prefer(top):
+            command = detection.generator.command
         # its own parameters too: domains chosen for another top level would not apply
         params = project_detect.parameters_of(detection, top)
         domains = {"domains": [{"name": p.name, "names": [p.name], "auto": True} for p in params]} \
-            if len(params) <= PRESELECTED_PARAMETERS and not detection.generated_dir else {"domains": []}
-        return signal_options(detection, top) + (parameters_panel_of(detection, top), domains)
+            if len(params) <= PRESELECTED_PARAMETERS else {"domains": []}
+        return signal_options(detection, top) + (parameters_panel_of(detection, top), domains, command)

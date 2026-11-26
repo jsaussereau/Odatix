@@ -357,6 +357,53 @@ def section_delimiters(text, start, end, max_length=400):
     return None
 
 
+def source_parameters_settings(params, target_file, values=None):
+    """
+    The settings of one parameter domain setting `params` (objects with a
+    name, a value, and where the value is: path, start, end) of a single
+    file, whatever its language: the value itself for one parameter, the
+    lines from the first to the last for several (see parameter_group_settings).
+    ``values[name]``: what each takes (see values_variable).
+
+    Raises:
+        WorkspaceError: parameters of several files, or no delimiters isolate them.
+    """
+    import odatix.components.replace_params as replace_params
+
+    paths = set(p.path for p in params)
+    if len(paths) != 1:
+        raise WorkspaceError("{0} are written in different files: one domain each".format(", ".join(p.name for p in params)))
+    path = paths.pop()
+    text = _read(path)
+    values = values or {}
+    chosen = sorted(params, key=lambda p: p.start)
+    if len(chosen) == 1:
+        param = chosen[0]
+        delimiters = hdl_detect.auto_delimiters(text, param.start, param.end, param.name)
+        configurations = None
+    else:
+        start = text.rfind("\n", 0, chosen[0].start) + 1
+        end = text.find("\n", chosen[-1].end)
+        end = len(text) if end < 0 else end
+        delimiters = section_delimiters(text, start, end)
+        configurations = {
+            "name": "_".join("${{{0}}}".format(p.name) for p in chosen),
+            "template": hdl_detect.parameter_template(text, (start, end), chosen),
+        }
+    if delimiters is None:
+        raise WorkspaceError("No delimiters isolate {0} in {1}".format(", ".join(p.name for p in chosen), path))
+    settings = {
+        "use_parameters": True,
+        "param_target_file": target_file,
+        "start_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(delimiters[0])),
+        "stop_delimiter": replace_params.delimiter_to_write(replace_params.escape_delimiter(delimiters[1])),
+        "variables": dict((p.name, values_variable(values.get(p.name), p.value.strip())) for p in chosen),
+    }
+    if configurations:
+        settings["configurations"] = configurations
+    return settings
+
+
 def parameter_group_settings(path, names, target_file="", values=None):
     """
     The settings of one parameter domain sweeping several parameters of a

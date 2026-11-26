@@ -305,6 +305,20 @@ def parameter_values(parameters):
     return values
 
 
+def _source_domains(arch, groups, values, root):
+    """The domains of parameters of a generator's sources: their files, relative to the project (design_path)."""
+    import odatix.workspace.detect as workspace_detect
+    created, skipped = [], []
+    for name, params in groups:
+        try:
+            target = os.path.relpath(params[0].path, root).replace(os.sep, "/")
+            arch.domains.create(name, **workspace_detect.source_parameters_settings(params, target, values))
+            created.append(name)
+        except Exception as exception:
+            skipped.append("{0} ({1})".format(name, exception))
+    return created, skipped
+
+
 def _parameter_domains(arch, groups, values=None):
     import odatix.workspace.detect as workspace_detect
     values = values or {}
@@ -359,8 +373,11 @@ def describe(detection, workspace, name, parameters=False, new_workspace=False):
     groups, unknown = selected_parameters(detection, parameters)
     skipped = ["{0} (not a parameter of {1})".format(n, detection.top.value) for n in unknown]
     if groups:
-        if detection.generated_dir:
+        if detection.generated_dir and not all(hasattr(p, "path") for _, params in groups for p in params):
             skipped.append("the parameters of generated RTL are set in the generator: point a domain at its sources (param_target_file)")
+        elif detection.generated_dir:
+            created, failed = _source_domains(arch, groups, parameter_values(parameters), detection.root)
+            domains, skipped = created, skipped + failed
         else:
             created, failed = _parameter_domains(arch, groups, parameter_values(parameters))
             domains, skipped = created, skipped + failed
