@@ -176,12 +176,54 @@ The built-in strategies are declared this way:
 | Design Compiler (and DC NXT) | `standard` (`compile`, the historical flow), `high_effort` (high map and area effort, boundary optimization), `ultra` (`compile_ultra`), `ultra_keep_hierarchy` (`compile_ultra -no_autoungroup`, every hierarchy preserved), `ultra_timing` (high timing effort, retiming, incremental pass), `ultra_area` (area recovery with `set_max_area 0`, then `optimize_netlist -area`), `ultra_power` (clock gating, leakage and dynamic power optimization) |
 | Genus | `standard` (`syn_generic`, `syn_map` and `syn_opt` at high effort, the historical flow), `medium_effort` (medium effort, faster), `extreme` (extreme `syn_opt` effort, then an incremental pass with ultra optimization), `timing` (register retiming, extreme `syn_opt` effort, timing driven ungrouping, incremental pass), `area` (area oriented datapath and ungrouping, only the worst path optimized, incremental pass), `power` (clock gating, high dynamic and leakage power effort) |
 | Innovus | `standard` (standard flow effort, 70% utilization), `express` (express flow effort, shortest runtime), `extreme` (extreme flow effort), `timing` (60% utilization, high timing effort placement, useful skew, timing and SI driven routing, hold fixing), `area` (85% utilization, high congestion effort placement, area reclaim), `power` (high power effort, dynamic power weighted as much as leakage) |
+| LibreLane | `standard` (the LibreLane defaults), `area` (`AREA 2` mapping, 60% utilization), `timing` (`DELAY 1` mapping with ABC buffering, 40% utilization, timing repair after global routing), `timing_extreme` (`DELAY 4` mapping, 35% utilization, timing repair with setup margins) |
 | Quartus | `standard` (`HIGH PERFORMANCE EFFORT`), `balanced` (the Quartus defaults, `BALANCED`), `runtime` (`AGGRESSIVE COMPILE TIME`, no power analysis), `performance` (`SUPERIOR PERFORMANCE WITH MAXIMUM PLACEMENT EFFORT`, final placement optimization always on), `area` (`AGGRESSIVE AREA`, no register retiming), `power_opt` (`AGGRESSIVE POWER`) |
 | Vivado | `standard` (the historical flow), `runtime` (`RuntimeOptimized` everywhere, no physical optimization), `performance` (`PerformanceOptimized` with retiming, `ExtraTimingOpt` placement, aggressive physical optimization and routing), `area` (`AreaOptimized_high`, `ExploreArea`), `power_opt` (clock gating conversion, `PowerOptimized_high`, `power_opt_design`) |
 
 The parameters each script reads are listed at the top of the built-in
 `tool.yml`. A strategy of your own is a few lines in the `tool.yml` of your
 workspace (see [Merging with a built-in tool](#merging-with-a-built-in-tool)).
+
+#### Die size with LibreLane
+
+By default LibreLane sizes the die itself, from the core utilization and the
+aspect ratio (`FP_CORE_UTIL`, `FP_ASPECT_RATIO`). The parameters `die_width` and
+`die_height` (in µm) fix it instead: Odatix then runs LibreLane with
+`FP_SIZING=absolute` and `DIE_AREA="0 0 <width> <height>"`. Set both or
+neither. Like any parameter, they can be set by a flow or explored by a
+[design space exploration](/docs/reference/dse/).
+
+A size that depends on the design goes in a constraint file of its
+architecture: LibreLane reads the `.json` and `.yaml` constraint files of a job
+as LibreLane variables, added to its configuration (it ignores other files, with
+a warning). A size set by the flow wins over it.
+
+{{< code lang=yaml filename="architectures/My_core/_settings.yml" >}}
+overrides:
+  - tools: librelane
+    constraints: odatix_userconfig/constraints/my_core_die.json
+{{< /code >}}
+
+{{< code lang=json filename="odatix_userconfig/constraints/my_core_die.json" >}}
+{"FP_SIZING": "absolute", "DIE_AREA": [0, 0, 300, 200]}
+{{< /code >}}
+
+**A die fitted to the IO pins.** LibreLane sizes the die from the area of the
+cells. A design with many IO pins for few cells (a wide datapath, a fully
+parallel decoder) can then get a die whose perimeter cannot hold its pins: the
+IO placement fails (`PPL-0024`) and says which perimeter would do. When the
+size of the die is LibreLane's to choose, Odatix then runs the flow again on a
+die of that perimeter plus a margin, with the aspect ratio of the flow
+(`FP_ASPECT_RATIO`, square when unset). It tries up to three times, with a
+growing margin, and the die it found holds for the rest of the job (the next
+iterations of an fmax search). A die whose size is fixed, by `die_width` and
+`die_height`, by `FP_SIZING: absolute` or by a constraint file, is never
+enlarged: the job fails, saying which perimeter the pins need.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `die_fit_io` | `true` | Enlarge the die when the IO pins do not fit on its perimeter |
+| `die_fit_io_margin` | `10` | Margin over the perimeter asked for, in percent; twice, then three times that on the next attempts |
 
 ### Extending a tool
 

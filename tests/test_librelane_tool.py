@@ -236,6 +236,179 @@ class TestTclScripts:
     ))
     assert output.strip() == "-c CLOCK_PERIOD=5.0 -c {SYNTH_STRATEGY=DELAY 1} -c RUN_POST_GRT_RESIZER_TIMING=1"
 
+  def librelane_overrides(self, tmp_path, parameters):
+    scripts = tmp_path / "scripts"
+    if not scripts.exists():
+      shutil.copytree(TCL_DIR, str(scripts))
+      shutil.copy(os.path.join(OdatixSettings.odatix_eda_tools_path, "_common", "settings.tcl"), str(scripts))
+    (tmp_path / "period.json").write_text('{"CLOCK_PERIOD": 5.0}', encoding="utf-8")
+    script = tmp_path / "overrides.tcl"
+    script.write_text(
+      "source scripts/librelane_common.tcl\n"
+      "set constraints_file period.json\n"
+      "set ::odatix_flow_parameters [dict create " + parameters + "]\n"
+      "if {[catch {puts [odatix_librelane_overrides]} message]} { puts \"error: $message\" }\n",
+      encoding="utf-8",
+    )
+    return subprocess.run(
+      ["tclsh", str(script)], cwd=str(tmp_path),
+      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True,
+    ).stdout.strip()
+
+  def test_an_empty_die_size_leaves_librelane_to_size_the_die(self, tmp_path):
+    output = self.librelane_overrides(tmp_path, "die_width {} die_height {} FP_CORE_UTIL 40")
+    assert output == "-c CLOCK_PERIOD=5.0 -c FP_CORE_UTIL=40"
+
+  def test_a_die_size_fixes_the_die_area(self, tmp_path):
+    output = self.librelane_overrides(tmp_path, "die_width 300 die_height 150.5")
+    assert output == "-c CLOCK_PERIOD=5.0 -c FP_SIZING=absolute -c {DIE_AREA=0 0 300 150.5}"
+
+  @pytest.mark.parametrize("parameters, message", [
+    ("die_width 300 die_height {}", "go together"),
+    ("die_width 300 die_height -2", "positive number"),
+    ("die_width wide die_height 100", "positive number"),
+  ])
+  def test_an_incomplete_or_invalid_die_size_is_an_error(self, tmp_path, parameters, message):
+    output = self.librelane_overrides(tmp_path, parameters)
+    assert output.startswith("error:") and message in output
+
+
+# A LibreLane failing its IO placement as it does when the die cannot hold the
+# pins (PPL-0024), asking for a perimeter of `needed`, unless its command line
+# gives a die of at least `accepted` (`needed` by default). Every command line
+# goes to calls.txt.
+FAKE_LIBRELANE = r'''#!{python}
+import re, sys
+args = sys.argv[1:]
+with open("calls.txt", "a") as f:
+  f.write(" ".join(args) + "\n")
+needed = {needed}
+accepted = {accepted}
+die = [a for a in args if a.startswith("DIE_AREA=")]
+if die:
+  x0, y0, x1, y1 = (float(v) for v in die[-1].split("=", 1)[1].split())
+  if 2 * ((x1 - x0) + (y1 - y0)) >= accepted:
+    print("[10:00:00] INFO     Flow complete.")
+    sys.exit(0)
+print("[10:00:00] ERROR    [PPL-0024] Number of IO pins (254) exceeds maximum number of "
+      "available positions (248). Increase the die perimeter from 288.24um to {{}}um.    openroad.py:312".format(needed))
+sys.exit(1)
+'''
+
+
+@needs_tclsh
+class TestDieFitIO:
+
+  def run(self, tmp_path, parameters, needed=345.44, accepted=None, config="{}"):
+    scripts = tmp_path / "scripts"
+    shutil.copytree(TCL_DIR, str(scripts))
+    shutil.copy(os.path.join(OdatixSettings.odatix_eda_tools_path, "_common", "settings.tcl"), str(scripts))
+    (tmp_path / "period.json").write_text('{"CLOCK_PERIOD": 10.0}', encoding="utf-8")
+    (tmp_path / "config.json").write_text(config, encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "librelane"
+    fake.write_text(FAKE_LIBRELANE.format(python=sys.executable, needed=needed, accepted=needed if accepted is None else accepted), encoding="utf-8")
+    fake.chmod(0o755)
+    script = tmp_path / "run.tcl"
+    script.write_text(
+      "source scripts/librelane_common.tcl\n"
+      "set constraints_file period.json\n"
+      "set librelane_config_file config.json\n"
+      "set librelane_pdk sky130A\n"
+      "set librelane_scl {}\n"
+      "set librelane_pdk_root {}\n"
+      "set single_thread 0\n"
+      "set ::odatix_flow_parameters [dict create " + parameters + "]\n"
+      "puts \"ok=[odatix_librelane_run sig custom OpenROAD.Floorplan Odb.ApplyDEFTemplate]\"\n"
+      # A later run of the same job (the next iteration of an fmax search)
+      # keeps the die it was given
+      "puts \"overrides=[odatix_librelane_overrides]\"\n",
+      encoding="utf-8",
+    )
+    env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"])
+    output = subprocess.run(
+      ["tclsh", str(script)], cwd=str(tmp_path), env=env,
+      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True,
+    ).stdout
+    calls = (tmp_path / "calls.txt").read_text(encoding="utf-8").splitlines()
+    return output, calls
+
+  def test_a_die_too_small_for_the_pins_is_enlarged(self, tmp_path):
+    output, calls = self.run(tmp_path, "")
+    assert "ok=1" in output
+    assert len(calls) == 2
+    assert "DIE_AREA" not in calls[0]
+    # 345.44um + 10%, square: 95um on each side
+    assert "-c FP_SIZING=absolute -c DIE_AREA=0 0 95 95" in calls[1]
+    assert "overrides=-c CLOCK_PERIOD=10.0 -c FP_SIZING=absolute -c {DIE_AREA=0 0 95 95}" in output
+
+  def test_the_margin_grows_with_each_attempt_and_gives_up_after_three(self, tmp_path):
+    # Nothing fits: the fake keeps asking for 1000um and accepts no die
+    output, calls = self.run(tmp_path, "die_fit_io_margin 20", needed=1000, accepted=1e12)
+    assert "ok=0" in output
+    sides = [re.search(r"DIE_AREA=0 0 (\d+) (\d+)", call).groups() for call in calls[1:]]
+    # 1000um * 1.2, 1.4, 1.6, on a square die
+    assert sides == [("300", "300"), ("350", "350"), ("400", "400")]
+    assert "still do not fit after 3 larger dies" in output
+
+  def test_the_enlarged_die_keeps_the_aspect_ratio_of_the_flow(self, tmp_path):
+    output, calls = self.run(tmp_path, "FP_ASPECT_RATIO 2 die_fit_io_margin 0", needed=600)
+    assert "ok=1" in output
+    # Perimeter 600 = 2 * (w + 2w): w = 100, h = 200
+    assert "DIE_AREA=0 0 100 200" in calls[1]
+
+  @pytest.mark.parametrize("parameters, config, message", [
+    ("die_fit_io false", "{}", 'Set "die_fit_io"'),
+    ("die_width 50 die_height 50", "{}", "Enlarge the die"),
+    ("FP_SIZING absolute", "{}", "Enlarge the die"),
+    # A die fixed by a constraint file of the design
+    ("", '{"FP_SIZING": "absolute", "DIE_AREA": [0, 0, 50, 50]}', "Enlarge the die"),
+  ])
+  def test_a_die_whose_size_is_fixed_or_left_alone_is_not_enlarged(self, tmp_path, parameters, config, message):
+    output, calls = self.run(tmp_path, parameters, config=config)
+    assert "ok=0" in output
+    assert len(calls) == 1
+    assert "asks for a perimeter of 345.44um" in output and message in output
+
+
+class TestMergeConfig:
+
+  def test_adds_the_variables_of_the_design_to_the_configuration(self, tmp_path):
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"meta": {"version": 2, "flow": "Classic"}, "DESIGN_NAME": "counter", "FP_CORE_UTIL": 50}), encoding="utf-8")
+    first = tmp_path / "floorplan.json"
+    first.write_text(json.dumps({"meta": {"flow": "Other"}, "FP_SIZING": "absolute", "DIE_AREA": [0, 0, 100, 100]}), encoding="utf-8")
+    second = tmp_path / "bigger.json"
+    second.write_text(json.dumps({"DIE_AREA": [0, 0, 300, 200]}), encoding="utf-8")
+
+    result = run_state_script("merge-config", config, first, second)
+    assert result.returncode == 0, result.stderr
+    merged = json.loads(config.read_text(encoding="utf-8"))
+    # The flow stays Odatix's, a later file wins over an earlier one
+    assert merged["meta"] == {"version": 2, "flow": "Classic"}
+    assert merged["DESIGN_NAME"] == "counter"
+    assert merged["FP_SIZING"] == "absolute"
+    assert merged["DIE_AREA"] == [0, 0, 300, 200]
+
+  def test_reads_yaml(self, tmp_path):
+    config = tmp_path / "config.json"
+    config.write_text("{}", encoding="utf-8")
+    (tmp_path / "floorplan.yaml").write_text("FP_SIZING: absolute\nDIE_AREA: [0, 0, 80, 60]\n", encoding="utf-8")
+    result = run_state_script("merge-config", config, tmp_path / "floorplan.yaml")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(config.read_text(encoding="utf-8"))["DIE_AREA"] == [0, 0, 80, 60]
+
+  @pytest.mark.parametrize("content", ["[1, 2]", "{not json"])
+  def test_a_file_that_is_not_a_configuration_is_an_error(self, tmp_path, content):
+    config = tmp_path / "config.json"
+    config.write_text("{}", encoding="utf-8")
+    (tmp_path / "bad.json").write_text(content, encoding="utf-8")
+    result = run_state_script("merge-config", config, tmp_path / "bad.json")
+    assert result.returncode == 1
+    assert "bad.json" in result.stderr
+    assert config.read_text(encoding="utf-8") == "{}"
+
 
 class TestAnalysisInstallPath:
 

@@ -38,7 +38,13 @@ scripts call this instead:
       Print the path of a view of a state ("nl" for the netlist), nothing when
       the state has none.
 
-Runs with any python 3, LibreLane's or the system's: standard library only.
+  librelane_state.py merge-config <config> <file>...
+      Add the variables of each <file> (a LibreLane configuration, JSON or
+      YAML) to the configuration <config>, a later file winning over an earlier
+      one. Their "meta" section is left out: the flow is Odatix's to choose.
+
+Runs with any python 3, LibreLane's or the system's: standard library only
+(PyYAML for a YAML file, which LibreLane's python has).
 """
 
 import os
@@ -204,7 +210,42 @@ def view(state_path, design_format):
   return 0
 
 
+def read_config(path):
+  with open(path) as f:
+    if re.search(r"\.ya?ml$", path, re.I):
+      try:
+        import yaml
+      except ImportError:
+        raise ValueError("reading a YAML file needs PyYAML, write it in JSON instead")
+      data = yaml.safe_load(f)
+    else:
+      data = json.load(f)
+  if data is None:
+    return {}
+  if not isinstance(data, dict):
+    raise ValueError("a LibreLane configuration is a mapping of variables")
+  return data
+
+
+def merge_config(config_path, paths):
+  with open(config_path) as f:
+    config = json.load(f)
+  for path in paths:
+    try:
+      variables = read_config(path)
+    except Exception as e:
+      sys.stderr.write(path + ": " + str(e) + "\n")
+      return 1
+    for name, value in variables.items():
+      if name != "meta":
+        config[name] = value
+  write_json(config_path, config)
+  return 0
+
+
 def main(argv):
+  if len(argv) >= 2 and argv[0] == "merge-config":
+    return merge_config(argv[1], argv[2:])
   if len(argv) >= 3 and argv[0] == "collect":
     return collect(argv[1], argv[2], argv[3] if len(argv) > 3 else None)
   if len(argv) == 3 and argv[0] == "view":

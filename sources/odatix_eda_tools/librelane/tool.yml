@@ -47,6 +47,24 @@ parameters:
   # Yosys / ABC mapping: "AREA 0" to "AREA 3", "DELAY 0" to "DELAY 4"
   SYNTH_STRATEGY: ""
   SYNTH_ABC_BUFFERING: ""
+  # Size of the die, in microns (width and height). Empty: LibreLane sizes the
+  # die itself, from the core utilization and the aspect ratio below. Set: the
+  # die has that size whatever the design ("FP_SIZING: absolute"), and the
+  # utilization and aspect ratio no longer apply. A die too small for the design
+  # fails at placement. For a size that depends on the design, declare it in a
+  # constraint file of the architecture instead (a JSON or YAML file of
+  # LibreLane variables, such as {"FP_SIZING": "absolute", "DIE_AREA":
+  # [0, 0, 300, 200]}).
+  die_width: ""
+  die_height: ""
+  # When the die is LibreLane's to size, a design with many IO pins for few
+  # cells can get a die whose perimeter cannot hold its pins (the IO placement
+  # fails with PPL-0024). Odatix then runs the flow again on a die of the
+  # perimeter OpenROAD asks for, plus die_fit_io_margin percent (twice, three
+  # times that if it still fails), with the aspect ratio below. A die whose size
+  # is fixed is never enlarged.
+  die_fit_io: true
+  die_fit_io_margin: 10
   # Floorplan: core utilization (%) and aspect ratio (height / width)
   FP_CORE_UTIL: ""
   FP_ASPECT_RATIO: ""
