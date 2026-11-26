@@ -398,7 +398,8 @@ def update_cards(_, odatix_settings):
 def check_tool_installed(name, odatix_settings):
     """
     Whether a tool can be launched here: its "tool_test_command" (with the
-    install path of its target file) runs and succeeds. One callback per card,
+    install path of its target file) runs and succeeds, else why not (not
+    installed, no license, another failure). One callback per card,
     so a slow tool does not hold the others; a check that passed a moment ago
     is not run again (see check_tool.probe).
     """
@@ -406,14 +407,18 @@ def check_tool_installed(name, odatix_settings):
         install_path = str(get_workspace(odatix_settings).targets[name].tool_install_path or "")
     except Exception:
         install_path = ""
-    installed, reason = check_tool.probe(eda_tools.tool_test_command(name, install_path))
+    status, reason = check_tool.probe_status(eda_tools.tool_test_command(name, install_path))
     # Where it runs, when that is WSL: said on the badge itself
     where = " " + wsl.location(True) if wsl.runs_in_wsl(name) else ""
-    if installed is None:
+    if status is None:
         return "not checked", "odx-badge", reason
-    if installed:
+    if status == check_tool.INSTALLED:
         return "installed" + where, "odx-badge success", "The tool starts" + where + ": its tool_test_command passed"
-    return "not installed" + where, "odx-badge caution", "Could not launch it" + where + ": " + reason
+    if status == check_tool.NO_LICENSE:
+        return "no license" + where, "odx-badge warning", "The tool is installed" + where + " but gets no license: " + reason
+    if status == check_tool.NOT_INSTALLED:
+        return "not installed" + where, "odx-badge caution", "Not found" + where + ": " + reason
+    return "launch failed" + where, "odx-badge caution", "Could not launch it" + where + ": " + reason
 
 
 @page_callback(PAGE_SCOPE,

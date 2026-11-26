@@ -373,11 +373,12 @@ def tool_install_path(tool, odatix_settings):
 def installed_state(tool, odatix_settings):
     """
     Whether a tool can be launched here, by its "tool_test_command", the check
-    a run makes: (True | False | None, reason). None when it says nothing (no
-    test command, or a tool still starting after a long while).
+    a run makes: (check_tool.INSTALLED | NOT_INSTALLED | NO_LICENSE | FAILED |
+    None, reason). None when it says nothing (no test command, or a tool still
+    starting after a long while).
     """
     command = eda_tools.tool_test_command(tool, tool_install_path(tool, odatix_settings))
-    return check_tool.probe(command)
+    return check_tool.probe_status(command)
 
 
 ######################################
@@ -413,12 +414,17 @@ def check_installed(tool, odatix_settings):
     nothing: the page is about choosing, not about installations. One callback
     per card, so a slow tool does not hold the others.
     """
-    installed, reason = installed_state(tool, odatix_settings)
-    if installed is False:
+    status, reason = installed_state(tool, odatix_settings)
+    if status not in (check_tool.INSTALLED, None):
+        label = eda_tools.get_tool_label(tool)
+        badge, color, title = {
+            check_tool.NO_LICENSE: ("no license", "warning", f"{label} is installed but gets no license: {reason}"),
+            check_tool.NOT_INSTALLED: ("not installed", "caution", f"{label} was not found: {reason}"),
+        }.get(status, ("launch failed", "caution", f"{label} could not be launched: {reason}"))
         return (
-            "not installed",
-            "odx-tool-installed odx-badge caution",
-            f"{eda_tools.get_tool_label(tool)} could not be launched: {reason}",
+            badge,
+            "odx-tool-installed odx-badge " + color,
+            title,
             "odx-tool-card-wrap unavailable",
         )
     return "", "odx-tool-installed", "", "odx-tool-card-wrap"

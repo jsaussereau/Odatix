@@ -31,6 +31,70 @@ from odatix.lib.utils import *
 
 script_name = os.path.basename(__file__)
 
+
+######################################
+# Why a check failed
+######################################
+
+#: What a test command says about a tool: it starts, it is not there, it starts
+#: but gets no license, or it fails for another reason.
+INSTALLED = "installed"
+NOT_INSTALLED = "not_installed"
+NO_LICENSE = "no_license"
+FAILED = "failed"
+
+# A line about licenses that also says something went wrong. Both are needed:
+# the banner of a tool speaks of licenses too ("a written license agreement",
+# "Licensed Products") without anything being wrong.
+_LICENSE_WORD = re.compile(r"licen[cs](e|ing)|flex(lm|net)|lmgrd|snpslmd", re.IGNORECASE)
+_FAILURE_WORD = re.compile(
+  r"\b(unable|cannot|can't|can not|could not|couldn't|failed|failure|not available|unavailable|"
+  r"denied|expired|not found|no such feature|must exist|invalid|not valid|error|fatal|refused|"
+  r"down|not responding|exceeded|reached)\b",
+  re.IGNORECASE,
+)
+# Synopsys says "Design Compiler is not enabled. (DCSH-1)" without the word
+_NOT_ENABLED = re.compile(r"\b(is|are) not enabled\b", re.IGNORECASE)
+# The shell found no such program (127 on posix and in WSL, 9009 in cmd.exe)
+_NOT_FOUND_CODES = (127, 9009)
+_NOT_FOUND = re.compile(
+  r"command not found|no such file or directory|is not recognized as an internal or external command",
+  re.IGNORECASE,
+)
+
+
+def _lines(text):
+  # A tool of Windows ends its lines with "\r\n"
+  return [line.strip() for line in (text or "").replace("\r\n", "\n").splitlines() if line.strip()]
+
+
+def _cap(line):
+  return line[:300] + "…" if len(line) > 300 else line
+
+
+def classify_failure(returncode, stderr, stdout=""):
+  """
+  Why a test command failed, from its exit code and what it wrote:
+  (NOT_INSTALLED | NO_LICENSE | FAILED, the line saying so).
+
+  A license failure is looked for on both outputs: Synopsys tools write it on
+  stdout, with nothing on stderr. Otherwise the reason is the last line of
+  stderr, else of stdout, else the exit code.
+  """
+  err_lines, out_lines = _lines(stderr), _lines(stdout)
+  for line in err_lines + out_lines:
+    if _NOT_ENABLED.search(line) or (_LICENSE_WORD.search(line) and _FAILURE_WORD.search(line)):
+      return NO_LICENSE, _cap(line)
+  last = err_lines or out_lines
+  reason = _cap(last[-1]) if last else "exit code {0}".format(returncode)
+  if returncode in _NOT_FOUND_CODES:
+    return NOT_INSTALLED, reason
+  for line in err_lines + out_lines:
+    if _NOT_FOUND.search(line):
+      return NOT_INSTALLED, _cap(line)
+  return FAILED, reason
+
+
 class ToolCheck:
   """
   An eda tool check that runs in the background.
@@ -73,6 +137,9 @@ class ToolCheck:
     # while it runs, and a tool writing more than the pipe buffer would block
     # there until the end of the check (and never finish).
     self.stderr_file = None
+    self.stdout_file = None
+    #: (NOT_INSTALLED | NO_LICENSE | FAILED, reason) once the check failed
+    self._failure = None
     if not debug and recently_passed(command):
       # Passed a moment ago in this process (the GUI checks every tool it
       # lists): launching the tool again would only make the user wait.
@@ -84,9 +151,11 @@ class ToolCheck:
 
   def _start(self):
     self.stderr_file = tempfile.TemporaryFile()
+    # stdout is kept too: some tools (Synopsys) say there that they got no license
+    self.stdout_file = tempfile.TemporaryFile()
     return subprocess.Popen(
       self.command,
-      stdout=subprocess.DEVNULL,
+      stdout=self.stdout_file,
       stderr=self.stderr_file,
       shell=True,
     )
@@ -105,27 +174,47 @@ class ToolCheck:
       if self.process is None:
         self.process = self._start()
       self.process.wait()
-      error_message = ""
-      if self.stderr_file is not None:
-        self.stderr_file.seek(0)
-        # A tool of Windows ends its lines with "\r\n"
-        error_message = self.stderr_file.read().decode("utf-8", errors="replace").replace("\r\n", "\n")
-        self.stderr_file.close()
-        self.stderr_file = None
-      self._result = (self.process.returncode == 0, error_message.strip())
-      if self._result[0]:
+      # A tool of Windows ends its lines with "\r\n"
+      error_message = self._read_output("stderr_file").replace("\r\n", "\n").strip()
+      output = self._read_output("stdout_file")
+      ok = self.process.returncode == 0
+      if ok:
         remember_passed(self.command)
+      else:
+        self._failure = classify_failure(self.process.returncode, error_message, output)
+        # The line saying there is no license, or what explains the failure
+        # when the tool wrote nothing on stderr
+        if self._failure[0] == NO_LICENSE or not error_message:
+          error_message = self._failure[1]
+      self._result = (ok, error_message)
     return self._result
+
+  def _read_output(self, attribute):
+    stream = getattr(self, attribute)
+    if stream is None:
+      return ""
+    stream.seek(0)
+    text = stream.read().decode("utf-8", errors="replace")
+    stream.close()
+    setattr(self, attribute, None)
+    return text
+
+  def failure(self):
+    """(NOT_INSTALLED | NO_LICENSE | FAILED, reason) of a failed check, else None."""
+    self.result()
+    return self._failure
 
   def failure_message(self):
     """One-line reason of a failed check, ready to be shown to the user."""
     _ok, error_message = self.result()
+    failure = self._failure
+    if failure is not None and failure[0] == NO_LICENSE:
+      return 'Could not launch eda tool "' + self.tool + '", it got no license: ' + failure[1]
     message = 'Could not launch eda tool "' + self.tool + '"'
     if error_message:
       # A tool can be very verbose on stderr: keep the last line, capped, so the
       # popup shows a reason and not a wall of output.
-      last_line = error_message.splitlines()[-1].strip()
-      message += ": " + (last_line[:300] + "…" if len(last_line) > 300 else last_line)
+      message += ": " + _cap(error_message.splitlines()[-1].strip())
     return message
 
   def cancel(self):
@@ -140,9 +229,10 @@ class ToolCheck:
         self.process.wait()
       except OSError:
         pass
-    if self.stderr_file is not None:
-      self.stderr_file.close()
-      self.stderr_file = None
+    for attribute in ("stderr_file", "stdout_file"):
+      if getattr(self, attribute) is not None:
+        getattr(self, attribute).close()
+        setattr(self, attribute, None)
 
   def wait(self):
     if self.done:
@@ -176,7 +266,11 @@ class ToolCheck:
 
     if announced:
       printc.red(" failed!")
-    _print_check_failure(self.tool, self.supported_tools, error_message, self.debug, self.script_name)
+    failure = self._failure
+    _print_check_failure(
+      self.tool, self.supported_tools, error_message, self.debug, self.script_name,
+      kind=failure[0] if failure else None,
+    )
 
 
 def start_tool_check(tool, command, supported_tools, tool_install_path, debug=False, script_name=script_name):
@@ -187,14 +281,25 @@ def start_tool_check(tool, command, supported_tools, tool_install_path, debug=Fa
   return ToolCheck(tool, command, supported_tools, tool_install_path, debug=debug, script_name=script_name)
 
 
-def _print_check_failure(tool, supported_tools, error_message, debug, script_name=script_name):
-  printc.error('Could not launch eda tool "' + tool + '"', script_name)
+def _print_check_failure(tool, supported_tools, error_message, debug, script_name=script_name, kind=None):
+  if kind == NO_LICENSE:
+    printc.error('Could not launch eda tool "' + tool + '": it starts but gets no license', script_name)
+  else:
+    printc.error('Could not launch eda tool "' + tool + '"', script_name)
   if error_message:
     printc.cyan("error details: ", script_name, end="")
     # The message of the tool ends the line: what follows starts on its own.
     printc.red(error_message)
   if not debug:
     printc.note("Use '-D' option for more details", script_name)
+  if kind == NO_LICENSE:
+    # Installed and found: the PATH hints below would send the user astray
+    printc.note(
+      "Check that the license server is reachable and that the license variable of the tool "
+      "(SNPSLMD_LICENSE_FILE, LM_LICENSE_FILE, ...) is set where Odatix runs",
+      script_name,
+    )
+    sys.exit(-1)
   # A tool whose check explains itself (a "note:" of its own, such as Quartus
   # naming the directory it needs) knows better than the generic hint, which
   # would then only repeat it, less precisely.
@@ -300,12 +405,23 @@ _probe_locks_guard = threading.Lock()
 def probe(command, timeout=90):
   """
   Launch a test command and say whether the tool starts, without printing
-  anything: (True, "") or (False, the last line the tool wrote on stderr).
-  For the pages listing the tools; a run checks with ToolCheck.
+  anything: (True, "") or (False, why: see classify_failure). For the pages
+  listing the tools; a run checks with ToolCheck. probe_status tells why a
+  tool does not start.
 
   A check that passed recently is not launched again, nor one that failed a
   moment ago. A tool still starting after `timeout` seconds is stopped, with
   all it spawned, and reported as (None, reason): nothing is known about it.
+  """
+  status, reason = probe_status(command, timeout)
+  return (None if status is None else status == INSTALLED), reason
+
+
+def probe_status(command, timeout=90):
+  """
+  Like probe, with the status of the tool instead of a boolean: (INSTALLED,
+  "") or (NOT_INSTALLED | NO_LICENSE | FAILED, reason), (None, reason) when
+  nothing is known.
   """
   if not command:
     return None, "the tool declares no tool_test_command"
@@ -313,26 +429,28 @@ def probe(command, timeout=90):
     lock = _probe_locks.setdefault(command, threading.Lock())
   with lock:
     if recently_passed(command):
-      return True, ""
+      return INSTALLED, ""
     failed = _failed_probes.get(command)
     if failed is not None and time.time() - failed[0] < FAILED_PROBE_TTL:
-      return False, failed[1]
-    ok, reason = _run_probe(command, timeout)
-    if ok is False:
-      _failed_probes[command] = (time.time(), reason)
+      return failed[1], failed[2]
+    status, reason = _run_probe(command, timeout)
+    if status not in (INSTALLED, None):
+      _failed_probes[command] = (time.time(), status, reason)
     else:
       _failed_probes.pop(command, None)
-    return ok, reason
+    return status, reason
 
 
 def _run_probe(command, timeout):
   stderr_file = tempfile.TemporaryFile()
+  # stdout is kept too: some tools (Synopsys) say there that they got no license
+  stdout_file = tempfile.TemporaryFile()
   try:
     kwargs = {"start_new_session": True} if os.name == "posix" else {}
     process = subprocess.Popen(
       command,
       stdin=subprocess.DEVNULL,
-      stdout=subprocess.DEVNULL,
+      stdout=stdout_file,
       stderr=stderr_file,
       shell=True,
       **kwargs
@@ -351,11 +469,13 @@ def _run_probe(command, timeout):
       process.wait()
       return None, "still starting after {0} s".format(timeout)
     stderr_file.seek(0)
-    lines = [line.strip() for line in stderr_file.read().decode("utf-8", errors="replace").splitlines() if line.strip()]
+    stdout_file.seek(0)
+    stderr = stderr_file.read().decode("utf-8", errors="replace")
+    stdout = stdout_file.read().decode("utf-8", errors="replace")
   finally:
     stderr_file.close()
+    stdout_file.close()
   if process.returncode == 0:
     remember_passed(command)
-    return True, ""
-  reason = lines[-1] if lines else "exit code {0}".format(process.returncode)
-  return False, (reason[:300] + "…" if len(reason) > 300 else reason)
+    return INSTALLED, ""
+  return classify_failure(process.returncode, stderr, stdout)

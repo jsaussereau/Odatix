@@ -77,3 +77,47 @@ def test_passed_check_is_cached():
     ok, reason = check_tool.probe(failing)
     assert ok is False and reason == "boom"
     check_tool.forget_passed_checks()
+
+
+# What Synopsys tools print on stdout when they start: the banner speaks of
+# licenses without anything being wrong.
+SYNOPSYS_BANNER = """
+  This software and the associated documentation are proprietary to Synopsys,
+ of a written license agreement with Synopsys, Inc. All other use, reproduction,
+   or distribution of this software is strictly prohibited.  Licensed Products
+    Licensed Products in conformity with the applicable License Key for such
+"""
+
+
+@pytest.mark.parametrize("returncode, stderr, stdout, expected", [
+    # Design Compiler without license: on stdout, nothing on stderr
+    (255, "", SYNOPSYS_BANNER + "Fatal: Design Compiler is not enabled. (DCSH-1)\n",
+     (check_tool.NO_LICENSE, "Fatal: Design Compiler is not enabled. (DCSH-1)")),
+    # IC Compiler II / Fusion Compiler: not on the last line
+    (1, "", SYNOPSYS_BANNER + "Unable to get shell start-up license keys. Cannot invoke shell.\n"
+     "Thank you for using IC Compiler II.\n",
+     (check_tool.NO_LICENSE, "Unable to get shell start-up license keys. Cannot invoke shell.")),
+    (1, "ERROR: [Common 17-345] A valid license was not found for feature 'Synthesis'\n", "",
+     (check_tool.NO_LICENSE, "ERROR: [Common 17-345] A valid license was not found for feature 'Synthesis'")),
+    (127, "sh: line 1: dc_shell: command not found\n", "",
+     (check_tool.NOT_INSTALLED, "sh: line 1: dc_shell: command not found")),
+    (1, "'vivado' is not recognized as an internal or external command,\n", "",
+     (check_tool.NOT_INSTALLED, "'vivado' is not recognized as an internal or external command,")),
+    # The banner alone is no license failure
+    (2, "", SYNOPSYS_BANNER + "Error: unknown option '-y'\n",
+     (check_tool.FAILED, "Error: unknown option '-y'")),
+    (3, "", "", (check_tool.FAILED, "exit code 3")),
+])
+def test_failed_check_says_why(returncode, stderr, stdout, expected):
+    assert check_tool.classify_failure(returncode, stderr, stdout) == expected
+
+
+def test_probe_and_tool_check_see_a_license_failure_on_stdout():
+    command = '"{}" -c "print(\'Fatal: Design Compiler is not enabled. (DCSH-1)\'); raise SystemExit(255)"'.format(sys.executable)
+    check_tool.forget_passed_checks()
+    assert check_tool.probe_status(command) == (check_tool.NO_LICENSE, "Fatal: Design Compiler is not enabled. (DCSH-1)")
+    assert check_tool.probe(command)[0] is False
+    check = check_tool.ToolCheck("design_compiler", command, [], "")
+    assert check.failure()[0] == check_tool.NO_LICENSE
+    assert "no license" in check.failure_message()
+    check_tool.forget_passed_checks()
