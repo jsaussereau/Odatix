@@ -239,7 +239,7 @@ proc odatix_dc_compile {signature} {
     }
 
     puts "$signature <cyan>strategy: $compile_command $options<end>"
-    if {[catch {$compile_command {*}$options} errmsg]} {
+    if {[catch {eval [list $compile_command] $options} errmsg]} {
         puts "$signature <bold><red>error: $compile_command failed<end>"
         puts "$signature tool says -> $errmsg"
         if {$continue_on_error == 1} {
@@ -252,12 +252,12 @@ proc odatix_dc_compile {signature} {
     if {[odatix_flow_param incremental 0]} {
         set incremental_options [odatix_flow_param incremental_options [list]]
         if {$compile_command eq "compile_ultra"} {
-            set incremental [list compile_ultra -incremental {*}$incremental_options]
+            set incremental [concat [list compile_ultra -incremental] $incremental_options]
         } else {
-            set incremental [list compile -incremental_mapping {*}$incremental_options]
+            set incremental [concat [list compile -incremental_mapping] $incremental_options]
         }
         puts "$signature <cyan>incremental pass: $incremental<end>"
-        if {[catch {{*}$incremental} errmsg]} {
+        if {[catch {eval $incremental} errmsg]} {
             puts "$signature <bold><yellow>warning: incremental pass failed, keeping the first one<end>"
             puts "$signature tool says -> $errmsg"
         }
@@ -294,7 +294,10 @@ proc odatix_dc_write_cell_counts {path} {
 
     set width [string length "Hierarchical cell"]
     foreach row $rows {
-        set width [expr {max($width, [string length [lindex $row 0]])}]
+        set name_length [string length [lindex $row 0]]
+        if {$name_length > $width} {
+            set width $name_length
+        }
     }
     set line [format "%-${width}s  %10s  %7s  %10s  %s" [string repeat - $width] ---------- ------- ---------- ------]
     set file [open $path w]

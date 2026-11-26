@@ -20,6 +20,148 @@
 #
 
 ######################################
+# Tcl 8.4 compatibility
+######################################
+
+# Some EDA tools still embed Tcl 8.4 (Design Compiler up to 2013 releases),
+# which has neither "dict" nor "lassign". The subset the scripts use is defined
+# here, on key/value lists, only when the interpreter does not provide it: a
+# recent tool keeps its own implementation. The "{*}" expansion syntax and the
+# max()/min() functions of expr cannot be emulated: scripts sourced by such
+# tools must not use them.
+
+if {[llength [info commands dict]] == 0} {
+    proc odatix_dict_find {dictionary key} {
+        set index 0
+        foreach {k v} $dictionary {
+            if {$k eq $key} {
+                return $index
+            }
+            incr index 2
+        }
+        return -1
+    }
+
+    proc odatix_dict_put {dictionary key value} {
+        set index [odatix_dict_find $dictionary $key]
+        if {$index < 0} {
+            lappend dictionary $key $value
+        } else {
+            lset dictionary [expr {$index + 1}] $value
+        }
+        return $dictionary
+    }
+
+    proc dict {subcommand args} {
+        switch -- $subcommand {
+            create {
+                if {[llength $args] % 2} {
+                    error "wrong # args: should be \"dict create ?key value ...?\""
+                }
+                set result [list]
+                foreach {key value} $args {
+                    set result [odatix_dict_put $result $key $value]
+                }
+                return $result
+            }
+            get {
+                set value [lindex $args 0]
+                foreach key [lrange $args 1 end] {
+                    set index [odatix_dict_find $value $key]
+                    if {$index < 0} {
+                        error "key \"$key\" not known in dictionary"
+                    }
+                    set value [lindex $value [expr {$index + 1}]]
+                }
+                return $value
+            }
+            exists {
+                set value [lindex $args 0]
+                foreach key [lrange $args 1 end] {
+                    if {[llength $value] % 2} {
+                        return 0
+                    }
+                    set index [odatix_dict_find $value $key]
+                    if {$index < 0} {
+                        return 0
+                    }
+                    set value [lindex $value [expr {$index + 1}]]
+                }
+                return 1
+            }
+            set {
+                if {[llength $args] != 3} {
+                    error "dict set: only one key is supported with Tcl [info tclversion]"
+                }
+                upvar 1 [lindex $args 0] dictionary
+                if {![info exists dictionary]} {
+                    set dictionary [list]
+                }
+                set dictionary [odatix_dict_put $dictionary [lindex $args 1] [lindex $args 2]]
+                return $dictionary
+            }
+            lappend {
+                upvar 1 [lindex $args 0] dictionary
+                if {![info exists dictionary]} {
+                    set dictionary [list]
+                }
+                set key [lindex $args 1]
+                set index [odatix_dict_find $dictionary $key]
+                if {$index < 0} {
+                    set values [list]
+                } else {
+                    set values [lindex $dictionary [expr {$index + 1}]]
+                }
+                foreach value [lrange $args 2 end] {
+                    lappend values $value
+                }
+                set dictionary [odatix_dict_put $dictionary $key $values]
+                return $dictionary
+            }
+            keys {
+                set keys [list]
+                foreach {key value} [lindex $args 0] {
+                    lappend keys $key
+                }
+                return $keys
+            }
+            size {
+                return [expr {[llength [lindex $args 0]] / 2}]
+            }
+            for {
+                foreach {names dictionary body} $args break
+                foreach {key value} $dictionary {
+                    uplevel 1 [list set [lindex $names 0] $key]
+                    uplevel 1 [list set [lindex $names 1] $value]
+                    set code [catch {uplevel 1 $body} message]
+                    switch -- $code {
+                        0 {}
+                        3 { break }
+                        4 { continue }
+                        default { return -code $code $message }
+                    }
+                }
+                return
+            }
+            default {
+                error "dict $subcommand is not available with Tcl [info tclversion]"
+            }
+        }
+    }
+}
+
+if {[llength [info commands lassign]] == 0} {
+    proc lassign {values args} {
+        set index 0
+        foreach name $args {
+            uplevel 1 [list set $name [lindex $values $index]]
+            incr index
+        }
+        return [lrange $values $index end]
+    }
+}
+
+######################################
 # Settings
 ######################################
 

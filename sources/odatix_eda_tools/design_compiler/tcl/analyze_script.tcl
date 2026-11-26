@@ -86,7 +86,7 @@ if {[catch {
         }
         foreach batch $batches {
             lassign $batch format files
-            if {[catch {analyze -library $lib_name -f $format {*}$define_option $files} result] || !$result} {
+            if {[catch {eval [list analyze -library $lib_name -f $format] $define_option [list $files]} result] || !$result} {
                 puts "$signature <bold><red>error: failed reading the $format files of the file list<end>"
                 set read_error 1
             }
@@ -110,7 +110,7 @@ if {[catch {
             foreach file $filenames {
                 puts "  <cyan>- $file<end>"
             }
-            if {[catch {analyze -library $lib_name -f $format {*}$define_option $filenames} result] || !$result} {
+            if {[catch {eval [list analyze -library $lib_name -f $format] $define_option [list $filenames]} result] || !$result} {
                 puts "$signature <bold><red>error: failed reading $label source files<end>"
                 set read_error 1
             }
