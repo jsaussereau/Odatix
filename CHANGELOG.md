@@ -3,13 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## [4.1.0] - Unreleased
+## [4.1.0] - 2026-11-27
 
 ### Added
 
 #### Tools
 
 - **Fusion Compiler** (`fusion_compiler`, contributed by Mathias Michelotti): fmax search, synthesis and RTL analysis, on a GlobalFoundries 22FDX+ setup to adapt to your installation. As with Vivado, a job stops after synthesis (logical) or goes on to place and route (`--until pnr`), whatever its flow, and the reports of each step are kept apart. Flows `standard`, `high_effort`, `keep_hierarchy`, `timing`, `area` and `power` are synthesis and place and route strategies
+- LibreLane: a die too small for the IO pins of the design (the IO placement failing with `PPL-0024`) is enlarged to the perimeter OpenROAD asks for, plus a margin, when its size is LibreLane's to choose. Parameters `die_fit_io` and `die_fit_io_margin`
 
 #### Running jobs
 
@@ -23,8 +24,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 #### Existing projects
 
 - `odatix init --detect [PATH]` describes an existing HDL project as an architecture: sources in compilation order, include directories, macros, top level, clock, reset and parameters, read from its file lists, Bender, FuseSoC, LibreLane, Vivado, Quartus, cocotb makefiles or synthesis scripts, or inferred from the RTL; then checked by elaborating it with slang, Verilator, Yosys or GHDL, fixing missing modules, packages and include directories, and choosing among the variants of a configuration package. `--dry-run`, `--json`, `--top`, `--name`, `--parameters [NAMES]`, `--no-check`. A group of parameters (`--parameters "fifo=WIDTH+DEPTH"`, or parameters dragged onto the same domain in the GUI) shares one parameter domain, replacing the lines from the first to the last. In the GUI, the values each parameter takes are typed next to it: `8, 16, 32`, `8..64 step 8` or `8..64 pow2` (`workspace.detect.values_variable`)
-- Generated RTL (Chisel, SpinalHDL, Amaranth, Migen/LiteX, Vitis HLS): `odatix init --detect` runs the generator in a temporary copy of the project, as a job would, finds the output directory from the files it writes, and describes the generated RTL as an architecture with `generate_rtl`. `--generate [COMMAND]`, `--no-generate`
-- The architectures page of the GUI imports an existing project ("Import existing project"): detection report with the origin of each finding, top, clock and reset to choose, generation of the RTL with an editable command, then the architecture editor
+- Generated RTL (Chisel, SpinalHDL, Amaranth, Migen/LiteX, Vitis HLS): `odatix init --detect` runs the generator in a temporary copy of the project, as a job would, finds the output directory from the files it writes, and describes the generated RTL as an architecture with `generate_rtl`. `--generate [COMMAND]`, `--no-generate`. Each Scala main object is tied to the module it elaborates (`desiredName` included): the command proposed is the one generating the top level, and the top level after generation is the module the command elaborates. The parameters of a generated design are those of its sources: plain-valued arguments of the top level class, where they are written (the main object, one of its values, the defaults of the class or of a configuration case class), set by parameter domains on the Scala files
+- The architectures page of the GUI imports an existing project ("Create architecture automatically"): detection report with the origin of each finding, top, clock and reset to choose, generation of the RTL with an editable command, then the architecture editor
 
 #### AI agents
 
@@ -36,12 +37,15 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 #### Odatix GUI
 
-- **Access token**: `odatix-gui` and `odatix-explorer` only answer the browser opened with the address they print (`?token=...`, traded for a cookie), and only under a name of the machine. Listening on 127.0.0.1 did not keep out the other users of a shared server, nor web pages reaching a loopback port. `ODATIX_GUI_TOKEN` sets the token, `ODATIX_GUI_ALLOWED_HOSTS` adds names
+- **Access token**: `odatix-gui` and `odatix-explorer` only answer the browser opened with the address they print (`?token=...`, traded for a cookie), and only under a name of the machine. Listening on 127.0.0.1 did not keep out the other users of a shared server, nor web pages reaching a loopback port. `ODATIX_GUI_TOKEN` sets the token, `ODATIX_GUI_ALLOWED_HOSTS` adds names, `--unsafe-no-token` turns the token off
+- The tool cards tell a tool that is not installed from one that starts but gets no license (Synopsys tools on a license server), or fails for another reason; so does the check of a run
 - The file browser of path fields still opens on the workspace, but goes anywhere from there; `gui_browse_roots` (**Browsable folders** on the workspace settings page) limits it to some folders (`.`: the workspace only). A path out of the workspace is written absolute
-- Browse buttons on the path fields that had none: project directory of **Import an existing project**, paths and settings files of the workspace settings page, source path and parameter target file of the workflow editor
+- Browse buttons on the path fields that had none: project directory of **Create an architecture automatically**, paths and settings files of the workspace settings page, source path and parameter target file of the workflow editor
 
 ### Fixed
 
+- Design Compiler: the scripts run again with releases embedding Tcl 8.4 (up to 2013), which have neither `dict`, `lassign`, the `{*}` syntax nor the `max()` function of `expr`. `dict` and `lassign` are provided on key/value lists when the interpreter has none
+- A design without reset can be described: `reset_signal` may be left empty. It was refused, and any other name had to occur in the top level. Design Compiler then constrains the clock alone (a reset set to the clock, as a workaround, put a 0.5 ns max transition on the whole clock domain)
 - Innovus: clock tree synthesis no longer stops on a netlist instantiating a module several times (`IMPCCOPT-4255`): the netlist is made unique when it is read
 - A repository holding links to nothing (files only its build writes) can be the RTL path of a design: the copy left them out instead of stopping
 - The RTL analysis of a design with a file list only looks at the languages of the files it names
