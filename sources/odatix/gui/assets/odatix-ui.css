@@ -1783,6 +1783,10 @@
    grow past it. */
 .odx-tool-card-wrap {
     position: relative;
+    /* The wrap is the stacking context of its card and gear: the card rises to
+       z-index 20 when hovered (style.css), which would cover a gear outside it.
+       The whole wrap rises instead, the gear staying above its card. */
+    z-index: 1;
     display: flex;
     min-width: 0;
     flex: 0 1 calc(
@@ -1790,6 +1794,10 @@
         + 6px * (var(--odx-tool-cols, 1) - 1)
         + 2 * var(--space-4)
     );
+}
+.odx-tool-card-wrap:hover,
+.odx-tool-card-wrap:focus-within {
+    z-index: 20;
 }
 .odx-tool-card-wrap > .odx-tool-card {
     flex: 1;
@@ -1799,8 +1807,8 @@
     position: absolute;
     top: var(--space-2);
     right: var(--space-2);
-    /* Above the card, which is itself raised (z-index: 1 in style.css). */
-    z-index: 2;
+    /* Above the card, even hovered (z-index: 20 in style.css). */
+    z-index: 21;
     display: flex;
     align-items: center;
     justify-content: center;
