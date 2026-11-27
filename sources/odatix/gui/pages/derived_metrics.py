@@ -733,6 +733,10 @@ def metric_card(
                         ),
                     ),
                     card_field(
+                        name, "unit", "Unit", value=unit_value, placeholder="us",
+                        tooltip="Optional unit recorded with the metric.",
+                    ),
+                    card_field(
                         name, "pin", "Pin", value=pin_value, default_style=import_style,
                         placeholder="domain: value",
                         tooltip=(
@@ -748,10 +752,6 @@ def metric_card(
                                 value=apply_to_value if apply_to_value is not None else ["synthesis"],
                                 multi=True, placeholder="synthesis",
                                 tooltip="Which kinds of result get this metric (default: synthesis).",
-                            ),
-                            card_field(
-                                name, "unit", "Unit", value=unit_value, placeholder="us",
-                                tooltip="Optional unit recorded with the metric.",
                             ),
                             card_field(
                                 name, "ignore", "Ignore Domains", value=ignore_value, default_style=import_style,
